@@ -1,41 +1,63 @@
 # @sffmc/log-whitelist
 
-Filters verbose tool output and chat text to keep only lines matching a configurable whitelist. Reduces token noise by 5-15%.
+Agent log filter — keeps only whitelist-matching lines in tool output and chat text (W2).
 
-## Why
+## What it does
 
-Per MiMo-Code PR #604: OpenCode's tool output is verbose (DEBUG/INFO noise, deprecation warnings, stack traces for normal operations). When piped to the LLM as context, this noise:
-- Wastes tokens on irrelevant log lines
-- Confuses the agent into fixing non-issues (deprecation warnings)
-- Causes 12GB+ log files in 30 days from permission-log spam
-
-## How
-
-Hooks into `tool.execute.after` (for bash/webfetch/etc output) and `experimental.text.complete` (for chat text):
-1. Splits output into lines
-2. Keeps lines matching any whitelist regex
-3. Drops lines matching any blacklist regex (overrides whitelist)
-4. Caps output at `max_kept_lines` with a truncation marker
-
-**Default whitelist** keeps lines containing: error, warn, fail, exception, stack, exit code, permission denied, ENOENT, EACCES, command not found.
-
-**Default blacklist** drops: deprecation warnings.
+Filters verbose tool output and chat text to keep only lines matching a configurable whitelist of regex patterns. Blacklist patterns override the whitelist. Output is capped at `max_kept_lines` and truncated with a marker. Reduces token noise by 5–15% in chatty tool outputs (build logs, test runners, etc.). Runs *after* `eos-stripper` in the `experimental.text.complete` chain.
 
 ## Install
 
+This plugin is loaded by the SFFMC monorepo's sandbox config. To use standalone:
+
+```ts
+// ~/.config/opencode-sandbox/opencode.json
+{
+  "plugin": [
+    "file:///data/projects/SFFMC/packages/log-whitelist/src/index.ts"
+  ]
+}
+```
+
+## Configuration
+
+Edit `~/.config/SFFMC/log.yaml`:
+
+```yaml
+whitelist:                       # keep lines matching any of these
+  - '(?i)error'
+  - '(?i)warn'
+  - '(?i)fail'
+  - '(?i)exception'
+  - '(?i)stack'
+  - '(?i)exit code'
+  - '(?i)permission denied'
+  - '(?i)enoent'
+  - '(?i)eacces'
+  - '(?i)command not found'
+blacklist:                       # drop lines matching these (overrides whitelist)
+  - '(?i)deprecat'               # deprecation warnings are noise
+max_kept_lines: 50               # cap kept output
+truncate_marker: '... [N more lines]'  # shown when truncated
+log_filtered_count: true
+```
+
+## Hooks registered
+
+| Hook | Purpose |
+|---|---|
+| `config` | Compile whitelist/blacklist regexes at startup |
+| `tool.execute.after` | Filter string output line-by-line; rewrite `result.output` if any line dropped |
+| `experimental.text.complete` | Filter chat text parts the same way (runs after `eos-stripper`) |
+
+## Tests
+
 ```bash
-cp packages/log-whitelist/config/log.example.yaml ~/.config/SFFMC/log.yaml
+bun test packages/log-whitelist/
 ```
 
-Add to your opencode.json `plugin` array:
-```json
-"file:///data/projects/SFFMC/packages/log-whitelist/src/index.ts"
-```
+14 tests in `src/index.test.ts`.
 
-## Token cost
+## License
 
-**-5% to -15%** (reduces noise, saves tokens). Pure filtering — no model calls.
-
-## Compatible with
-
-Any tool that produces verbose output: bash, webfetch, playwright, filesystem, commands, etc.
+MIT

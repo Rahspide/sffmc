@@ -1,32 +1,66 @@
-# Auto-Max Triggers
+# @sffmc/auto-max
 
-Auto-invokes F7 Max Mode when the F1 Watchdog detects a tool stuck in a failure loop.
+F1+F2 auto-call F7 — auto-escalates to Max Mode when a tool is stuck in a failure loop (W3).
 
-## How it works
+## What it does
 
-1. Monitors tool execution failures (same signals watchdog uses: error output strings, metadata error flags)
-2. When the same tool fails N consecutive times (configurable, default 3), auto-triggers Max Mode
-3. Max Mode generates parallel candidates to break the loop
-4. Cost cap: only 1 Max Mode invocation per session (configurable)
+Sits next to `@sffmc/watchdog` and counts consecutive failures per tool per session. When the count hits `watchdog_threshold` (default 3) and `auto-max` is enabled, the plugin marks the session, logs the trigger, and emits a system-prompt fragment announcing "AUTO-MAX TRIGGERED" with the failing tool and error type. Max Mode then takes over to break the loop. A per-session `cost_cap_per_session` (default 1) prevents runaway triggering.
 
-## Coordination with watchdog + max-mode
+## Install
 
-- **watchdog** (F1): Detects tool failures, promotes to detailed thinking
-- **auto-max** (this plugin): Detects the same failures, triggers Max Mode for parallel candidate generation
-- **max-mode** (F7): Generates N candidate solutions, judge picks the best
+This plugin is loaded by the SFFMC monorepo's sandbox config. To use standalone:
 
-Auto-max is the bridge: watchdog detects → auto-max decides "this is bad enough for Max Mode" → max-mode executes.
+```ts
+// ~/.config/opencode-sandbox/opencode.json
+{
+  "plugin": [
+    "file:///data/projects/SFFMC/packages/auto-max/src/index.ts"
+  ]
+}
+```
 
-Both watchdog and auto-max operate independently. Watchdog still promotes to detailed thinking. Auto-max adds Max Mode on top when threshold is hit.
+## Configuration
 
-## Cost cap rationale
+Edit `~/.config/SFFMC/auto-max.yaml`:
 
-Max Mode is expensive (~3-5× a single call). The cost cap (default: 1 per session) prevents runaway costs. If the agent is stuck on 3 different tools in one session, Max Mode fires once. After that, the agent must use normal reasoning or manual `/max`.
+```yaml
+# Auto-Max Triggers — plugin config
 
-## How to disable
+version: 1
 
-Set `enabled: false` in `~/.config/SFFMC/auto-max.yaml`. Or increase `watchdog_threshold` to a very high number.
+# Enable/disable the entire plugin
+enabled: true
 
-## Overhead
+# Number of consecutive same-tool failures before triggering Max Mode
+watchdog_threshold: 3
 
-~5% baseline overhead. Only fires when tool failure threshold is hit, not on every tool call.
+# Max Mode configuration passed through on trigger
+max_mode_config:
+  n: 3
+  judge_model: ocg/deepseek-v4-flash
+
+# Maximum Max Mode invocations per session (safety cap)
+# 1 = only fire once per session, even if stuck again
+cost_cap_per_session: 1
+```
+
+## Hooks registered
+
+| Hook | Purpose |
+|---|---|
+| `config` | Load config, log enabled/disabled banner with threshold + cap |
+| `event` | Reset per-session state on `session.created` |
+| `tool.execute.after` | Track success/failure per tool; on threshold, set `_autoMaxTrigger` on ctx and append to triggered log |
+| `experimental.chat.system.transform` | If a trigger is pending, push the AUTO-MAX TRIGGERED fragment (one-shot) |
+
+## Tests
+
+```bash
+bun test packages/auto-max/
+```
+
+20 tests in `src/index.test.ts`.
+
+## License
+
+MIT

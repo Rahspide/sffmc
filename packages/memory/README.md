@@ -1,58 +1,59 @@
-# F4' Memory — Persistent Agent Memory with Context Recon 8K
+# @sffmc/memory
 
-Gives your agent persistent memory across sessions. Indexes project docs (`memory-bank/*.md`, `AGENTS.md`, root `*.md`) into an FTS5 SQLite database and injects a structured 8K-token "Context Recon" block at the start of each session.
+F4' Memory — FTS5 full-text search + ICM extraction (W1).
+
+## What it does
+
+Gives your agent persistent memory across sessions. Indexes project docs (`memory-bank/*.md`, `AGENTS.md`, root `*.md`) into an FTS5 SQLite database and injects a structured "Context Recon" block at the start of each session. A chokidar watcher re-indexes changed files. The recon block is composed of top-importance memory rows, an `AGENTS.md` parse, and a tail of recent messages — all sized by the per-section budget.
 
 ## Install
 
-Copy the example config and edit as needed:
+This plugin is loaded by the SFFMC monorepo's sandbox config. To use standalone:
 
-```bash
-mkdir -p ~/.config/SFFMC
-cp config/memory.example.yaml ~/.config/SFFMC/memory.yaml
-```
-
-Then add to your OpenCode plugins:
-
-```json
+```ts
+// ~/.config/opencode-sandbox/opencode.json
 {
-  "plugins": [
-    {
-      "id": "@sffmc/memory",
-      "path": "/path/to/SFFMC/packages/memory/src/index.ts"
-    }
+  "plugin": [
+    "file:///data/projects/SFFMC/packages/memory/src/index.ts"
   ]
 }
 ```
 
-## How it works
+## Configuration
 
-| Hook | Purpose |
-|------|---------|
-| `config` | Initializes SQLite DB (WAL mode), starts file watcher |
-| `event` (`session.created`) | Flags that recon injection is needed |
-| `experimental.chat.messages.transform` | Injects Context Recon 8K as first system message (once per session) |
-
-## Token cost
-
-- **Per turn**: 0 tokens — injection fires once at session start
-- **Session start**: ~8K tokens (1.5K memory + 1.5K checkpoint + 1K task tree + 2K recent context + 2K AGENTS.md)
-
-## Config (`~/.config/SFFMC/memory.yaml`)
+Edit `~/.config/SFFMC/memory.yaml`:
 
 ```yaml
+# F4' Memory plugin config
 storage_path: ~/.local/share/SFFMC/memory/index.sqlite
 recon_budgets:
-  memory: 6144        # 1.5K tokens ≈ 6144 chars
-  checkpoint: 6144    # 1.5K tokens
-  task_tree: 4096     # 1K tokens
-  tail: 8192          # 2K tokens
-  agents: 8192        # 2K tokens
+  memory: 6144
+  checkpoint: 6144
+  task_tree: 4096
+  tail: 8192
+  agents: 8192
 memory_paths:
   - memory-bank/
   - AGENTS.md
   - "*.md"
 default_importance: 0.5
 ```
+
+## Hooks registered
+
+| Hook | Purpose |
+|---|---|
+| `config` | Initialize FTS5 DB and start chokidar watcher |
+| `event` | Mark `reconNeededThisSession` on `session.created` |
+| `experimental.chat.messages.transform` | Build Context Recon block, unshift as system message (once per session) |
+
+## Tests
+
+```bash
+bun test packages/memory/
+```
+
+19 tests in `src/index.test.ts`.
 
 ## License
 

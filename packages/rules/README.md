@@ -1,46 +1,75 @@
-# F2 Rules — Safety Net for Destructive Operations
+# @sffmc/rules
 
-Blocks or warns on dangerous tool calls. Define rules in a YAML file; the plugin evaluates every `tool.execute.before` and `permission.ask` event against your rules.
+F2 Rules — YAML gate-based allow/deny/ask for tool calls (W1).
+
+## What it does
+
+Blocks or warns on dangerous tool calls before they execute. Define rules in a YAML file; the plugin evaluates every `tool.execute.before` and `permission.ask` event against your rules and either denies (throws / sets status), allows silently, or asks (warns the user). A chokidar watcher hot-reloads the rules file on edit. If the YAML is unparseable, the plugin enters PANIC MODE and denies every call until you fix it.
 
 ## Install
 
-Copy the default rules and edit as needed:
+This plugin is loaded by the SFFMC monorepo's sandbox config. To use standalone:
 
-```bash
-mkdir -p ~/.config/SFFMC
-cp config/rules.default.yaml ~/.config/SFFMC/rules.yaml
-```
-
-Then add to your OpenCode plugins:
-
-```json
+```ts
+// ~/.config/opencode-sandbox/opencode.json
 {
-  "plugins": [
-    {
-      "id": "@sffmc/rules",
-      "path": "/path/to/SFFMC/packages/rules/src/index.ts"
-    }
+  "plugin": [
+    "file:///data/projects/SFFMC/packages/rules/src/index.ts"
   ]
 }
 ```
 
-## Default safety level
+## Configuration
 
-| Tool | Action |
-|------|--------|
-| `read`, `glob`, `grep`, `list` | allow |
-| `write`, `edit` (inside project root) | allow |
-| `write`, `edit` (outside project root) | deny |
-| `bash` with `rm -rf`, `chmod 777`, etc. | ask |
-| `bash` with `rm -rf /`, `chmod -R 777 /`, fork bombs | deny |
+Edit `~/.config/SFFMC/rules.yaml`:
 
-## Hot-reload
+```yaml
+version: 1
+rules:
+  - match: { tool: read }
+    action: allow
+  - match: { tool: glob }
+    action: allow
+  - match: { tool: grep }
+    action: allow
+  - match: { tool: list }
+    action: allow
+  - match: { tool: write }
+    action: allow
+  - match: { tool: edit }
+    action: allow
+  - match:
+      tool: write
+      path_outside: PROJECT_ROOT
+    action: deny
+  - match:
+      tool: edit
+      path_outside: PROJECT_ROOT
+    action: deny
+  - match:
+      tool: bash
+      command_match: "rm -rf /|chmod -R 777 /|mkfs\\."
+    action: deny
+  - match:
+      tool: bash
+      command_match: "rm -rf|chmod 777|chmod -R|dd if=|mkfs|DROP TABLE|TRUNCATE|git push --force|git reset --hard|>|sudo "
+    action: ask
+```
 
-The watcher polls `~/.config/SFFMC/rules.yaml` every second. Edit the file — new rules take effect immediately without restart.
+## Hooks registered
 
-## Panic rule
+| Hook | Purpose |
+|---|---|
+| `tool.execute.before` | Evaluate rule against `tool` + args; throw on `deny`, warn on `ask` |
+| `permission.ask` | Set `status = "deny"` if the rule denies the tool |
 
-If `rules.yaml` has a syntax error, the plugin enters **panic mode** and denies ALL tool calls. This is fail-closed: a broken config is safer than an unprotected agent. Fix the YAML syntax to clear panic mode.
+## Tests
+
+```bash
+bun test packages/rules/
+```
+
+21 tests in `src/index.test.ts`.
 
 ## License
 

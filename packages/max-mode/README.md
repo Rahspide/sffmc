@@ -1,43 +1,71 @@
-# F7 Max Mode
+# @sffmc/max-mode
 
-Parallel candidate generation + judge selection for hard problems. Invoke via `/max` slash command.
+F7 Max Mode — parallel drafts plus judge selection (W3).
 
-## How it works
+## What it does
 
-1. `/max` generates N candidates (default 3) in parallel, each with the same prompt at a different temperature
-2. Candidates suggest tool calls but **do not execute them** — tools are schema-only during candidate generation
-3. A separate judge call evaluates all candidates and picks the best
-4. The winning draft + suggested tool calls are presented
-5. User must **confirm** (via `/max execute`) before tool calls are actually executed
+For hard problems, generates N candidate responses in parallel at high temperature, then asks a judge model to pick the best one. Invoked via the `/max` slash command (with `--dry-run` for cost estimation). Uses the "schema-only tools" trick — candidate tool calls are captured but not executed during Max Mode; the user reviews them and confirms with `/max execute`. The winner message is injected into the next system/messages transform. Costs are bounded by a `budget_cap_multiplier` (default 5x a single call).
 
-## Token cost
+## Install
 
-- ~3-5× a single call (depending on `n_candidates`)
-- Judge adds ~1 small call
-- Configurable cap via `budget_cap_multiplier`
+This plugin is loaded by the SFFMC monorepo's sandbox config. To use standalone:
 
-## Schema-only tools pattern
+```ts
+// ~/.config/opencode-sandbox/opencode.json
+{
+  "plugin": [
+    "file:///data/projects/SFFMC/packages/max-mode/src/index.ts"
+  ]
+}
+```
 
-Why don't candidates execute tools? OpenCode 1.17.6 has no `stopStep` mechanism to block tool execution mid-generation. Instead, Max Mode strips the `execute` closure from tool definitions during candidate generation. The model sees tool schemas (so it reasons about tool usage) but can't actually run them.
+## Configuration
 
-This means:
-- Candidates complete in one pass (no tool loop)
-- Only the winner's suggested tool calls are surfaced for review
-- The judge evaluates text quality, not tool execution results
+Edit `~/.config/SFFMC/max-mode.yaml`:
 
-## When to use
+```yaml
+# F7 Max Mode — plugin config
 
-- Complex multi-step problems where you want diverse approaches
-- Debugging where different AI takes on a problem are valuable
-- Architecture decisions where exploring alternatives is beneficial
-- Any task where quality matters more than speed
+version: 1
 
-## Dry-run
+# Number of parallel candidate drafts (max 5)
+n_candidates: 3
 
-`/max --dry-run` estimates cost without generating anything.
+# Override candidate models (empty = same as primary)
+candidate_models: []
 
-## Benchmarks
+# Temperature for candidate generation (higher = more creative)
+candidate_temperature: 1.0
 
-Max Mode achieves **10-20% improvement on SWE-Bench Pro at 4-5× cost** compared to single-model baseline.
+# Judge model for selecting the best candidate
+judge_model: ocg/deepseek-v4-flash
 
-See: MiMo-V2.5-Pro scores: 82/62/73 (MiMo+V2.5-Pro) vs 79/55/69 (Claude Code+Sonnet 4.6).
+# Safety cap: abort if total token cost exceeds N × single call
+# 5 means abort if > 5x the cost of 1 candidate call
+budget_cap_multiplier: 5
+
+# Dry-run mode: only estimate costs, don't actually call models
+dry_run: false
+```
+
+## Hooks registered
+
+| Hook | Purpose |
+|---|---|
+| `config` | Load config, log `dry_run` warning if enabled |
+| `command.execute.before` | `/max` → run Max Mode; `/max execute` → restore captured tool calls; `--dry-run` → estimate only |
+| `experimental.chat.system.transform` | Push the Max Mode verdict onto the system prompt (one-shot) |
+| `tool.execute.before` | In schema-only mode, tag args with `_schemaOnly: true` so candidates capture calls instead of executing |
+| `experimental.chat.messages.transform` | Push the Max Mode verdict onto the messages array (one-shot) |
+
+## Tests
+
+```bash
+bun test packages/max-mode/
+```
+
+31 tests in `src/index.test.ts`.
+
+## License
+
+MIT

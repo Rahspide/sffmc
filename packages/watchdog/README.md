@@ -1,39 +1,58 @@
 # @sffmc/watchdog
 
-Detects when the agent is stuck in a tool-failure loop and auto-promotes to a stronger reasoning mode.
+F1 Watchdog — 3-failure counter with auto-recovery and model promotion (W2).
 
 ## What it does
 
-Monitors all tool calls via `tool.execute.after`. When the same tool+errorType combination fails 3 times consecutively (configurable), it injects a "promotion" instruction into the next system prompt, telling the agent to slow down, double-check paths, and try alternative approaches. When the tool finally succeeds, it injects a recovery verdict confirming the resolution.
-
-**Example scenario:**
-1. Agent runs `bash: cat /nonexistent/file` → ENOENT
-2. Agent retries with same path → ENOENT again
-3. Agent retries again → ENOENT third time
-4. Watchdog promotes → injects "Stuck detected on `bash:ENOENT`" instruction
-5. Agent runs `ls /nonexistent/` first, finds correct path, succeeds
-6. Watchdog injects recovery verdict
+Detects when the agent is stuck in a tool-failure loop. Tracks consecutive failures per tool per session in a rolling window; when a tool hits the threshold, the plugin injects a system-prompt fragment that promotes the session to a stronger model. When the same tool then succeeds, a "recovery verdict" is prepended to the tool output so the agent sees a clean signal. The `/max` slash command resets all counters as an escape hatch.
 
 ## Install
 
+This plugin is loaded by the SFFMC monorepo's sandbox config. To use standalone:
+
+```ts
+// ~/.config/opencode-sandbox/opencode.json
+{
+  "plugin": [
+    "file:///data/projects/SFFMC/packages/watchdog/src/index.ts"
+  ]
+}
+```
+
+## Configuration
+
+Edit `~/.config/SFFMC/watchdog.yaml`:
+
+```yaml
+threshold: 3                     # consecutive failures before promote
+rolling_window: 10               # track last N tool calls per session
+promote_model: null              # null = same as primary; or override like "ocg/claude-opus-4-7"
+error_class_filter:              # skip these (legitimate retries)
+  - "fetch_429"                  # rate-limited retry is normal
+  - "playwright_timeout"         # playwright retries are normal
+  - "EAGAIN"                     # resource temporarily unavailable
+log_failures: true               # write failures to plugin log
+```
+
+## Hooks registered
+
+| Hook | Purpose |
+|---|---|
+| `config` | Load config, log startup banner |
+| `event` | Reset per-session counter on `session.created` |
+| `tool.execute.after` | Record success/failure; on threshold, mark session promoted; on success after recovery, inject verdict |
+| `experimental.chat.system.transform` | Push promotion fragment for promoted sessions (one-shot) |
+| `experimental.chat.messages.transform` | Reserved for verdict injection (currently handled in `tool.execute.after`) |
+| `command.execute.before` | `/max` → reset all counters and clear promoted/recovering state |
+
+## Tests
+
 ```bash
-cp packages/watchdog/config/watchdog.example.yaml ~/.config/SFFMC/watchdog.yaml
+bun test packages/watchdog/
 ```
 
-Add to your opencode.json `plugin` array:
-```json
-"file:///data/projects/SFFMC/packages/watchdog/src/index.ts"
-```
+20 tests in `src/index.test.ts`.
 
-## Token cost
+## License
 
-- **Baseline**: 0 tokens (pure event observer)
-- **Recovery verdict**: ~30 tokens injected into output
-- **Promoted turn**: ~200 tokens injected into system prompt
-- **/max escape hatch**: free
-
-## Kill criteria
-
-Decommision this plugin if:
-- < 5 auto-promotions in 30 days AND
-- User still uses `/max` manually > 20 times/month
+MIT
