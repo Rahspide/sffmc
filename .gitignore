@@ -1,0 +1,10 @@
+node_modules/
+dist/
+*.bak-pre-*
+.DS_Store
+*.log
+coverage/
+.vscode/
+.idea/
+.env
+.env.local

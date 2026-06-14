@@ -1,0 +1,18 @@
+{
+  "name": "sffmc",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "shared/*"
+  ],
+  "scripts": {
+    "build": "echo 'TODO: build pipeline'",
+    "test": "echo 'TODO: test pipeline'",
+    "typecheck": "echo 'TODO: typecheck'"
+  },
+  "engines": {
+    "bun": ">=1.0.0"
+  }
+}
