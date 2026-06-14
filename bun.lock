@@ -5,6 +5,20 @@
     "": {
       "name": "sffmc",
     },
+    "packages/eos-stripper": {
+      "name": "@sffmc/eos-stripper",
+      "version": "0.1.0",
+      "dependencies": {
+        "yaml": "^2.0.0",
+      },
+    },
+    "packages/log-whitelist": {
+      "name": "@sffmc/log-whitelist",
+      "version": "0.1.0",
+      "dependencies": {
+        "yaml": "^2.0.0",
+      },
+    },
     "packages/memory": {
       "name": "@sffmc/memory",
       "version": "0.1.0",
@@ -20,11 +34,24 @@
         "yaml": "^2.0.0",
       },
     },
+    "packages/watchdog": {
+      "name": "@sffmc/watchdog",
+      "version": "0.1.0",
+      "dependencies": {
+        "yaml": "^2.0.0",
+      },
+    },
   },
   "packages": {
+    "@sffmc/eos-stripper": ["@sffmc/eos-stripper@workspace:packages/eos-stripper"],
+
+    "@sffmc/log-whitelist": ["@sffmc/log-whitelist@workspace:packages/log-whitelist"],
+
     "@sffmc/memory": ["@sffmc/memory@workspace:packages/memory"],
 
     "@sffmc/rules": ["@sffmc/rules@workspace:packages/rules"],
+
+    "@sffmc/watchdog": ["@sffmc/watchdog@workspace:packages/watchdog"],
 
     "chokidar": ["chokidar@4.0.3", "", { "dependencies": { "readdirp": "^4.0.1" } }, "sha512-Qgzu8kfBvo+cA4962jnP1KkS6Dop5NS6g7R5LFYJr4b8Ub94PPQXUksCw9PvXoeXPRRddRNC5C1JQUR2SMGtnA=="],
 

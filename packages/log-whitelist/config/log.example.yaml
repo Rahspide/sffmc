@@ -1,0 +1,16 @@
+whitelist:                       # keep lines matching any of these
+  - '(?i)error'
+  - '(?i)warn'
+  - '(?i)fail'
+  - '(?i)exception'
+  - '(?i)stack'
+  - '(?i)exit code'
+  - '(?i)permission denied'
+  - '(?i)enoent'
+  - '(?i)eacces'
+  - '(?i)command not found'
+blacklist:                       # drop lines matching these (overrides whitelist)
+  - '(?i)deprecat'               # deprecation warnings are noise
+max_kept_lines: 50               # cap kept output
+truncate_marker: '... [N more lines]'  # shown when truncated
+log_filtered_count: true
