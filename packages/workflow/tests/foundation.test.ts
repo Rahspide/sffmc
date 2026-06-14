@@ -563,6 +563,22 @@ describe("builtin-registry.ts", () => {
     expect(entry.script).toContain("agent(")
   })
 
+  test("tdd is registered by default", () => {
+    expect(listBuiltins()).toContain("tdd")
+    expect(getBuiltin("tdd")).toBeDefined()
+  })
+
+  test("tdd loads with valid meta and source", async () => {
+    const entry = await loadBuiltin("tdd")
+    expect(entry.name).toBe("tdd")
+    expect(entry.description).toBeTruthy()
+    expect(entry.phases?.length).toBe(5)
+    expect(entry.script).toContain("args.feature")
+    expect(entry.script).toContain("SPEC_SHAPE")
+    expect(entry.script).toContain("RED_SHAPE")
+    expect(entry.script).toContain("GREEN_SHAPE")
+  })
+
   test("loadBuiltin throws on unknown", async () => {
     await expect(loadBuiltin("not-registered")).rejects.toThrow("Unknown built-in workflow")
   })

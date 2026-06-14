@@ -26,6 +26,11 @@ async function loadPlan(): Promise<{ source: string; meta: Meta }> {
   return { source: mod.source, meta: mod.meta }
 }
 
+async function loadTdd(): Promise<{ source: string; meta: Meta }> {
+  const mod = await import("../builtin/tdd.ts")
+  return { source: mod.source, meta: mod.meta }
+}
+
 /**
  * Registry of built-in workflows. Lookups use null-prototype to avoid inherited
  * Object.prototype members (e.g. "constructor") being returned accidentally.
@@ -61,3 +66,4 @@ export async function loadBuiltin(name: string): Promise<BuiltinEntry> {
 
 registerBuiltin("deep-research", loadDeepResearch)
 registerBuiltin("plan", loadPlan)
+registerBuiltin("tdd", loadTdd)
