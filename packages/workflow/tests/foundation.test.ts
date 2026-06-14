@@ -579,6 +579,23 @@ describe("builtin-registry.ts", () => {
     expect(entry.script).toContain("GREEN_SHAPE")
   })
 
+  test("refactor is registered by default", () => {
+    expect(listBuiltins()).toContain("refactor")
+    expect(getBuiltin("refactor")).toBeDefined()
+  })
+
+  test("refactor loads with valid meta and source", async () => {
+    const entry = await loadBuiltin("refactor")
+    expect(entry.name).toBe("refactor")
+    expect(entry.description).toBeTruthy()
+    expect(entry.phases?.length).toBe(4)
+    expect(entry.script).toContain("args.target")
+    expect(entry.script).toContain("args.workspace")
+    expect(entry.script).toContain("readFile(")
+    expect(entry.script).toContain("glob(")
+    expect(entry.script).toContain("NOT_APPLIED_WARNING")
+  })
+
   test("loadBuiltin throws on unknown", async () => {
     await expect(loadBuiltin("not-registered")).rejects.toThrow("Unknown built-in workflow")
   })
