@@ -1,0 +1,14 @@
+{
+  "name": "@sffmc/shared",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "test": "bun test",
+    "build": "tsc --noEmit"
+  },
+  "dependencies": {
+    "yaml": "^2.0.0"
+  },
+  "license": "MIT"
+}

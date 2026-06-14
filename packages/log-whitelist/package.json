@@ -4,6 +4,7 @@
   "type": "module",
   "main": "src/index.ts",
   "dependencies": {
+    "@sffmc/shared": "workspace:*",
     "yaml": "^2.0.0"
   }
 }

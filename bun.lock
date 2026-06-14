@@ -20,6 +20,7 @@
       "name": "@sffmc/eos-stripper",
       "version": "0.1.0",
       "dependencies": {
+        "@sffmc/shared": "workspace:*",
         "yaml": "^2.0.0",
       },
     },
@@ -27,6 +28,7 @@
       "name": "@sffmc/log-whitelist",
       "version": "0.1.0",
       "dependencies": {
+        "@sffmc/shared": "workspace:*",
         "yaml": "^2.0.0",
       },
     },
@@ -72,6 +74,13 @@
         "typescript": "^5.4.0",
       },
     },
+    "shared": {
+      "name": "@sffmc/shared",
+      "version": "0.1.0",
+      "dependencies": {
+        "yaml": "^2.0.0",
+      },
+    },
   },
   "packages": {
     "@jitl/quickjs-ffi-types": ["@jitl/quickjs-ffi-types@0.32.0", "", {}, "sha512-v9T+GQpmk43VDJ7d72sf0Nexhk+ArvtUihW27dy7lqAl0zBObFKtSBBIm5RBjwIhE8VwsPPm9PNuvPvNqLWUEg=="],
@@ -97,6 +106,8 @@
     "@sffmc/memory": ["@sffmc/memory@workspace:packages/memory"],
 
     "@sffmc/rules": ["@sffmc/rules@workspace:packages/rules"],
+
+    "@sffmc/shared": ["@sffmc/shared@workspace:shared"],
 
     "@sffmc/watchdog": ["@sffmc/watchdog@workspace:packages/watchdog"],
 

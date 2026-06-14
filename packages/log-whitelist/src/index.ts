@@ -1,8 +1,5 @@
 import { filterLines } from "./filter";
-import { parse as parseYaml } from "yaml";
-import { readFileSync, existsSync } from "fs";
-import { resolve } from "path";
-import { homedir } from "os";
+import { loadConfig, type PluginContext } from "@sffmc/shared";
 
 interface LogWhitelistConfig {
   whitelist: string[];
@@ -19,18 +16,6 @@ const defaultConfig: LogWhitelistConfig = {
   truncate_marker: "... [N more lines]",
   log_filtered_count: true,
 };
-
-function loadConfig(): LogWhitelistConfig {
-  const configPath = resolve(homedir(), ".config/SFFMC/log.yaml");
-  if (!existsSync(configPath)) return { ...defaultConfig };
-  try {
-    const raw = readFileSync(configPath, "utf-8");
-    const parsed = parseYaml(raw) as Partial<LogWhitelistConfig>;
-    return { ...defaultConfig, ...parsed };
-  } catch {
-    return { ...defaultConfig };
-  }
-}
 
 function compilePatterns(strings: string[]): RegExp[] {
   return strings
@@ -52,14 +37,8 @@ interface PluginState {
   totalFiltered: number;
 }
 
-interface PluginContext {
-  projectRoot: string;
-  config: Record<string, unknown>;
-  [key: string]: unknown;
-}
-
 const server = async (_ctx: PluginContext) => {
-  const config = loadConfig();
+  const config = await loadConfig<LogWhitelistConfig>("log-whitelist", defaultConfig);
 
   const state: PluginState = {
     config,

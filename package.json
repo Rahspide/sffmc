@@ -5,7 +5,7 @@
   "type": "module",
   "workspaces": [
     "packages/*",
-    "shared/*"
+    "shared"
   ],
   "scripts": {
     "build": "bun build --target=bun --outdir=/tmp/sffmc-build packages/memory/src/index.ts && bun build --target=bun --outdir=/tmp/sffmc-build packages/rules/src/index.ts",
