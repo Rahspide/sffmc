@@ -1,5 +1,18 @@
 # v8 Decision
 
+## Status
+
+**v8.0.0 — all 8 features confirmed by user on 2026-06-14.** W1 starting.
+
+| Week | Features | Effort |
+|------|----------|--------|
+| W1 | F4' Memory + F2 Rules | 18-24h |
+| W2 | F1 Watchdog + Verify skill | 8-12h |
+| W3 | F7 Max Mode + Auto-Max triggers | 12-16h |
+| W4 | Compose pack | 2-4h |
+| W5-6 | Dynamic Workflow | 25-35h |
+| W7 | Buffer, integration, Git publication | — |
+
 ## Ships in v8.0 (8 features)
 
 1. **F4' Memory + Context Recon 8K** — agent remembers your project + structured injection at session start
