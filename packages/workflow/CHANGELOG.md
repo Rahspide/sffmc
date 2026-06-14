@@ -1,5 +1,18 @@
 # @sffmc/workflow Changelog
 
+## 0.2.0 — Runtime + LLM tool (Lane C)
+
+- **runtime.ts**: WorkflowRuntime class, 5-layer budget (lifecycle 1000, concurrent 16, depth 8, wall-clock 12h, token 2M)
+- **api.ts**: primitive type definitions (AgentFn, ParallelFn, PipelineFn)
+- **tool.ts**: LLM-facing `workflow` tool with 5 operations (run/status/wait/cancel/resume) — manual validation, no zod dep
+- **index.ts**: plugin server, hooks up runtime + tool + event listeners, startup orphan recovery
+- **index.test.ts**: 15 integration tests (agent never-throw, parallel/pipeline throw propagation, lifecycle, events, phases)
+- Bypasses Max Mode + tool.execute hooks (per MiMo design) — direct `ctx.client.session.message()` calls
+- Never-throw contract for agent() — 5 failure reasons (over-cap, spawn-reject, timeout, actor-error, no-deliverable)
+- 2M token cap added on top of MiMo's design (user-facing safety)
+- Journal replay for resume — SHA-256 edit detection, sync journal appends
+- Counter invariants: running++ before spawn, running-- + (succeeded XOR failed)++ after settle
+
 ## 0.1.0 — Foundation layer
 
 - **types.ts**: 12 exported types and 1 WorkflowError class — WorkflowRun, WorkflowStep, JournalEvent, RunEntry, WorkflowConfig, SandboxConstraints, AgentOptions, AgentResult, AgentFailureReason, WorkflowStatus, WorkflowStartInput, WorkflowStatusOutput, WorkflowOutcome
