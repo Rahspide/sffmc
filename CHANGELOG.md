@@ -1,5 +1,44 @@
 # SFFMC Changelog
 
+## v0.7.0 — Workflow builtins + shared SDK + docs (2026-06-15)
+
+4 user-facing features, ~1500 LOC, 102/102 tests pass.
+
+### New workflow builtins (`@sffmc/workflow`)
+
+- `plan` — 4-phase structured planning (Scope → Decompose → Estimate → Output). Takes `args.goal`, returns scope clarification, success criteria, ordered steps with deps, est_minutes, parallel_group. Self-retries on under-decomposed output.
+- `tdd` — 5-phase TDD-style artifact generation (Spec → Red → Green → Refactor → Verify). Takes `args.feature`, returns test file + impl file + refactor notes as artifacts. Generates, does NOT execute (LLM-only).
+- `refactor` — 4-phase refactor proposer (Scan → Diagnose → Propose → Output). Reads files via workspace primitives, lists 3-7 smells, returns 1-5 before/after patches with risk levels. Does NOT auto-apply (advisory).
+
+`deep-research` builtin still ships (now 4 builtins total).
+
+### New package: `@sffmc/shared`
+
+- `loadConfig<T>(pluginName, defaults, opts?)` — YAML config loader merging `~/.config/SFFMC/<name>.yaml` over defaults. Never throws.
+- `PluginContext` interface — single canonical type for all plugins.
+- `on` / `off` / `emit` / `clearAll` — generic type-safe EventBus (extracted from workflow's events).
+
+**Refactored**: `eos-stripper`, `log-whitelist` now use `@sffmc/shared` (proof of concept; other plugins can adopt incrementally).
+
+8 tests in the new package (4 config, 4 events).
+
+### Per-plugin READMEs (9 packages)
+
+Each `packages/<pkg>/README.md` now has: header, one-line purpose (from CHANGELOG v0.6.0 verbatim), install snippet, config YAML excerpt, hook table (from `docs/load-order-audit.md`), test command, MIT footer. Total 563 LOC.
+
+### Getting-started guide
+
+`docs/getting-started.md` (179 lines, 7 sections): What is SFFMC → Prerequisites → Install → Your first workflow (deep-research) → Save a custom workflow → Debugging → Next steps. Internal links use relative paths. Code blocks have language tags.
+
+### Tests
+
+| Package | Before | After |
+|---|---|---|
+| workflow | 96 | 102 (+6: plan/tdd/refactor registration + load tests) |
+| shared | 0 | 8 (4 config + 4 events) |
+| All others | 152 | 152 (no regressions) |
+| **Total** | **248** | **266** (+18) |
+
 ## v0.6.1 — Load order audit (2026-06-15)
 
 Post-release patch:
