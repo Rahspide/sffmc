@@ -547,6 +547,22 @@ describe("builtin-registry.ts", () => {
     expect(getBuiltin("deep-research")).toBeDefined()
   })
 
+  test("plan is registered by default", () => {
+    expect(listBuiltins()).toContain("plan")
+    expect(getBuiltin("plan")).toBeDefined()
+  })
+
+  test("plan loads with valid meta and source", async () => {
+    const entry = await loadBuiltin("plan")
+    expect(entry.name).toBe("plan")
+    expect(entry.description).toBeTruthy()
+    expect(entry.whenToUse).toBeTruthy()
+    expect(entry.phases?.length).toBeGreaterThan(0)
+    expect(entry.script).toContain("export const meta")
+    expect(entry.script).toContain("args.goal")
+    expect(entry.script).toContain("agent(")
+  })
+
   test("loadBuiltin throws on unknown", async () => {
     await expect(loadBuiltin("not-registered")).rejects.toThrow("Unknown built-in workflow")
   })
