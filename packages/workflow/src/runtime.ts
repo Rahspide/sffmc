@@ -13,7 +13,8 @@ import {
   resolveWorkflow,
   isInlineScript,
 } from "./resolve.ts"
-import { setJail, resolveInWorkspace } from "./workspace.ts"
+import { setJail, resolveInWorkspace, readFile_ as wsReadFile, writeFile_ as wsWriteFile, exists as wsExists, glob as wsGlob } from "./workspace.ts"
+import { runSandboxed, type SandboxPrimitives } from "./sandbox"
 import type {
   AgentOptions,
   AgentResult,
@@ -248,8 +249,14 @@ export class WorkflowRuntime {
 
     this.runs.set(runID, entry)
 
-    // Launch async
-    this.launchScript(entry, script, parsed.meta.name, input.args).catch((err) => {
+    // Launch async — sandbox never throws, but defensively handle rejections
+    this.launchScript(entry, script, parsed.meta.name, input.args).then((result) => {
+      if (result === null) {
+        this.failRun(entry, "Sandbox execution failed")
+      } else {
+        this.completeRun(entry, result !== undefined ? result : undefined)
+      }
+    }).catch((err) => {
       this.failRun(entry, err instanceof Error ? err.message : String(err))
     })
 
@@ -431,7 +438,13 @@ export class WorkflowRuntime {
 
       emit("workflow:started", { runID: input.runID, name })
 
-      this.launchScript(entry, script, name, row.args).catch((err) => {
+      this.launchScript(entry, script, name, row.args).then((result) => {
+        if (result === null) {
+          this.failRun(entry, "Sandbox execution failed")
+        } else {
+          this.completeRun(entry, result !== undefined ? result : undefined)
+        }
+      }).catch((err) => {
         this.failRun(entry, err instanceof Error ? err.message : String(err))
       })
 
@@ -483,305 +496,324 @@ export class WorkflowRuntime {
 
   // ── Private: launch ────────────────────────────────────────────────────
 
-  private async launchScript(entry: InternalRunEntry, script: string, name: string, args: unknown): Promise<void> {
+  private async launchScript(entry: InternalRunEntry, script: string, name: string, args: unknown): Promise<unknown> {
     const parsed = parseMeta(script)
     const body = parsed.ok ? parsed.body : script
 
-    // Set up the guest API
+    // Per-run occurrence counters (journal dedup keys)
     const occ = new Map<string, number>()
+    const workflowOcc = new Map<string, number>()
 
-    // agent() implementation
-    const agentFn = async (prompt: unknown, opts?: unknown): Promise<AgentResult> => {
-      const o = (opts ?? {}) as AgentOptions
-      const promptStr = String(prompt)
+    // Build primitives — each closure captures `entry` and counters
+    const primitives: SandboxPrimitives = {
+      agent: (task: string, agentOpts?: Record<string, unknown>) =>
+        this.spawnAgent(entry, task, agentOpts as AgentOptions | undefined, occ),
+      parallel: <T>(thunks: Array<() => Promise<T>>) => this.runParallel<T>(thunks),
+      pipeline: <T>(items: T[], ...stages: Array<(acc: unknown, item: T, i: number) => Promise<unknown>>) =>
+        this.runPipeline<T>(items, stages),
+      workflow: (nameOrScript: string, childArgs?: unknown) =>
+        this.spawnChildWorkflow(entry, nameOrScript, childArgs, workflowOcc),
+      phase: (title: string) => this.setPhase(entry, title),
+      log: (msg: string) => this.appendLog(entry, msg),
+      readFile: (path: string) => this.workspaceReadFile(path),
+      writeFile: (path: string, content: string) => this.workspaceWriteFile(path, content),
+      glob: (pattern: string) => this.workspaceGlob(pattern),
+      exists: (path: string) => this.workspaceExists(path),
+      args,
+    }
 
-      // Journal cache lookup
-      const base = journalKeyBase(promptStr, {
-        agentType: undefined,
-        model: o.model,
-        schema: o.schema,
-        phase: o.phase,
-      })
-      const n = occ.get(base) ?? 0
-      occ.set(base, n + 1)
-      const key = base + ":" + n
+    // Deterministic seed from runID
+    const seed = createHash("sha1").update(entry.runID).digest().readUInt32BE(0)
 
-      if (entry.journalResults.has(key)) {
-        entry.succeeded++
-        this.scheduleFlush(entry)
-        return entry.journalResults.get(key) as AgentResult
+    // Append auto-invocation of main() — mirrors the old new Function pattern
+    const source = body + "\n;return typeof main === 'function' ? await main() : undefined"
+
+    const result = await runSandboxed(source, primitives, {
+      memoryMB: 64,
+      deadlineMs: 12 * 60 * 60 * 1000, // 12h wall-clock for the sandbox
+      seed,
+      runID: entry.runID,
+    })
+
+    // runSandboxed never throws per contract — null means sandbox error
+    return result
+  }
+
+  // ── Private: primitives (extracted from launchScript) ───────────────────
+
+  /** agent(task, opts?) — called from inside the sandbox. */
+  private async spawnAgent(
+    entry: InternalRunEntry,
+    task: string,
+    opts: AgentOptions | undefined,
+    occ: Map<string, number>,
+  ): Promise<AgentResult> {
+    const o = opts ?? {} as AgentOptions
+    const promptStr = String(task)
+
+    // Journal cache lookup
+    const base = journalKeyBase(promptStr, {
+      agentType: undefined,
+      model: o.model,
+      schema: o.schema,
+      phase: o.phase,
+    })
+    const n = occ.get(base) ?? 0
+    occ.set(base, n + 1)
+    const key = base + ":" + n
+
+    if (entry.journalResults.has(key)) {
+      entry.succeeded++
+      this.scheduleFlush(entry)
+      return entry.journalResults.get(key) as AgentResult
+    }
+
+    // Run under semaphore
+    return this.globalSem.run(async () => {
+      // Lifecycle cap
+      if (entry.agentCountTotal >= entry.cfg.maxLifecycleAgents) {
+        if (!entry.capWarned) {
+          entry.capWarned = true
+          console.warn(`[workflow] lifecycle cap ${entry.cfg.maxLifecycleAgents} reached for ${entry.runID}`)
+        }
+        this.publishAgentFailed(entry.runID, key, AFR.OverCap)
+        return null
       }
 
-      // Run under semaphore
-      return this.globalSem.run(async () => {
-        // Lifecycle cap
-        if (entry.agentCountTotal >= entry.cfg.maxLifecycleAgents) {
-          if (!entry.capWarned) {
-            entry.capWarned = true
-            console.warn(`[workflow] lifecycle cap ${entry.cfg.maxLifecycleAgents} reached for ${entry.runID}`)
-          }
-          this.publishAgentFailed(entry.runID, key, AFR.OverCap)
-          return null
-        }
+      // Token cap
+      if (entry.tokensUsed >= entry.cfg.maxTokens) {
+        this.publishAgentFailed(entry.runID, key, AFR.OverCap)
+        return null
+      }
 
-        // Token cap
+      // Check maxSteps
+      if (entry.succeeded + entry.failed >= entry.cfg.maxSteps) {
+        this.publishAgentFailed(entry.runID, key, AFR.OverCap)
+        return null
+      }
+
+      // Abort check
+      if (entry.controller.signal.aborted) {
+        return null
+      }
+
+      // Depth check
+      const depth = o.depth ?? 0
+      if (depth > entry.cfg.maxDepth) {
+        throw new Error(`Workflow nesting depth (${depth}) exceeds maxDepth (${entry.cfg.maxDepth})`)
+      }
+
+      // Counter invariants: running++ before spawn
+      entry.running++
+      entry.agentCount++
+      entry.agentCountTotal++
+      this.scheduleFlush(entry)
+
+      let reason: AgentFailureReason = AFR.ActorError
+      try {
+        const result = await this.callLLM(entry, promptStr, o)
+
+        // Track tokens
+        const tokens = result.info?.tokens
+        const totalTokens = (tokens?.input ?? 0) + (tokens?.output ?? 0)
+        entry.tokensUsed += totalTokens
+
+        // Check token cap
         if (entry.tokensUsed >= entry.cfg.maxTokens) {
+          emit("workflow:step_checkpoint", {
+            runID: entry.runID,
+            stepIndex: entry.succeeded + entry.failed,
+            costTokens: totalTokens,
+          })
+          emit("workflow:finished", {
+            runID: entry.runID,
+            status: "budget_exceeded",
+            error: `Token cap ${entry.cfg.maxTokens} exceeded`,
+          })
           this.publishAgentFailed(entry.runID, key, AFR.OverCap)
-          return null
-        }
-
-        // Check maxSteps
-        if (entry.succeeded + entry.failed >= entry.cfg.maxSteps) {
-          this.publishAgentFailed(entry.runID, key, AFR.OverCap)
-          return null
-        }
-
-        // Abort check
-        if (entry.controller.signal.aborted) {
-          return null
-        }
-
-        // Depth check
-        const depth = o.depth ?? 0
-        if (depth > entry.cfg.maxDepth) {
-          throw new Error(`Workflow nesting depth (${depth}) exceeds maxDepth (${entry.cfg.maxDepth})`)
-        }
-
-        // Counter invariants: running++ before spawn
-        entry.running++
-        entry.agentCount++
-        entry.agentCountTotal++
-        this.scheduleFlush(entry)
-
-        let reason: AgentFailureReason = AFR.ActorError
-        try {
-          // Call LLM directly via plugin context — bypasses Max Mode + tool.execute hooks
-          const result = await this.callLLM(entry, promptStr, o)
-
-          // Track tokens
-          const tokens = result.info?.tokens
-          const totalTokens = (tokens?.input ?? 0) + (tokens?.output ?? 0)
-          entry.tokensUsed += totalTokens
-
-          // Check token cap
-          if (entry.tokensUsed >= entry.cfg.maxTokens) {
-            emit("workflow:step_checkpoint", {
-              runID: entry.runID,
-              stepIndex: entry.succeeded + entry.failed,
-              costTokens: totalTokens,
-            })
-            emit("workflow:finished", {
-              runID: entry.runID,
-              status: "budget_exceeded",
-              error: `Token cap ${entry.cfg.maxTokens} exceeded`,
-            })
-            this.publishAgentFailed(entry.runID, key, AFR.OverCap)
-            entry.running--
-            entry.failed++
-            this.scheduleFlush(entry)
-            return null
-          }
-
-          // Extract deliverable
-          const deliverable = o.schema
-            ? (result.structured ?? null)
-            : (result.structured ?? result.finalText ?? null)
-
-          if (deliverable === null) {
-            reason = AFR.NoDeliverable
-            entry.running--
-            entry.failed++
-            this.publishAgentFailed(entry.runID, key, reason)
-            this.scheduleFlush(entry)
-            return null
-          }
-
           entry.running--
-          entry.succeeded++
+          entry.failed++
           this.scheduleFlush(entry)
+          return null
+        }
 
-          // Journal successful result
-          if (deliverable !== null) {
-            WorkflowPersistence.appendJournalSync(entry.runID, {
-              t: "agent",
-              key,
-              result: deliverable,
-              pass: entry.journalPass,
-            })
-          }
+        // Extract deliverable
+        const deliverable = o.schema
+          ? (result.structured ?? null)
+          : (result.structured ?? result.finalText ?? null)
 
-          return deliverable as AgentResult
-        } catch (e) {
-          reason = AFR.SpawnReject
+        if (deliverable === null) {
+          reason = AFR.NoDeliverable
           entry.running--
           entry.failed++
           this.publishAgentFailed(entry.runID, key, reason)
           this.scheduleFlush(entry)
           return null
         }
-      })
-    }
 
-    // parallel() implementation
-    const parallelFn = async <T>(thunks: Array<() => Promise<T>>): Promise<Array<T | null>> => {
-      // Does NOT catch — throws bubble
-      const results: Array<T | null> = []
-      const promises = thunks.map((thunk) => thunk())
-      const settled = await Promise.all(promises)
-      for (const r of settled) results.push(r)
-      return results
-    }
-
-    // pipeline() implementation
-    const pipelineFn = async <T>(
-      items: T[],
-      ...stages: Array<(acc: unknown, item: T, i: number) => Promise<unknown>>
-    ): Promise<Array<unknown>> => {
-      // Does NOT catch — throws bubble
-      const results: Array<unknown> = []
-      for (const item of items) {
-        let acc: unknown = item
-        for (let i = 0; i < stages.length; i++) {
-          acc = await stages[i](acc, item, i)
-        }
-        results.push(acc)
-      }
-      return results
-    }
-
-    // phase() / log()
-    const phaseFn = (title: unknown): void => {
-      entry.currentPhase = String(title)
-      WorkflowPersistence.appendJournal(entry.runID, {
-        t: "phase",
-        title: String(title),
-        pass: entry.journalPass,
-      })
-      emit("workflow:phase", { runID: entry.runID, title: String(title) })
-    }
-
-    const logFn = (message: unknown): void => {
-      WorkflowPersistence.appendJournal(entry.runID, {
-        t: "log",
-        msg: String(message),
-        pass: entry.journalPass,
-      })
-      emit("workflow:log", { runID: entry.runID, message: String(message) })
-    }
-
-    // workflow() implementation
-    const workflowOcc = new Map<string, number>()
-    const workflowHook = async (nameOrScript: unknown, childArgs?: unknown, _opts?: unknown): Promise<unknown> => {
-      const spec = String(nameOrScript)
-      const base = createHash("sha256")
-        .update(JSON.stringify({ spec, args: childArgs ?? null }))
-        .digest("hex")
-      const n = workflowOcc.get(base) ?? 0
-      workflowOcc.set(base, n + 1)
-      const key = "wf:" + base + ":" + n
-
-      // Journal hit
-      if (entry.journalResults.has(key)) {
+        entry.running--
         entry.succeeded++
         this.scheduleFlush(entry)
-        return entry.journalResults.get(key)
-      }
 
-      // Resolve child script
-      let childScript: string
-      try {
-        const workspace = process.cwd()
-        const resolved = isInlineScript(spec)
-          ? { source: spec, meta: parseMeta(spec), kind: "inline" as const }
-          : await resolveWorkflow(spec, workspace)
-        childScript = resolved.source
+        // Journal successful result
+        if (deliverable !== null) {
+          WorkflowPersistence.appendJournalSync(entry.runID, {
+            t: "agent",
+            key,
+            result: deliverable,
+            pass: entry.journalPass,
+          })
+        }
+
+        return deliverable as AgentResult
       } catch (e) {
-        throw new Error(`${WORKFLOW_STRUCTURAL_ERROR}: unknown workflow: ${JSON.stringify(spec)}`)
-      }
-
-      const childName = isInlineScript(spec) ? "inline:" + base.slice(0, 12) : spec
-
-      // Cycle detection
-      // Simple: just check we don't infinitely recurse
-      // For now, trust maxDepth
-
-      // Depth check
-      if (/* depth + 1 > maxDepth */ false) {
-        throw new Error(`${WORKFLOW_STRUCTURAL_ERROR}: workflow nesting exceeds maxDepth`)
-      }
-
-      // Launch child sub-run
-      const childRunID = WorkflowPersistence.generateRunID()
-      entry.childRunIDs.add(childRunID)
-
-      const childEntry = await this.startChildWorkflow(entry, childScript, childName, childArgs, childRunID)
-
-      // Wait for child outcome
-      const childOutcome = await childEntry.outcomePromise
-
-      // Structural errors propagate
-      if (childOutcome.status === "failed" && childOutcome.error?.includes(WORKFLOW_STRUCTURAL_ERROR)) {
-        const idx = childOutcome.error.indexOf(WORKFLOW_STRUCTURAL_ERROR)
-        throw new Error(childOutcome.error.slice(idx))
-      }
-
-      // Runtime failure → null
-      if (childOutcome.status !== "completed") {
+        reason = AFR.SpawnReject
+        entry.running--
+        entry.failed++
+        this.publishAgentFailed(entry.runID, key, reason)
+        this.scheduleFlush(entry)
         return null
       }
+    })
+  }
 
-      const value = childOutcome.result ?? null
+  /** parallel(thunks) — Promise.all wrapper. Handled by sandbox PRELUDE, but
+   *  provided here as a fallback for direct host invocations. */
+  private async runParallel<T>(thunks: Array<() => Promise<T>>): Promise<Array<T | null>> {
+    const results: Array<T | null> = []
+    const promises = thunks.map((thunk) => thunk())
+    const settled = await Promise.all(promises)
+    for (const r of settled) results.push(r)
+    return results
+  }
 
-      // Journal successful child
-      if (value !== null) {
-        WorkflowPersistence.appendJournalSync(entry.runID, {
-          t: "agent",
-          key,
-          result: value,
-          pass: entry.journalPass,
-        })
+  /** pipeline(items, ...stages) — sequential stages. See runParallel for
+   *  same PRELUDE note. */
+  private async runPipeline<T>(
+    items: T[],
+    stages: Array<(acc: unknown, item: T, i: number) => Promise<unknown>>,
+  ): Promise<Array<unknown>> {
+    const results: Array<unknown> = []
+    for (const item of items) {
+      let acc: unknown = item
+      for (let i = 0; i < stages.length; i++) {
+        acc = await stages[i](acc, item, i)
       }
+      results.push(acc)
+    }
+    return results
+  }
 
-      return value
+  /** workflow(nameOrScript, args?) — spawn a child workflow. */
+  private async spawnChildWorkflow(
+    entry: InternalRunEntry,
+    nameOrScript: string,
+    childArgs: unknown,
+    workflowOcc: Map<string, number>,
+  ): Promise<unknown> {
+    const spec = String(nameOrScript)
+    const base = createHash("sha256")
+      .update(JSON.stringify({ spec, args: childArgs ?? null }))
+      .digest("hex")
+    const n = workflowOcc.get(base) ?? 0
+    workflowOcc.set(base, n + 1)
+    const key = "wf:" + base + ":" + n
+
+    // Journal hit
+    if (entry.journalResults.has(key)) {
+      entry.succeeded++
+      this.scheduleFlush(entry)
+      return entry.journalResults.get(key)
     }
 
-    // Build guest globals
-    // Execute the script body via Function (safe — it's our own code)
-    // The script exports a `main()` function
-    const guestGlobals: Record<string, unknown> = {
-      agent: agentFn,
-      parallel: parallelFn,
-      pipeline: pipelineFn,
-      workflow: workflowHook,
-      phase: phaseFn,
-      log: logFn,
-      args,
-    }
-
+    // Resolve child script
+    let childScript: string
     try {
-      // Evaluate the script to get the main function
-      const scriptFn = new Function(
-        ...Object.keys(guestGlobals),
-        `${body}\nreturn typeof main === 'function' ? main : undefined`,
-      )
-      const mainFn = scriptFn(...Object.values(guestGlobals))
-
-      if (typeof mainFn !== "function") {
-        // Script has no main() — just the meta and side effects
-        // It already ran via the Function constructor
-        this.completeRun(entry)
-        return
-      }
-
-      // Run main() with timeout
-      const result = await this.runWithDeadline(entry, mainFn())
-
-      this.completeRun(entry, result)
+      const workspace = process.cwd()
+      const resolved = isInlineScript(spec)
+        ? { source: spec, meta: parseMeta(spec), kind: "inline" as const }
+        : await resolveWorkflow(spec, workspace)
+      childScript = resolved.source
     } catch (e) {
-      // Structural errors already have the marker — fail hard
-      const msg = e instanceof Error ? e.message : String(e)
-      this.failRun(entry, msg)
+      throw new Error(`${WORKFLOW_STRUCTURAL_ERROR}: unknown workflow: ${JSON.stringify(spec)}`)
     }
+
+    const childName = isInlineScript(spec) ? "inline:" + base.slice(0, 12) : spec
+
+    // Launch child sub-run
+    const childRunID = WorkflowPersistence.generateRunID()
+    entry.childRunIDs.add(childRunID)
+
+    const childEntry = await this.startChildWorkflow(entry, childScript, childName, childArgs, childRunID)
+
+    // Wait for child outcome
+    const childOutcome = await childEntry.outcomePromise
+
+    // Structural errors propagate
+    if (childOutcome.status === "failed" && childOutcome.error?.includes(WORKFLOW_STRUCTURAL_ERROR)) {
+      const idx = childOutcome.error.indexOf(WORKFLOW_STRUCTURAL_ERROR)
+      throw new Error(childOutcome.error.slice(idx))
+    }
+
+    // Runtime failure → null
+    if (childOutcome.status !== "completed") {
+      return null
+    }
+
+    const value = childOutcome.result ?? null
+
+    // Journal successful child
+    if (value !== null) {
+      WorkflowPersistence.appendJournalSync(entry.runID, {
+        t: "agent",
+        key,
+        result: value,
+        pass: entry.journalPass,
+      })
+    }
+
+    return value
+  }
+
+  /** phase(title) — set the current phase for a run. */
+  private setPhase(entry: InternalRunEntry, title: string): void {
+    entry.currentPhase = title
+    WorkflowPersistence.appendJournal(entry.runID, {
+      t: "phase",
+      title,
+      pass: entry.journalPass,
+    })
+    emit("workflow:phase", { runID: entry.runID, title })
+  }
+
+  /** log(msg) — append a log message to the run journal. */
+  private appendLog(entry: InternalRunEntry, msg: string): void {
+    WorkflowPersistence.appendJournal(entry.runID, {
+      t: "log",
+      msg,
+      pass: entry.journalPass,
+    })
+    emit("workflow:log", { runID: entry.runID, message: msg })
+  }
+
+  /** readFile(path) — read from the jailed workspace. */
+  private async workspaceReadFile(path: string): Promise<string | null> {
+    return wsReadFile(path)
+  }
+
+  /** writeFile(path, content) — write into the jailed workspace. */
+  private async workspaceWriteFile(path: string, content: string): Promise<void> {
+    return wsWriteFile(path, content)
+  }
+
+  /** glob(pattern) — glob inside the jailed workspace. */
+  private async workspaceGlob(pattern: string): Promise<string[]> {
+    return wsGlob(pattern)
+  }
+
+  /** exists(path) — check existence inside the jailed workspace. */
+  private async workspaceExists(path: string): Promise<boolean> {
+    return wsExists(path)
   }
 
   // ── Private: LLM call ──────────────────────────────────────────────────
@@ -864,28 +896,17 @@ export class WorkflowRuntime {
 
     emit("workflow:started", { runID, name })
 
-    this.launchScript(entry, script, name, args).catch((err) => {
+    this.launchScript(entry, script, name, args).then((result) => {
+      if (result === null) {
+        this.failRun(entry, "Sandbox execution failed")
+      } else {
+        this.completeRun(entry, result !== undefined ? result : undefined)
+      }
+    }).catch((err) => {
       this.failRun(entry, err instanceof Error ? err.message : String(err))
     })
 
     return entry
-  }
-
-  // ── Private: deadline wrapper ──────────────────────────────────────────
-
-  private async runWithDeadline(entry: InternalRunEntry, promise: Promise<unknown>): Promise<unknown> {
-    const deadlineMs = entry.deadlineMs - Date.now()
-    if (deadlineMs <= 0) {
-      throw new Error("workflow deadline exceeded before main() completed")
-    }
-    const timeout = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("workflow deadline exceeded")), deadlineMs),
-    )
-    const abort = new Promise<never>((_, reject) => {
-      const onAbort = () => reject(new Error("workflow cancelled"))
-      entry.controller.signal.addEventListener("abort", onAbort, { once: true })
-    })
-    return Promise.race([promise, timeout, abort])
   }
 
   // ── Private: completion ────────────────────────────────────────────────

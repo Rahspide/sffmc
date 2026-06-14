@@ -50,7 +50,7 @@ export function parseMeta(script: string): ParseResult {
   const endIndex = close + 1 + (script[close + 1] === ";" ? 1 : 0)
   const matched = script.slice(start.index, endIndex)
   const body = script.slice(0, start.index) + matched.replace(/[^\n]/g, " ") + script.slice(endIndex)
-  return { ok: true, meta: m as Meta, body }
+  return { ok: true, meta: m as unknown as Meta, body }
 }
 
 // Scan from `{` at `open`, counting brace depth while ignoring braces in

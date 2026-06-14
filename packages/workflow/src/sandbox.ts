@@ -109,7 +109,7 @@ export async function runSandboxed(
   const hooks: Record<string, HostFn> = {}
   for (const key of Object.keys(primitives)) {
     if (PRELUDE_KEYS.has(key)) continue
-    const fn = (primitives as Record<string, unknown>)[key]
+    const fn = (primitives as unknown as Record<string, unknown>)[key]
     if (typeof fn === "function") {
       hooks[key] = fn as HostFn
     }
@@ -326,7 +326,8 @@ function injectHooks(
 /** Marshal a host JS value INTO the guest (by copy via JSON for structured
  *  data, direct for primitives). */
 function marshalIn(ctx: QuickJSContext, value: unknown): QuickJSHandle {
-  if (value === undefined || value === null) return ctx.undefined
+  if (value === undefined) return ctx.undefined
+  if (value === null) return ctx.null
   if (typeof value === "string") return ctx.newString(value)
   if (typeof value === "number") return ctx.newNumber(value)
   if (typeof value === "boolean") return value ? ctx.true : ctx.false
