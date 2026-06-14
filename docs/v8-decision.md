@@ -2,12 +2,12 @@
 
 ## Status
 
-**v8.0.0 — all 8 features confirmed by user on 2026-06-14.** **W1 ✅ DONE 2026-06-14** — commits 5173cea + 324fbb4 + a15818c, sandbox live on :4200, prod :4100 unaffected, 19/19 tests pass, runtime guard in place. Round 6 re-look integrated 2026-06-14.
+**v8.0.0 — all 8 features confirmed by user on 2026-06-14.** **W1 ✅ DONE 2026-06-14** — commits 5173cea + 324fbb4 + a15818c, sandbox live on :4200, prod :4100 unaffected, 19/19 tests pass, runtime guard in place. **W2 ✅ DONE 2026-06-14** — commit f4b6ef5, 86/86 tests pass across 5 packages, 5/5 SFFMC plugins loaded.
 
 | Week | Features | Effort | Status |
 |------|----------|--------|--------|
 | W1 | F4' Memory + F2 Rules + OpenCode-migration README | 18-24h | ✅ DONE |
-| W2 | F1 Watchdog + EOS stripper + log whitelist | 14-18h | pending |
+| W2 | F1 Watchdog + EOS stripper + log whitelist | 14-18h | ✅ DONE |
 | W3 | F7 Max Mode + Auto-Max triggers | 12-16h | pending |
 | W4 | Compose pack + Verify skill + "Import from MiMo" guide | 4-6h | pending |
 | W5-6 | Dynamic Workflow (sandbox + JS primitives) | 25-35h | pending |
