@@ -8,3 +8,5 @@ coverage/
 .idea/
 .env
 .env.local
+.slim/deepwork/
+dependencies/

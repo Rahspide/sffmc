@@ -542,19 +542,19 @@ describe("resolve.ts", () => {
 // ---------------------------------------------------------------------------
 
 describe("builtin-registry.ts", () => {
-  test("initially empty", () => {
-    expect(listBuiltins()).toEqual([])
-    expect(getBuiltin("anything")).toBeUndefined()
+  test("deep-research is registered by default", () => {
+    expect(listBuiltins()).toContain("deep-research")
+    expect(getBuiltin("deep-research")).toBeDefined()
   })
 
-  test("register and load builtin", async () => {
+  test("loadBuiltin throws on unknown", async () => {
+    await expect(loadBuiltin("not-registered")).rejects.toThrow("Unknown built-in workflow")
+  })
+
+  test("register and load custom builtin", async () => {
     registerBuiltin("test-builtin", async () => ({
       source: "// test script",
-      meta: {
-        name: "test-builtin",
-        description: "A test built-in",
-        phases: [{ title: "Phase A" }],
-      },
+      meta: { name: "test-builtin", description: "A test built-in", phases: [{ title: "Phase A" }] },
     }))
     expect(listBuiltins()).toContain("test-builtin")
     expect(getBuiltin("test-builtin")).toBeDefined()
@@ -563,10 +563,6 @@ describe("builtin-registry.ts", () => {
     expect(entry.name).toBe("test-builtin")
     expect(entry.description).toBe("A test built-in")
     expect(entry.script).toBe("// test script")
-  })
-
-  test("loadBuiltin throws on unknown", async () => {
-    await expect(loadBuiltin("not-registered")).rejects.toThrow("Unknown built-in workflow")
   })
 })
 

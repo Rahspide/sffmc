@@ -13,10 +13,17 @@ export interface BuiltinEntry {
 
 type Loader = () => Promise<{ source: string; meta: Meta }>
 
+// Lazy-load the deep-research builtin so the module is only imported on first use.
+let _deepResearchLoader: Loader | undefined
+
+async function loadDeepResearch(): Promise<{ source: string; meta: Meta }> {
+  const mod = await import("../builtin/deep-research.ts")
+  return { source: mod.source, meta: mod.meta }
+}
+
 /**
- * Registry of built-in workflows. Lane D will register `deep-research` here.
- * Initially empty. Lookups use null-prototype to avoid inherited Object.prototype
- * members (e.g. "constructor") being returned accidentally.
+ * Registry of built-in workflows. Lookups use null-prototype to avoid inherited
+ * Object.prototype members (e.g. "constructor") being returned accidentally.
  */
 const REGISTRY: Record<string, Loader> = Object.create(null)
 
@@ -44,3 +51,7 @@ export async function loadBuiltin(name: string): Promise<BuiltinEntry> {
     script: source,
   }
 }
+
+// ── Register builtins ──────────────────────────────────────────────────────
+
+registerBuiltin("deep-research", loadDeepResearch)
