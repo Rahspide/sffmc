@@ -2,14 +2,14 @@
 
 ## Status
 
-**v8.0.0 — all 8 features confirmed by user on 2026-06-14.** **W1 ✅ DONE 2026-06-14** — commits 5173cea + 324fbb4 + a15818c, sandbox live on :4200, prod :4100 unaffected, 19/19 tests pass, runtime guard in place. **W2 ✅ DONE 2026-06-14** — commit f4b6ef5, 86/86 tests pass across 5 packages, 5/5 SFFMC plugins loaded. **W3 ✅ DONE 2026-06-14** — commit 0411ca7, 51 new tests (31 max-mode + 20 auto-max), 7/7 SFFMC plugins loaded, sandbox healthy on :4200.
+**v8.0.0 — all 8 features confirmed by user on 2026-06-14.** **W1 ✅ DONE 2026-06-14** — commits 5173cea + 324fbb4 + a15818c, sandbox live on :4200, prod :4100 unaffected, 19/19 tests pass, runtime guard in place. **W2 ✅ DONE 2026-06-14** — commit f4b6ef5, 86/86 tests pass across 5 packages, 5/5 SFFMC plugins loaded. **W3 ✅ DONE 2026-06-14** — commit 0411ca7, 51 new tests (31 max-mode + 20 auto-max), 7/7 SFFMC plugins loaded, sandbox healthy on :4200. **W4 ✅ DONE 2026-06-14** — commit be3f999, 15 skills imported from MiMo-Code, 20/20 tests pass, 8/8 SFFMC plugins loaded, import-from-mimo guide (283 lines) shipped.
 
 | Week | Features | Effort | Status |
 |------|----------|--------|--------|
 | W1 | F4' Memory + F2 Rules + OpenCode-migration README | 18-24h | ✅ DONE |
 | W2 | F1 Watchdog + EOS stripper + log whitelist | 14-18h | ✅ DONE |
 | W3 | F7 Max Mode + Auto-Max triggers | 12-16h | ✅ DONE |
-| W4 | Compose pack + Verify skill + "Import from MiMo" guide | 4-6h | pending |
+| W4 | Compose pack + Verify skill + "Import from MiMo" guide | 4-6h | ✅ DONE |
 | W5-6 | Dynamic Workflow (sandbox + JS primitives) | 25-35h | pending |
 | W7 | Buffer, integration, Git publication prep | — | pending |
 
