@@ -1,0 +1,20 @@
+{
+  "name": "@sffmc/workflow",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "test": "bun test",
+    "build": "tsc --noEmit"
+  },
+  "dependencies": {
+    "quickjs-emscripten": "0.32.0",
+    "yaml": "^2.5.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@types/bun": "latest",
+    "bun-types": "latest"
+  },
+  "license": "MIT"
+}
