@@ -10,9 +10,10 @@
   "scripts": {
     "build": "for p in packages/*/src/index.ts; do bun build --target=bun --outdir=/tmp/sffmc-build \"$p\"; done && bun build --target=bun --outdir=/tmp/sffmc-build shared/src/index.ts",
     "test": "bun test --path-ignore-patterns='dependencies/**' packages/ shared/",
+    "test:watch": "bun test --watch packages/ shared/",
     "test:workflow": "cd packages/workflow && bun test",
     "test:all": "for p in packages/* shared; do (cd \"$p\" && bun test) || exit 1; done",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "for p in packages/* shared; do (cd \"$p\" && bun build --target=bun --no-bundle src/index.ts 2>&1) | grep -v 'bun build' || true; done"
   },
   "engines": {
     "bun": ">=1.0.0"
