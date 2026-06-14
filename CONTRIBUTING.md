@@ -62,18 +62,30 @@ Then add tests, README, and register in `~/.config/opencode/opencode.json` (or s
 # Run all plugin tests (SFFMC scope only, ignores dependencies/)
 bun test
 
+# Watch mode — re-runs tests on every .ts save (Bun's built-in)
+bun run test:watch
+
 # Run one package
 cd packages/workflow && bun test
 
-# Type-check
+# Type-check (uses bun build --no-bundle, no global tsc needed)
 bun run typecheck
 
 # Build all to /tmp/sffmc-build
 bun run build
 
-# Audit hook conflicts
+# Audit hook conflicts (must pass before commit)
 python3 scripts/audit-load-order.py
 ```
+
+### Pre-commit hook
+
+`.git/hooks/pre-commit` runs automatically before every commit:
+1. `bun test` (must pass)
+2. `bun run typecheck` (must pass)
+3. `python3 scripts/audit-load-order.py` (must show 0 conflicts)
+
+Bypass with `git commit --no-verify` (use sparingly — CI will catch it later if remote is set up).
 
 ## Sandbox workflow
 
