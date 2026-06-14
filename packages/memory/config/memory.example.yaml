@@ -1,0 +1,13 @@
+# F4' Memory plugin config
+storage_path: ~/.local/share/SFFMC/memory/index.sqlite
+recon_budgets:
+  memory: 6144
+  checkpoint: 6144
+  task_tree: 4096
+  tail: 8192
+  agents: 8192
+memory_paths:
+  - memory-bank/
+  - AGENTS.md
+  - "*.md"
+default_importance: 0.5

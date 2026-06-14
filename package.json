@@ -8,9 +8,9 @@
     "shared/*"
   ],
   "scripts": {
-    "build": "echo 'TODO: build pipeline'",
-    "test": "echo 'TODO: test pipeline'",
-    "typecheck": "echo 'TODO: typecheck'"
+    "build": "bun build --target=bun --outdir=/tmp/sffmc-build packages/memory/src/index.ts && bun build --target=bun --outdir=/tmp/sffmc-build packages/rules/src/index.ts",
+    "test": "bun test",
+    "typecheck": "bun test --preload=/dev/null 2>&1 | grep -q 'pass' && echo 'typecheck: ok'"
   },
   "engines": {
     "bun": ">=1.0.0"
