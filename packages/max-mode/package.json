@@ -1,0 +1,9 @@
+{
+  "name": "@sffmc/max-mode",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "dependencies": {
+    "yaml": "^2.0.0"
+  }
+}

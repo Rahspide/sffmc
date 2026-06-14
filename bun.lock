@@ -5,6 +5,13 @@
     "": {
       "name": "sffmc",
     },
+    "packages/auto-max": {
+      "name": "@sffmc/auto-max",
+      "version": "0.1.0",
+      "dependencies": {
+        "yaml": "^2.0.0",
+      },
+    },
     "packages/eos-stripper": {
       "name": "@sffmc/eos-stripper",
       "version": "0.1.0",
@@ -14,6 +21,13 @@
     },
     "packages/log-whitelist": {
       "name": "@sffmc/log-whitelist",
+      "version": "0.1.0",
+      "dependencies": {
+        "yaml": "^2.0.0",
+      },
+    },
+    "packages/max-mode": {
+      "name": "@sffmc/max-mode",
       "version": "0.1.0",
       "dependencies": {
         "yaml": "^2.0.0",
@@ -43,9 +57,13 @@
     },
   },
   "packages": {
+    "@sffmc/auto-max": ["@sffmc/auto-max@workspace:packages/auto-max"],
+
     "@sffmc/eos-stripper": ["@sffmc/eos-stripper@workspace:packages/eos-stripper"],
 
     "@sffmc/log-whitelist": ["@sffmc/log-whitelist@workspace:packages/log-whitelist"],
+
+    "@sffmc/max-mode": ["@sffmc/max-mode@workspace:packages/max-mode"],
 
     "@sffmc/memory": ["@sffmc/memory@workspace:packages/memory"],
 

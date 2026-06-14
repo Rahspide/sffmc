@@ -1,0 +1,22 @@
+# F7 Max Mode — plugin config
+
+version: 1
+
+# Number of parallel candidate drafts (max 5)
+n_candidates: 3
+
+# Override candidate models (empty = same as primary)
+candidate_models: []
+
+# Temperature for candidate generation (higher = more creative)
+candidate_temperature: 1.0
+
+# Judge model for selecting the best candidate
+judge_model: ocg/deepseek-v4-flash
+
+# Safety cap: abort if total token cost exceeds N × single call
+# 5 means abort if > 5x the cost of 1 candidate call
+budget_cap_multiplier: 5
+
+# Dry-run mode: only estimate costs, don't actually call models
+dry_run: false

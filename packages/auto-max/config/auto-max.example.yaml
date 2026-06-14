@@ -1,0 +1,18 @@
+# Auto-Max Triggers — plugin config
+
+version: 1
+
+# Enable/disable the entire plugin
+enabled: true
+
+# Number of consecutive same-tool failures before triggering Max Mode
+watchdog_threshold: 3
+
+# Max Mode configuration passed through on trigger
+max_mode_config:
+  n: 3
+  judge_model: ocg/deepseek-v4-flash
+
+# Maximum Max Mode invocations per session (safety cap)
+# 1 = only fire once per session, even if stuck again
+cost_cap_per_session: 1
