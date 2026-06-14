@@ -4,7 +4,7 @@
 import { getRuntime } from "./runtime-ref.ts"
 
 // ---------------------------------------------------------------------------
-// Manual discriminated union validation (no zod dep)
+// Discriminated union type for compile-time validation
 // ---------------------------------------------------------------------------
 
 type WorkflowToolArgs =
@@ -14,79 +14,15 @@ type WorkflowToolArgs =
   | { operation: "cancel"; run_id: string }
   | { operation: "resume"; run_id: string; agent_timeout_ms?: number }
 
-function validateArgs(args: unknown): WorkflowToolArgs {
-  if (typeof args !== "object" || args === null) {
-    throw new Error("workflow tool args must be an object")
-  }
-  const a = args as Record<string, unknown>
-  const op = a.operation
-  if (typeof op !== "string") {
-    throw new Error(`workflow tool requires "operation" field (run|status|wait|cancel|resume)`)
-  }
-
-  switch (op) {
-    case "run": {
-      const name = typeof a.name === "string" && a.name ? a.name : undefined
-      const script = typeof a.script === "string" && a.script ? a.script : undefined
-      if (!name && !script) {
-        throw new Error("workflow run: provide either `name` or `script`")
-      }
-      if (name && script) {
-        throw new Error("workflow run: provide either `name` or `script`, not both")
-      }
-      return {
-        operation: "run",
-        name,
-        script,
-        args: a.args,
-        workspace: typeof a.workspace === "string" ? a.workspace : undefined,
-      }
-    }
-    case "status": {
-      if (typeof a.run_id !== "string" || !a.run_id) {
-        throw new Error("workflow status: `run_id` is required")
-      }
-      return { operation: "status", run_id: a.run_id }
-    }
-    case "wait": {
-      if (typeof a.run_id !== "string" || !a.run_id) {
-        throw new Error("workflow wait: `run_id` is required")
-      }
-      return {
-        operation: "wait",
-        run_id: a.run_id,
-        timeout_ms: typeof a.timeout_ms === "number" ? a.timeout_ms : undefined,
-      }
-    }
-    case "cancel": {
-      if (typeof a.run_id !== "string" || !a.run_id) {
-        throw new Error("workflow cancel: `run_id` is required")
-      }
-      return { operation: "cancel", run_id: a.run_id }
-    }
-    case "resume": {
-      if (typeof a.run_id !== "string" || !a.run_id) {
-        throw new Error("workflow resume: `run_id` is required")
-      }
-      return {
-        operation: "resume",
-        run_id: a.run_id,
-        agent_timeout_ms: typeof a.agent_timeout_ms === "number" ? a.agent_timeout_ms : undefined,
-      }
-    }
-    default:
-      throw new Error(
-        `unknown workflow operation: ${JSON.stringify(op)}. Valid: run, status, wait, cancel, resume`,
-      )
-  }
-}
-
 // ---------------------------------------------------------------------------
-// Tool definition
+// Tool definition (NO `name` field — key comes from tool hook return)
+// See @sffmc/compose compose_skill for the working pattern:
+//   tool: { compose_skill: { description, parameters, execute } }
+// Adding `name` to the tool object causes OpenCode 1.17.x to silently reject
+// the tool during registration.
 // ---------------------------------------------------------------------------
 
 export const workflowTool = {
-  name: "workflow",
   description: `Run, monitor, and resume multi-step orchestrated workflows. Use this for tasks with 5+ sequential steps or any fan-out (parallel) work that needs to be durable across the LLM session.
 
 5 operations:
@@ -146,34 +82,62 @@ Examples:
     required: ["operation"],
   },
 
-  execute: async (args: unknown, _ctx?: unknown): Promise<string> => {
+  execute: async (args: WorkflowToolArgs, _ctx?: unknown): Promise<string> => {
+    // Quick runtime guard — LLM may send malformed args despite schema
+    if (typeof args !== "object" || args === null || typeof (args as Record<string, unknown>).operation !== "string") {
+      return "Error: workflow tool requires 'operation' field (run|status|wait|cancel|resume)"
+    }
+
     const runtime = getRuntime()
     if (!runtime) {
       return "Error: workflow runtime not initialized. The @sffmc/workflow plugin must be loaded."
     }
 
     try {
-      const validated = validateArgs(args)
-      switch (validated.operation) {
+      switch (args.operation) {
         case "run": {
+          if (!args.name && !args.script) {
+            return "Error: workflow run: provide either `name` or `script`"
+          }
+          if (args.name && args.script) {
+            return "Error: workflow run: provide either `name` or `script`, not both"
+          }
           const startInput = {
-            name: validated.name,
-            script: validated.script,
-            args: validated.args,
-            workspace: validated.workspace,
+            name: args.name,
+            script: args.script,
+            args: args.args,
+            workspace: args.workspace,
             sessionID: "tool-call",
           } as Parameters<typeof runtime.start>[0]
           return JSON.stringify(await runtime.start(startInput))
         }
-        case "status":
-          return JSON.stringify(await runtime.status({ runID: validated.run_id }))
-        case "wait":
-          return JSON.stringify(await runtime.wait({ runID: validated.run_id, timeoutMs: validated.timeout_ms }))
-        case "cancel":
-          await runtime.cancel({ runID: validated.run_id })
-          return JSON.stringify({ cancelled: validated.run_id })
-        case "resume":
-          return JSON.stringify(await runtime.resume({ runID: validated.run_id, agentTimeoutMs: validated.agent_timeout_ms }))
+        case "status": {
+          if (!args.run_id) {
+            return "Error: workflow status: `run_id` is required"
+          }
+          return JSON.stringify(await runtime.status({ runID: args.run_id }))
+        }
+        case "wait": {
+          if (!args.run_id) {
+            return "Error: workflow wait: `run_id` is required"
+          }
+          return JSON.stringify(await runtime.wait({ runID: args.run_id, timeoutMs: args.timeout_ms }))
+        }
+        case "cancel": {
+          if (!args.run_id) {
+            return "Error: workflow cancel: `run_id` is required"
+          }
+          await runtime.cancel({ runID: args.run_id })
+          return JSON.stringify({ cancelled: args.run_id })
+        }
+        case "resume": {
+          if (!args.run_id) {
+            return "Error: workflow resume: `run_id` is required"
+          }
+          return JSON.stringify(await runtime.resume({ runID: args.run_id, agentTimeoutMs: args.agent_timeout_ms }))
+        }
+        default:
+          return `Error: unknown operation "${(args as Record<string, unknown>).operation}". Valid: run, status, wait, cancel, resume`
       }
     } catch (e) {
       return `Error: ${e instanceof Error ? e.message : String(e)}`
