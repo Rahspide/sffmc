@@ -1,4 +1,4 @@
-import { describe, it, expect } from "bun:test";
+import { describe, it, expect, jest, afterEach } from "bun:test";
 import { FailureCounter } from "./counter";
 import { buildPromotionFragment } from "./promote";
 import { buildRecoveryVerdict } from "./verdict";
@@ -184,5 +184,100 @@ describe("Plugin entry", () => {
       { output: "fetch_429: rate limited" },
     );
     // No throw = ignored
+  });
+});
+
+describe("tool.execute.after error detection", () => {
+  let warnSpy: ReturnType<typeof jest.spyOn>;
+
+  afterEach(() => {
+    if (warnSpy) warnSpy.mockRestore();
+  });
+
+  async function createHooks() {
+    const mod = await import("./index");
+    return await mod.default.server({
+      projectRoot: "/tmp/test-project",
+      config: {},
+    });
+  }
+
+  it("does NOT flag markdown content containing bare 'error'/'fail' words", async () => {
+    const hooks = await createHooks();
+    warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+
+    const markdown =
+      "# Test Results\n\n" +
+      "## Summary\n" +
+      "- 0 errors\n" +
+      "- 0 failures\n" +
+      "- MUST FAIL: edge case #42\n" +
+      "- error_class_filter: default\n" +
+      "All tests passed successfully.";
+
+    await hooks["tool.execute.after"]!(
+      { tool: "compose_skill", sessionID: "s1", callID: "c1" },
+      { output: markdown },
+    );
+
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it("DOES flag real error messages (Error: prefix)", async () => {
+    const hooks = await createHooks();
+    warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+
+    await hooks["tool.execute.after"]!(
+      { tool: "bash", sessionID: "s1", callID: "c1" },
+      { output: "Error: ENOENT: no such file or directory" },
+    );
+
+    // extractErrorType finds "Error:" as leftmost match → "ERROR:"
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("[watchdog] failure: bash:ERROR:"),
+    );
+  });
+
+  it("does NOT flag long output (>4096 chars) even if it contains 'error'", async () => {
+    const hooks = await createHooks();
+    warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+
+    // Build a 5000-char string containing "error" once
+    const long = "x".repeat(2000) + " error happened somewhere " + "y".repeat(2970);
+    expect(long.length).toBeGreaterThan(4096);
+
+    await hooks["tool.execute.after"]!(
+      { tool: "read", sessionID: "s1", callID: "c1" },
+      { output: long },
+    );
+
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it("DOES flag throw new Error patterns", async () => {
+    const hooks = await createHooks();
+    warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+
+    await hooks["tool.execute.after"]!(
+      { tool: "bash", sessionID: "s2", callID: "c2" },
+      { output: "throw new Error('something went wrong') at line 42" },
+    );
+
+    // extractErrorType finds no error-code token → "UNKNOWN"
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("[watchdog] failure: bash:UNKNOWN"),
+    );
+  });
+
+  it("does NOT flag bare 'fail' in descriptive text", async () => {
+    const hooks = await createHooks();
+    warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+
+    await hooks["tool.execute.after"]!(
+      { tool: "test", sessionID: "s3", callID: "c3" },
+      { output: "failed 1 out of 100" },
+    );
+
+    expect(warnSpy).not.toHaveBeenCalled();
   });
 });

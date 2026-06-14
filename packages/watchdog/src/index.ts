@@ -107,7 +107,8 @@ const server = async (ctx: PluginContext) => {
       const meta = result.metadata as Record<string, unknown> | undefined;
       const isError =
         typeof output === "string" &&
-        /error|fail|ERR_|ENOENT|EACCES|ETIMEDOUT|ECONNREFUSED/i.test(output);
+        output.length <= 4096 &&
+        /(?:^Error[:\s]|ERR_[A-Z_]+|ENOENT|EACCES|EPERM|EAGAIN|ETIMEDOUT|ECONNREFUSED|throw\s+new\s+Error|Error:\s*\w)/i.test(output);
 
       const hasErrorFlag =
         meta?.error !== undefined && meta?.error !== null && meta?.error !== false;
