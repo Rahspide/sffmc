@@ -1,5 +1,69 @@
-import { Database } from "bun:sqlite";
+// -------------------------------------------------------------------------
+// Runtime-aware SQLite loader
+//
+// Fast path: bun:sqlite (Bun runtime, 3-6x node:sqlite throughput).
+// Fallback:  node:sqlite/DatabaseSync (Node 22.6+ built-in, no native deps).
+//
+// Resolution is lazy — happens on first init() call.  This avoids top-level
+// await issues with synchronous module consumers (plugin loaders, bundlers).
+// -------------------------------------------------------------------------
+let DatabaseCtor: any = null;
+export let isBunSqlite = false;
+let _resolvePromise: Promise<void> | null = null;
 
+async function resolveEngine(): Promise<void> {
+  if (DatabaseCtor) return; // already resolved
+  if (_resolvePromise) return _resolvePromise;
+  _resolvePromise = (async () => {
+    try {
+      const bunSqlite = await import("bun:sqlite");
+      DatabaseCtor = bunSqlite.Database;
+      isBunSqlite = true;
+    } catch {
+      // Fallback to Node 22.6+ built-in SQLite (DatabaseSync).
+      // Same prepare()/all()/get()/run() API as better-sqlite3,
+      // zero native compilation.
+      const nodeSqlite = await import("node:sqlite");
+      DatabaseCtor = nodeSqlite.DatabaseSync;
+      isBunSqlite = false;
+    }
+  })();
+  return _resolvePromise;
+}
+
+/**
+ * Transparently adapts a raw SQLite connection so that consumer code can
+ * call `.query(sql)` on both back-ends.  Internally:
+ *
+ *   bun:sqlite      → db.query(sql)            (native)
+ *   node:sqlite     → db.prepare(sql)           (wrapped)
+ *
+ * Both return objects with .all(), .get(), .run().
+ *
+ * Additionally, `db.run(sql, [params])` — used directly on the bun
+ * handle — is normalised for node:sqlite (which only offers
+ * prepare().run()).
+ */
+function createAdapter(rawDb: any, _isBun: boolean): any {
+  if (_isBun) return rawDb; // pass-through — bun:sqlite API matches our usage
+
+  // node:sqlite (DatabaseSync) shim
+  return {
+    exec: (sql: string) => rawDb.exec(sql),
+    query: (sql: string) => rawDb.prepare(sql),
+    run: (sql: string, params?: any[]) => {
+      if (params && params.length > 0) {
+        rawDb.prepare(sql).run(...params);
+      } else {
+        rawDb.prepare(sql).run();
+      }
+    },
+  };
+}
+
+// -------------------------------------------------------------------------
+// Public types
+// -------------------------------------------------------------------------
 export interface MemoryEntry {
   id: number;
   source_path: string;
@@ -11,7 +75,7 @@ export interface MemoryEntry {
 }
 
 export class MemoryDB {
-  constructor(public db: Database) {}
+  constructor(public db: any) {}
 }
 
 const SCHEMA_SQL = `
@@ -51,11 +115,13 @@ CREATE TRIGGER IF NOT EXISTS memory_au AFTER UPDATE ON memory_entries BEGIN
 END;
 `;
 
-export function init(dbPath: string): MemoryDB {
-  const db = new Database(dbPath);
-  db.exec("PRAGMA journal_mode=WAL;");
-  db.exec(SCHEMA_SQL);
-  return new MemoryDB(db);
+export async function init(dbPath: string): Promise<MemoryDB> {
+  await resolveEngine();
+  const rawDb = new DatabaseCtor(dbPath);
+  rawDb.exec("PRAGMA journal_mode=WAL;");
+  rawDb.exec(SCHEMA_SQL);
+  const adapted = createAdapter(rawDb, isBunSqlite);
+  return new MemoryDB(adapted);
 }
 
 export function upsert(

@@ -6,6 +6,7 @@ import {
   all,
   topByImportance,
   remove,
+  isBunSqlite,
   type MemoryDB,
 } from "./memory";
 import { buildRecon, tailFromMessages, parseAgentsMd } from "./recon";
@@ -22,9 +23,9 @@ function cleanup() {
 describe("MemoryDB", () => {
   let db: MemoryDB;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     cleanup();
-    db = init(TEST_DB);
+    db = await init(TEST_DB);
   });
 
   afterEach(cleanup);
@@ -184,6 +185,59 @@ describe("parseAgentsMd", () => {
   it("returns full content if under budget", () => {
     const result = parseAgentsMd("short");
     expect(result).toBe("short");
+  });
+});
+
+describe("Runtime guard: portable SQLite loader", () => {
+  it("resolves to bun:sqlite when running under Bun", async () => {
+    // Dynamic re-import to get fresh module state (isBunSqlite)
+    const mod = await import("./memory");
+    expect(mod.isBunSqlite).toBe(true);
+  });
+
+  it("init creates a working DB with FTS5 (bun path)", async () => {
+    cleanup();
+    const db = await init(TEST_DB);
+    try {
+      // Verify schema
+      const tables = db.db
+        .query("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+        .all() as Array<{ name: string }>;
+      const names = tables.map((t: { name: string }) => t.name);
+      expect(names).toContain("memory_entries");
+      expect(names).toContain("memory_fts");
+
+      // Full CRUD cycle through the adapter
+      upsert(db, "test.md", "s1", "guard test content", 0.6);
+      const results = search(db, "guard", 5);
+      expect(results.length).toBe(1);
+      expect(results[0].content).toBe("guard test content");
+
+      remove(db, "test.md");
+      expect(all(db).length).toBe(0);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("adapter .run() normalises array params for node:sqlite compat", async () => {
+    // This is the most fragile path: bun:sqlite's db.run(sql, [a,b])
+    // must work through the adapter even on node:sqlite where
+    // run() is on the statement, not the db handle.
+    cleanup();
+    const db = await init(TEST_DB);
+    try {
+      // upsert calls db.db.run(sql, [params]) internally — if this
+      // passes, the adapter handles array→spread correctly
+      upsert(db, "a.md", "s1", "val1", 0.5);
+      upsert(db, "a.md", "s1", "val2", 0.9);
+      const entries = all(db);
+      expect(entries.length).toBe(1);
+      expect(entries[0].content).toBe("val2");
+      expect(entries[0].importance_score).toBe(0.9);
+    } finally {
+      cleanup();
+    }
   });
 });
 

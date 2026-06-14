@@ -67,7 +67,7 @@ const server = async (ctx: PluginContext) => {
   async function ensureDB(): Promise<MemoryDB> {
     if (!state.db) {
       ensureDir(state.config.storagePath);
-      state.db = init(state.config.storagePath);
+      state.db = await init(state.config.storagePath);
     }
     return state.db;
   }
