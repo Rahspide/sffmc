@@ -1,5 +1,15 @@
 # SFFMC Changelog
 
+## v0.6.1 — Load order audit (2026-06-15)
+
+Post-release patch:
+- `docs/load-order-audit.md` — full audit of 9 SFFMC plugin hooks, 0 conflicts found
+- `scripts/audit-load-order.py` — reusable AST-based hook auditor (for v0.7.0+ CI)
+- All critical sequences verified: /max reset→activate, watchdog→log-whitelist→auto-max output chain, eos-stripper→log-whitelist text chain
+- Tool names: only `compose_skill` (compose) and `workflow` (workflow) — no conflicts
+
+No code changes. No plugin version bumps. Pure docs + tooling.
+
 ## v0.6.0 — Dynamic Workflow engine (2026-06-14)
 
 9 SFFMC plugins shipped:
