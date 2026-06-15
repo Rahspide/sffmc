@@ -9,4 +9,5 @@ coverage/
 .env
 .env.local
 .slim/deepwork/
+.sffmc/
 dependencies/
