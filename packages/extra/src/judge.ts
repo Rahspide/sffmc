@@ -5,6 +5,7 @@
 export interface JudgeInput {
   candidates: string[];
   rubric?: string;
+  stream?: boolean;
 }
 
 export interface JudgeScore {
@@ -34,6 +35,18 @@ export interface JudgeSkipped {
 }
 
 export type JudgeExecuteResult = JudgeResult | JudgeError | JudgeSkipped;
+
+export interface JudgeStreamChunk {
+  type: "scores" | "winner" | "reasoning" | "complete" | "error";
+  /** For type="scores": array of partial scores (only some candidates scored so far) */
+  scores?: Partial<JudgeScore>[];
+  /** For type="winner": the candidate index */
+  winner?: number;
+  /** For type="reasoning": partial reasoning text */
+  reasoning?: string;
+  /** For type="error": error message */
+  error?: string;
+}
 
 export interface JudgeTool {
   description: string;
@@ -240,6 +253,84 @@ async function callJudge(
 }
 
 // ---------------------------------------------------------------------------
+// Streaming LLM judge call
+// ---------------------------------------------------------------------------
+
+export async function callJudgeStream(
+  candidates: string[],
+  rubric: string,
+  model: string,
+  ctx: RichPluginContext,
+  onChunk: (chunk: JudgeStreamChunk) => void,
+): Promise<JudgeResult> {
+  const session = ctx.client?.session;
+  if (!session?.message) {
+    const errMsg = "ctx.client.session.message() not available";
+    onChunk({ type: "error", error: errMsg });
+    throw new Error(errMsg);
+  }
+
+  const { system, user } = buildJudgePrompt(candidates, rubric);
+
+  const start = performance.now();
+
+  try {
+    const response = await session.message({
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
+      model,
+      temperature: 0.2,
+    });
+
+    const latencyMs = Math.round(performance.now() - start);
+
+    const text = response.content
+      .filter((p): p is { type: "text"; text: string } => p.type === "text" && typeof p.text === "string")
+      .map((p) => p.text)
+      .join("\n");
+
+    const parsed = parseJudgeResponse(text, candidates.length);
+    if (!parsed) {
+      const errMsg = "judge parse failed";
+      onChunk({ type: "error", error: errMsg });
+      throw new Error(errMsg);
+    }
+
+    // Emit scores as first chunk
+    onChunk({ type: "scores", scores: parsed.scores });
+
+    // Emit winner chunk
+    onChunk({ type: "winner", winner: parsed.winner });
+
+    // Emit reasoning chunk
+    onChunk({ type: "reasoning", reasoning: parsed.reasoning });
+
+    // Emit complete chunk
+    onChunk({ type: "complete" });
+
+    return {
+      ok: true,
+      scores: parsed.scores,
+      winner: parsed.winner,
+      reasoning: parsed.reasoning,
+      model,
+      latencyMs,
+    };
+  } catch (err) {
+    // Caller may have already emitted an error chunk for parse failures;
+    // for unexpected errors (network, etc.), emit here if not already emitted.
+    const errMsg = err instanceof Error ? err.message : String(err);
+    // Avoid double-emitting if parse failure already sent one
+    if (!(err instanceof Error && err.message === "judge parse failed")) {
+      onChunk({ type: "error", error: errMsg });
+    }
+    throw err;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Auto-judge marker extraction
 // ---------------------------------------------------------------------------
 
@@ -280,7 +371,8 @@ export function createJudgeTool(
   const tool: JudgeTool = {
     description: `F6' Judge — multi-criteria LLM judge for evaluating candidate outputs.
 Status: ${config.enabled ? "enabled" : "disabled"}.
-When enabled, scores candidates 0-10 on correctness, completeness, conciseness, picks winner with reasoning. Model: ${config.model}.`,
+When enabled, scores candidates 0-10 on correctness, completeness, conciseness, picks winner with reasoning. Model: ${config.model}.
+Set stream: true to receive partial results as they become available (useful for 8+ candidates).`,
 
     parameters: {
       type: "object",
@@ -321,6 +413,18 @@ When enabled, scores candidates 0-10 on correctness, completeness, conciseness, 
       // Try LLM judge
       if (config.ctx?.client?.session?.message) {
         try {
+          if (input.stream) {
+            return await callJudgeStream(
+              candidates,
+              effectiveRubric,
+              config.model,
+              config.ctx,
+              (chunk) => {
+                console.log(`[extra] judge stream: ${chunk.type}`, chunk);
+              },
+            );
+          }
+
           const { response, latencyMs } = await callJudge(
             candidates,
             effectiveRubric,

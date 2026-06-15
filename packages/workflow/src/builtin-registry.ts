@@ -36,6 +36,21 @@ async function loadRefactor(): Promise<{ source: string; meta: Meta }> {
   return { source: mod.source, meta: mod.meta }
 }
 
+async function loadSecurityAudit(): Promise<{ source: string; meta: Meta }> {
+  const mod = await import("../builtin/security-audit.ts")
+  return { source: mod.source, meta: mod.meta }
+}
+
+async function loadDocGen(): Promise<{ source: string; meta: Meta }> {
+  const mod = await import("../builtin/doc-gen.ts")
+  return { source: mod.source, meta: mod.meta }
+}
+
+async function loadLibMigrate(): Promise<{ source: string; meta: Meta }> {
+  const mod = await import("../builtin/lib-migrate.ts")
+  return { source: mod.source, meta: mod.meta }
+}
+
 /**
  * Registry of built-in workflows. Lookups use null-prototype to avoid inherited
  * Object.prototype members (e.g. "constructor") being returned accidentally.
@@ -73,3 +88,6 @@ registerBuiltin("deep-research", loadDeepResearch)
 registerBuiltin("plan", loadPlan)
 registerBuiltin("tdd", loadTdd)
 registerBuiltin("refactor", loadRefactor)
+registerBuiltin("security-audit", loadSecurityAudit)
+registerBuiltin("doc-gen", loadDocGen)
+registerBuiltin("lib-migrate", loadLibMigrate)

@@ -6,7 +6,10 @@ const SKILLS_DIR = join(import.meta.dirname, "..", "skills");
 
 const VALID_SKILLS = [
   "ask",
+  "audit-deps",
+  "benchmark",
   "brainstorm",
+  "code-review",
   "debug",
   "execute",
   "feedback",
@@ -37,14 +40,22 @@ const server = async (_ctx: PluginContext) => {
           },
         },
         execute: async ({ name }: { name: SkillName }) => {
+          if (!name || typeof name !== "string") {
+            return `Error: skill name is required`;
+          }
           if (!VALID_SKILLS.includes(name)) {
             return `Error: Unknown skill "${name}". Valid skills: ${VALID_SKILLS.join(", ")}`;
           }
-          const content = await readFile(
-            join(SKILLS_DIR, `${name}.md`),
-            "utf-8",
-          );
-          return content;
+          const filePath = join(SKILLS_DIR, `${name}.md`);
+          try {
+            const content = await readFile(filePath, "utf-8");
+            if (content.length === 0) {
+              return `Error: skill '${name}' is empty (file has no content)`;
+            }
+            return content;
+          } catch (err) {
+            return `Error: failed to load skill '${name}': ${err instanceof Error ? err.message : String(err)}`;
+          }
         },
       },
     },

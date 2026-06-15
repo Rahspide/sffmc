@@ -1,5 +1,6 @@
 export interface AutoMaxConfig {
   enabled: boolean;
+  dry_run: boolean;
   watchdog_threshold: number;
   max_mode_config: {
     n: number;

@@ -1,11 +1,7 @@
 import { FailureCounter } from "./counter";
 import { buildPromotionFragment } from "./promote";
 import { buildRecoveryVerdict } from "./verdict";
-import { parse as parseYaml } from "yaml";
-import { type PluginContext } from "@sffmc/shared";
-import { readFileSync, existsSync } from "fs";
-import { resolve } from "path";
-import { homedir } from "os";
+import { loadConfig, type PluginContext } from "@sffmc/shared";
 
 interface WatchdogConfig {
   threshold: number;
@@ -22,18 +18,6 @@ const defaultConfig: WatchdogConfig = {
   error_class_filter: ["fetch_429", "playwright_timeout", "EAGAIN"],
   log_failures: true,
 };
-
-function loadConfig(): WatchdogConfig {
-  const configPath = resolve(homedir(), ".config/SFFMC/watchdog.yaml");
-  if (!existsSync(configPath)) return { ...defaultConfig };
-  try {
-    const raw = readFileSync(configPath, "utf-8");
-    const parsed = parseYaml(raw) as Partial<WatchdogConfig>;
-    return { ...defaultConfig, ...parsed };
-  } catch {
-    return { ...defaultConfig };
-  }
-}
 
 interface PluginState {
   counter: FailureCounter;
@@ -63,7 +47,7 @@ function isFiltered(errorType: string, filter: string[]): boolean {
 let loadedLogged = false;
 
 const server = async (ctx: PluginContext) => {
-  const config = loadConfig();
+  const config = await loadConfig<WatchdogConfig>("watchdog", defaultConfig);
   const state: PluginState = {
     counter: new FailureCounter(config.threshold, config.rolling_window),
     config,

@@ -15,6 +15,8 @@ import {
   filePath,
   __setCheckpointDir,
   __cleanup,
+  migrateCheckpoint,
+  CURRENT_VERSION,
 } from "./checkpoint";
 
 // ---------------------------------------------------------------------------
@@ -199,27 +201,28 @@ describe("checkpoint", () => {
       expect(result.messages[1].content).toContain("glob");
     });
 
-    it("returns error for unknown version", async () => {
+    it("returns error for future version (> CURRENT_VERSION)", async () => {
       const { tool } = createCheckpointTool({ enabled: true });
 
-      // Manually write a file with version 2
-      const fp = filePath("bad-version");
+      // Manually write a file with version 99 (well beyond CURRENT_VERSION)
+      const fp = filePath("future-version");
       const header = JSON.stringify({
         __type: "header",
-        sessionID: "bad-version",
-        version: 2,
+        sessionID: "future-version",
+        version: 99,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       }) + "\n";
       writeFileSync(fp, header, "utf-8");
 
-      const result = (await tool.execute({ action: "restore", sessionID: "bad-version" })) as {
+      const result = (await tool.execute({ action: "restore", sessionID: "future-version" })) as {
         ok: boolean;
         error: string;
       };
 
       expect(result.ok).toBe(false);
       expect(result.error).toContain("unknown checkpoint version");
+      expect(result.error).toContain("(current: 1)");
     });
 
     it("returns error when checkpoint not found", async () => {
@@ -232,6 +235,56 @@ describe("checkpoint", () => {
 
       expect(result.ok).toBe(false);
       expect(result.error).toBe("checkpoint not found");
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Migration
+  // -----------------------------------------------------------------------
+
+  describe("migration", () => {
+    it("migrateCheckpoint returns data unchanged for current version (no-op)", () => {
+      const v1Data: Record<string, unknown> = {
+        sessionID: "test",
+        toolCalls: [],
+        createdAt: 1000,
+        updatedAt: 2000,
+        version: 1,
+      };
+      const result = migrateCheckpoint(v1Data, 1);
+      expect(result).toEqual(v1Data);
+      expect(result.version).toBe(1);
+    });
+
+    it("migrateCheckpoint throws for version with no migration path", () => {
+      const data = { some: "data" };
+      expect(() => migrateCheckpoint(data, 999)).toThrow("no migration");
+    });
+
+    it("CURRENT_VERSION equals 1 (regression guard)", () => {
+      expect(CURRENT_VERSION).toBe(1);
+    });
+
+    it("restore of checkpoint with version > CURRENT_VERSION returns future-version error", async () => {
+      const { tool } = createCheckpointTool({ enabled: true });
+
+      const fp = filePath("future-v99");
+      const header = JSON.stringify({
+        __type: "header",
+        sessionID: "future-v99",
+        version: 99,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      }) + "\n";
+      writeFileSync(fp, header, "utf-8");
+
+      const result = (await tool.execute({ action: "restore", sessionID: "future-v99" })) as {
+        ok: boolean;
+        error: string;
+      };
+
+      expect(result.ok).toBe(false);
+      expect(result.error).toBe("unknown checkpoint version: 99 (current: 1)");
     });
   });
 

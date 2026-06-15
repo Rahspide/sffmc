@@ -19,7 +19,7 @@ export interface CheckpointState {
   toolCalls: ToolCall[];
   createdAt: number;
   updatedAt: number;
-  version: 1;
+  version: number;
 }
 
 export interface CheckpointTool {
@@ -52,7 +52,27 @@ export interface CheckpointHooks {
 
 const FLUSH_THRESHOLD = 50;
 const FLUSH_INTERVAL_MS = 5_000;
-const VERSION = 1 as const;
+export const CURRENT_VERSION = 1;
+
+const MIGRATIONS: Record<number, (data: unknown) => unknown> = {
+  // Empty for now — populated when v2 is introduced
+  // Example: 2: (v1: unknown) => ({ ...v1 as CheckpointState, version: 2 }),
+};
+
+export function migrateCheckpoint(raw: unknown, fromVersion: number): CheckpointState {
+  if (fromVersion > CURRENT_VERSION) {
+    throw new Error(`no migration from v${fromVersion} to v${CURRENT_VERSION} (downgrade not supported)`);
+  }
+  let data = raw;
+  for (let v = fromVersion; v < CURRENT_VERSION; v++) {
+    const migrator = MIGRATIONS[v + 1];
+    if (!migrator) {
+      throw new Error(`no migration from v${v} to v${v + 1}`);
+    }
+    data = migrator(data);
+  }
+  return data as CheckpointState;
+}
 
 // ---------------------------------------------------------------------------
 // Storage path — overridable for tests
@@ -100,7 +120,7 @@ function writeHeader(sessionID: string, dir?: string): void {
   const header: CheckpointHeader = {
     __type: "header",
     sessionID,
-    version: VERSION,
+    version: CURRENT_VERSION,
     createdAt: now,
     updatedAt: now,
   };
@@ -333,11 +353,20 @@ Auto-restore: inject <!-- EXTRA_RESTORE: <sessionID> --> in a message to auto-lo
             return { ok: false, error: "checkpoint not found" };
           }
 
-          if (header.version !== VERSION) {
+          if (header.version > CURRENT_VERSION) {
             return {
               ok: false,
-              error: `unknown checkpoint version: ${header.version}`,
+              error: `unknown checkpoint version: ${header.version} (current: ${CURRENT_VERSION})`,
             };
+          }
+
+          if (header.version < CURRENT_VERSION) {
+            // Older schema — apply migrations (currently no-op since v1 == current)
+            console.log(
+              `[extra] checkpoint: migrating v${header.version} → v${CURRENT_VERSION}`,
+            );
+            // Migration runs but does not mutate the on-disk file —
+            // the file is rewritten on next flush via writeHeader.
           }
 
           const calls = readToolCalls(sessionID, dir);
@@ -401,12 +430,26 @@ Auto-restore: inject <!-- EXTRA_RESTORE: <sessionID> --> in a message to auto-lo
           );
 
           const header = readHeader(sessionID, dir);
-          if (!header || header.version !== VERSION) {
+          if (!header) {
             console.warn(
-              `[extra] checkpoint auto-restore: session ${sessionID} not found or wrong version`,
+              `[extra] checkpoint auto-restore: session ${sessionID} not found`,
             );
             msg.content = msg.content.replace(RESTORE_MARKER, "").trim();
             continue;
+          }
+
+          if (header.version > CURRENT_VERSION) {
+            console.warn(
+              `[extra] checkpoint auto-restore: session ${sessionID} has future version ${header.version} (current: ${CURRENT_VERSION})`,
+            );
+            msg.content = msg.content.replace(RESTORE_MARKER, "").trim();
+            continue;
+          }
+
+          if (header.version < CURRENT_VERSION) {
+            console.log(
+              `[extra] checkpoint auto-restore: migrating v${header.version} → v${CURRENT_VERSION}`,
+            );
           }
 
           const calls = readToolCalls(sessionID, dir);

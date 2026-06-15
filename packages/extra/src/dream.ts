@@ -102,7 +102,7 @@ const STALE_DAYS = 30;
 // Internal types
 // ---------------------------------------------------------------------------
 
-interface MemoryRow {
+export interface MemoryRow {
   id: number;
   source_path: string;
   section: string | null;
@@ -158,6 +158,41 @@ function concatenateSummary(entries: MemoryRow[]): string {
     return `[${e.source_path}] ${text}${ellipsis}`;
   });
   return `DREAM-SUMMARY (${entries.length} entries merged):\n${snippets.join("\n")}`;
+}
+
+/** LLM-based cluster naming: generates a 3-5 word topic phrase for a cluster. */
+export async function nameClusterViaLLM(
+  cluster: MemoryRow[],
+  ctx: RichPluginContext,
+  model: string,
+): Promise<string> {
+  const session = ctx.client?.session;
+  if (!session?.message) {
+    throw new Error("ctx.client.session.message() not available");
+  }
+  const entries = cluster.map(
+    (e) => `[${e.source_path}] ${e.content.substring(0, 100)}`,
+  );
+  const system =
+    "You are a topic-namer. Given a cluster of related memory entries, produce a 3-5 word phrase that names the topic. Output ONLY the phrase, nothing else.";
+  const user = `Name the topic of these ${cluster.length} related memory entries:\n\n${entries.join("\n\n")}`;
+  const response = await session.message({
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: user },
+    ],
+    model,
+    temperature: 0.2,
+  });
+  const text = response.content
+    .filter(
+      (p): p is { type: "text"; text: string } =>
+        p.type === "text" && typeof p.text === "string",
+    )
+    .map((p) => p.text)
+    .join("\n")
+    .trim();
+  return text || "untitled cluster";
 }
 
 /** LLM-based summarization: sends cluster entries to the model for a concise summary. */
@@ -327,7 +362,22 @@ async function runDream(
     for (const cluster of clusters) {
       if (cluster.length >= 5) {
         let summaryContent: string;
+        let clusterName = "untitled cluster";
+
         if (ctx) {
+          // Try to name the cluster via LLM
+          try {
+            clusterName = await nameClusterViaLLM(
+              cluster,
+              ctx,
+              summaryModel ?? "ocg/deepseek-v4-flash",
+            );
+          } catch (err) {
+            errors.push(
+              `cluster naming LLM failed: ${String(err)}`,
+            );
+          }
+          // Try to summarize via LLM
           try {
             summaryContent = await summarizeViaLLM(
               cluster,
@@ -335,7 +385,6 @@ async function runDream(
               summaryModel ?? "ocg/deepseek-v4-flash",
             );
           } catch (err) {
-            // LLM call failed — fall back to concatenation
             errors.push(
               `summarization LLM failed for cluster of ${cluster.length}: ${String(err)}`,
             );
@@ -344,13 +393,18 @@ async function runDream(
         } else {
           summaryContent = concatenateSummary(cluster);
         }
+
+        const finalContent = ctx
+          ? `Cluster: ${clusterName}\n\n${summaryContent}`
+          : summaryContent;
+
         const maxImportance = Math.max(
           ...cluster.map((e) => e.importance_score),
         );
         if (!dryRun) {
           db.run(
             "INSERT INTO memory_entries (source_path, section, content, importance_score) VALUES (?, ?, ?, ?)",
-            ["dream-summary", null, summaryContent, maxImportance],
+            ["dream-summary", null, finalContent, maxImportance],
           );
           for (const entry of cluster) {
             db.run("DELETE FROM memory_entries WHERE id = ?", [entry.id]);

@@ -55,6 +55,9 @@ import { parseMeta } from "../src/meta.ts"
 import { resolveWorkflow, isInlineScript } from "../src/resolve.ts"
 import { registerBuiltin, getBuiltin, listBuiltins, loadBuiltin } from "../src/builtin-registry.ts"
 import { getRuntime, setRuntime, type WorkflowRuntime } from "../src/runtime-ref.ts"
+import { meta as securityAuditMeta } from "../builtin/security-audit.ts"
+import { meta as docGenMeta } from "../builtin/doc-gen.ts"
+import { meta as libMigrateMeta } from "../builtin/lib-migrate.ts"
 
 // ---------------------------------------------------------------------------
 // Cleanup
@@ -612,6 +615,167 @@ describe("builtin-registry.ts", () => {
     expect(entry.name).toBe("test-builtin")
     expect(entry.description).toBe("A test built-in")
     expect(entry.script).toBe("// test script")
+  })
+})
+
+// ---------------------------------------------------------------------------
+// builtin: security-audit
+// ---------------------------------------------------------------------------
+
+describe("builtin: security-audit", () => {
+  test("meta is well-formed", () => {
+    expect(securityAuditMeta.name).toBe("security-audit")
+    expect(securityAuditMeta.description).toBeTruthy()
+    expect(securityAuditMeta.description.length).toBeGreaterThan(10)
+    expect(securityAuditMeta.whenToUse).toBeTruthy()
+    expect(securityAuditMeta.phases).toBeDefined()
+    expect(securityAuditMeta.phases!.length).toBe(4)
+    expect(securityAuditMeta.phases![0].title).toBe("Scope")
+    expect(securityAuditMeta.phases![1].title).toBe("Scan")
+    expect(securityAuditMeta.phases![2].title).toBe("Triage")
+    expect(securityAuditMeta.phases![3].title).toBe("Report")
+  })
+
+  test("registered in builtin-registry", () => {
+    expect(listBuiltins()).toContain("security-audit")
+    expect(getBuiltin("security-audit")).toBeDefined()
+  })
+
+  test("loads with valid meta and source via registry", async () => {
+    const entry = await loadBuiltin("security-audit")
+    expect(entry.name).toBe("security-audit")
+    expect(entry.description).toBeTruthy()
+    expect(entry.whenToUse).toBeTruthy()
+    expect(entry.phases?.length).toBe(4)
+    expect(entry.script).toContain("export const meta")
+    expect(entry.script).toContain("args.root")
+    expect(entry.script).toContain("parallel(")
+    expect(entry.script).toContain("scanTasks")
+    expect(entry.script).toContain('"secret"')
+    expect(entry.script).toContain("critical")
+    expect(entry.script).toContain("remediation")
+  })
+})
+
+// ---------------------------------------------------------------------------
+// builtin: doc-gen
+// ---------------------------------------------------------------------------
+
+describe("builtin: doc-gen", () => {
+  test("meta is well-formed", () => {
+    expect(docGenMeta.name).toBe("doc-gen")
+    expect(docGenMeta.description).toBeTruthy()
+    expect(docGenMeta.description.length).toBeGreaterThan(10)
+    expect(docGenMeta.whenToUse).toBeTruthy()
+    expect(docGenMeta.phases).toBeDefined()
+    expect(docGenMeta.phases!.length).toBe(3)
+    expect(docGenMeta.phases![0].title).toBe("Inventory")
+    expect(docGenMeta.phases![1].title).toBe("Generate")
+    expect(docGenMeta.phases![2].title).toBe("Assemble")
+  })
+
+  test("registered in builtin-registry", () => {
+    expect(listBuiltins()).toContain("doc-gen")
+    expect(getBuiltin("doc-gen")).toBeDefined()
+  })
+
+  test("loads with valid meta and source via registry", async () => {
+    const entry = await loadBuiltin("doc-gen")
+    expect(entry.name).toBe("doc-gen")
+    expect(entry.description).toBeTruthy()
+    expect(entry.whenToUse).toBeTruthy()
+    expect(entry.phases?.length).toBe(3)
+    expect(entry.script).toContain("export const meta")
+    expect(entry.script).toContain("args.root")
+    expect(entry.script).toContain("INVENTORY_SHAPE")
+    expect(entry.script).toContain("api.md")
+    expect(entry.script).toContain("docs/api.md")
+    expect(entry.script).toContain("docstring")
+    expect(entry.script).toContain("Inventory")
+  })
+})
+
+// ---------------------------------------------------------------------------
+// builtin: lib-migrate
+// ---------------------------------------------------------------------------
+
+describe("builtin: lib-migrate", () => {
+  test("meta is well-formed", () => {
+    expect(libMigrateMeta.name).toBe("lib-migrate")
+    expect(libMigrateMeta.description).toBeTruthy()
+    expect(libMigrateMeta.description.length).toBeGreaterThan(10)
+    expect(libMigrateMeta.whenToUse).toBeTruthy()
+    expect(libMigrateMeta.phases).toBeDefined()
+    expect(libMigrateMeta.phases!.length).toBe(5)
+    expect(libMigrateMeta.phases![0].title).toBe("Detect")
+    expect(libMigrateMeta.phases![1].title).toBe("Map")
+    expect(libMigrateMeta.phases![2].title).toBe("Transform")
+    expect(libMigrateMeta.phases![3].title).toBe("Verify")
+    expect(libMigrateMeta.phases![4].title).toBe("Report")
+  })
+
+  test("registered in builtin-registry", () => {
+    expect(listBuiltins()).toContain("lib-migrate")
+    expect(getBuiltin("lib-migrate")).toBeDefined()
+  })
+
+  test("loads with valid meta and source via registry", async () => {
+    const entry = await loadBuiltin("lib-migrate")
+    expect(entry.name).toBe("lib-migrate")
+    expect(entry.description).toBeTruthy()
+    expect(entry.whenToUse).toBeTruthy()
+    expect(entry.phases?.length).toBe(5)
+    expect(entry.script).toContain("export const meta")
+    expect(entry.script).toContain("args.from")
+    expect(entry.script).toContain("args.to")
+    expect(entry.script).toContain("args.root")
+    expect(entry.script).toContain("DETECT_SHAPE")
+    expect(entry.script).toContain("MAP_SHAPE")
+    expect(entry.script).toContain("TRANSFORM_SHAPE")
+    expect(entry.script).toContain("old_api")
+    expect(entry.script).toContain("new_api")
+  })
+})
+
+// ---------------------------------------------------------------------------
+// builtin: all new builtins — export shape
+// ---------------------------------------------------------------------------
+
+describe("builtin: new builtins export shape", () => {
+  test("security-audit exports meta and source", async () => {
+    const mod = await import("../builtin/security-audit.ts")
+    expect(mod.meta).toBeDefined()
+    expect(mod.source).toBeDefined()
+    expect(typeof mod.source).toBe("string")
+    expect(mod.source.length).toBeGreaterThan(500)
+  })
+
+  test("doc-gen exports meta and source", async () => {
+    const mod = await import("../builtin/doc-gen.ts")
+    expect(mod.meta).toBeDefined()
+    expect(mod.source).toBeDefined()
+    expect(typeof mod.source).toBe("string")
+    expect(mod.source.length).toBeGreaterThan(500)
+  })
+
+  test("lib-migrate exports meta and source", async () => {
+    const mod = await import("../builtin/lib-migrate.ts")
+    expect(mod.meta).toBeDefined()
+    expect(mod.source).toBeDefined()
+    expect(typeof mod.source).toBe("string")
+    expect(mod.source.length).toBeGreaterThan(500)
+  })
+
+  test("all 7 builtins are registered", () => {
+    const builtins = listBuiltins()
+    expect(builtins).toContain("deep-research")
+    expect(builtins).toContain("plan")
+    expect(builtins).toContain("tdd")
+    expect(builtins).toContain("refactor")
+    expect(builtins).toContain("security-audit")
+    expect(builtins).toContain("doc-gen")
+    expect(builtins).toContain("lib-migrate")
+    expect(builtins.length).toBeGreaterThanOrEqual(7)
   })
 })
 

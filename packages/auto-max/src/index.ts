@@ -7,14 +7,11 @@ import {
   resetSession,
   type AutoMaxConfig,
 } from "./coordinator";
-import { parse as parseYaml } from "yaml";
-import { type PluginContext } from "@sffmc/shared";
-import { readFileSync, existsSync } from "fs";
-import { resolve } from "path";
-import { homedir } from "os";
+import { loadConfig, type PluginContext } from "@sffmc/shared";
 
 const defaultConfig: AutoMaxConfig = {
   enabled: true,
+  dry_run: false,
   watchdog_threshold: 3,
   max_mode_config: {
     n: 3,
@@ -22,18 +19,6 @@ const defaultConfig: AutoMaxConfig = {
   },
   cost_cap_per_session: 1,
 };
-
-function loadConfig(): AutoMaxConfig {
-  const configPath = resolve(homedir(), ".config/SFFMC/auto-max.yaml");
-  if (!existsSync(configPath)) return { ...defaultConfig };
-  try {
-    const raw = readFileSync(configPath, "utf-8");
-    const parsed = parseYaml(raw) as Partial<AutoMaxConfig>;
-    return { ...defaultConfig, ...parsed };
-  } catch {
-    return { ...defaultConfig };
-  }
-}
 
 interface PluginState {
   config: AutoMaxConfig;
@@ -73,7 +58,7 @@ function getOrCreateSession(state: PluginState, sessionID: string) {
 let loadedLogged = false;
 
 const server = async (_ctx: PluginContext) => {
-  const config = loadConfig();
+  const config = await loadConfig<AutoMaxConfig>("auto-max", defaultConfig);
   const state: PluginState = {
     config,
     sessions: new Map(),
@@ -119,17 +104,37 @@ const server = async (_ctx: PluginContext) => {
       const hasErrorFlag =
         meta?.error !== undefined && meta?.error !== null && meta?.error !== false;
 
+      const isObjectError =
+        output !== null &&
+        typeof output === "object" &&
+        ((output as Record<string, unknown>).error !== undefined ||
+          (output as Record<string, unknown>).code !== undefined);
+
       const session = getOrCreateSession(state, sessionID);
 
-      if (!isError && !hasErrorFlag) {
+      if (!isError && !hasErrorFlag && !isObjectError) {
         recordSuccess(session, tool);
         return;
       }
 
-      const errorType = extractErrorType(output);
+      let errorType: string;
+      if (isObjectError && !isError && !hasErrorFlag) {
+        const o = output as Record<string, unknown>;
+        errorType = "object:" + String(o.code || o.error);
+      } else {
+        errorType = extractErrorType(output);
+      }
       recordFailure(session, tool, errorType);
 
       if (shouldTriggerMaxMode(session, tool, errorType, config)) {
+        if (config.dry_run) {
+          const failCount = session.failCount.get(`${tool}::${errorType}`) ?? 0;
+          console.warn(
+            `[auto-max] dry_run=true: would trigger max-mode for session=${sessionID} (failures=${failCount}, threshold=${config.watchdog_threshold})`,
+          );
+          return;
+        }
+
         markTriggered(session);
 
         state.triggeredLog.push({
@@ -155,6 +160,26 @@ const server = async (_ctx: PluginContext) => {
           maxConfig: config.max_mode_config,
         };
       }
+    },
+
+    "command.execute.before": async (cmdCtx: {
+      command: string;
+      sessionID: string;
+    }) => {
+      if (!config.enabled) return;
+      const cmd = (cmdCtx.command ?? "").trim();
+      const maxMatch = cmd.match(
+        /^\/max(?:\s+(reset|clear)(?:\s+(\S+))?)?$/,
+      );
+      if (!maxMatch) return;
+
+      const targetSessionID = maxMatch[2] || cmdCtx.sessionID;
+      const session = getOrCreateSession(state, targetSessionID);
+      resetSession(session);
+      session.maxCallsThisSession = 0;
+      console.warn(
+        `[auto-max] /max escape: counters reset for session ${targetSessionID}`,
+      );
     },
 
     "experimental.chat.system.transform": async (

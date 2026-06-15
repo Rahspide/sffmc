@@ -7,8 +7,10 @@ import {
   createDreamTool,
   clearCronTimer,
   isDreamLocked,
+  nameClusterViaLLM,
   type DreamResult,
   type RichPluginContext,
+  type MemoryRow,
 } from "./dream";
 import { mkdirSync, existsSync, readFileSync, unlinkSync, rmdirSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
@@ -387,7 +389,7 @@ describe("F8 Dream", () => {
   });
 
   // ── Test 9: LLM summarization — uses ctx.client.session.message() ──
-  it("llm summarization: ctx with mock LLM → inserts LLM-generated summary (not concat fallback)", async () => {
+  it("llm summarization: ctx with mock LLM → inserts LLM-generated summary with cluster name prefix", async () => {
     const db = openTestDB();
     const now = Math.floor(Date.now() / 1000);
 
@@ -410,14 +412,18 @@ describe("F8 Dream", () => {
     }
     db.close();
 
+    const cannedName = "API auth patterns";
     const cannedSummary = "LLM-summarized: authentication entries covering JWT, OAuth2, and MFA patterns.";
     const mockCtx: RichPluginContext = {
       client: {
         session: {
-          message: async () => ({
-            content: [{ type: "text", text: cannedSummary }],
-            usage: { totalTokens: 42 },
-          }),
+          message: async (params: { messages: Array<{ role: string; content: string }> }) => {
+            const sysMsg = params.messages.find((m) => m.role === "system")?.content ?? "";
+            if (sysMsg.includes("topic-namer")) {
+              return { content: [{ type: "text", text: cannedName }] };
+            }
+            return { content: [{ type: "text", text: cannedSummary }] };
+          },
         },
       },
     };
@@ -440,9 +446,11 @@ describe("F8 Dream", () => {
       .all() as Array<{ source_path: string; content: string }>;
     expect(rows.length).toBe(1);
     expect(rows[0].source_path).toBe("dream-summary");
-    // Must contain the LLM-generated text, NOT the concat fallback marker
-    expect(rows[0].content).toBe(cannedSummary);
+    // Must contain the cluster name prefix and the LLM-generated summary
+    expect(rows[0].content).toContain(`Cluster: ${cannedName}`);
+    expect(rows[0].content).toContain(cannedSummary);
     expect(rows[0].content).not.toContain("DREAM-SUMMARY");
+    expect(rows[0].content).not.toContain("untitled cluster");
     db2.close();
   });
 
@@ -538,8 +546,9 @@ describe("F8 Dream", () => {
     const result = await tool.execute();
     expect(result.ok).toBe(true); // dream still succeeds, just with fallback
     expect(result.summarized).toBe(6);
-    // Error should be recorded for the LLM failure
-    expect(result.errors.length).toBeGreaterThanOrEqual(1);
+    // Errors should be recorded for both naming and summarization failures
+    expect(result.errors.length).toBeGreaterThanOrEqual(2);
+    expect(result.errors.some((e) => e.includes("cluster naming LLM failed"))).toBe(true);
     expect(result.errors.some((e) => e.includes("summarization LLM failed"))).toBe(true);
 
     const db2 = openTestDB();
@@ -548,8 +557,111 @@ describe("F8 Dream", () => {
       .all() as Array<{ source_path: string; content: string }>;
     expect(rows.length).toBe(1);
     expect(rows[0].source_path).toBe("dream-summary");
-    // Must fall back to concatenation
+    // Must fall back to concatenation with "untitled cluster" prefix
+    expect(rows[0].content).toContain("Cluster: untitled cluster");
     expect(rows[0].content).toContain("DREAM-SUMMARY");
+    db2.close();
+  });
+
+  // ── Test 12: nameClusterViaLLM — direct unit test ───────────────────
+  it("nameClusterViaLLM: returns cluster name from LLM (no 'Cluster:' prefix in raw output)", async () => {
+    const cannedName = "React state management pitfalls";
+    const mockCtx: RichPluginContext = {
+      client: {
+        session: {
+          message: async () => ({
+            content: [{ type: "text", text: cannedName }],
+            usage: { totalTokens: 10 },
+          }),
+        },
+      },
+    };
+
+    const cluster: MemoryRow[] = [
+      {
+        id: 1,
+        source_path: "src/hooks.ts",
+        section: null,
+        content: "useState batching behavior causes stale closure bugs in React 18",
+        importance_score: 0.7,
+        last_accessed: null,
+        created_at: 1000,
+      },
+      {
+        id: 2,
+        source_path: "src/store.ts",
+        section: null,
+        content: "zustand selector optimization with shallow equality check",
+        importance_score: 0.8,
+        last_accessed: null,
+        created_at: 1001,
+      },
+    ];
+
+    const name = await nameClusterViaLLM(cluster, mockCtx, "test-model");
+    expect(name).toBe(cannedName);
+    // Raw output from the function must NOT include "Cluster:" prefix
+    expect(name).not.toContain("Cluster:");
+  });
+
+  // ── Test 13: Dream with ctx → summary starts with "Cluster: <name>" ─
+  it("cluster naming integration: dream with ctx and 6 entries → summary prefixed with 'Cluster: <name>'", async () => {
+    const db = openTestDB();
+    const now = Math.floor(Date.now() / 1000);
+
+    const base = "authentication jwt tokens api requests session management";
+    const contents = [
+      base + " oauth2 refresh grant",
+      base + " role based access",
+      base + " https secure cookies",
+      base + " rate limit throttle",
+      base + " audit trail logging",
+      base + " multi factor verification",
+    ];
+
+    for (let i = 0; i < contents.length; i++) {
+      db.run(
+        "INSERT INTO memory_entries (source_path, section, content, importance_score, last_accessed, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+        [`test/auth-${i}.md`, "auth", contents[i], 0.5 + i * 0.05, now - i, now - i * 10],
+      );
+    }
+    db.close();
+
+    const mockCtx: RichPluginContext = {
+      client: {
+        session: {
+          message: async (params: { messages: Array<{ role: string; content: string }> }) => {
+            const sysMsg = params.messages.find((m) => m.role === "system")?.content ?? "";
+            if (sysMsg.includes("topic-namer")) {
+              return { content: [{ type: "text", text: "API auth patterns" }] };
+            }
+            return { content: [{ type: "text", text: "LLM summary of auth entries." }] };
+          },
+        },
+      },
+    };
+
+    const { tool } = createDreamTool({
+      enabled: true,
+      threshold: 50,
+      intervalHours: 0,
+      storagePath: TEST_DB_PATH,
+      ctx: mockCtx,
+    });
+
+    const result = await tool.execute();
+    expect(result.ok).toBe(true);
+    expect(result.summarized).toBe(6);
+
+    const db2 = openTestDB();
+    const rows = db2
+      .query("SELECT * FROM memory_entries")
+      .all() as Array<{ source_path: string; content: string }>;
+    expect(rows.length).toBe(1);
+    expect(rows[0].source_path).toBe("dream-summary");
+    // The content must start with "Cluster: <name>" followed by the summary
+    expect(rows[0].content).toMatch(/^Cluster: API auth patterns\n\n/);
+    expect(rows[0].content).toContain("LLM summary of auth entries.");
     db2.close();
   });
 });

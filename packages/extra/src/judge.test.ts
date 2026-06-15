@@ -7,9 +7,11 @@ import {
   buildJudgePrompt,
   parseJudgeResponse,
   extractCandidatesFromMessages,
+  callJudgeStream,
   type JudgeConfig,
   type JudgeExecuteResult,
   type JudgeScore,
+  type JudgeStreamChunk,
 } from "./judge";
 
 // ---------------------------------------------------------------------------
@@ -313,6 +315,146 @@ describe("extractCandidatesFromMessages", () => {
   it("returns null for empty messages array", () => {
     const candidates = extractCandidatesFromMessages([]);
     expect(candidates).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tests — callJudgeStream (streaming mode)
+// ---------------------------------------------------------------------------
+
+describe("callJudgeStream", () => {
+  it("emits scores chunk before complete chunk", async () => {
+    const chunks: JudgeStreamChunk[] = [];
+    const ctx = mockCtx(
+      mockJsonResponse(
+        [
+          { correctness: 8, completeness: 7, conciseness: 9 },
+          { correctness: 6, completeness: 9, conciseness: 5 },
+        ],
+        0,
+        "First candidate wins.",
+      ),
+    );
+
+    await callJudgeStream(
+      ["candidate A", "candidate B"],
+      "test rubric",
+      "test-model",
+      ctx,
+      (chunk) => chunks.push(chunk),
+    );
+
+    // Find positions of scores and complete chunks
+    const scoresIdx = chunks.findIndex((c) => c.type === "scores");
+    const completeIdx = chunks.findIndex((c) => c.type === "complete");
+
+    expect(scoresIdx).toBeGreaterThanOrEqual(0);
+    expect(completeIdx).toBeGreaterThanOrEqual(0);
+    expect(scoresIdx).toBeLessThan(completeIdx);
+  });
+
+  it("emits winner chunk with the correct index", async () => {
+    const chunks: JudgeStreamChunk[] = [];
+    const ctx = mockCtx(
+      mockJsonResponse(
+        [
+          { correctness: 5, completeness: 5, conciseness: 5 },
+          { correctness: 9, completeness: 8, conciseness: 7 },
+          { correctness: 6, completeness: 7, conciseness: 8 },
+        ],
+        1, // winner is index 1
+        "Candidate 1 is the best overall.",
+      ),
+    );
+
+    await callJudgeStream(
+      ["a", "b", "c"],
+      "rubric",
+      "m",
+      ctx,
+      (chunk) => chunks.push(chunk),
+    );
+
+    const winnerChunk = chunks.find((c) => c.type === "winner");
+    expect(winnerChunk).toBeDefined();
+    expect(winnerChunk!.winner).toBe(1);
+  });
+
+  it("emits error chunk on parse failure", async () => {
+    const chunks: JudgeStreamChunk[] = [];
+    const ctx = mockCtx("not valid json at all {{{broken");
+
+    let threw = false;
+    try {
+      await callJudgeStream(
+        ["a", "b"],
+        "rubric",
+        "m",
+        ctx,
+        (chunk) => chunks.push(chunk),
+      );
+    } catch {
+      threw = true;
+    }
+    expect(threw).toBe(true);
+
+    const errorChunk = chunks.find((c) => c.type === "error");
+    expect(errorChunk).toBeDefined();
+    expect(errorChunk!.error).toContain("parse failed");
+  });
+
+  it("returns JudgeResult with all fields on success", async () => {
+    const ctx = mockCtx(
+      mockJsonResponse(
+        [
+          { correctness: 7, completeness: 6, conciseness: 8 },
+          { correctness: 8, completeness: 8, conciseness: 5 },
+        ],
+        1,
+        "Reasoning text.",
+      ),
+    );
+
+    const result = await callJudgeStream(
+      ["x", "y"],
+      "rubric",
+      "m",
+      ctx,
+      () => {}, // no-op callback
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.scores).toHaveLength(2);
+    expect(result.winner).toBe(1);
+    expect(result.reasoning).toBe("Reasoning text.");
+    expect(result.model).toBe("m");
+    expect(result.latencyMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it("emits complete chunk as final non-error chunk", async () => {
+    const chunks: JudgeStreamChunk[] = [];
+    const ctx = mockCtx(
+      mockJsonResponse(
+        [
+          { correctness: 5, completeness: 5, conciseness: 5 },
+          { correctness: 6, completeness: 6, conciseness: 6 },
+        ],
+        1,
+        "OK.",
+      ),
+    );
+
+    await callJudgeStream(
+      ["a", "b"],
+      "r",
+      "m",
+      ctx,
+      (chunk) => chunks.push(chunk),
+    );
+
+    const nonErrorChunks = chunks.filter((c) => c.type !== "error");
+    const lastChunk = nonErrorChunks[nonErrorChunks.length - 1];
+    expect(lastChunk.type).toBe("complete");
   });
 });
 

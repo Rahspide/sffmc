@@ -1,7 +1,7 @@
 {
   "metadata": {
     "version": "1.0.0",
-    "last_run": "2026-06-15T12:23:34.677Z",
+    "last_run": "2026-06-15T12:43:13.124Z",
     "root": "/data/projects/SFFMC",
     "include_patterns": [
       "packages/*/src/**/*.ts",
@@ -27,7 +27,7 @@
     "packages/auto-max/src/coordinator.ts": "0ae6c531e6cf30aef3cf16f397c7bdf9",
     "packages/auto-max/src/index.ts": "9208bc49429ee00c2352b9a30934de0b",
     "packages/compose/package.json": "cc85161ff6ef8b7091cd70dd4ab1dc2d",
-    "packages/compose/src/index.ts": "d9fe1d97d66e33a4569534f2ebdb4c5a",
+    "packages/compose/src/index.ts": "64b0647178ccd951071de59698f6ded5",
     "packages/eos-stripper/package.json": "84c667f146445d363cc09e50769b0d77",
     "packages/eos-stripper/src/index.ts": "1d1ec29eee436a4e31debea0493f01d4",
     "packages/eos-stripper/src/patterns.ts": "f94b8015fd844472e9b93d71777ffb86",
@@ -85,11 +85,11 @@
   },
   "folder_hashes": {
     ".": "4681f02902cbb0680a0535e37ac78392",
-    "packages": "7c508d6a4934d14742fa3035aba7aff6",
+    "packages": "003b52698899c7efe4cbbdda84b14c4a",
     "packages/auto-max": "40642f9afe272b211db4963df8692986",
     "packages/auto-max/src": "8189a6966e489739ba92e2a69fdd3146",
-    "packages/compose": "24b0e65f6e7598828c1a9821bac146f5",
-    "packages/compose/src": "d4f73c7da01b864f0422a7dc48e094a6",
+    "packages/compose": "458441bdfcc29fe398879f2f63bba9a7",
+    "packages/compose/src": "9a271a70e624520fa87f13757a45a1e3",
     "packages/eos-stripper": "0f14965d09c525d62cd60655dd938d75",
     "packages/eos-stripper/src": "be6b7a9fa3b4413bf4cbca0c7b6d72c2",
     "packages/extra": "2e56be44a14dc8573c2a56f32e6ec1c5",

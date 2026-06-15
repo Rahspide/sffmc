@@ -1,4 +1,4 @@
-import { describe, it, expect } from "bun:test";
+import { describe, it, expect, spyOn, beforeAll, afterAll } from "bun:test";
 import {
   createSessionState,
   recordFailure,
@@ -8,9 +8,16 @@ import {
   resetSession,
   type AutoMaxConfig,
 } from "./coordinator";
+import { mkdirSync, writeFileSync, unlinkSync } from "fs";
+import { homedir } from "os";
+import { resolve } from "path";
+
+const testConfigDir = resolve(homedir(), ".config/SFFMC");
+const testConfigPath = resolve(testConfigDir, "auto-max.yaml");
 
 const defaultConfig: AutoMaxConfig = {
   enabled: true,
+  dry_run: false,
   watchdog_threshold: 3,
   max_mode_config: {
     n: 3,
@@ -214,6 +221,13 @@ describe("coordinator", () => {
 });
 
 describe("Plugin entry", () => {
+  beforeAll(() => {
+    // Clean up stale config from any previous dry_run test run
+    try {
+      unlinkSync(testConfigPath);
+    } catch {}
+  });
+
   it("exports default object with id and server function", async () => {
     const mod = await import("./index");
     expect(mod.default).toBeDefined();
@@ -230,6 +244,7 @@ describe("Plugin entry", () => {
     expect(typeof hooks.config).toBe("function");
     expect(typeof hooks.event).toBe("function");
     expect(typeof hooks["tool.execute.after"]).toBe("function");
+    expect(typeof hooks["command.execute.before"]).toBe("function");
     expect(typeof hooks["experimental.chat.system.transform"]).toBe("function");
   });
 
@@ -459,5 +474,232 @@ describe("Plugin entry", () => {
     const trigger = ctx._autoMaxTrigger as Record<string, unknown>;
     expect(trigger.tool).toBe("glob");
     expect(trigger.errorType).toBe("ENOENT");
+  });
+
+  // ── dry_run mode ──────────────────────────────────────────
+
+  describe("dry_run mode", () => {
+    beforeAll(() => {
+      mkdirSync(testConfigDir, { recursive: true });
+      writeFileSync(
+        testConfigPath,
+        [
+          "dry_run: true",
+          "enabled: true",
+          "watchdog_threshold: 3",
+          "cost_cap_per_session: 1",
+          "max_mode_config:",
+          "  n: 3",
+          "  judge_model: test-model",
+        ].join("\n"),
+      );
+    });
+
+    afterAll(() => {
+      try {
+        unlinkSync(testConfigPath);
+      } catch {}
+    });
+
+    it("dry_run=true does not inject escalation fragment", async () => {
+      const mod = await import("./index");
+      const ctx: Record<string, unknown> = {
+        projectRoot: "/tmp/test-project",
+        config: {},
+      };
+      const hooks = await mod.default.server(ctx);
+
+      const sid = "dry-1";
+      for (let i = 0; i < 3; i++) {
+        await hooks["tool.execute.after"]!(
+          { tool: "bash", sessionID: sid, callID: `c${i}` },
+          { output: "ENOENT: no such file" },
+        );
+      }
+
+      expect(ctx._autoMaxTrigger).toBeUndefined();
+    });
+
+    it("dry_run=true logs 'would trigger' message", async () => {
+      const mod = await import("./index");
+      const ctx: Record<string, unknown> = {
+        projectRoot: "/tmp/test-project",
+        config: {},
+      };
+      const hooks = await mod.default.server(ctx);
+
+      const warnSpy = spyOn(console, "warn");
+      const sid = "dry-2";
+      for (let i = 0; i < 3; i++) {
+        await hooks["tool.execute.after"]!(
+          { tool: "bash", sessionID: sid, callID: `c${i}` },
+          { output: "ENOENT: no such file" },
+        );
+      }
+
+      const calls = warnSpy.mock.calls.filter(
+        (c: unknown[]) =>
+          typeof c[0] === "string" && (c[0] as string).includes("would trigger"),
+      );
+      expect(calls.length).toBeGreaterThan(0);
+      warnSpy.mockRestore();
+    });
+  });
+
+  // ── /max escape hatch ─────────────────────────────────────
+
+  it("/max command resets session counters", async () => {
+    const mod = await import("./index");
+    const ctx: Record<string, unknown> = {
+      projectRoot: "/tmp/test-project",
+      config: {},
+    };
+    const hooks = await mod.default.server(ctx);
+
+    const sid = "escape-1";
+
+    // Trigger first time
+    for (let i = 0; i < 3; i++) {
+      await hooks["tool.execute.after"]!(
+        { tool: "bash", sessionID: sid, callID: `c${i}` },
+        { output: "ENOENT: error" },
+      );
+    }
+    expect(ctx._autoMaxTrigger).toBeDefined();
+    delete ctx._autoMaxTrigger;
+
+    // Reset via /max
+    await hooks["command.execute.before"]!({
+      command: "/max",
+      sessionID: sid,
+    });
+
+    // Should be able to trigger again after reset
+    for (let i = 0; i < 3; i++) {
+      await hooks["tool.execute.after"]!(
+        { tool: "bash", sessionID: sid, callID: `d${i}` },
+        { output: "ENOENT: error" },
+      );
+    }
+    expect(ctx._autoMaxTrigger).toBeDefined();
+  });
+
+  it("/max reset clears counters for specified session", async () => {
+    const mod = await import("./index");
+    const ctx: Record<string, unknown> = {
+      projectRoot: "/tmp/test-project",
+      config: {},
+    };
+    const hooks = await mod.default.server(ctx);
+
+    const sid = "escape-2";
+
+    // Build up 3 failures
+    for (let i = 0; i < 3; i++) {
+      await hooks["tool.execute.after"]!(
+        { tool: "bash", sessionID: sid, callID: `c${i}` },
+        { output: "ENOENT: error" },
+      );
+    }
+    expect(ctx._autoMaxTrigger).toBeDefined();
+    delete ctx._autoMaxTrigger;
+
+    // Reset via /max reset <sessionID>
+    await hooks["command.execute.before"]!({
+      command: `/max reset ${sid}`,
+      sessionID: "different-session",
+    });
+
+    // Counters cleared — should trigger again
+    for (let i = 0; i < 3; i++) {
+      await hooks["tool.execute.after"]!(
+        { tool: "bash", sessionID: sid, callID: `d${i}` },
+        { output: "ENOENT: error" },
+      );
+    }
+    expect(ctx._autoMaxTrigger).toBeDefined();
+  });
+
+  // ── object output error detection ─────────────────────────
+
+  it("detects object output with .error field as failure", async () => {
+    const mod = await import("./index");
+    const ctx: Record<string, unknown> = {
+      projectRoot: "/tmp/test-project",
+      config: {},
+    };
+    const hooks = await mod.default.server(ctx);
+
+    const sid = "obj-err-1";
+    // Object with error field, no metadata.error flag
+    for (let i = 0; i < 3; i++) {
+      await hooks["tool.execute.after"]!(
+        { tool: "grep", sessionID: sid, callID: `c${i}` },
+        { output: { error: "something went wrong" } },
+      );
+    }
+
+    expect(ctx._autoMaxTrigger).toBeDefined();
+    const trigger = ctx._autoMaxTrigger as Record<string, unknown>;
+    expect(trigger.tool).toBe("grep");
+    expect(trigger.errorType).toBe("object:something went wrong");
+  });
+
+  it("detects object output with .code field and object: prefix", async () => {
+    const mod = await import("./index");
+    const ctx: Record<string, unknown> = {
+      projectRoot: "/tmp/test-project",
+      config: {},
+    };
+    const hooks = await mod.default.server(ctx);
+
+    const sid = "obj-err-2";
+    // Object with code field, no metadata.error flag
+    for (let i = 0; i < 3; i++) {
+      await hooks["tool.execute.after"]!(
+        { tool: "glob", sessionID: sid, callID: `c${i}` },
+        { output: { code: "ERR_TIMEOUT" } },
+      );
+    }
+
+    expect(ctx._autoMaxTrigger).toBeDefined();
+    const trigger = ctx._autoMaxTrigger as Record<string, unknown>;
+    expect(trigger.tool).toBe("glob");
+    expect(trigger.errorType).toBe("object:ERR_TIMEOUT");
+  });
+
+  it("object output without error/code is treated as success", async () => {
+    const mod = await import("./index");
+    const ctx: Record<string, unknown> = {
+      projectRoot: "/tmp/test-project",
+      config: {},
+    };
+    const hooks = await mod.default.server(ctx);
+
+    const sid = "obj-ok";
+    // Build 2 failures via string errors, then pass an object without error/code
+    for (let i = 0; i < 2; i++) {
+      await hooks["tool.execute.after"]!(
+        { tool: "bash", sessionID: sid, callID: `c${i}` },
+        { output: "ENOENT: no such file" },
+      );
+    }
+
+    // Object without error/code fields — should be treated as success, reset counters
+    await hooks["tool.execute.after"]!(
+      { tool: "bash", sessionID: sid, callID: "c-ok" },
+      { output: { result: "all good", status: 0 } },
+    );
+
+    // After reset, 3 more failures needed to trigger
+    for (let i = 0; i < 2; i++) {
+      await hooks["tool.execute.after"]!(
+        { tool: "bash", sessionID: sid, callID: `d${i}` },
+        { output: "ENOENT: no such file" },
+      );
+    }
+
+    // Only 2 failures after reset — should not trigger yet
+    expect(ctx._autoMaxTrigger).toBeUndefined();
   });
 });

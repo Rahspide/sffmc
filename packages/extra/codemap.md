@@ -19,7 +19,7 @@ F3+ opt-in bundle for advanced features — F5' Checkpoint (session capture/rest
 Plugin loaded by OpenCode
   └─ server(ctx) called
        ├─ loadConfig<ExtraConfig>("extra", defaultConfig)  // YAML merge
-       ├─ createCheckpointTool({ enabled:config.checkpoint, ctx })
+        ├─ createCheckpointTool({ enabled:config.checkpoint, dir: resolvedCheckpointDir })
        ├─ createJudgeTool({ enabled:config.judge, model, rubric, judge_auto, ctx })
        ├─ createDreamTool({ enabled:config.dream, threshold, intervalHours, ctx })
        └─ return { ...checkpoint.hooks, ...judge.hooks, ...dream.hooks,
@@ -115,7 +115,7 @@ All hooks are conditional — registered only when their config flag is enabled.
 
 | Export | Kind | Signature |
 |---|---|---|
-| `createCheckpointTool` | factory function | `(config: { enabled: boolean }) => { tool: CheckpointTool; hooks: CheckpointHooks }` |
+| `createCheckpointTool` | factory function | `(config: { enabled: boolean; dir?: string }) => { tool: CheckpointTool; hooks: CheckpointHooks }` |
 | `CheckpointTool` | interface | Tool shape with `description`, `parameters` (JSON Schema), `execute(args?)` |
 | `CheckpointHooks` | interface | Optional `tool.execute.after` and `experimental.chat.messages.transform` hook signatures |
 | `ToolCall` | interface | `{ tool: string; args: unknown; result: unknown; timestamp: number; callID: string }` |
@@ -151,7 +151,7 @@ All hooks are conditional — registered only when their config flag is enabled.
 | Export | Kind | Signature |
 |---|---|---|
 | `createDreamTool` | factory function | `(config: DreamConfig) => { tool: DreamTool; hooks: DreamHooks }` |
-| `DreamConfig` | interface | `{ enabled: boolean; threshold: number; intervalHours: number; storagePath?: string }` |
+| `DreamConfig` | interface | `{ enabled: boolean; threshold: number; intervalHours: number; storagePath?: string; ctx?: RichPluginContext; summaryModel?: string }` |
 | `DreamTool` | interface | Tool shape with `description`, `parameters` (dry_run boolean), `execute(params?)` |
 | `DreamHooks` | interface | Optional `tool.execute.after` hook signature |
 | `DreamResult` | interface | `{ scanned: number; deduped: number; archived: number; summarized: number; durationMs: number; errors: string[]; ok: boolean; skipped?: boolean; reason?: string; dry_run?: boolean }` |
@@ -161,7 +161,7 @@ All hooks are conditional — registered only when their config flag is enabled.
 ## Notable
 
 - **All features default off** — YAGNI principle applied at the tool level. Each of the 3 features requires an explicit boolean flip in `extra.yaml`. When disabled, tools return a predictable `{ skipped: true }` shape with zero side effects and no hook registration.
-- **Dream summarizes via concat fallback** — the `concatenateSummary()` function produces a naive first-100-chars-per-entry concatenation. The intent is to eventually call an LLM for structured summarization, but `ctx` (PluginContext) is not propagated to the `createDreamTool` factory (only `DreamConfig` fields are passed). This is a known gap — the LLM summarizer path is stubbed.
-- **`ExtraConfig.checkpoint_dir` declared but unused** — the config interface includes `checkpoint_dir: string` (default `""`), but the checkpoint module ignores it and hardcodes `~/.local/share/sffmc/extra/checkpoints/`. The field exists for future custom-path support but is not wired. Tests use `__setCheckpointDir()` as a bypass.
+- **Dream summarizes via LLM with concat fallback** — `createDreamTool` now accepts `ctx` and `summaryModel` for LLM-based summarization via `summarizeViaLLM()` (sends cluster entries to the model for a 1-3 sentence summary). Falls back to `concatenateSummary()` (first-100-chars-per-entry concatenation) when `ctx` is absent or the LLM call fails. The fallback ensures Dream works even without an available LLM client.
+- **`ExtraConfig.checkpoint_dir` now wired** — `index.ts` resolves `config.checkpoint_dir || DEFAULT_CHECKPOINT_DIR` and passes the result as `dir` to `createCheckpointTool`. All internal functions (`filePath`, `writeHeader`, `readHeader`, `flushSession`, `listSessions`, etc.) accept an optional `dir?` parameter that defaults to the old hardcoded path. `__setCheckpointDir()` remains for test isolation.
 - **Judge auto-hook is opt-in within opt-in** — even when `config.judge === true`, the auto-judge marker scanner only activates when `config.judge_auto === true` AND an LLM client is available. This double-gate prevents the plugin from silently injecting LLM calls into every message transform.
 - **Bundle exists so user can opt in per feature** — the 3 tools could be 3 separate plugins (matching the DLC "hot-pluggable" principle), but they share the same config file (`extra.yaml`) and the same `@sffmc/shared` dependency. Bundling reduces install surface while keeping feature isolation via config flags.

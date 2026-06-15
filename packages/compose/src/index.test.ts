@@ -1,12 +1,15 @@
-import { describe, it, expect, beforeAll } from "bun:test";
-import { readFile } from "node:fs/promises";
+import { describe, it, expect, beforeAll, afterAll } from "bun:test";
+import { readFile, rename, mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 const SKILLS_DIR = join(import.meta.dirname, "..", "skills");
 
 const VALID_SKILLS = [
   "ask",
+  "audit-deps",
+  "benchmark",
   "brainstorm",
+  "code-review",
   "debug",
   "execute",
   "feedback",
@@ -100,8 +103,7 @@ describe("compose_skill argument validation", () => {
 
   it("rejects empty string name", async () => {
     const content = await hooks.tool.compose_skill.execute({ name: "" });
-    expect(content).toContain("Error: Unknown skill");
-    expect(content).toContain('""');
+    expect(content).toBe("Error: skill name is required");
   });
 
   it("rejects whitespace-only name", async () => {
@@ -118,22 +120,64 @@ describe("compose_skill argument validation", () => {
   it("rejects numeric name", async () => {
     // TypeScript would reject this at compile time, but runtime behavior is tested
     const content = await hooks.tool.compose_skill.execute({ name: 123 as unknown as string });
-    expect(content).toContain("Error: Unknown skill");
+    expect(content).toBe("Error: skill name is required");
   });
 
   it("rejects null name", async () => {
     const content = await hooks.tool.compose_skill.execute({ name: null as unknown as string });
-    expect(content).toContain("Error: Unknown skill");
+    expect(content).toBe("Error: skill name is required");
   });
 
   it("rejects undefined name", async () => {
     const content = await hooks.tool.compose_skill.execute({ name: undefined as unknown as string });
-    expect(content).toContain("Error: Unknown skill");
+    expect(content).toBe("Error: skill name is required");
   });
 
   it("rejects object as name", async () => {
     const content = await hooks.tool.compose_skill.execute({ name: { x: 1 } as unknown as string });
-    expect(content).toContain("Error: Unknown skill");
+    expect(content).toBe("Error: skill name is required");
+  });
+});
+
+describe("compose_skill corrupted file handling", () => {
+  const skillName = "new-skill";
+  const skillFile = join(SKILLS_DIR, `${skillName}.md`);
+  const backupFile = join(SKILLS_DIR, `${skillName}.md.bak.test`);
+
+  let hooks: Awaited<ReturnType<typeof import("./index").default.server>>;
+
+  beforeAll(async () => {
+    // Clean up any orphaned backup from a previous interrupted run
+    await rm(backupFile, { force: true });
+    // Backup the real skill file
+    await rename(skillFile, backupFile);
+    const mod = await import("./index");
+    hooks = await mod.default.server({
+      projectRoot: "/tmp/test-project",
+      config: {},
+    });
+  });
+
+  afterAll(async () => {
+    // Remove the corrupted file (could be file or directory)
+    await rm(skillFile, { force: true, recursive: true });
+    // Restore the original skill file
+    await rename(backupFile, skillFile);
+  });
+
+  it("returns graceful error for empty file content", async () => {
+    await writeFile(skillFile, "");
+    const content = await hooks.tool.compose_skill.execute({ name: skillName });
+    expect(content).toBe("Error: skill 'new-skill' is empty (file has no content)");
+  });
+
+  it("returns graceful error when readFile throws on a directory", async () => {
+    // Simulate a corrupted "file" that is actually a directory
+    await rm(skillFile, { force: true });
+    await mkdir(skillFile);
+    const content = await hooks.tool.compose_skill.execute({ name: skillName });
+    expect(content).toContain("Error: failed to load skill 'new-skill'");
+    expect(content).toContain("EISDIR");
   });
 });
 
@@ -148,7 +192,7 @@ describe("compose_skill full coverage", () => {
     });
   });
 
-  it("all 15 valid skills return content > 100 chars", async () => {
+  it("all 18 valid skills return content > 100 chars", async () => {
     for (const name of VALID_SKILLS) {
       const content = await hooks.tool.compose_skill.execute({ name });
       expect(typeof content).toBe("string");
@@ -160,8 +204,8 @@ describe("compose_skill full coverage", () => {
     const results = await Promise.all(
       VALID_SKILLS.map((name) => hooks.tool.compose_skill.execute({ name })),
     );
-    // All 15 resolved without throwing
-    expect(results.length).toBe(15);
+    // All 18 resolved without throwing
+    expect(results.length).toBe(18);
     for (let i = 0; i < VALID_SKILLS.length; i++) {
       expect(typeof results[i]).toBe("string");
       expect(results[i].length).toBeGreaterThan(100);
