@@ -1,0 +1,18 @@
+# SFFMC bunfig.toml — scope bun test to SFFMC packages only.
+# Prevents `dependencies/MiMo-Code/packages/*` test pollution.
+# Both keys are part of Bun's [test] config (docs: https://bun.sh/docs/runtime/bunfig#test).
+#
+# `root` = starting directory for test discovery (default: CWD).
+# `pathIgnorePatterns` = glob patterns to exclude from test discovery.
+#
+# Either approach alone is enough; using both makes the intent obvious.
+# Tests are still discoverable via `bun test packages/<name>/` explicitly.
+
+[test]
+root = "."
+pathIgnorePatterns = [
+  "dependencies/**",
+  "node_modules/**",
+  ".slim/**",
+  ".sffmc/**",
+]
