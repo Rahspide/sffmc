@@ -45,6 +45,44 @@ async function packageNames(repoRoot: string): Promise<string[]> {
   return pkgs.sort();
 }
 
+function pkgDir(pkg: string, repoRoot: string): string {
+  return pkg === "shared" ? join(repoRoot, "shared") : join(repoRoot, "packages", pkg);
+}
+
+/**
+ * Run a per-package presence check across all packages (including shared).
+ * Returns ok if every package passes the test, fail otherwise.
+ *
+ * @param noun - human-readable noun for the thing being checked (e.g. "tests", "README.md")
+ * @param test - returns true if the package HAS the thing
+ */
+async function checkPerPackage(
+  repoRoot: string,
+  name: string,
+  noun: string,
+  test: (pkgDir: string) => Promise<boolean>,
+): Promise<CheckResult> {
+  const pkgs = await packageNames(repoRoot);
+  const missing: string[] = [];
+  for (const pkg of pkgs) {
+    if (!(await test(pkgDir(pkg, repoRoot)))) {
+      missing.push(pkg);
+    }
+  }
+  if (missing.length === 0) {
+    return {
+      name,
+      status: "ok",
+      detail: `${pkgs.length}/${pkgs.length} packages have ${noun}`,
+    };
+  }
+  return {
+    name,
+    status: "fail",
+    detail: `${missing.length} package(s) missing ${noun}: ${missing.join(", ")}`,
+  };
+}
+
 async function fileExists(path: string): Promise<boolean> {
   try {
     await stat(path);
@@ -151,41 +189,17 @@ export async function checkHookConflicts(repoRoot: string): Promise<CheckResult>
 // ---------------------------------------------------------------------------
 
 export async function checkTestPresence(repoRoot: string): Promise<CheckResult> {
-  const pkgs = await packageNames(repoRoot);
-  const missing: string[] = [];
-
-  for (const pkg of pkgs) {
-    const pkgDir = pkg === "shared" ? join(repoRoot, "shared") : join(repoRoot, "packages", pkg);
-    // Check src/*.test.ts or tests/*.test.ts
-    let found = false;
+  return checkPerPackage(repoRoot, "test_presence", "tests", async (dir) => {
     for (const subdir of ["src", "tests"]) {
       try {
-        const dir = join(pkgDir, subdir);
-        const entries = await readdir(dir);
-        if (entries.some((e) => e.endsWith(".test.ts"))) {
-          found = true;
-          break;
-        }
+        const entries = await readdir(join(dir, subdir));
+        if (entries.some((e) => e.endsWith(".test.ts"))) return true;
       } catch {
         // dir doesn't exist
       }
     }
-    if (!found) missing.push(pkg);
-  }
-
-  if (missing.length === 0) {
-    return {
-      name: "test_presence",
-      status: "ok",
-      detail: `${pkgs.length}/${pkgs.length} packages have tests`,
-    };
-  }
-
-  return {
-    name: "test_presence",
-    status: "fail",
-    detail: `${missing.length} package(s) missing tests: ${missing.join(", ")}`,
-  };
+    return false;
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -193,29 +207,9 @@ export async function checkTestPresence(repoRoot: string): Promise<CheckResult> 
 // ---------------------------------------------------------------------------
 
 export async function checkReadmePresence(repoRoot: string): Promise<CheckResult> {
-  const pkgs = await packageNames(repoRoot);
-  const missing: string[] = [];
-
-  for (const pkg of pkgs) {
-    const pkgDir = pkg === "shared" ? join(repoRoot, "shared") : join(repoRoot, "packages", pkg);
-    if (!(await fileExists(join(pkgDir, "README.md")))) {
-      missing.push(pkg);
-    }
-  }
-
-  if (missing.length === 0) {
-    return {
-      name: "readme_presence",
-      status: "ok",
-      detail: `${pkgs.length}/${pkgs.length} packages have README.md`,
-    };
-  }
-
-  return {
-    name: "readme_presence",
-    status: "fail",
-    detail: `${missing.length} package(s) missing README.md: ${missing.join(", ")}`,
-  };
+  return checkPerPackage(repoRoot, "readme_presence", "README.md", (dir) =>
+    fileExists(join(dir, "README.md")),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -385,9 +379,8 @@ export async function checkVersionConsistency(repoRoot: string): Promise<CheckRe
   const mismatches: string[] = [];
 
   for (const pkg of pkgs) {
-    const pkgDir = pkg === "shared" ? join(repoRoot, "shared") : join(repoRoot, "packages", pkg);
     try {
-      const pkgJson = JSON.parse(await readFile(join(pkgDir, "package.json"), "utf-8"));
+      const pkgJson = JSON.parse(await readFile(join(pkgDir(pkg, repoRoot), "package.json"), "utf-8"));
       const ver = pkgJson.version;
       if (ver !== rootVersion) {
         mismatches.push(`${pkg}: ${ver} (root: ${rootVersion})`);
@@ -423,8 +416,7 @@ export async function checkLicense(repoRoot: string): Promise<CheckResult> {
   // Check each package README references LICENSE or MIT
   const pkgs = await packageNames(repoRoot);
   for (const pkg of pkgs) {
-    const pkgDir = pkg === "shared" ? join(repoRoot, "shared") : join(repoRoot, "packages", pkg);
-    const readmePath = join(pkgDir, "README.md");
+    const readmePath = join(pkgDir(pkg, repoRoot), "README.md");
     if (!(await fileExists(readmePath))) {
       missingRefs.push(`${pkg} (no README)`);
       continue;
