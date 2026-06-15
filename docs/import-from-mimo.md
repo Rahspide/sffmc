@@ -1,8 +1,8 @@
-# Import from MiMo-Code to SFFMC v8.0
+# Import from MiMo-Code to SFFMC v0.9.0
 
 Guide for migrating settings, skills, and configuration from
 [MiMo-Code](https://github.com/XiaomiMiMo/MiMo-Code) to
-[SFFMC](https://github.com/settingsfuck/SFFMC) v8.0.
+[SFFMC](https://github.com/settingsfuck/SFFMC) v0.9.0.
 
 ## What is MiMo-Code
 
@@ -15,7 +15,7 @@ plugin ecosystem.
 
 ## What is SFFMC
 
-[SFFMC v8.0](https://github.com/settingsfuck/SFFMC) is a **discipline overlay**
+[SFFMC v0.9.0](https://github.com/settingsfuck/SFFMC) is a **discipline overlay**
 plugin pack for vanilla OpenCode 1.17.6. It does NOT fork or replace OpenCode
 — it injects hooks (rules enforcement, log filtering, error detection,
 auto-max-mode escalation, multi-model council, and the Compose Mode skills)
@@ -27,22 +27,22 @@ the upstream OpenCode platform.**
 
 ## Feature Mapping
 
-| MiMo-Code Feature | SFFMC v8.0 Equivalent | Status |
+| MiMo-Code Feature | SFFMC v0.9.0 Equivalent | Status |
 |---|---|---|
-| Compose Mode (15 skills) | `@sffmc/compose` package — `compose_skill` tool | ✅ v8.0 |
+| Compose Mode (15 skills) | `@sffmc/compose` package — `compose_skill` tool | ✅ v0.9.0 |
 | Multi-agent orchestration (actor/task tools) | Not replicated — use OpenCode's native background agents + slim v2 scheduler | N/A |
 | Visual companion (browser-based mockups) | Not replicated — deferred to v8.1+ | ❌ |
 | Agent presets (cheap/powerful/etc) | Not replicated — use OpenCode per-agent model config | N/A |
 | Built-in Chinese UI | Not applicable — SFFMC is headless, UI is upstream OpenCode desktop | N/A |
 | MiMo-specific model routing | 9Router gateway (4 provider endpoints at `:20129`-`:20132`) | ✅ Separate |
-| MiMo config system (`.mimocode/`) | `~/.config/SFFMC/` YAML configs (rules, watchdog, auto-max, eos, log, memory) | ✅ v8.0 |
-| Rules enforcement (deny write outside project) | `@sffmc/rules` — gate-based allow/deny | ✅ v8.0 |
-| Watchdog (failure detection) | `@sffmc/watchdog` — threshold-based error escalation | ✅ v8.0 |
-| Auto-max-mode (3-strikes escalation) | `@sffmc/auto-max` + `@sffmc/max-mode` | ✅ v8.0 |
-| EOS stripper | `@sffmc/eos-stripper` | ✅ v8.0 |
-| Log whitelist filter | `@sffmc/log-whitelist` | ✅ v8.0 |
-| Memory system (ICM) | `@sffmc/memory` + ICM MCP server | ✅ v8.0 |
-| Multi-model council | Built-in council agent (minimax/MiniMax-M3 + councillor subagents) | ✅ v8.0 |
+| MiMo config system (`.mimocode/`) | `~/.config/SFFMC/` YAML configs (rules, watchdog, auto-max, eos, log, memory) | ✅ v0.9.0 |
+| Rules enforcement (deny write outside project) | `@sffmc/rules` — gate-based allow/deny | ✅ v0.9.0 |
+| Watchdog (failure detection) | `@sffmc/watchdog` — threshold-based error escalation | ✅ v0.9.0 |
+| Auto-max-mode (3-strikes escalation) | `@sffmc/auto-max` + `@sffmc/max-mode` | ✅ v0.9.0 |
+| EOS stripper | `@sffmc/eos-stripper` | ✅ v0.9.0 |
+| Log whitelist filter | `@sffmc/log-whitelist` | ✅ v0.9.0 |
+| Memory system (ICM) | `@sffmc/memory` + ICM MCP server | ✅ v0.9.0 |
+| Multi-model council | Built-in council agent (minimax/MiniMax-M3 + councillor subagents) | ✅ v0.9.0 |
 
 ### Deferred to v8.1+
 
@@ -143,7 +143,7 @@ MiMo-Code has additional hook configuration that SFFMC doesn't use:
 - **Compose Mode activation**: In MiMo, Compose Mode must be explicitly activated
   (`/compose` or auto-activation). In SFFMC, the `compose_skill` tool is always
   available — agents call it on demand.
-- **Visual companion config**: Not in SFFMC v8.0. Remove any `visual-companion`
+- **Visual companion config**: Not in SFFMC v0.9.0. Remove any `visual-companion`
   settings.
 
 **Safe to drop:**
@@ -254,7 +254,7 @@ call tools can use it. If the tool isn't appearing, check:
 
 Stay on MiMo-Code instead of migrating to SFFMC if:
 
-1. **You need the visual companion** — SFFMC v8.0 doesn't include browser-based
+1. **You need the visual companion** — SFFMC v0.9.0 doesn't include browser-based
    mockups and diagrams. This is deferred to v8.1+.
 
 2. **You need the full MiMo agent harness** — SFFMC is a plugin layer on vanilla

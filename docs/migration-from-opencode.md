@@ -1,6 +1,6 @@
 # Migration Between OpenCode, MiMo-Code, and SFFMC
 
-SFFMC v8.0 is a plugin suite for OpenCode that ports the killer features from Xiaomi's MiMo-Code fork. If you use any of these three, here's how to move between them.
+SFFMC v0.9.0 is a plugin suite for OpenCode that ports the killer features from Xiaomi's MiMo-Code fork. If you use any of these three, here's how to move between them.
 
 ## What's the Same
 
