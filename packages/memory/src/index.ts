@@ -1,149 +1,23 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/memory — see ../../LICENSE
 //
-// Memory + Context Recon 8K. Stores memories in SQLite, extracts on watch,
-// and injects a recon summary (top memories + AGENTS.md + recent chat tail)
-// at the start of every new session via experimental.chat.messages.transform.
+// SFFMC memory MSP — composes memory + checkpoint + judge + dream.
+// Phase 2: replaces prior standalone memory impl with mergeHooks() of 4 sub-features.
 
-import { init, topByImportance, type MemoryDB } from "./memory"
-import { buildRecon, parseAgentsMd, tailFromMessages } from "./recon"
-import { startWatcher } from "./watcher"
-import { loadConfig, type PluginContext } from "@sffmc/shared"
-import { readFileSync, existsSync, mkdirSync } from "fs"
-import { resolve, dirname } from "path"
-
-interface MemoryConfig {
-  storagePath: string
-  reconBudgets: {
-    memory: number
-    checkpoint: number
-    taskTree: number
-    tail: number
-    agents: number
-  }
-  memoryPaths: string[]
-  defaultImportance: number
-}
-
-const defaultConfig: MemoryConfig = {
-  storagePath: resolve(
-    require("os").homedir(),
-    ".local/share/SFFMC/memory/index.sqlite",
-  ),
-  reconBudgets: {
-    memory: 6144,
-    checkpoint: 6144,
-    taskTree: 4096,
-    tail: 8192,
-    agents: 8192,
-  },
-  memoryPaths: ["memory-bank/", "AGENTS.md", "*.md"],
-  defaultImportance: 0.5,
-}
-
-interface PluginState {
-  db: MemoryDB | null
-  watcher: { stop: () => void } | null
-  reconNeededThisSession: boolean
-  reconInjectedThisSession: boolean
-  config: MemoryConfig
-}
-
-function ensureDir(filePath: string): void {
-  const dir = dirname(filePath)
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true })
-  }
-}
+import { server as memoryServer } from "./plugin.ts"
+import { checkpointServer, judgeServer, dreamServer } from "../../extra/src/index.ts"
+import { mergeHooks, type PluginContext, type PluginServer } from "@sffmc/shared"
 
 export const id = "@sffmc/memory"
-export const server = async (ctx: PluginContext) => {
-  const config = await loadConfig<MemoryConfig>("memory", defaultConfig)
 
-  const state: PluginState = {
-    db: null,
-    watcher: null,
-    reconNeededThisSession: false,
-    reconInjectedThisSession: false,
-    config,
-  }
-
-  async function ensureDB(): Promise<MemoryDB> {
-    if (!state.db) {
-      ensureDir(state.config.storagePath)
-      state.db = await init(state.config.storagePath)
-    }
-    return state.db
-  }
-
-  async function ensureWatcher(): Promise<void> {
-    if (!state.watcher) {
-      const db = await ensureDB()
-      state.watcher = startWatcher(ctx.projectRoot, db)
-    }
-  }
-
-  return {
-    config: async (_cfg: Record<string, unknown>) => {
-      await ensureDB()
-      await ensureWatcher()
-    },
-
-    event: async (payload: { event: string; [key: string]: unknown }) => {
-      if (payload.event === "session.created") {
-        state.reconNeededThisSession = true
-        state.reconInjectedThisSession = false
-      }
-    },
-
-    "experimental.chat.messages.transform": async (
-      _input: unknown,
-      data: {
-        messages: Array<{
-          role: string
-          content: string
-          [key: string]: unknown
-        }>
-      },
-    ) => {
-      if (!state.reconNeededThisSession || state.reconInjectedThisSession)
-        return
-
-      try {
-        const db = await ensureDB()
-        const memory = topByImportance(db, 20)
-
-        const agentsPath = resolve(ctx.projectRoot, "AGENTS.md")
-        let agents = ""
-        if (existsSync(agentsPath)) {
-          agents = parseAgentsMd(readFileSync(agentsPath, "utf-8"))
-        }
-
-        const tail = tailFromMessages(
-          data.messages.slice(-20),
-          state.config.reconBudgets.tail,
-        )
-
-        const recon = buildRecon(
-          memory,
-          null,
-          "",
-          tail,
-          agents,
-        )
-
-        data.messages.unshift({
-          role: "system",
-          content: recon,
-        })
-
-        state.reconInjectedThisSession = true
-        state.reconNeededThisSession = false
-      } catch {
-        // recon is best-effort; silently skip on failure
-      }
-    },
-  }
+export const server = async (ctx: PluginContext): Promise<PluginServer> => {
+  const merged = mergeHooks([
+    await memoryServer(ctx),
+    await checkpointServer(ctx),
+    await judgeServer(ctx),
+    await dreamServer(ctx),
+  ])
+  return { ...merged, id }
 }
 
 export default { id, server }
