@@ -103,6 +103,33 @@ Benchmark comparison (source: MiMo-Code blog, June 2026):
 
 SFFMC ports the features that create this gap — as OpenCode plugins, not a fork.
 
+## Package categories
+
+The 11 SFFMC packages are split into two categories. This separation is enforced via the `category` field in each `package.json` and verified by `sffmc_health`'s `category_split` check.
+
+### `mimo-port` — features ported from MiMo-Code v8.0 (7 packages)
+
+| Package | MiMo feature | Description |
+|---|---|---|
+| `@sffmc/memory` | F4' Memory + Context Recon 8K | Stores memories in SQLite, injects recon at session start |
+| `@sffmc/rules` | F2 Rules (safety net) | YAML gate-based allow/deny for destructive commands |
+| `@sffmc/watchdog` | F1 Watchdog | 3-failure rolling counter + recovery verdict + `/max` escape |
+| `@sffmc/max-mode` | F7 Max Mode | Parallel drafts + judge for hard problems (10-20% SWE-Bench gain) |
+| `@sffmc/auto-max` | Auto-escalation | Watchdog/rules-driven auto-trigger of Max Mode |
+| `@sffmc/compose` | 15 compose skills | Drop-in productivity skills ported from MiMo-Code |
+| `@sffmc/workflow` | W5-6 Dynamic Workflow | quickjs-emscripten WASM sandbox + 3 primitives + 7 builtins |
+
+### `sffmc-original` — additions by the SFFMC team (4 packages)
+
+| Package | Rationale |
+|---|---|
+| `@sffmc/eos-stripper` | Local model survival: strip `<\|im_end\|>` etc. from Ollama/vLLM/oMLX outputs |
+| `@sffmc/log-whitelist` | Prevents 12GB permission-log spam from 30-day OpenCode daemon runs |
+| `@sffmc/health` | F3+ Health diagnostic — 12-check tool for plugin authors, JSON output |
+| `@sffmc/extra` | F5'/F6'/F8 opt-in bundle (cut from v8.0, kept as togglable plugin) |
+
+Run `sffmc_health` to see the live category split and verify all packages are categorized.
+
 ## Status
 
 | Version | Date | Highlights |

@@ -1,6 +1,6 @@
 {
   "name": "@sffmc/workflow",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "type": "module",
   "main": "src/index.ts",
   "scripts": {
@@ -18,5 +18,8 @@
     "@types/bun": "latest",
     "bun-types": "latest"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "category": "mimo-port",
+  "portSource": "MiMo-Code v8.0",
+  "portFeature": "workflow"
 }

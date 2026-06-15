@@ -674,6 +674,50 @@ export async function checkExtraOptIn(repoRoot: string): Promise<CheckResult> {
 }
 
 // ---------------------------------------------------------------------------
+// Check 12: Category split (MiMo ports vs SFFMC originals)
+// ---------------------------------------------------------------------------
+
+export async function checkCategorySplit(repoRoot: string): Promise<CheckResult> {
+  const counts: Record<string, { count: number; features: string[] }> = {
+    "mimo-port": { count: 0, features: [] },
+    "sffmc-original": { count: 0, features: [] },
+    uncategorized: { count: 0, features: [] },
+  };
+
+  for (const pkg of SFFMC_PACKAGES) {
+    const pkgJsonPath = join(repoRoot, "packages", pkg, "package.json");
+    try {
+      const content = await readFile(pkgJsonPath, "utf-8");
+      const parsed = JSON.parse(content) as { category?: string; portFeature?: string };
+      const cat = parsed.category || "uncategorized";
+      if (!counts[cat]) counts[cat] = { count: 0, features: [] };
+      counts[cat].count++;
+      if (parsed.portFeature) counts[cat].features.push(parsed.portFeature);
+    } catch {
+      counts.uncategorized.count++;
+    }
+  }
+
+  const portCount = counts["mimo-port"].count;
+  const origCount = counts["sffmc-original"].count;
+  const uncatCount = counts.uncategorized.count;
+
+  if (uncatCount > 0) {
+    return {
+      name: "category_split",
+      status: "warn",
+      detail: `${portCount} mimo-port, ${origCount} sffmc-original, ${uncatCount} uncategorized`,
+    };
+  }
+
+  return {
+    name: "category_split",
+    status: "ok",
+    detail: `${portCount} mimo-port (MiMo-Code v8.0 features), ${origCount} sffmc-original (SFFMC team additions)`,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Orchestrator
 // ---------------------------------------------------------------------------
 
@@ -689,6 +733,7 @@ const ALL_CHECKS: CheckFn[] = [
   checkTsConfigPresence,
   checkChangelogCurrency,
   checkExtraOptIn,
+  checkCategorySplit,
 ];
 
 export async function runAllChecks(

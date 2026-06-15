@@ -1,6 +1,6 @@
 {
   "name": "@sffmc/log-whitelist",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "type": "module",
   "main": "src/index.ts",
   "dependencies": {
@@ -9,5 +9,7 @@
   },
   "scripts": {
     "test:watch": "bun test --watch"
-  }
+  },
+  "category": "sffmc-original",
+  "rationale": "Added by SFFMC team for own use case"
 }

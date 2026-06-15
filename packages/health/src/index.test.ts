@@ -19,6 +19,7 @@ import {
   checkTsConfigPresence,
   checkChangelogCurrency,
   checkExtraOptIn,
+  checkCategorySplit,
   type CheckResult,
   type CheckFn,
 } from "./index";
@@ -649,6 +650,56 @@ describe("checkExtraOptIn", () => {
       const result = await checkExtraOptIn(dir);
       expect(result.status).toBe("ok");
       expect(result.detail).toContain("config present, all features off");
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// checkCategorySplit
+// ---------------------------------------------------------------------------
+
+describe("checkCategorySplit", () => {
+  const SFFMC_PKGS = [
+    "auto-max", "compose", "eos-stripper", "extra",
+    "health", "log-whitelist", "max-mode", "memory",
+    "rules", "watchdog", "workflow",
+  ];
+
+  it("reports ok with 7 mimo-port + 4 sffmc-original when all categorized", async () => {
+    await withTempDir(async (dir) => {
+      for (const pkg of SFFMC_PKGS) {
+        await mkdir(join(dir, "packages", pkg), { recursive: true });
+        const mimo = ["auto-max", "compose", "max-mode", "memory", "rules", "watchdog", "workflow"];
+        const cat = mimo.includes(pkg) ? "mimo-port" : "sffmc-original";
+        const pkgJson = {
+          name: `@sffmc/${pkg}`,
+          version: "0.8.0",
+          category: cat,
+          ...(cat === "mimo-port" ? { portSource: "MiMo-Code v8.0", portFeature: pkg } : {}),
+        };
+        await writeFile(join(dir, "packages", pkg, "package.json"), JSON.stringify(pkgJson));
+      }
+
+      const result = await checkCategorySplit(dir);
+      expect(result.status).toBe("ok");
+      expect(result.detail).toContain("7 mimo-port");
+      expect(result.detail).toContain("4 sffmc-original");
+    });
+  });
+
+  it("reports warn when some packages are uncategorized", async () => {
+    await withTempDir(async (dir) => {
+      for (const pkg of SFFMC_PKGS) {
+        await mkdir(join(dir, "packages", pkg), { recursive: true });
+        // Only categorize some
+        const cat = ["memory", "rules", "watchdog"].includes(pkg) ? "mimo-port" : undefined;
+        const pkgJson = cat ? { name: `@sffmc/${pkg}`, version: "0.8.0", category: cat } : { name: `@sffmc/${pkg}`, version: "0.8.0" };
+        await writeFile(join(dir, "packages", pkg, "package.json"), JSON.stringify(pkgJson));
+      }
+
+      const result = await checkCategorySplit(dir);
+      expect(result.status).toBe("warn");
+      expect(result.detail).toContain("uncategorized");
     });
   });
 });

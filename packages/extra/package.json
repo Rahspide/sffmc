@@ -1,6 +1,6 @@
 {
   "name": "@sffmc/extra",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "type": "module",
   "main": "src/index.ts",
   "scripts": {
@@ -11,5 +11,7 @@
   "dependencies": {
     "@sffmc/shared": "workspace:*"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "category": "sffmc-original",
+  "rationale": "Added by SFFMC team for own use case"
 }
