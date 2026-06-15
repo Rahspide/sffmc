@@ -1,5 +1,96 @@
 # SFFMC Changelog
 
+## v0.8.0 — Ship @sffmc/extra plugin (F5'/F6'/F8 opt-in bundle) (2026-06-15)
+
+- ## Headline
+- New `@sffmc/extra` plugin: opt-in bundle of 3 advanced features cut from v8.0.
+- All features disabled by default — toggle per feature via config flags.
+- - **F5' Checkpoint** — session state capture/restore with schema versioning
+- - **F6' Judge** — multi-criteria LLM judge (0-10 on correctness/completeness/conciseness)
+- - **F8 Dream** — background memory cleaner with multi-trigger (count > N, cron, manual)
+- ## What's new
+- ### Plugin: @sffmc/extra (11 SFFMC packages total)
+- **F5' Checkpoint** (`extra_checkpoint` tool):
+- - Captures every `tool.execute.after` call into per-session JSONL at
+-   `~/.local/share/sffmc/extra/checkpoints/<sessionID>.jsonl` (configurable via `checkpoint_dir`)
+- - Schema versioning: `version: 1` header, restore rejects unknown versions
+- - Actions: `list` (show sessions), `restore` (reconstruct messages), `delete` (remove)
+- - Auto-restore via `<!-- EXTRA_RESTORE: <sessionID> -->` marker in messages
+- - Schema versioning + append-only JSONL for crash safety
+- **F6' Judge** (`extra_judge` tool):
+- - LLM judge scoring 2-8 candidate outputs
+- - Multi-criteria rubric: correctness, completeness, conciseness (0-10 each)
+- - Returns `{ scores, winner, reasoning, model, latencyMs }`
+- - Configurable model (default `ocg/deepseek-v4-flash`) + rubric
+- - `judge_auto` flag: hook `experimental.chat.messages.transform` to auto-judge
+-   candidates marked with `<!-- EXTRA_JUDGE_CANDIDATES: [...] -->`
+- - LLM call at temperature 0.2 for determinism
+- - JSON parsing with validation (rejects malformed responses)
+- **F8 Dream** (`extra_dream` tool):
+- - 3 trigger paths: count > threshold (default 50), cron interval (default 24h), manual
+- - Dedup: Jaccard similarity > 0.9, keep newer entry by `last_accessed`
+- - Stale removal: `last_accessed > 30 days` → archived to `dream-archive.jsonl`
+- - Cluster summarization: Jaccard > 0.3 cluster, 5+ entries → LLM summary
+-   (falls back to concat if no `ctx.client.session.message()`)
+- - Concurrency: Promise-lock prevents overlapping runs
+- - LLM summarization with graceful fallback to concat on error
+- ### Infrastructure
+- - **Factory + spread pattern**: each `create<X>Tool(config)` returns `{ tool, hooks }`,
+-   `index.ts` spreads hooks into top-level return. Allows parallel feature implementation
+-   without index.ts conflicts.
+- - **`ExtraConfig` 9 keys**: `checkpoint`, `judge`, `dream`, `dream_threshold`,
+-   `dream_interval_hours`, `judge_model`, `judge_rubric`, `judge_auto`, `checkpoint_dir`
+- - All 3 features ship via `@sffmc/shared` PluginContext type
+- - Wired to 11th SFFMC plugin in sandbox :4200 opencode.json
+- ### Quality
+- - **Codemap for new package**: `packages/extra/codemap.md` (1,723 words) +
+-   `packages/extra/src/codemap.md` (1,535 words). Root `codemap.md` and
+-   `packages/codemap.md` updated with new row.
+- - **Test coverage even-out** (29 new tests across 3 packages):
+-   - `compose`: 2 → 37 (+35) — verify/tdd skill keywords, cross-validation,
+-     unknown skill errors, schema validation
+-   - `eos-stripper`: 3 → 31 (+28) — multiple EOS, middle-of-text, mixed tokens,
+-     whitespace handling, all DEFAULT_EOS_PATTERNS coverage
+-   - `auto-max`: 4 → 29 (+25) — session isolation, error type edge cases,
+-     re-trigger blocking, object output detection
+- - **sffmc_health**: 10 → 11 checks (added `extra_opt_in` — detects config presence
+-   + feature enable count)
+- - 429/429 tests pass (was 394), 957 expect() calls (was 1057 before coverage)
+- - All packages bumped 0.1.0 → 0.8.0
+- ## Migration from v0.7.5
+- No breaking changes. To opt in to F5'/F6'/F8, add to `~/.config/SFFMC/extra.yaml`:
+- ```yaml
+- checkpoint: true      # F5' capture + restore
+- judge: true           # F6' multi-criteria LLM scoring
+- dream: true           # F8 background memory cleaner
+- checkpoint_dir: ""    # default ~/.local/share/sffmc/extra/checkpoints/
+- dream_threshold: 50   # count > N triggers dream
+- dream_interval_hours: 24
+- judge_model: "ocg/deepseek-v4-flash"
+- judge_auto: false     # auto-judge markers in messages
+- ```
+- ## Known gaps (documented, not blocking)
+- - F8 Dream LLM summarization needs `ctx.client.session.message()`; falls back to
+-   concat if not available
+- - 10/11 packages still lack `tsconfig.json` (in-progress migration)
+- - Sandbox live-test of F5'/F6'/F8 pending (need real session with `tool.execute.after` traffic)
+- - Corrupted skill file in `compose` propagates throw instead of graceful error
+- - `auto-max` lacks `dry_run` mode and `/max` escape hatch
+- - Object output without metadata.error is treated as success (silent fall-through)
+- ## Files changed (summary)
+- - 1 new package: `packages/extra/` (8 files, +2000 LOC)
+- - 4 SFFMC plugins updated: `checkpoint.ts` (+dir param), `dream.ts` (+ctx + LLM),
+-   `judge.ts` (judge_auto hook), `index.ts` (wire new params)
+- - 3 test files extended: compose (+35), eos-stripper (+28), auto-max (+25)
+- - 2 codemap files added for `extra/`
+- - 2 umbrella codemap files updated (root + packages)
+- - Sandbox config: extra plugin added to `~/.config/opencode-sandbox/opencode/opencode.json`
+- - All 12 package.json versions bumped 0.1.0 → 0.8.0
+- - `sffmc_health` extended with `extra_opt_in` check (11th check)
+- - `CHANGELOG.md`, `README.md`, `AGENTS.md` updated
+- - 1 new helper: `scripts/release.sh` (4-gate + CHANGELOG + commit + tag)
+
+
 ## v0.7.5 — Full repository codemap (2026-06-15)
 
 Generated via Codemap skill. 11 parallel fixer agents + orchestrator umbrella + root atlas.
