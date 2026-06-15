@@ -11,3 +11,6 @@ coverage/
 .slim/deepwork/
 .sffmc/
 dependencies/
+# Track .slim/codemap.json (codemap state) but ignore other .slim/* runtime files
+.slim/*
+!.slim/codemap.json
