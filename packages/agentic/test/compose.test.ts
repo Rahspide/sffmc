@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "bun:test";
 import { readFile, rename, mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-const SKILLS_DIR = join(import.meta.dirname, "..", "skills");
+const SKILLS_DIR = join(import.meta.dirname, "..", "..", "compose", "skills");
 
 const VALID_SKILLS = [
   "ask",
@@ -39,14 +39,14 @@ describe("Skill file integrity", () => {
 
 describe("Plugin entry smoke test", () => {
   it("exports default object with id and server function", async () => {
-    const mod = await import("./index");
+    const mod = await import("../../compose/src/index");
     expect(mod.default).toBeDefined();
     expect(mod.default.id).toBe("@sffmc/compose");
     expect(typeof mod.default.server).toBe("function");
   });
 
   it("server returns expected tool shape", async () => {
-    const mod = await import("./index");
+    const mod = await import("../../compose/src/index");
     const hooks = await mod.default.server({
       projectRoot: "/tmp/test-project",
       config: {},
@@ -57,7 +57,7 @@ describe("Plugin entry smoke test", () => {
   });
 
   it("compose_skill.execute returns markdown content for verify", async () => {
-    const mod = await import("./index");
+    const mod = await import("../../compose/src/index");
     const hooks = await mod.default.server({
       projectRoot: "/tmp/test-project",
       config: {},
@@ -69,7 +69,7 @@ describe("Plugin entry smoke test", () => {
   });
 
   it("compose_skill.execute returns content starting with # for plan", async () => {
-    const mod = await import("./index");
+    const mod = await import("../../compose/src/index");
     const hooks = await mod.default.server({
       projectRoot: "/tmp/test-project",
       config: {},
@@ -80,7 +80,7 @@ describe("Plugin entry smoke test", () => {
   });
 
   it("compose_skill.execute returns error for unknown skill", async () => {
-    const mod = await import("./index");
+    const mod = await import("../../compose/src/index");
     const hooks = await mod.default.server({
       projectRoot: "/tmp/test-project",
       config: {},
@@ -91,10 +91,10 @@ describe("Plugin entry smoke test", () => {
 });
 
 describe("compose_skill argument validation", () => {
-  let hooks: Awaited<ReturnType<typeof import("./index").default.server>>;
+  let hooks: Awaited<ReturnType<typeof import("../../compose/src/index").default.server>>;
 
   beforeAll(async () => {
-    const mod = await import("./index");
+    const mod = await import("../../compose/src/index");
     hooks = await mod.default.server({
       projectRoot: "/tmp/test-project",
       config: {},
@@ -144,14 +144,14 @@ describe("compose_skill corrupted file handling", () => {
   const skillFile = join(SKILLS_DIR, `${skillName}.md`);
   const backupFile = join(SKILLS_DIR, `${skillName}.md.bak.test`);
 
-  let hooks: Awaited<ReturnType<typeof import("./index").default.server>>;
+  let hooks: Awaited<ReturnType<typeof import("../../compose/src/index").default.server>>;
 
   beforeAll(async () => {
     // Clean up any orphaned backup from a previous interrupted run
     await rm(backupFile, { force: true });
     // Backup the real skill file
     await rename(skillFile, backupFile);
-    const mod = await import("./index");
+    const mod = await import("../../compose/src/index");
     hooks = await mod.default.server({
       projectRoot: "/tmp/test-project",
       config: {},
@@ -182,10 +182,10 @@ describe("compose_skill corrupted file handling", () => {
 });
 
 describe("compose_skill full coverage", () => {
-  let hooks: Awaited<ReturnType<typeof import("./index").default.server>>;
+  let hooks: Awaited<ReturnType<typeof import("../../compose/src/index").default.server>>;
 
   beforeAll(async () => {
-    const mod = await import("./index");
+    const mod = await import("../../compose/src/index");
     hooks = await mod.default.server({
       projectRoot: "/tmp/test-project",
       config: {},
@@ -220,7 +220,7 @@ describe("compose_skill full coverage", () => {
   });
 
   it("works with minimal context", async () => {
-    const mod = await import("./index");
+    const mod = await import("../../compose/src/index");
     const h = await mod.default.server({ projectRoot: "/", config: {} });
     const content = await h.tool.compose_skill.execute({ name: "ask" });
     expect(content.length).toBeGreaterThan(100);
@@ -265,10 +265,10 @@ describe("compose_skill full coverage", () => {
 });
 
 describe("compose_skill tool description", () => {
-  let hooks: Awaited<ReturnType<typeof import("./index").default.server>>;
+  let hooks: Awaited<ReturnType<typeof import("../../compose/src/index").default.server>>;
 
   beforeAll(async () => {
-    const mod = await import("./index");
+    const mod = await import("../../compose/src/index");
     hooks = await mod.default.server({
       projectRoot: "/tmp/test-project",
       config: {},

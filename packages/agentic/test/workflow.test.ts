@@ -2,12 +2,12 @@
 // @sffmc/workflow — see ../../LICENSE
 
 import { test, expect, describe, beforeAll, afterAll } from "bun:test"
-import { WorkflowRuntime } from "./runtime.ts"
-import { setRuntime, getRuntime } from "./runtime-ref.ts"
-import { clearAll, emit, on } from "./events.ts"
-import { WorkflowPersistence } from "./persistence.ts"
-import type { PluginContext } from "./runtime.ts"
-import type { WorkflowOutcome, WorkflowStatusOutput } from "./types.ts"
+import { WorkflowRuntime } from "../../workflow/src/runtime.ts"
+import { setRuntime, getRuntime } from "../../workflow/src/runtime-ref.ts"
+import { clearAll, emit, on } from "../../workflow/src/events.ts"
+import { WorkflowPersistence } from "../../workflow/src/persistence.ts"
+import type { PluginContext } from "../../workflow/src/runtime.ts"
+import type { WorkflowOutcome, WorkflowStatusOutput } from "../../workflow/src/types.ts"
 
 // ---------------------------------------------------------------------------
 // Mock LLM context
@@ -377,7 +377,7 @@ describe("Event bus", () => {
   test("workflow:finished fires on completion", async () => {
     const statuses: string[] = []
     on("workflow:finished", (e) => {
-      const ev = e as import("./events.ts").WorkflowFinishedEvent
+      const ev = e as import("../../workflow/src/events.ts").WorkflowFinishedEvent
       statuses.push(ev.status)
     })
 
@@ -400,7 +400,7 @@ describe("Event bus", () => {
   test("workflow:agent_failed fires on LLM failure", async () => {
     const failures: Array<{ agentKey: string; reason: string }> = []
     on("workflow:agent_failed", (e) => {
-      const ev = e as import("./events.ts").WorkflowAgentFailedEvent
+      const ev = e as import("../../workflow/src/events.ts").WorkflowAgentFailedEvent
       failures.push({ agentKey: ev.agentKey, reason: ev.reason })
     })
 
@@ -431,7 +431,7 @@ describe("phase() and log() side-channels", () => {
   test("phase() emits workflow:phase events", async () => {
     const phases: string[] = []
     on("workflow:phase", (e) => {
-      const ev = e as import("./events.ts").WorkflowPhaseEvent
+      const ev = e as import("../../workflow/src/events.ts").WorkflowPhaseEvent
       phases.push(ev.title)
     })
 
@@ -460,7 +460,7 @@ describe("phase() and log() side-channels", () => {
   test("log() emits workflow:log events", async () => {
     const logs: string[] = []
     on("workflow:log", (e) => {
-      const ev = e as import("./events.ts").WorkflowLogEvent
+      const ev = e as import("../../workflow/src/events.ts").WorkflowLogEvent
       logs.push(ev.message)
     })
 

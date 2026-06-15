@@ -4,9 +4,7 @@
   "type": "module",
   "main": "src/index.ts",
   "scripts": {
-    "test": "bun test",
     "build": "tsc --noEmit",
-    "test:watch": "bun test --watch",
     "typecheck": "bun build --target=bun --no-bundle src/index.ts"
   },
   "dependencies": {

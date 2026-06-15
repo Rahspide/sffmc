@@ -2,7 +2,7 @@
 // @sffmc/workflow — see ../../LICENSE
 
 import { describe, test, expect } from "bun:test"
-import { runSandboxed, type SandboxPrimitives } from "./sandbox"
+import { runSandboxed, type SandboxPrimitives } from "../../workflow/src/sandbox"
 
 // ---------------------------------------------------------------------------
 // Dummy primitives — none of the escape tests should call them.

@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 
 // Import the plugin and check functions
-import mod from "./index";
+import mod from "../../health/src/index";
 import {
   runAllChecks,
   checkTestPresence,
@@ -23,7 +23,7 @@ import {
   checkMspStructure,
   type CheckResult,
   type CheckFn,
-} from "./index";
+} from "../../health/src/index";
 
 // ---------------------------------------------------------------------------
 // Plugin entry shape

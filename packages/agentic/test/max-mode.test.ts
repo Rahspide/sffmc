@@ -1,7 +1,7 @@
 import { describe, it, expect } from "bun:test";
-import { generateCandidates, makeSchemaOnlyTools, buildCandidatePrompt, type Candidate } from "./candidates";
-import { judgeCandidates, buildJudgePrompt, parseVerdict, type Verdict } from "./judge";
-import { createRestoreState, stripToolExecutes, restoreToolExecutes, isSchemaOnly } from "./restore";
+import { generateCandidates, makeSchemaOnlyTools, buildCandidatePrompt, type Candidate } from "../../max-mode/src/candidates";
+import { judgeCandidates, buildJudgePrompt, parseVerdict, type Verdict } from "../../max-mode/src/judge";
+import { createRestoreState, stripToolExecutes, restoreToolExecutes, isSchemaOnly } from "../../max-mode/src/restore";
 
 describe("candidates", () => {
   it("makeSchemaOnlyTools strips execute from tools", () => {
@@ -352,14 +352,14 @@ describe("restore", () => {
 
 describe("Plugin entry", () => {
   it("exports default object with id and server function", async () => {
-    const mod = await import("./index");
+    const mod = await import("../../max-mode/src/index");
     expect(mod.default).toBeDefined();
     expect(mod.default.id).toBe("@sffmc/max-mode");
     expect(typeof mod.default.server).toBe("function");
   });
 
   it("server returns expected hooks", async () => {
-    const mod = await import("./index");
+    const mod = await import("../../max-mode/src/index");
     const hooks = await mod.default.server({
       projectRoot: "/tmp/test-project",
       config: {},
@@ -372,7 +372,7 @@ describe("Plugin entry", () => {
   });
 
   it("command.execute.before handles /max --dry-run", async () => {
-    const mod = await import("./index");
+    const mod = await import("../../max-mode/src/index");
     const hooks = await mod.default.server({
       projectRoot: "/tmp/test-project",
       config: {},
@@ -384,7 +384,7 @@ describe("Plugin entry", () => {
   });
 
   it("command.execute.before handles /max execute to restore tools", async () => {
-    const mod = await import("./index");
+    const mod = await import("../../max-mode/src/index");
     const hooks = await mod.default.server({
       projectRoot: "/tmp/test-project",
       config: {},
@@ -396,7 +396,7 @@ describe("Plugin entry", () => {
   });
 
   it("command.execute.before ignores non-max commands", async () => {
-    const mod = await import("./index");
+    const mod = await import("../../max-mode/src/index");
     const hooks = await mod.default.server({
       projectRoot: "/tmp/test-project",
       config: {},
