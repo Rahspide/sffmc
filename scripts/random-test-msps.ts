@@ -59,12 +59,16 @@ function genWorkflowInput() {
   const r = Math.random()
   if (r < 0.7) {
     const name = `rand-${randStr(4)}`
+    // CORRECT pattern: `export const meta` + `async function main()` (no `export default`).
+    // The runtime auto-appends `return typeof main === 'function' ? await main() : undefined`,
+    // so the script must define `main` (or `result`/etc. won't be returned).
     const script =
       `export const meta = { name: "${name}", description: "Random test workflow" };\n` +
-      `export default async function(args, ctx) { return { ok: true, turn: ${rand(9999)} }; }`
+      `async function main(args, ctx) { return { ok: true, turn: ${rand(9999)}, args }; }`
     return { operation: "run", script, args: { seed: randStr() } }
   }
-  return { operation: "list" }  // operation: list works
+  // status check on a fake runID — should return "invalid workflow runID" error gracefully
+  return { operation: "status", run_id: `wf_fake_${randStr(8)}` }
 }
 
 function genComposeInput() {
