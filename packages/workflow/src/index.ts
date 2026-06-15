@@ -36,35 +36,35 @@ export { on, off, emit, clearAll } from "./events.ts"
 export { workflowTool } from "./tool.ts"
 export { WorkflowRuntime } from "./runtime.ts"
 
-export default {
-  id: "@sffmc/workflow",
-  server: async (ctx: PluginContext) => {
-    const runtime = new WorkflowRuntime(ctx)
-    setRuntime(runtime as RuntimeRef)
+export const id = "@sffmc/workflow"
+export const server = async (ctx: PluginContext) => {
+  const runtime = new WorkflowRuntime(ctx)
+  setRuntime(runtime as RuntimeRef)
 
-    // Register observability listeners
-    on("workflow:agent_failed", (e) => {
-      const ev = e as import("./events.ts").WorkflowAgentFailedEvent
-      console.warn(`[workflow] agent ${ev.agentKey} in ${ev.runID} failed: ${ev.reason}`)
-    })
+  // Register observability listeners
+  on("workflow:agent_failed", (e) => {
+    const ev = e as import("./events.ts").WorkflowAgentFailedEvent
+    console.warn(`[workflow] agent ${ev.agentKey} in ${ev.runID} failed: ${ev.reason}`)
+  })
 
-    on("workflow:finished", (e) => {
-      const ev = e as import("./events.ts").WorkflowFinishedEvent
-      if (ev.status !== "completed") {
-        console.warn(`[workflow] ${ev.runID} finished: ${ev.status}${ev.error ? ` — ${ev.error}` : ""}`)
-      }
-    })
-
-    return {
-      config: async (_cfg: unknown) => {
-        // Recover orphaned workflows on startup
-        await runtime.recoverOrphanedWorkflows()
-      },
-      tool: {
-        workflow: workflowTool,
-      },
-      // Optional: hook into chat to suggest workflows for long-running tasks
-      // Deferred to Lane D.
+  on("workflow:finished", (e) => {
+    const ev = e as import("./events.ts").WorkflowFinishedEvent
+    if (ev.status !== "completed") {
+      console.warn(`[workflow] ${ev.runID} finished: ${ev.status}${ev.error ? ` — ${ev.error}` : ""}`)
     }
-  },
+  })
+
+  return {
+    config: async (_cfg: unknown) => {
+      // Recover orphaned workflows on startup
+      await runtime.recoverOrphanedWorkflows()
+    },
+    tool: {
+      workflow: workflowTool,
+    },
+    // Optional: hook into chat to suggest workflows for long-running tasks
+    // Deferred to Lane D.
+  }
 }
+
+export default { id, server }
