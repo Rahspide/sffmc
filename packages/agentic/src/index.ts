@@ -2,15 +2,24 @@
 // @sffmc/agentic — see ../../LICENSE
 //
 // SFFMC agentic MSP — composes max-mode, workflow, compose, health.
-// Phase 1 skeleton: no sub-features registered yet. Phase 2 will wire them.
+// Phase 2: wires all 4 sub-features via mergeHooks().
 
+import { server as maxModeServer } from "../../max-mode/src/index.ts"
+import { server as workflowServer } from "../../workflow/src/index.ts"
+import { server as composeServer } from "../../compose/src/index.ts"
+import { server as healthServer } from "../../health/src/index.ts"
 import { mergeHooks, type PluginContext, type PluginServer } from "@sffmc/shared"
 
-const server = async (ctx: PluginContext): Promise<PluginServer> => {
+export const id = "@sffmc/agentic"
+
+export const server = async (ctx: PluginContext): Promise<PluginServer> => {
   const merged = mergeHooks([
-    // Phase 2: server returns from sub-features go here
+    await maxModeServer(ctx),
+    await workflowServer(ctx),
+    await composeServer(ctx),
+    await healthServer(ctx),
   ])
-  return { ...merged, id: "@sffmc/agentic" }
+  return { ...merged, id }
 }
 
-export default { id: "@sffmc/agentic", server }
+export default { id, server }

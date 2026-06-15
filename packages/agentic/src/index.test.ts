@@ -2,20 +2,30 @@
 // @sffmc/agentic — see ../../LICENSE
 
 import { describe, test, expect } from "bun:test"
+import agentic, { id, server } from "./index.ts"
 import type { PluginContext } from "@sffmc/shared"
-import plugin from "./index"
 
-describe("@sffmc/agentic skeleton", () => {
-  test("returns id", async () => {
-    const ctx = {} as PluginContext
-    const result = await plugin.server(ctx)
-    expect(result.id).toBe("@sffmc/agentic")
+describe("@sffmc/agentic", () => {
+  const ctx = {} as PluginContext
+
+  test("id is @sffmc/agentic", () => {
+    expect(id).toBe("@sffmc/agentic")
+    expect(agentic.id).toBe("@sffmc/agentic")
   })
 
-  test("has no hooks (Phase 1 skeleton)", async () => {
-    const ctx = {} as PluginContext
-    const result = await plugin.server(ctx)
-    const hooks = Object.keys(result).filter(k => k !== "id")
-    expect(hooks).toEqual([])
+  test("server returns merged hooks from 4 sub-features", async () => {
+    const result = await server(ctx)
+    expect(result.id).toBe("@sffmc/agentic")
+    // max-mode + workflow + compose + health
+    expect(typeof result["tool.execute.before"]).toBe("function")
+    expect(typeof result["command.execute.before"]).toBe("function")
+    expect(typeof result["experimental.chat.system.transform"]).toBe("function")
+    expect(typeof result["experimental.chat.messages.transform"]).toBe("function")
+    expect(result.tool).toBeDefined()
+  })
+
+  test("server has 3 tools (workflow + compose + health)", async () => {
+    const result = await server(ctx)
+    expect(Object.keys(result.tool ?? {}).length).toBeGreaterThanOrEqual(3)
   })
 })
