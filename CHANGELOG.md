@@ -1,5 +1,42 @@
 # SFFMC Changelog
 
+## v0.8.2 — Ship v0.8.2: package categories (mimo-port vs sffmc-original) (2026-06-15)
+
+- ## Package categories
+- Each of the 11 SFFMC packages now has explicit `category` metadata in
+- `package.json` to clearly separate features ported from MiMo-Code v8.0
+- from SFFMC team additions.
+- ### mimo-port (7 packages — ported from MiMo-Code v8.0)
+- - @sffmc/memory (F4' Memory + Context Recon)
+- - @sffmc/rules (F2 Safety Rules)
+- - @sffmc/watchdog (F1 Auto-recovery)
+- - @sffmc/max-mode (F7 Parallel drafts)
+- - @sffmc/auto-max (Auto-escalation)
+- - @sffmc/compose (15 MiMo compose skills)
+- - @sffmc/workflow (W5-6 Dynamic Workflow)
+- ### sffmc-original (4 packages — SFFMC team additions)
+- - @sffmc/eos-stripper (local model EOS token survival)
+- - @sffmc/log-whitelist (12GB log file prevention)
+- - @sffmc/health (F3+ plugin-author diagnostic)
+- - @sffmc/extra (F5'/F6'/F8 opt-in bundle)
+- ## sffmc_health new check
+- 12th check `category_split` reports the split and warns if any package
+- is uncategorized. Currently 7 mimo-port + 4 sffmc-original, 0 uncategorized.
+- Full sffmc_health: 12 ok, 0 warn, 0 fail (was 11 ok 1 warn in v0.8.1
+- due to changelog_currency mismatch — fixed by version bump).
+- ## Docs
+- - README.md: new "Package categories" section with full table
+- - Each package.json: `category` field + `portSource` (mimo-port) or
+-   `rationale` (sffmc-original)
+- ## Version sync
+- All 13 packages (12 SFFMC + shared + root) bumped 0.8.0 → 0.8.1 to
+- align with CHANGELOG v0.8.1 (was inconsistent in v0.8.1 release).
+- ## Stats
+- - Tests: 465 → 467 (+2 for checkCategorySplit)
+- - sffmc_health: 11 ok 1 warn → 12 ok 0 warn 0 fail
+- - 11 packages categorized, 0 uncategorized
+
+
 ## v0.8.1 — Ship v0.8.1: known gaps fixed + F5'/F6'/F8 enhancements + 6 new skills/builtins (2026-06-15)
 
 - ## Known gaps fixed
