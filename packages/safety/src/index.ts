@@ -2,15 +2,26 @@
 // @sffmc/safety — see ../../LICENSE
 //
 // SFFMC safety MSP — composes watchdog, rules, auto-max, eos-stripper, log-whitelist.
-// Phase 1 skeleton: no sub-features registered yet. Phase 2 will wire them.
+// Phase 2: wires all 5 sub-features via mergeHooks().
 
+import { server as watchdogServer } from "../../watchdog/src/index.ts"
+import { server as rulesServer } from "../../rules/src/index.ts"
+import { server as autoMaxServer } from "../../auto-max/src/index.ts"
+import { server as eosServer } from "../../eos-stripper/src/index.ts"
+import { server as logServer } from "../../log-whitelist/src/index.ts"
 import { mergeHooks, type PluginContext, type PluginServer } from "@sffmc/shared"
 
-const server = async (ctx: PluginContext): Promise<PluginServer> => {
+export const id = "@sffmc/safety"
+
+export const server = async (ctx: PluginContext): Promise<PluginServer> => {
   const merged = mergeHooks([
-    // Phase 2: server returns from sub-features go here
+    await watchdogServer(ctx),
+    await rulesServer(ctx),
+    await autoMaxServer(ctx),
+    await eosServer(ctx),
+    await logServer(ctx),
   ])
-  return { ...merged, id: "@sffmc/safety" }
+  return { ...merged, id }
 }
 
-export default { id: "@sffmc/safety", server }
+export default { id, server }

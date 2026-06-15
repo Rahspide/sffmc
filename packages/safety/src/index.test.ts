@@ -2,20 +2,32 @@
 // @sffmc/safety — see ../../LICENSE
 
 import { describe, test, expect } from "bun:test"
+import safety, { id, server } from "./index.ts"
 import type { PluginContext } from "@sffmc/shared"
-import plugin from "./index"
 
-describe("@sffmc/safety skeleton", () => {
-  test("returns id", async () => {
-    const ctx = {} as PluginContext
-    const result = await plugin.server(ctx)
-    expect(result.id).toBe("@sffmc/safety")
+describe("@sffmc/safety", () => {
+  const ctx = {} as PluginContext
+
+  test("id is @sffmc/safety", () => {
+    expect(id).toBe("@sffmc/safety")
+    expect(safety.id).toBe("@sffmc/safety")
   })
 
-  test("has no hooks (Phase 1 skeleton)", async () => {
-    const ctx = {} as PluginContext
-    const result = await plugin.server(ctx)
-    const hooks = Object.keys(result).filter(k => k !== "id")
-    expect(hooks).toEqual([])
+  test("server returns merged hooks from 5 sub-features", async () => {
+    const result = await server(ctx)
+    expect(result.id).toBe("@sffmc/safety")
+    // Should have hooks from watchdog, rules, auto-max, eos-stripper, log-whitelist
+    expect(typeof result["tool.execute.after"]).toBe("function")
+    expect(typeof result["tool.execute.before"]).toBe("function")
+    expect(typeof result["command.execute.before"]).toBe("function")
+    expect(typeof result["permission.ask"]).toBe("function")
+    expect(typeof result["experimental.chat.system.transform"]).toBe("function")
+    expect(typeof result["experimental.chat.messages.transform"]).toBe("function")
+    expect(typeof result["experimental.text.complete"]).toBe("function")
+  })
+
+  test("server has no tool key (safety has 0 tools)", async () => {
+    const result = await server(ctx)
+    expect(result.tool).toBeUndefined()
   })
 })
