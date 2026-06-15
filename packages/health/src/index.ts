@@ -196,17 +196,54 @@ export async function checkHookConflicts(repoRoot: string): Promise<CheckResult>
 // ---------------------------------------------------------------------------
 
 export async function checkTestPresence(repoRoot: string): Promise<CheckResult> {
-  return checkPerPackage(repoRoot, "test_presence", "tests", async (dir) => {
+  // After Phase 4 (v0.9.0), sub-feature packages are "code-only" — their
+  // tests live in the owning MSP's test/ dir. Only check packages that
+  // are themselves test owners: MSPs (have mspRole) and shared (infra).
+  const pkgs = await packageNames(repoRoot);
+  const testOwners: string[] = [];
+  for (const pkg of pkgs) {
+    if (pkg === "shared") {
+      testOwners.push(pkg);
+      continue;
+    }
+    try {
+      const content = await readFile(join(pkgDir(pkg, repoRoot), "package.json"), "utf-8");
+      const parsed = JSON.parse(content) as { mspRole?: string };
+      if (parsed.mspRole) testOwners.push(pkg);
+    } catch {
+      // package.json unreadable — skip
+    }
+  }
+
+  const missing: string[] = [];
+  for (const pkg of testOwners) {
+    let has = false;
     for (const subdir of ["src", "tests"]) {
       try {
-        const entries = await readdir(join(dir, subdir));
-        if (entries.some((e) => e.endsWith(".test.ts"))) return true;
+        const entries = await readdir(join(pkgDir(pkg, repoRoot), subdir));
+        if (entries.some((e) => e.endsWith(".test.ts"))) {
+          has = true;
+          break;
+        }
       } catch {
         // dir doesn't exist
       }
     }
-    return false;
-  });
+    if (!has) missing.push(pkg);
+  }
+
+  if (missing.length === 0) {
+    return {
+      name: "test_presence",
+      status: "ok",
+      detail: `${testOwners.length}/${testOwners.length} test owners have tests (3 MSPs + shared)`,
+    };
+  }
+  return {
+    name: "test_presence",
+    status: "fail",
+    detail: `${missing.length} test owner(s) missing tests: ${missing.join(", ")}`,
+  };
 }
 
 // ---------------------------------------------------------------------------

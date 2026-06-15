@@ -170,7 +170,7 @@ async function withTempDir(fn: (dir: string) => Promise<void>) {
 }
 
 describe("checkTestPresence", () => {
-  it("reports ok when all packages have tests", async () => {
+  it("reports ok when all test owners have tests", async () => {
     await withTempDir(async (dir) => {
       await mkdir(join(dir, "packages", "pkg-a", "src"), { recursive: true });
       await mkdir(join(dir, "packages", "pkg-b", "tests"), { recursive: true });
@@ -178,6 +178,9 @@ describe("checkTestPresence", () => {
       await writeFile(join(dir, "packages", "pkg-a", "src", "index.test.ts"), "// test");
       await writeFile(join(dir, "packages", "pkg-b", "tests", "integration.test.ts"), "// test");
       await writeFile(join(dir, "shared", "src", "events.test.ts"), "// test");
+      // pkg-a and pkg-b are MSPs (have mspRole), shared is infra
+      await writeFile(join(dir, "packages", "pkg-a", "package.json"), JSON.stringify({ mspRole: "msp-a" }));
+      await writeFile(join(dir, "packages", "pkg-b", "package.json"), JSON.stringify({ mspRole: "msp-b" }));
       await writeFile(join(dir, "shared", "package.json"), "{}");
 
       const result = await checkTestPresence(dir);
@@ -186,16 +189,34 @@ describe("checkTestPresence", () => {
     });
   });
 
-  it("reports fail when a package is missing tests", async () => {
+  it("reports fail when a test owner is missing tests", async () => {
     await withTempDir(async (dir) => {
       await mkdir(join(dir, "packages", "pkg-a", "src"), { recursive: true });
       await mkdir(join(dir, "packages", "pkg-b", "src"), { recursive: true });
+      // pkg-a is a test owner (mspRole) with tests, pkg-b is a test owner WITHOUT tests
+      await writeFile(join(dir, "packages", "pkg-a", "package.json"), JSON.stringify({ mspRole: "msp-a" }));
+      await writeFile(join(dir, "packages", "pkg-b", "package.json"), JSON.stringify({ mspRole: "msp-b" }));
       await writeFile(join(dir, "packages", "pkg-a", "src", "index.test.ts"), "// test");
       // pkg-b has src/ but no test file
 
       const result = await checkTestPresence(dir);
       expect(result.status).toBe("fail");
       expect(result.detail).toContain("pkg-b");
+    });
+  });
+
+  it("ignores sub-feature packages (no mspRole) — they are code-only", async () => {
+    await withTempDir(async (dir) => {
+      await mkdir(join(dir, "packages", "pkg-a", "src"), { recursive: true });
+      await mkdir(join(dir, "shared", "src"), { recursive: true });
+      // pkg-a is a sub-feature (no mspRole, no tests) — should be ignored
+      await writeFile(join(dir, "packages", "pkg-a", "package.json"), JSON.stringify({ category: "mimo-port" }));
+      await writeFile(join(dir, "shared", "package.json"), "{}");
+      await writeFile(join(dir, "shared", "src", "events.test.ts"), "// test");
+
+      const result = await checkTestPresence(dir);
+      expect(result.status).toBe("ok");
+      expect(result.detail).toContain("1/1");  // only shared
     });
   });
 });

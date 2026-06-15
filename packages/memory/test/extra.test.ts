@@ -30,7 +30,7 @@ afterAll(() => {
 
 const loadServer = async (
   config: Record<string, unknown> = {},
-): Promise<Awaited<ReturnType<(typeof import("./index"))["default"]["server"]>>> => {
+): Promise<Awaited<ReturnType<(typeof import("../../extra/src/index"))["default"]["server"]>>> => {
   const mod = await import("../../extra/src/index");
   const ctx: PluginContext = {
     projectRoot: "/tmp/test-project",
