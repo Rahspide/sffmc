@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from "bun:test";
-import { parseRules, loadRules, isPanicMode, type Rules } from "./rules";
-import { evaluate } from "./gate";
+import { parseRules, loadRules, isPanicMode, type Rules } from "../../rules/src/rules";
+import { evaluate } from "../../rules/src/gate";
 import { writeFileSync, unlinkSync } from "fs";
 
 const TEST_RULES_PATH = "/tmp/sffmc-rules-test.yaml";
@@ -235,14 +235,14 @@ rules:
 
 describe("Plugin entry", () => {
   it("exports default object with id and server function", async () => {
-    const mod = await import("./index");
+    const mod = await import("../../rules/src/index");
     expect(mod.default).toBeDefined();
     expect(mod.default.id).toBe("@sffmc/rules");
     expect(typeof mod.default.server).toBe("function");
   });
 
   it("server returns hooks with tool.execute.before and permission.ask", async () => {
-    const mod = await import("./index");
+    const mod = await import("../../rules/src/index");
     const hooks = await mod.default.server({
       projectRoot: "/tmp/test-project",
       config: {},

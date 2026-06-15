@@ -7,7 +7,7 @@ import {
   markTriggered,
   resetSession,
   type AutoMaxConfig,
-} from "./coordinator";
+} from "../../auto-max/src/coordinator";
 import { mkdirSync, writeFileSync, unlinkSync } from "fs";
 import { homedir } from "os";
 import { resolve } from "path";
@@ -229,14 +229,14 @@ describe("Plugin entry", () => {
   });
 
   it("exports default object with id and server function", async () => {
-    const mod = await import("./index");
+    const mod = await import("../../auto-max/src/index");
     expect(mod.default).toBeDefined();
     expect(mod.default.id).toBe("@sffmc/auto-max");
     expect(typeof mod.default.server).toBe("function");
   });
 
   it("server returns expected hooks", async () => {
-    const mod = await import("./index");
+    const mod = await import("../../auto-max/src/index");
     const hooks = await mod.default.server({
       projectRoot: "/tmp/test-project",
       config: {},
@@ -249,7 +249,7 @@ describe("Plugin entry", () => {
   });
 
   it("event resets session on session.created", async () => {
-    const mod = await import("./index");
+    const mod = await import("../../auto-max/src/index");
     const hooks = await mod.default.server({
       projectRoot: "/tmp/test-project",
       config: {},
@@ -261,7 +261,7 @@ describe("Plugin entry", () => {
   it("tool.execute.after is no-op when disabled", async () => {
     // Default config has enabled:true, so we test with a hook that accepts
     // the result normally — failures should increment
-    const mod = await import("./index");
+    const mod = await import("../../auto-max/src/index");
     const hooks = await mod.default.server({
       projectRoot: "/tmp/test-project",
       config: {},
@@ -274,7 +274,7 @@ describe("Plugin entry", () => {
   });
 
   it("tool.execute.after resets on success", async () => {
-    const mod = await import("./index");
+    const mod = await import("../../auto-max/src/index");
     const hooks = await mod.default.server({
       projectRoot: "/tmp/test-project",
       config: {},
@@ -294,7 +294,7 @@ describe("Plugin entry", () => {
   });
 
   it("triggers max mode after threshold failures", async () => {
-    const mod = await import("./index");
+    const mod = await import("../../auto-max/src/index");
     const ctx: Record<string, unknown> = {
       projectRoot: "/tmp/test-project",
       config: {},
@@ -325,7 +325,7 @@ describe("Plugin entry", () => {
   });
 
   it("injects auto-max trigger message into system transform", async () => {
-    const mod = await import("./index");
+    const mod = await import("../../auto-max/src/index");
     const ctx: Record<string, unknown> = {
       projectRoot: "/tmp/test-project",
       config: {},
@@ -353,7 +353,7 @@ describe("Plugin entry", () => {
   });
 
   it("system transform does nothing without trigger", async () => {
-    const mod = await import("./index");
+    const mod = await import("../../auto-max/src/index");
     const ctx: Record<string, unknown> = {
       projectRoot: "/tmp/test-project",
       config: {},
@@ -370,7 +370,7 @@ describe("Plugin entry", () => {
   });
 
   it("trigger message includes tool:errorType notation", async () => {
-    const mod = await import("./index");
+    const mod = await import("../../auto-max/src/index");
     const ctx: Record<string, unknown> = {
       projectRoot: "/tmp/test-project",
       config: {},
@@ -397,7 +397,7 @@ describe("Plugin entry", () => {
   });
 
   it("trigger is cleaned up even on empty system array", async () => {
-    const mod = await import("./index");
+    const mod = await import("../../auto-max/src/index");
     const ctx: Record<string, unknown> = {
       projectRoot: "/tmp/test-project",
       config: {},
@@ -421,7 +421,7 @@ describe("Plugin entry", () => {
   });
 
   it("tool.execute.after detects errors in object metadata with error flag", async () => {
-    const mod = await import("./index");
+    const mod = await import("../../auto-max/src/index");
     const ctx: Record<string, unknown> = {
       projectRoot: "/tmp/test-project",
       config: {},
@@ -448,7 +448,7 @@ describe("Plugin entry", () => {
   });
 
   it("tool.execute.after detects errors via output object code property", async () => {
-    const mod = await import("./index");
+    const mod = await import("../../auto-max/src/index");
     const ctx: Record<string, unknown> = {
       projectRoot: "/tmp/test-project",
       config: {},
@@ -502,7 +502,7 @@ describe("Plugin entry", () => {
     });
 
     it("dry_run=true does not inject escalation fragment", async () => {
-      const mod = await import("./index");
+      const mod = await import("../../auto-max/src/index");
       const ctx: Record<string, unknown> = {
         projectRoot: "/tmp/test-project",
         config: {},
@@ -521,7 +521,7 @@ describe("Plugin entry", () => {
     });
 
     it("dry_run=true logs 'would trigger' message", async () => {
-      const mod = await import("./index");
+      const mod = await import("../../auto-max/src/index");
       const ctx: Record<string, unknown> = {
         projectRoot: "/tmp/test-project",
         config: {},
@@ -549,7 +549,7 @@ describe("Plugin entry", () => {
   // ── /max escape hatch ─────────────────────────────────────
 
   it("/max command resets session counters", async () => {
-    const mod = await import("./index");
+    const mod = await import("../../auto-max/src/index");
     const ctx: Record<string, unknown> = {
       projectRoot: "/tmp/test-project",
       config: {},
@@ -585,7 +585,7 @@ describe("Plugin entry", () => {
   });
 
   it("/max reset clears counters for specified session", async () => {
-    const mod = await import("./index");
+    const mod = await import("../../auto-max/src/index");
     const ctx: Record<string, unknown> = {
       projectRoot: "/tmp/test-project",
       config: {},
@@ -623,7 +623,7 @@ describe("Plugin entry", () => {
   // ── object output error detection ─────────────────────────
 
   it("detects object output with .error field as failure", async () => {
-    const mod = await import("./index");
+    const mod = await import("../../auto-max/src/index");
     const ctx: Record<string, unknown> = {
       projectRoot: "/tmp/test-project",
       config: {},
@@ -646,7 +646,7 @@ describe("Plugin entry", () => {
   });
 
   it("detects object output with .code field and object: prefix", async () => {
-    const mod = await import("./index");
+    const mod = await import("../../auto-max/src/index");
     const ctx: Record<string, unknown> = {
       projectRoot: "/tmp/test-project",
       config: {},
@@ -669,7 +669,7 @@ describe("Plugin entry", () => {
   });
 
   it("object output without error/code is treated as success", async () => {
-    const mod = await import("./index");
+    const mod = await import("../../auto-max/src/index");
     const ctx: Record<string, unknown> = {
       projectRoot: "/tmp/test-project",
       config: {},

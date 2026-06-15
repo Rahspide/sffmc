@@ -11,7 +11,7 @@ import {
   type DreamResult,
   type RichPluginContext,
   type MemoryRow,
-} from "./dream";
+} from "../../extra/src/dream";
 import { mkdirSync, existsSync, readFileSync, unlinkSync, rmdirSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
 import { tmpdir } from "node:os";

@@ -17,7 +17,7 @@ import {
   __cleanup,
   migrateCheckpoint,
   CURRENT_VERSION,
-} from "./checkpoint";
+} from "../../extra/src/checkpoint";
 
 // ---------------------------------------------------------------------------
 // Helpers

@@ -31,7 +31,7 @@ afterAll(() => {
 const loadServer = async (
   config: Record<string, unknown> = {},
 ): Promise<Awaited<ReturnType<(typeof import("./index"))["default"]["server"]>>> => {
-  const mod = await import("./index");
+  const mod = await import("../../extra/src/index");
   const ctx: PluginContext = {
     projectRoot: "/tmp/test-project",
     config: {},
@@ -41,7 +41,7 @@ const loadServer = async (
 
 describe("@sffmc/extra plugin", () => {
   it("default export shape: { id, server }", async () => {
-    const mod = await import("./index");
+    const mod = await import("../../extra/src/index");
     expect(mod.default).toBeDefined();
     expect(mod.default.id).toBe("@sffmc/extra");
     expect(typeof mod.default.server).toBe("function");
@@ -91,9 +91,9 @@ describe("@sffmc/extra plugin", () => {
   });
 
   it("factory functions return { tool, hooks } shape (so index.ts can spread)", async () => {
-    const { createCheckpointTool } = await import("./checkpoint");
-    const { createJudgeTool } = await import("./judge");
-    const { createDreamTool } = await import("./dream");
+    const { createCheckpointTool } = await import("../../extra/src/checkpoint");
+    const { createJudgeTool } = await import("../../extra/src/judge");
+    const { createDreamTool } = await import("../../extra/src/dream");
 
     const cp = createCheckpointTool({ enabled: false });
     expect(cp.tool).toBeDefined();

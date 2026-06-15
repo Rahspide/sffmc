@@ -8,7 +8,6 @@
     "yaml": "^2.0.0"
   },
   "scripts": {
-    "test:watch": "bun test --watch",
     "typecheck": "bun build --target=bun --no-bundle src/index.ts"
   },
   "category": "sffmc-original",
