@@ -27,7 +27,8 @@ const VALID_SKILLS = [
 
 type SkillName = (typeof VALID_SKILLS)[number];
 
-const server = async (_ctx: PluginContext) => {
+export const id = "@sffmc/compose"
+export const server = async (_ctx: PluginContext) => {
   return {
     tool: {
       compose_skill: {
@@ -62,7 +63,4 @@ const server = async (_ctx: PluginContext) => {
   };
 };
 
-export default {
-  id: "@sffmc/compose",
-  server,
-};
+export default { id, server }

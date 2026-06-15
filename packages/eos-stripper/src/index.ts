@@ -19,7 +19,8 @@ interface PluginState {
   strippedCount: number;
 }
 
-const server = async (_ctx: PluginContext) => {
+export const id = "@sffmc/eos-stripper"
+export const server = async (_ctx: PluginContext) => {
   const config = await loadConfig<EosConfig>("eos-stripper", defaultConfig);
   const patterns = config.patterns.length > 0 ? config.patterns : DEFAULT_EOS_PATTERNS;
 
@@ -60,7 +61,4 @@ const server = async (_ctx: PluginContext) => {
   };
 };
 
-export default {
-  id: "@sffmc/eos-stripper",
-  server,
-};
+export default { id, server }

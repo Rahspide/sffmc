@@ -96,7 +96,8 @@ function buildWinnerMessage(
   return lines.join("\n");
 }
 
-const server = async (ctx: PluginContext) => {
+export const id = "@sffmc/max-mode"
+export const server = async (ctx: PluginContext) => {
   const config = loadConfig();
   const state: PluginState = {
     config,
@@ -237,7 +238,4 @@ const server = async (ctx: PluginContext) => {
   };
 };
 
-export default {
-  id: "@sffmc/max-mode",
-  server,
-};
+export default { id, server }

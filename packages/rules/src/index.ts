@@ -48,7 +48,8 @@ interface PluginState {
   watcher: { stop: () => void } | null;
 }
 
-const server = async (ctx: PluginContext) => {
+export const id = "@sffmc/rules"
+export const server = async (ctx: PluginContext) => {
   const configPath = resolve(homedir(), ".config/SFFMC/rules.yaml");
 
   let rules: Rules;
@@ -127,7 +128,4 @@ const server = async (ctx: PluginContext) => {
   };
 };
 
-export default {
-  id: "@sffmc/rules",
-  server,
-};
+export default { id, server }

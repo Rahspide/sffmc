@@ -1,7 +1,15 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/extra — see ../../LICENSE
+//
+// Houses three opt-in sub-features: checkpoint, judge, dream.
+// Each can be composed individually by @sffmc/memory MSP, or all
+// three can be loaded together via this package's default export
+// (standalone usage).
+//
+// Phase 2 (v0.9.0): factory pattern replaced with named server
+// exports so the memory MSP can compose them via mergeHooks().
 
-import { loadConfig, type PluginContext } from "@sffmc/shared";
+import { loadConfig, mergeHooks, type PluginContext, type PluginServer } from "@sffmc/shared";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { createCheckpointTool } from "./checkpoint";
@@ -47,53 +55,61 @@ const DEFAULT_CHECKPOINT_DIR = join(
 );
 
 // ---------------------------------------------------------------------------
-// Plugin entry
+// Named servers (for composition by @sffmc/memory MSP)
 // ---------------------------------------------------------------------------
 
-const server = async (ctx: PluginContext) => {
+export const id = "@sffmc/extra";
+
+export const checkpointServer = async (ctx: PluginContext): Promise<PluginServer> => {
   const config = await loadConfig<ExtraConfig>("extra", defaultConfig);
-
-  // Resolve checkpoint_dir: empty → default (homedir/.local/share/sffmc/extra/checkpoints)
-  const resolvedCheckpointDir =
-    config.checkpoint_dir || DEFAULT_CHECKPOINT_DIR;
-
+  const resolvedCheckpointDir = config.checkpoint_dir || DEFAULT_CHECKPOINT_DIR;
   console.log(
-    `[extra] loaded — checkpoint=${config.checkpoint}, judge=${config.judge}, dream=${config.dream}`,
+    `[extra] checkpoint: ${config.checkpoint ? "enabled" : "disabled"}`,
   );
+  const cp = createCheckpointTool({ enabled: config.checkpoint, dir: resolvedCheckpointDir });
+  return { id: "extra-checkpoint", tool: { extra_checkpoint: cp.tool }, ...cp.hooks };
+};
 
-  const checkpoint = createCheckpointTool({
-    enabled: config.checkpoint,
-    dir: resolvedCheckpointDir,
-  });
-  const judge = createJudgeTool({
+export const judgeServer = async (ctx: PluginContext): Promise<PluginServer> => {
+  const config = await loadConfig<ExtraConfig>("extra", defaultConfig);
+  console.log(
+    `[extra] judge: ${config.judge ? "enabled" : "disabled"}`,
+  );
+  const j = createJudgeTool({
     enabled: config.judge,
     model: config.judge_model,
     rubric: config.judge_rubric,
     judge_auto: config.judge_auto,
     ctx,
   });
-  const dream = createDreamTool({
+  return { id: "extra-judge", tool: { extra_judge: j.tool }, ...j.hooks };
+};
+
+export const dreamServer = async (ctx: PluginContext): Promise<PluginServer> => {
+  const config = await loadConfig<ExtraConfig>("extra", defaultConfig);
+  console.log(
+    `[extra] dream: ${config.dream ? "enabled" : "disabled"}`,
+  );
+  const d = createDreamTool({
     enabled: config.dream,
     threshold: config.dream_threshold,
     intervalHours: config.dream_interval_hours,
     ctx,
   });
-
-  // Each factory returns { tool, hooks }. We spread hooks into the top-level
-  // return so OpenCode registers them. Tools are nested under "tool".
-  return {
-    ...checkpoint.hooks,
-    ...judge.hooks,
-    ...dream.hooks,
-    tool: {
-      extra_checkpoint: checkpoint.tool,
-      extra_judge: judge.tool,
-      extra_dream: dream.tool,
-    },
-  };
+  return { id: "extra-dream", tool: { extra_dream: d.tool }, ...d.hooks };
 };
 
-export default {
-  id: "@sffmc/extra",
-  server,
+// ---------------------------------------------------------------------------
+// Merged server for standalone use (backward compat)
+// ---------------------------------------------------------------------------
+
+export const server = async (ctx: PluginContext): Promise<PluginServer> => {
+  const merged = mergeHooks([
+    await checkpointServer(ctx),
+    await judgeServer(ctx),
+    await dreamServer(ctx),
+  ]);
+  return { ...merged, id };
 };
+
+export default { id, server };

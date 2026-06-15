@@ -482,7 +482,7 @@ Set stream: true to receive partial results as they become available (useful for
     ): Promise<void> => {
       try {
         const candidates = extractCandidatesFromMessages(data.messages);
-        if (!candidates) return;
+        if (!candidates) return data;
 
         const { response, latencyMs } = await callJudge(
           candidates,
@@ -506,6 +506,7 @@ Set stream: true to receive partial results as they become available (useful for
       } catch (err) {
         console.warn(`[extra] judge auto-hook: ${String(err)}`);
       }
+      return data;
     };
   }
 

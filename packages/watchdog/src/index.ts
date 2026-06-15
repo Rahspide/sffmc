@@ -46,7 +46,8 @@ function isFiltered(errorType: string, filter: string[]): boolean {
 
 let loadedLogged = false;
 
-const server = async (ctx: PluginContext) => {
+export const id = "@sffmc/watchdog"
+export const server = async (ctx: PluginContext) => {
   const config = await loadConfig<WatchdogConfig>("watchdog", defaultConfig);
   const state: PluginState = {
     counter: new FailureCounter(config.threshold, config.rolling_window),
@@ -182,7 +183,4 @@ const server = async (ctx: PluginContext) => {
   };
 };
 
-export default {
-  id: "@sffmc/watchdog",
-  server,
-};
+export default { id, server }

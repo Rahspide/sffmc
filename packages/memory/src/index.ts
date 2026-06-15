@@ -56,7 +56,8 @@ function ensureDir(filePath: string): void {
   }
 }
 
-const server = async (ctx: PluginContext) => {
+export const id = "@sffmc/memory"
+export const server = async (ctx: PluginContext) => {
   const config = await loadConfig<MemoryConfig>("memory", defaultConfig)
 
   const state: PluginState = {
@@ -145,7 +146,4 @@ const server = async (ctx: PluginContext) => {
   }
 }
 
-export default {
-  id: "@sffmc/memory",
-  server,
-}
+export default { id, server }

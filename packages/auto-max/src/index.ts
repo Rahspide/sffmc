@@ -57,7 +57,8 @@ function getOrCreateSession(state: PluginState, sessionID: string) {
 
 let loadedLogged = false;
 
-const server = async (_ctx: PluginContext) => {
+export const id = "@sffmc/auto-max"
+export const server = async (_ctx: PluginContext) => {
   const config = await loadConfig<AutoMaxConfig>("auto-max", defaultConfig);
   const state: PluginState = {
     config,
@@ -203,7 +204,4 @@ const server = async (_ctx: PluginContext) => {
   };
 };
 
-export default {
-  id: "@sffmc/auto-max",
-  server,
-};
+export default { id, server }

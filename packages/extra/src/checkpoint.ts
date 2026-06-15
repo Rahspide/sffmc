@@ -466,6 +466,7 @@ Auto-restore: inject <!-- EXTRA_RESTORE: <sessionID> --> in a message to auto-lo
           break;
         }
       }
+      return data;
     };
 
     startFlushTimer(dir);

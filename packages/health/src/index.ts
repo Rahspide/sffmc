@@ -757,7 +757,8 @@ export async function runAllChecks(
 // Plugin entry
 // ---------------------------------------------------------------------------
 
-const server = async (ctx: PluginContext) => {
+export const id = "@sffmc/health"
+export const server = async (ctx: PluginContext) => {
   const repoRoot = (ctx as Record<string, unknown>).projectRoot as string;
 
   return {
@@ -794,7 +795,4 @@ Use this before releases or after plugin changes to catch regressions early.`,
   };
 };
 
-export default {
-  id: "@sffmc/health",
-  server,
-};
+export default { id, server }

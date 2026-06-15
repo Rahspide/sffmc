@@ -40,7 +40,8 @@ interface PluginState {
   totalFiltered: number;
 }
 
-const server = async (_ctx: PluginContext) => {
+export const id = "@sffmc/log-whitelist"
+export const server = async (_ctx: PluginContext) => {
   const config = await loadConfig<LogWhitelistConfig>("log-whitelist", defaultConfig);
 
   const state: PluginState = {
@@ -118,7 +119,4 @@ const server = async (_ctx: PluginContext) => {
   };
 };
 
-export default {
-  id: "@sffmc/log-whitelist",
-  server,
-};
+export default { id, server }
