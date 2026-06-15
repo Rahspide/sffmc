@@ -1,0 +1,147 @@
+{
+  "scope": {
+    "summary": "Migrate 7 remaining SFFMC plugins (memory, rules, watchdog, max-mode, auto-max, compose, workflow) from their custom `loadConfig` + `PluginContext` definitions to the canonical `@sffmc/shared` SDK. Currently only eos-stripper, log-whitelist, and health use @sffmc/shared. After migration all 10 packages share one config-loading contract, one PluginContext type, and one EventBus — eliminating ~150 LOC of duplicated code and making future plugins trivial to scaffold.",
+    "success_criteria": [
+      "All 7 plugins import `loadConfig` from `@sffmc/shared` (no local definitions remain)",
+      "All 7 plugins use the shared `PluginContext` type (no local interfaces)",
+      "Each migrated plugin still passes its existing test suite (0 regressions)",
+      "Pre-commit hook (test + typecheck + sffmc_health) stays green after each plugin migration",
+      "No plugin version bumps unless API surface changes (semver stays at 0.1.0)"
+    ]
+  },
+  "steps": [
+    {
+      "id": 1,
+      "title": "Audit per-plugin config shape (memory)",
+      "detail": "Read packages/memory/src/index.ts:39-77. Document defaultConfig keys (storagePath, reconBudgets, memoryPaths, defaultImportance) and config file path. Note any behavior that diverges from shared loadConfig (e.g. config-on-startup timing).",
+      "deps": [],
+      "parallel_group": "audit",
+      "est_minutes": 15,
+      "owner": "fixer"
+    },
+    {
+      "id": 2,
+      "title": "Audit per-plugin config shape (rules)",
+      "detail": "Read packages/rules/src/index.ts. Rules uses YAML gate-based allow/deny. Verify whether loadConfig is invoked per-request or per-startup.",
+      "deps": [],
+      "parallel_group": "audit",
+      "est_minutes": 10,
+      "owner": "fixer"
+    },
+    {
+      "id": 3,
+      "title": "Audit per-plugin config shape (watchdog)",
+      "detail": "Read packages/watchdog/src/index.ts:25-44. Watchdog loads YAML threshold, rolling_window, promote_model, error_class_filter, log_failures. Check if it depends on ctx.config.model fallback.",
+      "deps": [],
+      "parallel_group": "audit",
+      "est_minutes": 10,
+      "owner": "fixer"
+    },
+    {
+      "id": 4,
+      "title": "Audit per-plugin config shape (max-mode + auto-max)",
+      "detail": "Read packages/max-mode/src/index.ts:27-45 and packages/auto-max/src/index.ts:25-48. Both have similar shape. Note any plugin-specific additions.",
+      "deps": [],
+      "parallel_group": "audit",
+      "est_minutes": 15,
+      "owner": "fixer"
+    },
+    {
+      "id": 5,
+      "title": "Audit per-plugin config shape (compose + workflow)",
+      "detail": "Read packages/compose/src/index.ts and packages/workflow/src/index.ts. Compose has no YAML config (skills are static files). Workflow has DEFAULT_WORKFLOW_CONFIG + DEFAULT_SANDBOX_CONSTRAINTS as TS constants. Decide: do they need loadConfig at all?",
+      "deps": [],
+      "parallel_group": "audit",
+      "est_minutes": 20,
+      "owner": "fixer"
+    },
+    {
+      "id": 6,
+      "title": "Migrate memory to @sffmc/shared",
+      "detail": "Replace local loadConfig (line 39) with `import { loadConfig } from \"@sffmc/shared\"`. Replace local PluginContext interface (line 17) with shared. Run `cd packages/memory && bun test`. Must stay 100% green.",
+      "deps": [1],
+      "parallel_group": "migrate",
+      "est_minutes": 30,
+      "owner": "fixer"
+    },
+    {
+      "id": 7,
+      "title": "Migrate rules to @sffmc/shared",
+      "detail": "Same pattern. After migration, verify all 12 rules tests still pass (per packages/rules/src/index.test.ts).",
+      "deps": [2],
+      "parallel_group": "migrate",
+      "est_minutes": 30,
+      "owner": "fixer"
+    },
+    {
+      "id": 8,
+      "title": "Migrate watchdog to @sffmc/shared",
+      "detail": "Special case: watchdog uses `String(ctx.config?.model || \"...\")` as fallback. Shared PluginContext must allow this. If not, add fallback in loadConfig or keep model resolution in plugin.",
+      "deps": [3],
+      "parallel_group": "migrate",
+      "est_minutes": 35,
+      "owner": "fixer"
+    },
+    {
+      "id": 9,
+      "title": "Migrate max-mode + auto-max to @sffmc/shared",
+      "detail": "Both have similar shape, can be done in same commit. Run tests for both packages.",
+      "deps": [4],
+      "parallel_group": "migrate",
+      "est_minutes": 45,
+      "owner": "fixer"
+    },
+    {
+      "id": 10,
+      "title": "Migrate compose + workflow (conditional)",
+      "detail": "If audit (step 5) shows they don't need loadConfig, just replace their local PluginContext type with shared one. No config loader needed.",
+      "deps": [5],
+      "parallel_group": "migrate",
+      "est_minutes": 25,
+      "owner": "fixer"
+    },
+    {
+      "id": 11,
+      "title": "Run full pre-commit + sffmc_health on all changes",
+      "detail": "`bun test` (all 292 tests), `bun run typecheck`, `bun run scripts/run-health.ts`. All must pass.",
+      "deps": [6, 7, 8, 9, 10],
+      "parallel_group": "verify",
+      "est_minutes": 10,
+      "owner": "fixer"
+    },
+    {
+      "id": 12,
+      "title": "Restart sandbox :4200, verify all 10 plugins load",
+      "detail": "After each migration commit, restart sandbox and curl /config. Expect 10/10 SFFMC plugins loaded, 0 errors in journal.",
+      "deps": [11],
+      "parallel_group": "verify",
+      "est_minutes": 15,
+      "owner": "fixer"
+    },
+    {
+      "id": 13,
+      "title": "Update per-plugin READMEs to drop 'custom config' language",
+      "detail": "Each README has a Configuration section. If it now points to @sffmc/shared, update the link.",
+      "deps": [11],
+      "parallel_group": "docs",
+      "est_minutes": 20,
+      "owner": "fixer"
+    },
+    {
+      "id": 14,
+      "title": "CHANGELOG entry + tag v0.8.0",
+      "detail": "Root CHANGELOG: 'v0.8.0 — @sffmc/shared migration (7 plugins)'. Tag at the commit that includes all migration commits.",
+      "deps": [12, 13],
+      "parallel_group": "release",
+      "est_minutes": 10,
+      "owner": "orchestrator"
+    }
+  ],
+  "summary": {
+    "total_steps": 14,
+    "total_est_minutes": 290,
+    "parallel_groups": ["audit (5 parallel)", "migrate (5 parallel)", "verify (2 parallel)", "docs", "release"],
+    "critical_path_minutes": 35 + 30 + 30 + 10 + 15 + 10 + 10,
+    "bottleneck": "step 8 (watchdog) — 35 min due to model-fallback edge case"
+  }
+}
