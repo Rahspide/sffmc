@@ -1,0 +1,56 @@
+{
+  "_comment": "SFFMC v0.9.0+ slash commands. Auto-deployed to opencode.json `command` section. Names = kebab-case from skill filenames + sffmc_health tool wrapper. Edit here, re-run deploy script (or jq-merge manually). 13 total: 3 safety + 4 memory + 5 agentic + 1 meta-tool.",
+
+  "sffmc_health": {
+    "template": "Run the sffmc_health tool to verify SFFMC plugin health (13 diagnostic checks)",
+    "description": "SFFMC meta: run sffmc_health tool — 13 checks on the monorepo (hook conflicts, tests, typecheck, version, msp structure)"
+  },
+  "diagnose-tool-failure": {
+    "template": "Use the safety/diagnose-tool-failure skill to analyze the most recent tool error",
+    "description": "Safety: diagnose the last tool failure (analyzes error context, suggests fix)"
+  },
+  "manage-auto-max": {
+    "template": "Use the safety/manage-auto-max skill to configure max-mode auto-trigger threshold",
+    "description": "Safety: configure auto-max threshold (when to auto-enable max-mode reasoning)"
+  },
+  "write-rule": {
+    "template": "Use the safety/write-rule skill to add a new safety rule for blocking tool calls",
+    "description": "Safety: write a new rule to the safety/rules registry"
+  },
+  "checkpoint-save": {
+    "template": "Use the memory/checkpoint-save skill to create a memory checkpoint of the current session state",
+    "description": "Memory: save a checkpoint snapshot (extra_checkpoint) for later restore"
+  },
+  "dream-cleanup": {
+    "template": "Use the memory/dream-cleanup skill to consolidate and prune stale memories",
+    "description": "Memory: trigger dream consolidation (extra_dream) — pattern detection + decay"
+  },
+  "judge-output": {
+    "template": "Use the memory/judge-output skill to evaluate the most recent model output for quality/correctness",
+    "description": "Memory: judge the last output (extra_judge) — score + rationale"
+  },
+  "recall": {
+    "template": "Use the memory/recall skill to search past context for relevant information",
+    "description": "Memory: recall — semantic search across past sessions/decisions"
+  },
+  "compose-skill": {
+    "template": "Use the agentic/compose-skill skill to compose a new SFFMC skill from a template",
+    "description": "Agentic: compose a new skill (uses compose_skill tool to scaffold from a description)"
+  },
+  "health-check": {
+    "template": "Use the agentic/health-check skill to run health checks on the SFFMC monorepo",
+    "description": "Agentic: run health-check skill — interactive guided version of sffmc_health tool"
+  },
+  "resolve-hook-conflict": {
+    "template": "Use the agentic/resolve-hook-conflict skill to resolve a hook conflict between plugins",
+    "description": "Agentic: diagnose and fix a hook conflict (2+ plugins registering same hook key)"
+  },
+  "run-max-mode": {
+    "template": "Use the agentic/run-max-mode skill to enable max-mode reasoning for the current task",
+    "description": "Agentic: enable max-mode (extended thinking + larger context window)"
+  },
+  "run-workflow": {
+    "template": "Use the agentic/run-workflow skill to run a defined multi-step workflow",
+    "description": "Agentic: run a workflow (workflow tool) — execute a YAML-defined pipeline of steps"
+  }
+}

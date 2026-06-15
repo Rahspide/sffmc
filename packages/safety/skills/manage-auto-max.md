@@ -44,6 +44,15 @@ Auto-max listens to `tool.execute.after` events. When the watchdog's FailureCoun
 
 ## Examples
 
+```yaml
+# ~/.config/SFFMC/safety.yaml (auto-max config)
+auto_max:
+  threshold: 3            # failures before trigger
+  verdict: escalate       # only on 'escalate' verdicts
+  judge_model: ocg/deepseek-v4-flash
+  fallback: "/max"        # manual escape hatch
+```
+
 - Bash fails with "permission denied" 3 times → suggest `/max` (different approach may work)
 - Curl 429s 3 times → DON'T suggest `/max`, instead suggest "wait 30s and retry"
 - Grep returns no results 3 times → suggest `/max` (search may need different terms)
