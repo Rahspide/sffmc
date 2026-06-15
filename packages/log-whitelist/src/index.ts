@@ -7,6 +7,7 @@ interface LogWhitelistConfig {
   max_kept_lines: number;
   truncate_marker: string;
   log_filtered_count: boolean;
+  suppress_patterns: string[];
 }
 
 const defaultConfig: LogWhitelistConfig = {
@@ -15,6 +16,7 @@ const defaultConfig: LogWhitelistConfig = {
   max_kept_lines: 50,
   truncate_marker: "... [N more lines]",
   log_filtered_count: true,
+  suppress_patterns: [],
 };
 
 function compilePatterns(strings: string[]): RegExp[] {
@@ -34,6 +36,7 @@ interface PluginState {
   config: LogWhitelistConfig;
   whitelist: RegExp[];
   blacklist: RegExp[];
+  suppressPatterns: RegExp[];
   totalFiltered: number;
 }
 
@@ -44,6 +47,7 @@ const server = async (_ctx: PluginContext) => {
     config,
     whitelist: compilePatterns(config.whitelist),
     blacklist: compilePatterns(config.blacklist),
+    suppressPatterns: compilePatterns(config.suppress_patterns),
     totalFiltered: 0,
   };
 
@@ -69,6 +73,7 @@ const server = async (_ctx: PluginContext) => {
         state.blacklist,
         state.config.max_kept_lines,
         state.config.truncate_marker,
+        state.suppressPatterns,
       );
 
       if (dropped > 0) {
@@ -96,6 +101,7 @@ const server = async (_ctx: PluginContext) => {
         state.blacklist,
         state.config.max_kept_lines,
         state.config.truncate_marker,
+        state.suppressPatterns,
       );
 
       if (dropped > 0) {

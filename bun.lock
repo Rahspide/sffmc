@@ -28,6 +28,13 @@
         "yaml": "^2.0.0",
       },
     },
+    "packages/extra": {
+      "name": "@sffmc/extra",
+      "version": "0.1.0",
+      "dependencies": {
+        "@sffmc/shared": "workspace:*",
+      },
+    },
     "packages/health": {
       "name": "@sffmc/health",
       "version": "0.1.0",
@@ -112,6 +119,8 @@
     "@sffmc/compose": ["@sffmc/compose@workspace:packages/compose"],
 
     "@sffmc/eos-stripper": ["@sffmc/eos-stripper@workspace:packages/eos-stripper"],
+
+    "@sffmc/extra": ["@sffmc/extra@workspace:packages/extra"],
 
     "@sffmc/health": ["@sffmc/health@workspace:packages/health"],
 

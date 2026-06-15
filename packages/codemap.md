@@ -1,7 +1,7 @@
 # packages/
 
 ## Responsibility
-SFFMC monorepo. 10 OpenCode plugins (9 features + 1 F3+ Health diagnostic) loaded as drop-in `file://` plugin paths. Each plugin is a self-contained TypeScript module with its own `package.json`, `src/`, `README.md`, `CHANGELOG.md`, and tests.
+SFFMC monorepo. 11 OpenCode plugins (9 features + F3+ Health diagnostic + F3+ Extra opt-in bundle) loaded as drop-in `file://` plugin paths. Each plugin is a self-contained TypeScript module with its own `package.json`, `src/`, `README.md`, `CHANGELOG.md`, and tests.
 
 ## Architecture: DLC (Drop-in Lattice Components)
 - **Read** existing data freely (other plugins' state, OpenCode state)
@@ -25,8 +25,9 @@ This means `rm -rf packages/foo && bun test` should still pass for the remaining
 | `compose` | 15 compose skills (MiMo port) | `tool` (registers `compose_skill`) | ✓ PluginContext | Static .md file registry |
 | `workflow` | W5-6 Dynamic Workflow engine | `tool` (registers `workflow`) | ✗ own type | quickjs-emscripten WASM sandbox |
 | `health` | F3+ Health (diagnostic) | `tool` (registers `sffmc_health`) | ✓ PluginContext | 7 checks, JSON output |
+| `extra` | F3+ opt-in bundle (F5' Checkpoint + F6' Judge + F8 Dream) | `tool` (registers `extra_checkpoint`, `extra_judge`, `extra_dream`) | ✓ PluginContext | All 3 features disabled by default; enabled features add `tool.execute.after` + `experimental.chat.messages.transform` hooks |
 
-**Adoption of `@sffmc/shared`**: 8/10 plugins use it. 2/10 keep custom types (max-mode, workflow) for legitimate domain reasons.
+**Adoption of `@sffmc/shared`**: 9/11 plugins use it. 2/11 keep custom types (max-mode, workflow) for legitimate domain reasons.
 
 ## Hook Conflict Map
 Intentionally shared hooks (no conflict — each plugin writes own slot):

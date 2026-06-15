@@ -44,7 +44,8 @@ SFFMC (Some Features From MiMo Code) — a Bun-workspace monorepo of 10 OpenCode
 | `packages/compose/` | 15 compose skills (MiMo port) — static .md file registry + LLM-callable `compose_skill` tool | [View Map](packages/compose/codemap.md) |
 | `packages/workflow/` | W5-6 Dynamic Workflow engine — quickjs-emscripten WASM sandbox + 3 primitives (agent/parallel/pipeline) + 4 builtins + 3-layer state + 5-layer budget | [View Map](packages/workflow/codemap.md) |
 | `packages/health/` | F3+ Health (diagnostic) — 7-check diagnostic for plugin authors, JSON output via `sffmc_health` tool | [View Map](packages/health/codemap.md) |
-| `shared/` | `@sffmc/shared` SDK — opt-in contract (loadConfig, PluginContext, EventBus), used by 8/10 plugins | [View Map](shared/codemap.md) |
+| `packages/extra/` | F3+ opt-in bundle (F5' Checkpoint + F6' Judge + F8 Dream) — factory+spread pattern, JSONL capture, multi-criteria LLM judge, Jaccard dedup, all features off by default | [View Map](packages/extra/codemap.md) |
+| `shared/` | `@sffmc/shared` SDK — opt-in contract (loadConfig, PluginContext, EventBus), used by 9/11 plugins | [View Map](shared/codemap.md) |
 
 ## Hook Conflict Map (10 plugins, 0 conflicts)
 
@@ -62,10 +63,10 @@ Re-runnable via `python3 scripts/audit-load-order.py`. Full structural analysis 
 
 ## @sffmc/shared Adoption Matrix
 
-8/10 plugins use `@sffmc/shared` (loadConfig + PluginContext type):
-- ✅ memory, rules, watchdog, eos-stripper, log-whitelist, auto-max, compose, health
+9/11 plugins use `@sffmc/shared` (loadConfig + PluginContext type):
+- ✅ memory, rules, watchdog, eos-stripper, log-whitelist, auto-max, compose, health, extra
 
-2/10 keep custom types (legitimate reasons):
+2/11 keep custom types (legitimate reasons):
 - ❌ max-mode — has complex `sessionID?` / `client?.session?.message?` types not in shared
 - ❌ workflow — has its own type from `runtime.ts` (runtime-specific)
 

@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/health — see ../../LICENSE
 
-import { describe, it, expect } from "bun:test";
-import { mkdir, writeFile, rm } from "node:fs/promises";
+import { describe, it, expect, afterEach } from "bun:test";
+import { mkdir, writeFile, rm, mkdtemp } from "node:fs/promises";
 import { join } from "node:path";
+import { tmpdir } from "node:os";
 
 // Import the plugin and check functions
 import mod from "./index";
@@ -14,6 +15,10 @@ import {
   checkVersionConsistency,
   checkToolRegistration,
   checkLicense,
+  checkSdkCompliance,
+  checkTsConfigPresence,
+  checkChangelogCurrency,
+  checkExtraOptIn,
   type CheckResult,
   type CheckFn,
 } from "./index";
@@ -112,9 +117,12 @@ describe("runAllChecks", () => {
       mockCheck("tool_registration", "ok"),
       mockCheck("version_consistency", "ok"),
       mockCheck("license", "ok"),
+      mockCheck("sdk_compliance", "ok"),
+      mockCheck("tsconfig_presence", "ok"),
+      mockCheck("changelog_currency", "ok"),
     ];
     const result = await runAllChecks("/fake", fns);
-    expect(result.checks).toHaveLength(7);
+    expect(result.checks).toHaveLength(10);
     const names = result.checks.map((c) => c.name);
     expect(names).toEqual([
       "hook_conflicts",
@@ -124,6 +132,9 @@ describe("runAllChecks", () => {
       "tool_registration",
       "version_consistency",
       "license",
+      "sdk_compliance",
+      "tsconfig_presence",
+      "changelog_currency",
     ]);
   });
 
@@ -345,6 +356,299 @@ describe("checkLicense", () => {
       const result = await checkLicense(dir);
       expect(result.status).toBe("fail");
       expect(result.detail).toContain("No LICENSE");
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// checkSdkCompliance
+// ---------------------------------------------------------------------------
+
+describe("checkSdkCompliance", () => {
+  const SFFMC_PACKAGES = [
+    "auto-max", "compose", "eos-stripper", "extra",
+    "health", "log-whitelist", "max-mode", "memory",
+    "rules", "watchdog", "workflow",
+  ];
+
+  it("reports ok when all 9 checkable packages import from @sffmc/shared", async () => {
+    await withTempDir(async (dir) => {
+      for (const pkg of SFFMC_PACKAGES) {
+        await mkdir(join(dir, "packages", pkg, "src"), { recursive: true });
+        let content: string;
+        if (pkg === "max-mode" || pkg === "workflow") {
+          content = `// SPDX-License-Identifier: MIT\nimport { existsSync } from "fs";\nexport default { id: "@sffmc/${pkg}", server: async () => ({}) };`;
+        } else {
+          content = `// SPDX-License-Identifier: MIT\nimport { type PluginContext } from "@sffmc/shared";\nexport default { id: "@sffmc/${pkg}", server: async (ctx: PluginContext) => ({}) };`;
+        }
+        await writeFile(join(dir, "packages", pkg, "src", "index.ts"), content);
+      }
+
+      const result = await checkSdkCompliance(dir);
+      expect(result.status).toBe("ok");
+      expect(result.detail).toContain("9/11");
+      expect(result.detail).toContain("max-mode");
+      expect(result.detail).toContain("workflow");
+    });
+  });
+
+  it("reports warn when one package is missing @sffmc/shared import", async () => {
+    await withTempDir(async (dir) => {
+      for (const pkg of SFFMC_PACKAGES) {
+        await mkdir(join(dir, "packages", pkg, "src"), { recursive: true });
+        let content: string;
+        if (pkg === "auto-max") {
+          // Missing @sffmc/shared import — and not in exception list
+          content = `// SPDX-License-Identifier: MIT\nimport { existsSync } from "fs";\nexport default { id: "@sffmc/${pkg}", server: async () => ({}) };`;
+        } else if (pkg === "max-mode" || pkg === "workflow") {
+          // Known exceptions — no import, but excluded from check
+          content = `// SPDX-License-Identifier: MIT\nimport { existsSync } from "fs";\nexport default { id: "@sffmc/${pkg}", server: async () => ({}) };`;
+        } else {
+          content = `// SPDX-License-Identifier: MIT\nimport { type PluginContext } from "@sffmc/shared";\nexport default { id: "@sffmc/${pkg}", server: async (ctx: PluginContext) => ({}) };`;
+        }
+        await writeFile(join(dir, "packages", pkg, "src", "index.ts"), content);
+      }
+
+      const result = await checkSdkCompliance(dir);
+      expect(result.status).toBe("warn");
+      expect(result.detail).toContain("auto-max");
+      expect(result.detail).not.toContain("max-mode");
+      expect(result.detail).not.toContain("workflow");
+    });
+  });
+
+  it("known exceptions max-mode and workflow are excluded from the check", async () => {
+    await withTempDir(async (dir) => {
+      for (const pkg of SFFMC_PACKAGES) {
+        await mkdir(join(dir, "packages", pkg, "src"), { recursive: true });
+        let content: string;
+        if (pkg === "max-mode" || pkg === "workflow") {
+          // No import — they are exceptions
+          content = `// SPDX-License-Identifier: MIT\nexport default { id: "@sffmc/${pkg}", server: async () => ({}) };`;
+        } else {
+          content = `// SPDX-License-Identifier: MIT\nimport { type PluginContext } from "@sffmc/shared";\nexport default { id: "@sffmc/${pkg}", server: async (ctx: PluginContext) => ({}) };`;
+        }
+        await writeFile(join(dir, "packages", pkg, "src", "index.ts"), content);
+      }
+
+      const result = await checkSdkCompliance(dir);
+      expect(result.status).toBe("ok");
+      // The detail message must mention the 2 exceptions
+      expect(result.detail).toContain("max-mode");
+      expect(result.detail).toContain("workflow");
+    });
+  });
+
+  it("reports fail when a package directory is missing", async () => {
+    await withTempDir(async (dir) => {
+      // Only create 9 of 10 package directories — omit "memory"
+      const allButMemory = SFFMC_PACKAGES.filter((p) => p !== "memory");
+      for (const pkg of allButMemory) {
+        await mkdir(join(dir, "packages", pkg, "src"), { recursive: true });
+        let content: string;
+        if (pkg === "max-mode" || pkg === "workflow") {
+          content = `// SPDX-License-Identifier: MIT\nexport default { id: "@sffmc/${pkg}", server: async () => ({}) };`;
+        } else {
+          content = `// SPDX-License-Identifier: MIT\nimport { type PluginContext } from "@sffmc/shared";\nexport default { id: "@sffmc/${pkg}", server: async (ctx: PluginContext) => ({}) };`;
+        }
+        await writeFile(join(dir, "packages", pkg, "src", "index.ts"), content);
+      }
+
+      const result = await checkSdkCompliance(dir);
+      expect(result.status).toBe("fail");
+      expect(result.detail).toContain("memory");
+      expect(result.detail).toContain("missing src/index.ts");
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// checkTsConfigPresence
+// ---------------------------------------------------------------------------
+
+describe("checkTsConfigPresence", () => {
+  const SFFMC_PACKAGES = [
+    "auto-max", "compose", "eos-stripper", "extra",
+    "health", "log-whitelist", "max-mode", "memory",
+    "rules", "watchdog", "workflow",
+  ];
+
+  it("reports ok when all 11 packages have tsconfig.json", async () => {
+    await withTempDir(async (dir) => {
+      for (const pkg of SFFMC_PACKAGES) {
+        await mkdir(join(dir, "packages", pkg), { recursive: true });
+        await writeFile(join(dir, "packages", pkg, "tsconfig.json"), JSON.stringify({ compilerOptions: {} }));
+      }
+
+      const result = await checkTsConfigPresence(dir);
+      expect(result.status).toBe("ok");
+      expect(result.detail).toContain("11/11");
+    });
+  });
+
+  it("reports warn when a package is missing tsconfig.json", async () => {
+    await withTempDir(async (dir) => {
+      for (const pkg of SFFMC_PACKAGES) {
+        await mkdir(join(dir, "packages", pkg), { recursive: true });
+        if (pkg !== "health") {
+          await writeFile(join(dir, "packages", pkg, "tsconfig.json"), JSON.stringify({ compilerOptions: {} }));
+        }
+        // health package has no tsconfig.json
+      }
+
+      const result = await checkTsConfigPresence(dir);
+      expect(result.status).toBe("warn");
+      expect(result.detail).toContain("health");
+    });
+  });
+
+  it("reports fail when a package has invalid tsconfig.json", async () => {
+    await withTempDir(async (dir) => {
+      for (const pkg of SFFMC_PACKAGES) {
+        await mkdir(join(dir, "packages", pkg), { recursive: true });
+        if (pkg === "compose") {
+          await writeFile(join(dir, "packages", pkg, "tsconfig.json"), "NOT VALID JSON {{{");
+        } else {
+          await writeFile(join(dir, "packages", pkg, "tsconfig.json"), JSON.stringify({ compilerOptions: {} }));
+        }
+      }
+
+      const result = await checkTsConfigPresence(dir);
+      expect(result.status).toBe("fail");
+      expect(result.detail).toContain("compose");
+      expect(result.detail).toContain("invalid tsconfig.json");
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// checkChangelogCurrency
+// ---------------------------------------------------------------------------
+
+describe("checkChangelogCurrency", () => {
+  it("reports ok when CHANGELOG version matches root package.json", async () => {
+    await withTempDir(async (dir) => {
+      await writeFile(join(dir, "package.json"), JSON.stringify({ version: "0.7.5" }));
+      await writeFile(join(dir, "CHANGELOG.md"), `# Changelog\n\n## v0.7.5 — Something\n\nSome content.\n\n## v0.7.4 — Older\n\nOlder content.\n`);
+
+      const result = await checkChangelogCurrency(dir);
+      expect(result.status).toBe("ok");
+      expect(result.detail).toContain("0.7.5");
+      expect(result.detail).toContain("matches");
+    });
+  });
+
+  it("reports fail when CHANGELOG.md is missing", async () => {
+    await withTempDir(async (dir) => {
+      await writeFile(join(dir, "package.json"), JSON.stringify({ version: "0.1.0" }));
+      // No CHANGELOG.md
+
+      const result = await checkChangelogCurrency(dir);
+      expect(result.status).toBe("fail");
+      expect(result.detail).toContain("CHANGELOG.md not found");
+    });
+  });
+
+  it("reports warn when CHANGELOG version is outdated", async () => {
+    await withTempDir(async (dir) => {
+      await writeFile(join(dir, "package.json"), JSON.stringify({ version: "1.0.0" }));
+      await writeFile(join(dir, "CHANGELOG.md"), `# Changelog\n\n## v0.9.0 — Old release\n\nSome content.\n`);
+
+      const result = await checkChangelogCurrency(dir);
+      expect(result.status).toBe("warn");
+      expect(result.detail).toContain("0.9.0");
+      expect(result.detail).toContain("does not match");
+    });
+  });
+
+  it("reports fail when CHANGELOG.md has no version section", async () => {
+    await withTempDir(async (dir) => {
+      await writeFile(join(dir, "package.json"), JSON.stringify({ version: "0.1.0" }));
+      await writeFile(join(dir, "CHANGELOG.md"), `# Changelog\n\nSome content without version headers.\n`);
+
+      const result = await checkChangelogCurrency(dir);
+      expect(result.status).toBe("fail");
+      expect(result.detail).toContain("no recognizable version section");
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// checkExtraOptIn
+// ---------------------------------------------------------------------------
+
+describe("checkExtraOptIn", () => {
+  const originalHome = process.env.HOME;
+  let tempHome: string | undefined;
+
+  afterEach(async () => {
+    if (originalHome !== undefined) {
+      process.env.HOME = originalHome;
+    }
+    if (tempHome) {
+      try {
+        await rm(tempHome, { recursive: true, force: true });
+      } catch {
+        // ignore
+      }
+      tempHome = undefined;
+    }
+  });
+
+  it("reports ok when @sffmc/extra is not installed (packages/extra/ missing)", async () => {
+    await withTempDir(async (dir) => {
+      const result = await checkExtraOptIn(dir);
+      expect(result.status).toBe("ok");
+      expect(result.detail).toContain("not installed");
+    });
+  });
+
+  it("reports ok when extra is installed but config is missing (all features off default)", async () => {
+    await withTempDir(async (dir) => {
+      await mkdir(join(dir, "packages", "extra"), { recursive: true });
+      tempHome = await mkdtemp(join(tmpdir(), "sffmc-health-"));
+      process.env.HOME = tempHome;
+      // No ~/.config/SFFMC/extra.yaml
+
+      const result = await checkExtraOptIn(dir);
+      expect(result.status).toBe("ok");
+      expect(result.detail).toContain("all features off (default)");
+    });
+  });
+
+  it("reports ok with enabled feature count when config has features set to true", async () => {
+    await withTempDir(async (dir) => {
+      await mkdir(join(dir, "packages", "extra"), { recursive: true });
+      tempHome = await mkdtemp(join(tmpdir(), "sffmc-health-"));
+      process.env.HOME = tempHome;
+      await mkdir(join(tempHome, ".config", "SFFMC"), { recursive: true });
+      await writeFile(
+        join(tempHome, ".config", "SFFMC", "extra.yaml"),
+        "checkpoint: true\njudge: false\ndream: true\n",
+      );
+
+      const result = await checkExtraOptIn(dir);
+      expect(result.status).toBe("ok");
+      expect(result.detail).toContain("2/3 features enabled");
+      expect(result.detail).toContain("checkpoint");
+      expect(result.detail).toContain("dream");
+    });
+  });
+
+  it("reports ok with all features off when config has all false", async () => {
+    await withTempDir(async (dir) => {
+      await mkdir(join(dir, "packages", "extra"), { recursive: true });
+      tempHome = await mkdtemp(join(tmpdir(), "sffmc-health-"));
+      process.env.HOME = tempHome;
+      await mkdir(join(tempHome, ".config", "SFFMC"), { recursive: true });
+      await writeFile(
+        join(tempHome, ".config", "SFFMC", "extra.yaml"),
+        "checkpoint: false\njudge: false\ndream: false\n",
+      );
+
+      const result = await checkExtraOptIn(dir);
+      expect(result.status).toBe("ok");
+      expect(result.detail).toContain("config present, all features off");
     });
   });
 });

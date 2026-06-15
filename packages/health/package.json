@@ -1,11 +1,12 @@
 {
   "name": "@sffmc/health",
-  "version": "0.1.0",
+  "version": "0.8.0",
   "type": "module",
   "main": "src/index.ts",
   "scripts": {
     "test": "bun test",
-    "test:watch": "bun test --watch"
+    "test:watch": "bun test --watch",
+    "typecheck": "bun build --target=bun --no-bundle src/index.ts"
   },
   "dependencies": {
     "@sffmc/shared": "workspace:*"

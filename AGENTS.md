@@ -1,6 +1,6 @@
 # SFFMC — Agent Instructions
 
-A Bun-workspace monorepo of 10 OpenCode plugins porting killer features from Xiaomi's [MiMo-Code](https://github.com/XiaomiMiMo/MiMo-Code). MIT licensed. v0.7.4 shipped.
+A Bun-workspace monorepo of 11 OpenCode plugins porting killer features from Xiaomi's [MiMo-Code](https://github.com/XiaomiMiMo/MiMo-Code). MIT licensed. v0.8.0 shipped.
 
 ## Repository Map
 
@@ -21,7 +21,7 @@ Every SFFMC plugin follows the **DLC** pattern:
 - **No shared state** between plugins — no module-level singletons shared via re-export
 - **Hot-pluggable** — adding/removing a plugin does not affect the others
 
-This means `rm -rf packages/foo && bun test` should still pass for the remaining 9.
+This means `rm -rf packages/foo && bun test` should still pass for the remaining 10.
 
 ## Common Tasks
 
@@ -32,7 +32,7 @@ bun test
 # Type-check (uses bun build --no-bundle, no global tsc needed)
 bun run typecheck
 
-# Run F3+ Health diagnostic (7 checks, JSON output)
+# Run F3+ Health diagnostic (11 checks, JSON output)
 bun run scripts/run-health.ts
 
 # Audit hook conflicts (0 conflicts expected)

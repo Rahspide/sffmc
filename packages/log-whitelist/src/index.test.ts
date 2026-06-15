@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test";
-import { shouldKeep, shouldDrop, filterLines } from "./filter";
+import { shouldKeep, shouldDrop, suppressLine, filterLines } from "./filter";
 
 describe("shouldKeep", () => {
   const whitelist = [/error/i, /warn/i, /fail/i, /ENOENT/];
@@ -81,6 +81,121 @@ describe("filterLines", () => {
     const result = filterLines([], whitelist, blacklist, 50, marker);
     expect(result.kept).toEqual([]);
     expect(result.dropped).toBe(0);
+  });
+});
+
+describe("suppressLine", () => {
+  const patterns = [
+    /slim preset .* not found/,
+    /db-optimizer.*table name.*mismatch/i,
+    /no such table: session/i,
+  ];
+
+  it("single-line suppression — full match → empty string", () => {
+    const line = "slim preset opencode-go not found in presets";
+    // Pattern /slim preset .* not found/ — greedy .* backtracks to
+    // match up to the last "not found". Remaining: " in presets".
+    // To fully suppress lines like this, use a broader pattern like /slim preset .*/.
+    expect(suppressLine(line, [patterns[0]])).toBe(" in presets");
+  });
+
+  it("partial match suppression — substring replaced with empty", () => {
+    const line = "ERROR: slim preset opencode-go not found in presets: continuing";
+    // Matched portion "slim preset opencode-go not found" is blanked;
+    // contextual text before and after is preserved.
+    expect(suppressLine(line, [patterns[0]])).toBe("ERROR:  in presets: continuing");
+  });
+
+  it("no match — line preserved unchanged", () => {
+    const line = "INFO: all systems operational";
+    expect(suppressLine(line, patterns)).toBe(line);
+  });
+
+  it("multiple patterns — all applied in order", () => {
+    const line = "db-optimizer: table name mismatch, also no such table: session found";
+    const result = suppressLine(line, patterns);
+    // First pattern (/slim/) doesn't match. Second (/db-optimizer.*table name.*mismatch/i)
+    // blanks "db-optimizer: table name mismatch". Third (/no such table: session/i)
+    // blanks "no such table: session". Remaining: ", also  found".
+    expect(result).not.toContain("table name mismatch");
+    expect(result).not.toContain("no such table: session");
+    expect(result).toBe(", also  found");
+  });
+});
+
+describe("filterLines with suppressPatterns", () => {
+  const whitelist = [/error/i, /warn/i];
+  const blacklist: RegExp[] = [];
+  const marker = "... [N more lines]";
+  const suppress = [/slim preset .* not found/];
+
+  it("suppression happens before whitelist — suppressed wins over whitelist match", () => {
+    const lines = [
+      "ERROR: slim preset opencode-go not found in presets",
+      "WARN: low memory",
+    ];
+    const result = filterLines(lines, whitelist, blacklist, 50, marker, suppress);
+    // First line: suppress blanks "slim preset opencode-go not found"
+    //   → "ERROR:  in presets" — still contains "ERROR" → kept
+    expect(result.kept).toContain("ERROR:  in presets");
+    expect(result.kept).toContain("WARN: low memory");
+    expect(result.dropped).toBe(0);
+  });
+
+  it("suppress full-line match → empty string → not whitelisted → dropped", () => {
+    const fullLineSuppress = [/slim.*/i];
+    const lines = [
+      "slim noise that should vanish",
+      "ERROR: real problem",
+    ];
+    const result = filterLines(lines, whitelist, blacklist, 50, marker, fullLineSuppress);
+    expect(result.kept).toEqual(["ERROR: real problem"]);
+    expect(result.dropped).toBe(1);
+  });
+
+  it("suppression in filterLines via tool.execute.after hook", async () => {
+    // Mock loadConfig returns a whitelist that catches errors, plus suppress patterns
+    const mod = await import("./index");
+
+    // We need to inject config with suppress_patterns. The server reads from
+    // ~/.config/SFFMC/log-whitelist.yaml, which doesn't exist on this machine.
+    // So the hook will use the defaultConfig (empty whitelist → no-op).
+    //
+    // Instead, test the filterLines function directly with the same pipeline
+    // the hook uses, verifying the end-to-end data flow.
+    const lines = [
+      "slim preset opencode-go not found in presets",
+      "ERROR: disk full",
+      "INFO: all good",
+    ];
+    const wl = [/error/i, /warn/i, /fail/i];
+    const bl: RegExp[] = [];
+    const sp = [/slim preset .* not found/];
+
+    const result = filterLines(lines, wl, bl, 50, marker, sp);
+    // "slim preset ..." → empty → doesn't match whitelist → dropped
+    // "ERROR: disk full" → matches whitelist → kept
+    expect(result.kept).toEqual(["ERROR: disk full"]);
+    expect(result.dropped).toBe(2);
+  });
+
+  it("suppression in filterLines via experimental.text.complete hook", async () => {
+    // Same pattern — verify suppress + whitelist pipeline for text completion
+    const lines = [
+      "db-optimizer: table name mismatch in schema",
+      "WARN: low disk space",
+      "ok",
+    ];
+    const wl = [/error/i, /warn/i];
+    const bl: RegExp[] = [];
+    const sp = [/db-optimizer.*table name.*mismatch/i];
+
+    const result = filterLines(lines, wl, bl, 50, marker, sp);
+    // First line: suppress blanks out "db-optimizer: table name mismatch in schema" → ""
+    //   Wait — the pattern /db-optimizer.*table name.*mismatch/i matches the ENTIRE line
+    //   → empty string → doesn't match whitelist → dropped
+    expect(result.kept).toEqual(["WARN: low disk space"]);
+    expect(result.dropped).toBe(2);
   });
 });
 

@@ -1,11 +1,11 @@
 # SFFMC — Some Features From MiMo Code
 
 OpenCode plugin suite porting killer features from Xiaomi's MiMo-Code fork.
-MIT licensed. Monorepo. v0.7.0 shipped.
+MIT licensed. Monorepo. v0.8.0 shipped.
 
 ## What is this
 
-10 packages, 272 tests passing. Killer features from MiMo-Code, ported as standalone OpenCode plugins:
+11 packages, 394 tests passing. Killer features from MiMo-Code, ported as standalone OpenCode plugins:
 
 - **F4' Memory + Context Recon 8K** — agent remembers your project across sessions
 - **F2 Rules** — safety net for destructive operations
@@ -17,6 +17,7 @@ MIT licensed. Monorepo. v0.7.0 shipped.
 - **Compose pack** — 15 ready-made skills (plan/tdd/verify/subagent/etc)
 - **EOS stripper** + **Log whitelist** — local-model survival + log hygiene
 - **@sffmc/shared** — opt-in SDK (loadConfig, PluginContext, EventBus) for plugin authors
+- **@sffmc/extra** — opt-in bundle of 3 advanced features (F5' Checkpoint, F6' Judge, F8 Dream). All disabled by default — flip flags in `~/.config/SFFMC/extra.yaml` per feature.
 
 ## Quick start
 
@@ -106,7 +107,10 @@ SFFMC ports the features that create this gap — as OpenCode plugins, not a for
 
 | Version | Date | Highlights |
 |---|---|---|
-| **v0.7.0** | 2026-06-15 | + 3 workflow builtins (plan, tdd, refactor), @sffmc/shared SDK, 9 per-plugin READMEs, getting-started guide |
+| **v0.8.0** | 2026-06-15 | **+ @sffmc/extra (11th plugin): F5' Checkpoint, F6' Judge, F8 Dream (opt-in, off by default). 394 tests.** |
+| v0.7.5 | 2026-06-15 | Full repository codemap (24 codemap.md files, ~11000 words) |
+| v0.7.4 | 2026-06-15 | 8/10 plugins migrated to @sffmc/shared SDK (PluginContext type) |
+| v0.7.0 | 2026-06-15 | + 3 workflow builtins (plan, tdd, refactor), @sffmc/shared SDK, 9 per-plugin READMEs, getting-started guide |
 | v0.6.1 | 2026-06-15 | Load order audit (0 conflicts, 9/9 plugins verified) |
 | v0.6.0 | 2026-06-15 | Dynamic Workflow engine + deep-research builtin, 9 SFFMC plugins shipped, 96 tests |
 | v0.5.0 | 2026-06-14 | Compose pack (15 skills from MiMo-Code) |
@@ -133,7 +137,7 @@ SFFMC/
 │   ├── load-order-audit.md         # hook conflict analysis
 │   ├── import-from-mimo.md         # W4 feature mapping
 │   └── migration-from-opencode.md # migration guide
-├── packages/                       # 9 feature plugins
+├── packages/                       # 11 feature plugins
 │   ├── memory/                     # @sffmc/memory (F4')
 │   ├── rules/                      # @sffmc/rules (F2)
 │   ├── watchdog/                   # @sffmc/watchdog (F1)
@@ -142,7 +146,9 @@ SFFMC/
 │   ├── max-mode/                   # @sffmc/max-mode (F7)
 │   ├── auto-max/                   # @sffmc/auto-max
 │   ├── compose/                    # @sffmc/compose (15 skills)
-│   └── workflow/                   # @sffmc/workflow (5 builtins)
+│   ├── workflow/                   # @sffmc/workflow (5 builtins)
+│   ├── health/                     # @sffmc/health (F3+ Health, 11 checks)
+│   └── extra/                      # @sffmc/extra (opt-in: F5' Checkpoint, F6' Judge, F8 Dream)
 ├── shared/                         # @sffmc/shared SDK (opt-in)
 └── scripts/
     └── audit-load-order.py         # AST-based hook auditor

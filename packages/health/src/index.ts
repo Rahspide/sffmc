@@ -3,7 +3,14 @@
 
 import { type PluginContext } from "@sffmc/shared";
 import { readdir, readFile, stat } from "node:fs/promises";
+import { homedir } from "node:os";
 import { join } from "node:path";
+
+// homedir() may cache at module load in Bun; use process.env.HOME first so
+// tests can override it.
+function userHome(): string {
+  return process.env.HOME || homedir();
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -455,6 +462,218 @@ export async function checkLicense(repoRoot: string): Promise<CheckResult> {
 }
 
 // ---------------------------------------------------------------------------
+// Check 8: SDK compliance (shared import)
+// ---------------------------------------------------------------------------
+
+const SFFMC_PACKAGES = [
+  "auto-max", "compose", "eos-stripper", "extra",
+  "health", "log-whitelist", "max-mode", "memory",
+  "rules", "watchdog", "workflow",
+] as const;
+
+const KNOWN_SDK_EXCEPTIONS = new Set(["max-mode", "workflow"]);
+
+export async function checkSdkCompliance(repoRoot: string): Promise<CheckResult> {
+  const missingImport: string[] = [];
+  const missingDir: string[] = [];
+
+  for (const pkg of SFFMC_PACKAGES) {
+    if (KNOWN_SDK_EXCEPTIONS.has(pkg)) continue;
+
+    const indexPath = join(repoRoot, "packages", pkg, "src", "index.ts");
+    try {
+      const content = await readFile(indexPath, "utf-8");
+      const hasSharedImport = /from\s+["']@sffmc\/shared["']/.test(content)
+        || /from\s+["']\.\.\/shared\/src\//.test(content);
+      const hasExclusionComment = /\/\/\s*@sffmc-shared:\s*excluded/.test(content);
+      if (!hasSharedImport && !hasExclusionComment) {
+        missingImport.push(pkg);
+      }
+    } catch {
+      missingDir.push(pkg);
+    }
+  }
+
+  if (missingDir.length > 0) {
+    return {
+      name: "sdk_compliance",
+      status: "fail",
+      detail: `${missingDir.length} package(s) missing src/index.ts: ${missingDir.join(", ")}`,
+    };
+  }
+
+  if (missingImport.length === 0) {
+    return {
+      name: "sdk_compliance",
+      status: "ok",
+      detail: `${SFFMC_PACKAGES.length - KNOWN_SDK_EXCEPTIONS.size}/${SFFMC_PACKAGES.length} packages import @sffmc/shared (2 known exceptions: ${[...KNOWN_SDK_EXCEPTIONS].join(", ")})`,
+    };
+  }
+
+  return {
+    name: "sdk_compliance",
+    status: "warn",
+    detail: `${missingImport.length} package(s) missing @sffmc/shared import: ${missingImport.join(", ")}`,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Check 9: tsconfig.json presence
+// ---------------------------------------------------------------------------
+
+export async function checkTsConfigPresence(repoRoot: string): Promise<CheckResult> {
+  const missing: string[] = [];
+  const invalidJson: string[] = [];
+
+  for (const pkg of SFFMC_PACKAGES) {
+    const tsconfigPath = join(repoRoot, "packages", pkg, "tsconfig.json");
+    try {
+      const content = await readFile(tsconfigPath, "utf-8");
+      try {
+        JSON.parse(content);
+      } catch {
+        invalidJson.push(pkg);
+      }
+    } catch {
+      missing.push(pkg);
+    }
+  }
+
+  if (invalidJson.length > 0) {
+    return {
+      name: "tsconfig_presence",
+      status: "fail",
+      detail: `${invalidJson.length} package(s) have invalid tsconfig.json: ${invalidJson.join(", ")}`,
+    };
+  }
+
+  if (missing.length === 0) {
+    return {
+      name: "tsconfig_presence",
+      status: "ok",
+      detail: `${SFFMC_PACKAGES.length}/${SFFMC_PACKAGES.length} packages have tsconfig.json`,
+    };
+  }
+
+  return {
+    name: "tsconfig_presence",
+    status: "warn",
+    detail: `${missing.length} package(s) missing tsconfig.json: ${missing.join(", ")}`,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Check 10: CHANGELOG currency
+// ---------------------------------------------------------------------------
+
+export async function checkChangelogCurrency(repoRoot: string): Promise<CheckResult> {
+  // Read root version
+  let rootVersion: string;
+  try {
+    const rootPkg = JSON.parse(await readFile(join(repoRoot, "package.json"), "utf-8"));
+    rootVersion = rootPkg.version || "unknown";
+  } catch {
+    return {
+      name: "changelog_currency",
+      status: "fail",
+      detail: "Could not read root package.json",
+    };
+  }
+
+  // Read CHANGELOG.md
+  const changelogPath = join(repoRoot, "CHANGELOG.md");
+  let changelogText: string;
+  try {
+    changelogText = await readFile(changelogPath, "utf-8");
+  } catch {
+    return {
+      name: "changelog_currency",
+      status: "fail",
+      detail: "CHANGELOG.md not found",
+    };
+  }
+
+  // Extract the most recent version entry
+  const versionMatch = changelogText.match(/^##\s+v(\d+\.\d+\.\d+)/m);
+  if (!versionMatch) {
+    return {
+      name: "changelog_currency",
+      status: "fail",
+      detail: "CHANGELOG.md has no recognizable version section",
+    };
+  }
+
+  const changelogVersion = versionMatch[1];
+
+  if (changelogVersion === rootVersion) {
+    return {
+      name: "changelog_currency",
+      status: "ok",
+      detail: `CHANGELOG v${changelogVersion} matches root package.json (${rootVersion})`,
+    };
+  }
+
+  return {
+    name: "changelog_currency",
+    status: "warn",
+    detail: `CHANGELOG v${changelogVersion} does not match root package.json (${rootVersion})`,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Check 11: @sffmc/extra opt-in status (informational only)
+// ---------------------------------------------------------------------------
+
+export async function checkExtraOptIn(repoRoot: string): Promise<CheckResult> {
+  const extraDir = join(repoRoot, "packages", "extra");
+  if (!(await fileExists(extraDir))) {
+    return {
+      name: "extra_opt_in",
+      status: "ok",
+      detail: "@sffmc/extra not installed (packages/extra/ not found)",
+    };
+  }
+
+  const configPath = join(userHome(), ".config", "SFFMC", "extra.yaml");
+  if (!(await fileExists(configPath))) {
+    return {
+      name: "extra_opt_in",
+      status: "ok",
+      detail: "@sffmc/extra installed, config not found — all features off (default)",
+    };
+  }
+
+  try {
+    const content = await readFile(configPath, "utf-8");
+    const enabled: string[] = [];
+    for (const feature of ["checkpoint", "judge", "dream"]) {
+      const re = new RegExp(`^\\s*${feature}\\s*:\\s*true`, "m");
+      if (re.test(content)) enabled.push(feature);
+    }
+
+    if (enabled.length === 0) {
+      return {
+        name: "extra_opt_in",
+        status: "ok",
+        detail: "@sffmc/extra installed, config present, all features off",
+      };
+    }
+
+    return {
+      name: "extra_opt_in",
+      status: "ok",
+      detail: `@sffmc/extra: ${enabled.length}/3 features enabled (${enabled.join(", ")})`,
+    };
+  } catch {
+    return {
+      name: "extra_opt_in",
+      status: "warn",
+      detail: "Could not read extra config file",
+    };
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Orchestrator
 // ---------------------------------------------------------------------------
 
@@ -466,6 +685,10 @@ const ALL_CHECKS: CheckFn[] = [
   checkToolRegistration,
   checkVersionConsistency,
   checkLicense,
+  checkSdkCompliance,
+  checkTsConfigPresence,
+  checkChangelogCurrency,
+  checkExtraOptIn,
 ];
 
 export async function runAllChecks(
@@ -495,7 +718,7 @@ const server = async (ctx: PluginContext) => {
   return {
     tool: {
       sffmc_health: {
-        description: `Run 7 diagnostic checks on the SFFMC monorepo to verify plugin health.
+        description: `Run 11 diagnostic checks on the SFFMC monorepo to verify plugin health.
 
 Checks performed:
 1. hook_conflicts — invokes scripts/audit-load-order.py, reports hook conflicts between plugins
@@ -505,6 +728,10 @@ Checks performed:
 5. tool_registration — scans for 'name' field bug in tool definitions (fix-17 regression)
 6. version_consistency — compares root package.json version against all plugin versions
 7. license — verifies LICENSE exists and is referenced from all READMEs
+8. sdk_compliance — verifies packages import from @sffmc/shared (2 known exceptions: max-mode, workflow)
+9. tsconfig_presence — verifies each package has tsconfig.json (migration-progress check)
+10. changelog_currency — verifies CHANGELOG.md version matches root package.json
+11. extra_opt_in — reports @sffmc/extra opt-in status (informational; 3 opt-in features off by default)
 
 Returns JSON with ok (boolean), checks[] (per-check status), and summary (string).
 Use this before releases or after plugin changes to catch regressions early.`,

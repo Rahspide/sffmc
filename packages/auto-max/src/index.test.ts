@@ -157,6 +157,60 @@ describe("coordinator", () => {
     recordFailure(s, "bash", "ENOENT");
     expect(shouldTriggerMaxMode(s, "bash", "ENOENT", multiConfig)).toBe(false);
   });
+
+  it("shouldTriggerMaxMode with threshold=2 triggers at 2 failures", () => {
+    const lowThresholdConfig: AutoMaxConfig = {
+      ...defaultConfig,
+      watchdog_threshold: 2,
+    };
+
+    const s = createSessionState();
+    recordFailure(s, "bash", "ENOENT");
+    expect(shouldTriggerMaxMode(s, "bash", "ENOENT", lowThresholdConfig)).toBe(false);
+    recordFailure(s, "bash", "ENOENT");
+    expect(shouldTriggerMaxMode(s, "bash", "ENOENT", lowThresholdConfig)).toBe(true);
+  });
+
+  it("different sessions have isolated fail counts", () => {
+    const s1 = createSessionState();
+    const s2 = createSessionState();
+
+    recordFailure(s1, "bash", "ENOENT");
+    recordFailure(s1, "bash", "ENOENT");
+    recordFailure(s1, "bash", "ENOENT");
+
+    // s2 is untouched
+    expect(s2.failCount.size).toBe(0);
+    expect(shouldTriggerMaxMode(s2, "bash", "ENOENT", defaultConfig)).toBe(false);
+
+    // s1 should trigger
+    expect(shouldTriggerMaxMode(s1, "bash", "ENOENT", defaultConfig)).toBe(true);
+  });
+
+  it("recordFailure with empty error type still increments", () => {
+    const s = createSessionState();
+    recordFailure(s, "bash", "");
+    expect(s.failCount.get("bash::")).toBe(1);
+  });
+
+  it("recordSuccess only clears matching tool prefix", () => {
+    const s = createSessionState();
+    recordFailure(s, "bash", "ENOENT");
+    recordFailure(s, "glob", "ERR");
+    recordSuccess(s, "bash");
+    expect(s.failCount.has("bash::ENOENT")).toBe(false);
+    expect(s.failCount.has("glob::ERR")).toBe(true);
+  });
+
+  it("shouldTriggerMaxMode returns false when triggered even with enough failures", () => {
+    const s = createSessionState();
+    recordFailure(s, "bash", "ENOENT");
+    recordFailure(s, "bash", "ENOENT");
+    recordFailure(s, "bash", "ENOENT");
+    markTriggered(s);
+    // After markTriggered, shouldTriggerMaxMode checks state.triggered first
+    expect(shouldTriggerMaxMode(s, "bash", "ENOENT", defaultConfig)).toBe(false);
+  });
 });
 
 describe("Plugin entry", () => {
@@ -298,5 +352,112 @@ describe("Plugin entry", () => {
     );
 
     expect(data.system.length).toBe(1);
+  });
+
+  it("trigger message includes tool:errorType notation", async () => {
+    const mod = await import("./index");
+    const ctx: Record<string, unknown> = {
+      projectRoot: "/tmp/test-project",
+      config: {},
+    };
+    const hooks = await mod.default.server(ctx);
+
+    ctx._autoMaxTrigger = {
+      tool: "grep",
+      errorType: "ETIMEDOUT",
+      failCount: 3,
+      sessionID: "s6",
+    };
+
+    const data = { system: [] as string[] };
+    await hooks["experimental.chat.system.transform"]!(
+      { sessionID: "s6" },
+      data,
+    );
+
+    expect(data.system.length).toBe(1);
+    expect(data.system[0]).toContain("grep:ETIMEDOUT");
+    expect(data.system[0]).toContain("3 consecutive times");
+    expect(ctx._autoMaxTrigger).toBeUndefined();
+  });
+
+  it("trigger is cleaned up even on empty system array", async () => {
+    const mod = await import("./index");
+    const ctx: Record<string, unknown> = {
+      projectRoot: "/tmp/test-project",
+      config: {},
+    };
+    const hooks = await mod.default.server(ctx);
+
+    ctx._autoMaxTrigger = {
+      tool: "bash",
+      errorType: "ENOENT",
+      failCount: 3,
+      sessionID: "s7",
+    };
+
+    const data = { system: [] as string[] };
+    await hooks["experimental.chat.system.transform"]!(
+      { sessionID: "s7" },
+      data,
+    );
+
+    expect(ctx._autoMaxTrigger).toBeUndefined();
+  });
+
+  it("tool.execute.after detects errors in object metadata with error flag", async () => {
+    const mod = await import("./index");
+    const ctx: Record<string, unknown> = {
+      projectRoot: "/tmp/test-project",
+      config: {},
+    };
+    const hooks = await mod.default.server(ctx);
+
+    // Error via metadata.error flag should be detected
+    await hooks["tool.execute.after"]!(
+      { tool: "read", sessionID: "s8", callID: "c1" },
+      { metadata: { error: true } },
+    );
+    await hooks["tool.execute.after"]!(
+      { tool: "read", sessionID: "s8", callID: "c2" },
+      { metadata: { error: true } },
+    );
+    await hooks["tool.execute.after"]!(
+      { tool: "read", sessionID: "s8", callID: "c3" },
+      { metadata: { error: true } },
+    );
+
+    expect(ctx._autoMaxTrigger).toBeDefined();
+    const trigger = ctx._autoMaxTrigger as Record<string, unknown>;
+    expect(trigger.tool).toBe("read");
+  });
+
+  it("tool.execute.after detects errors via output object code property", async () => {
+    const mod = await import("./index");
+    const ctx: Record<string, unknown> = {
+      projectRoot: "/tmp/test-project",
+      config: {},
+    };
+    const hooks = await mod.default.server(ctx);
+
+    // Object output with metadata.error flag triggers error detection;
+    // extractErrorType then reads the code property from the object
+    await hooks["tool.execute.after"]!(
+      { tool: "glob", sessionID: "s9", callID: "c1" },
+      { output: { code: "ENOENT", message: "not found" }, metadata: { error: true } },
+    );
+    await hooks["tool.execute.after"]!(
+      { tool: "glob", sessionID: "s9", callID: "c2" },
+      { output: { code: "ENOENT", message: "not found" }, metadata: { error: true } },
+    );
+    await hooks["tool.execute.after"]!(
+      { tool: "glob", sessionID: "s9", callID: "c3" },
+      { output: { code: "ENOENT", message: "not found" }, metadata: { error: true } },
+    );
+
+    expect(ctx._autoMaxTrigger).toBeDefined();
+    const trigger = ctx._autoMaxTrigger as Record<string, unknown>;
+    expect(trigger.tool).toBe("glob");
+    expect(trigger.errorType).toBe("ENOENT");
   });
 });
