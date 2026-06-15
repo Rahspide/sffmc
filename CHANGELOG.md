@@ -1,5 +1,34 @@
 # SFFMC Changelog
 
+## v0.7.4 — Shared SDK migration + test log cleanup (2026-06-15)
+
+Two parallel cleanups: increase shared SDK adoption and silence noisy test output.
+
+### Shared SDK adoption: 3/10 → 6/10 plugins
+
+Migrated local `PluginContext` interfaces to `@sffmc/shared`:
+- `@sffmc/memory` — was already importing `loadConfig` but had no `workspace:*` dep declaration
+- `@sffmc/rules`
+- `@sffmc/auto-max`
+- `@sffmc/watchdog`
+- `@sffmc/compose`
+
+`@sffmc/max-mode` keeps its local interface (has complex `sessionID?` / `client?.session?.message?` types not in shared).
+`@sffmc/workflow` already had its own type from `runtime.ts`.
+
+Each migrated package.json now declares `"@sffmc/shared": "workspace:*"`. Lockfile updated via `bun install`.
+
+### Test log cleanup (subagent-verified)
+
+`bun test` output was 4× noisy per test run. Two plugins had `console.warn(...loaded...)` inside `server()`, firing once per test file that imported the plugin:
+- `c344025` — `@sffmc/watchdog`: `let loadedLogged = false` flag gates the warn
+- `8440834` — `@sffmc/auto-max`: same pattern
+
+**Before**: 4 `[watchdog] loaded` + 4 `[auto-max] loaded` = 8 lines of noise per test run
+**After**: 1 + 1 = 2 lines
+
+Both fixes verified by subagent `ses_1374532f8ffe352UPSZ5ryFdy9` (watchdog) and `ses_1373e4e76ffec2wZy4JYi4U3Kh` (auto-max). 292/292 tests pass, sffmc_health 7/7.
+
 ## v0.7.3 — Test infrastructure hardening (2026-06-15)
 
 User asked to tighten testing infrastructure before going to prod. This release makes every commit verified.
