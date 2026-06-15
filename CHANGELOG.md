@@ -27,6 +27,11 @@ Added `.sffmc/` (per-project workflow runtime artifacts, like `.slim/deepwork/`)
 - 272 → 292 (added 20 in @sffmc/health in v0.7.2)
 - All green via pre-commit hook
 
+### Bug fix in pre-commit hook (post-release)
+- Hook was using `bun test` (default, includes `dependencies/MiMo-Code` → 355 fake failures) AND piping through `| tail` which masked exit codes
+- Fixed: use scoped `bun test --path-ignore-patterns='dependencies/**' packages/ shared/` + verify exit code explicitly via `|| { ... exit 1 }`
+- Hook now correctly fails the commit on real test failures
+
 ## v0.7.2 — F3+ Health plugin (2026-06-15)
 
 Revived F3+ Health from v8.0 cut list (`docs/v8-decision.md`) as a real diagnostic tool. Plugin authors can now run `sffmc_health` to check monorepo health in <1s.
