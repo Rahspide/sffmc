@@ -1,194 +1,151 @@
 # SFFMC — Some Features From MiMo Code
 
 OpenCode plugin suite porting killer features from Xiaomi's MiMo-Code fork.
-MIT licensed. Monorepo. v0.8.0 shipped.
+MIT licensed. Monorepo. **v0.9.0** (3-MSP restructure of v0.8.x).
 
 ## What is this
 
-11 packages, 394 tests passing. Killer features from MiMo-Code, ported as standalone OpenCode plugins:
+3 Multi-Plugin Packages (MSPs), 14 sub-feature packages, 480 tests passing.
+Killer features from MiMo-Code v8.0 ported as OpenCode plugins plus SFFMC
+team additions. Each MSP composes its sub-features via `mergeHooks()` from
+`@sffmc/shared`.
 
-- **F4' Memory + Context Recon 8K** — agent remembers your project across sessions
-- **F2 Rules** — safety net for destructive operations
-- **F1 Watchdog** — agent auto-recovers from stuck loops
-- **F7 Max Mode** — parallel drafts for hard problems
-- **Auto-Max triggers** — F1+F2 auto-call F7 when needed
-- **Dynamic Workflow** — sandboxed JS for 200+ step tasks (5 builtins: deep-research, plan, tdd, refactor, +custom)
-- **Verify skill** — "no completion claims without fresh verification evidence"
-- **Compose pack** — 15 ready-made skills (plan/tdd/verify/subagent/etc)
-- **EOS stripper** + **Log whitelist** — local-model survival + log hygiene
-- **@sffmc/shared** — opt-in SDK (loadConfig, PluginContext, EventBus) for plugin authors
-- **@sffmc/extra** — opt-in bundle of 3 advanced features (F5' Checkpoint, F6' Judge, F8 Dream). All disabled by default — flip flags in `~/.config/SFFMC/extra.yaml` per feature.
+### The 3 MSPs
+
+| MSP | Sub-features | Hooks | Tools | Skills |
+|---|---|---|---|---|
+| **`@sffmc/safety`** | 5 (watchdog, rules, auto-max, eos-stripper, log-whitelist) | 9 keys | 0 | 3 |
+| **`@sffmc/memory`** | 4 (memory-core, checkpoint, judge, dream) | 5 keys | 3 (`extra_checkpoint`, `extra_judge`, `extra_dream`) | 4 |
+| **`@sffmc/agentic`** | 4 (max-mode, workflow, compose, health) | 5 keys | 3 (`workflow`, `compose_skill`, `sffmc_health`) | 5 |
+
+Total: 14 sub-features (11 standalone + 3 inner of extra), 12 new skills, 6 tools.
+
+## What's from MiMo-Code vs what's ours
+
+### Ported from MiMo-Code v8.0 (9 features)
+
+| MiMo feature | SFFMC package | MSP | Description |
+|---|---|---|---|
+| F1 Watchdog | `@sffmc/watchdog` | safety | 3-failure rolling counter + recovery verdict |
+| F2 Rules | `@sffmc/rules` | safety | YAML gate-based allow/deny for destructive commands |
+| F4' Memory + Recon 8K | `@sffmc/memory` | memory | FTS5 SQLite + context recon at session start |
+| F5' Checkpoint | `@sffmc/extra.checkpoint` | memory | 200K resume with schema migration story |
+| F6' Judge | `@sffmc/extra.judge` | memory | Multi-criteria verdict with streaming mode |
+| F7 Max Mode | `@sffmc/max-mode` | agentic | Parallel drafts + judge (10-20% SWE-Bench gain) |
+| F8 Dream | `@sffmc/extra.dream` | memory | LLM cluster naming + memory cleaning |
+| W5-6 Dynamic Workflow | `@sffmc/workflow` | agentic | Sandboxed JS (quickjs-emscripten WASM) + 7 builtins |
+| W4 Compose | `@sffmc/compose` | agentic | 18 markdown skills (plan, tdd, verify, subagent, etc.) |
+
+### SFFMC team additions (5 packages)
+
+| Package | MSP | Rationale |
+|---|---|---|
+| `@sffmc/auto-max` | safety | Watchdog/rules-driven auto-escalation to max-mode |
+| `@sffmc/eos-stripper` | safety | Local model survival: strip `<\|im_end\|>` etc. from Ollama/vLLM/oMLX outputs |
+| `@sffmc/log-whitelist` | safety | Prevents 12GB permission-log spam from 30-day daemon runs |
+| `@sffmc/health` | agentic | F3+ plugin diagnostic: 12-check tool with JSON output |
+| `@sffmc/shared` | — | SDK: `loadConfig`, `PluginContext`, `EventBus`, `mergeHooks` |
 
 ## Quick start
 
-```bash
-# 1. Add the SFFMC plugins to your OpenCode config (~/.config/opencode/opencode.json):
-#    "plugin": [ ..., "file:///path/to/SFFMC/packages/memory/src/index.ts", ... ]
-#
-# 2. (Optional) add the shared SDK to your package.json workspaces:
-#    "workspaces": ["packages/*", "shared"]
-#
-# 3. (Optional) use workflow builtins:
-#    workflow({ operation: "run", name: "deep-research", args: { question: "..." } })
+### Option A: Load the 3 MSPs (recommended)
 
-# Run all tests
-bun test
+Add to your `~/.config/opencode/opencode.json` `plugin` array:
 
-# Build all plugins to /tmp/sffmc-build
-bun run build
-
-# Type-check
-bun run typecheck
+```json
+"file:///path/to/SFFMC/packages/safety/src/index.ts",
+"file:///path/to/SFFMC/packages/memory/src/index.ts",
+"file:///path/to/SFFMC/packages/agentic/src/index.ts"
 ```
 
-→ Full setup walkthrough: **[docs/getting-started.md](docs/getting-started.md)**
+### Option B: Load individual sub-features (legacy)
 
-## W5-6: Dynamic Workflow (v0.6.0+)
+All 11 standalone packages still work individually for backward compat:
 
-The flagship feature: sandboxed JavaScript workflows for 200+ step orchestrated tasks. Quickjs-emscripten WASM provides true isolation. 5 builtins ready:
-
-- **deep-research** (6 phases) — adversarial jury validates every fact
-- **plan** (4 phases) — produces a structured 5-step plan
-- **tdd** (5 phases) — generates test + implementation as artifacts
-- **refactor** (4 phases) — proposes before/after patches, never auto-applies
-- **custom** — `export const meta = {...}` in any `.ts` file under `.sffmc/workflows/`
-
-```ts
-// .sffmc/workflows/deep-research.ts (built-in example)
-export const meta = {
-  name: "deep-research",
-  description: "Multi-source research with adversarial jury",
-  whenToUse: "Use for thorough, cited answers",
-  phases: [{title: "Plan"}, {title: "Search"}, {title: "Crosscheck"}, {title: "Report"}],
-}
-
-export default async function main(args) {
-  const plan = await agent("Break: " + args.question, { schema: PLAN_SHAPE })
-  const searches = await parallel(plan.lines.map(line => 
-    () => agent(`Search: ${line.topic}`, { schema: HITS_SHAPE })
-  ))
-  // ... 6 phases total
-  return finalReport
-}
+```json
+"file:///path/to/SFFMC/packages/watchdog/src/index.ts",
+"file:///path/to/SFFMC/packages/rules/src/index.ts",
+"file:///path/to/SFFMC/packages/memory/src/index.ts",
+// etc.
 ```
 
-[Full docs → docs/w5-6-dynamic-workflow.md](docs/w5-6-dynamic-workflow.md)
-[5 examples → docs/workflow-examples.md](docs/workflow-examples.md)
-[Architecture review → docs/w5-6-architecture-review.md](docs/w5-6-architecture-review.md)
+Verify with `bun run /data/projects/SFFMC/packages/health/src/index.ts` (12 checks).
 
-## Why these features
+## What's in v0.9.0
 
-> "Max Mode improves SWE-Bench Pro by 10-20% at the cost of roughly 4-5 times the token consumption."
-> — Xiaomi MiMo-Code blog
+- **3-MSP structure** — safety, memory, agentic compose 14 sub-features via `mergeHooks()`, replacing 11 standalone plugins as the recommended install path
+- **mergeHooks** in `@sffmc/shared` — categorizes hooks into TRANSFORM, GATE, SIDE_EFFECT, and tool for collision-free composition
+- **12 new skills** — 3 safety, 4 memory, 5 agentic for LLM-facing guidance
+- **TRANSFORM hook audit** — 7 handlers across 5 files fixed to return data (chain compat)
+- **extra refactor** — 3 named server exports for clean `mergeHooks()` composition
+- **memory extracted** — `plugin.ts` (id="memory-core") is the sub-feature; `index.ts` is the MSP wrapper
 
-**What each feature gives you**:
+For the full list, see `CHANGELOG.md`.
 
-- **F4' Memory** — the agent remembers your project across sessions. No more "what repo is this?" at session start. Context recon injects a structured summary (memory bank + AGENTS.md + recent chat) before the first tool call.
-- **F2 Rules** — safety net. Blocks `rm -rf /`, `DROP TABLE`, `chmod 777`, writes outside project root. Prevents catastrophic mistakes before they happen. Configurable via YAML.
-- **F1 Watchdog** — agent stuck in a loop? After 3 failed tools, watchdog kicks in and redirects. No more manually breaking infinite loops.
-- **F7 Max Mode** — the 10-20% benchmark gain. 3 parallel drafts + a judge pick the best approach. Costs 4-5× tokens — worth it for hard problems.
-- **Auto-Max triggers** — F1+F2 auto-call F7 when needed. You don't toggle Max Mode manually; the agent detects when a problem is hard enough.
-- **Dynamic Workflow** — sandboxed JS primitives (`agent()`, `parallel()`, `pipeline()`) for 200+ step tasks. Clone → update libs → refactor → test → open PR — in one session.
-- **Verify skill** — "no completion claims without fresh verification evidence." The agent must show test output, lint results, or a diff before claiming done.
-- **Compose pack** — 15 ready-made skills (plan / tdd / verify / subagent / etc) ported from MiMo-Code. Drop-in productivity boosts.
-- **EOS stripper** — local models (Ollama, vLLM, oMLX) emit `<|im_end|>` etc. and die in agent loops. This strips them.
-- **Log whitelist** — prevents 12GB permission-log spam from 30-day daemon runs.
+## Backward compat
 
-Benchmark comparison (source: MiMo-Code blog, June 2026):
+All 11 sub-feature packages still work as standalone plugins. v0.8.2 configs
+continue to work without changes. v1.0.0 will deprecate standalone loading
+(announced in CHANGELOG when released).
 
-| System | Resolved | Coverage | Avg Score |
-|---|---|---|---|
-| MiMo-Code + MiMo-V2.5-Pro | 82 | 62 | 73 |
-| Claude Code + Sonnet 4.6 | 79 | 55 | 69 |
-
-SFFMC ports the features that create this gap — as OpenCode plugins, not a fork.
-
-## Package categories
-
-The 11 SFFMC packages are split into two categories. This separation is enforced via the `category` field in each `package.json` and verified by `sffmc_health`'s `category_split` check.
-
-### `mimo-port` — features ported from MiMo-Code v8.0 (7 packages)
-
-| Package | MiMo feature | Description |
-|---|---|---|
-| `@sffmc/memory` | F4' Memory + Context Recon 8K | Stores memories in SQLite, injects recon at session start |
-| `@sffmc/rules` | F2 Rules (safety net) | YAML gate-based allow/deny for destructive commands |
-| `@sffmc/watchdog` | F1 Watchdog | 3-failure rolling counter + recovery verdict + `/max` escape |
-| `@sffmc/max-mode` | F7 Max Mode | Parallel drafts + judge for hard problems (10-20% SWE-Bench gain) |
-| `@sffmc/auto-max` | Auto-escalation | Watchdog/rules-driven auto-trigger of Max Mode |
-| `@sffmc/compose` | 15 compose skills | Drop-in productivity skills ported from MiMo-Code |
-| `@sffmc/workflow` | W5-6 Dynamic Workflow | quickjs-emscripten WASM sandbox + 3 primitives + 7 builtins |
-
-### `sffmc-original` — additions by the SFFMC team (4 packages)
-
-| Package | Rationale |
-|---|---|
-| `@sffmc/eos-stripper` | Local model survival: strip `<\|im_end\|>` etc. from Ollama/vLLM/oMLX outputs |
-| `@sffmc/log-whitelist` | Prevents 12GB permission-log spam from 30-day OpenCode daemon runs |
-| `@sffmc/health` | F3+ Health diagnostic — 12-check tool for plugin authors, JSON output |
-| `@sffmc/extra` | F5'/F6'/F8 opt-in bundle (cut from v8.0, kept as togglable plugin) |
-
-Run `sffmc_health` to see the live category split and verify all packages are categorized.
-
-## Status
-
-| Version | Date | Highlights |
-|---|---|---|
-| **v0.8.0** | 2026-06-15 | **+ @sffmc/extra (11th plugin): F5' Checkpoint, F6' Judge, F8 Dream (opt-in, off by default). 394 tests.** |
-| v0.7.5 | 2026-06-15 | Full repository codemap (24 codemap.md files, ~11000 words) |
-| v0.7.4 | 2026-06-15 | 8/10 plugins migrated to @sffmc/shared SDK (PluginContext type) |
-| v0.7.0 | 2026-06-15 | + 3 workflow builtins (plan, tdd, refactor), @sffmc/shared SDK, 9 per-plugin READMEs, getting-started guide |
-| v0.6.1 | 2026-06-15 | Load order audit (0 conflicts, 9/9 plugins verified) |
-| v0.6.0 | 2026-06-15 | Dynamic Workflow engine + deep-research builtin, 9 SFFMC plugins shipped, 96 tests |
-| v0.5.0 | 2026-06-14 | Compose pack (15 skills from MiMo-Code) |
-| v0.4.0 | 2026-06-14 | Max Mode + Auto-max (7 plugins) |
-| v0.3.0 | 2026-06-14 | Watchdog + EOS stripper + log whitelist |
-| v0.2.0 | 2026-06-14 | Memory + Context Recon + Rules |
-
-See [CHANGELOG.md](CHANGELOG.md) for full release notes and [docs/v8-decision.md](docs/v8-decision.md) for the cut/ship rationale.
-
-## Repository layout
+## Repo layout
 
 ```
 SFFMC/
-├── README.md
+├── packages/
+│   ├── safety/         # NEW in v0.9.0 — MSP: 5 sub-features via mergeHooks
+│   ├── memory/         # MSP since v0.9.0 — 4 sub-features (was 1 in v0.8.x)
+│   ├── agentic/        # NEW in v0.9.0 — MSP: 4 sub-features via mergeHooks
+│   ├── watchdog/       # sub-feature of safety (F1, mimo-port)
+│   ├── rules/          # sub-feature of safety (F2, mimo-port)
+│   ├── auto-max/       # sub-feature of safety (sffmc-original)
+│   ├── eos-stripper/   # sub-feature of safety (sffmc-original)
+│   ├── log-whitelist/  # sub-feature of safety (sffmc-original)
+│   ├── extra/          # sub-feature of memory (3 inner: checkpoint, judge, dream)
+│   ├── max-mode/       # sub-feature of agentic (F7, mimo-port)
+│   ├── workflow/       # sub-feature of agentic (W5-6, mimo-port)
+│   ├── compose/        # sub-feature of agentic (W4, mimo-port)
+│   ├── health/         # sub-feature of agentic (sffmc-original)
+│   └── codemap.md      # per-package code map
+├── shared/             # @sffmc/shared — loadConfig, PluginContext, EventBus, mergeHooks
 ├── CHANGELOG.md
-├── LICENSE                         # MIT
-├── package.json                    # bun workspace
-├── tsconfig.json                   # strict TypeScript
-├── docs/
-│   ├── getting-started.md          # first-workflow walkthrough
-│   ├── v8-decision.md              # what ships, what cuts, why
-│   ├── w5-6-dynamic-workflow.md    # Workflow engine design doc
-│   ├── workflow-examples.md        # 5 copy-pasteable examples
-│   ├── load-order-audit.md         # hook conflict analysis
-│   ├── import-from-mimo.md         # W4 feature mapping
-│   └── migration-from-opencode.md # migration guide
-├── packages/                       # 11 feature plugins
-│   ├── memory/                     # @sffmc/memory (F4')
-│   ├── rules/                      # @sffmc/rules (F2)
-│   ├── watchdog/                   # @sffmc/watchdog (F1)
-│   ├── eos-stripper/               # @sffmc/eos-stripper
-│   ├── log-whitelist/              # @sffmc/log-whitelist
-│   ├── max-mode/                   # @sffmc/max-mode (F7)
-│   ├── auto-max/                   # @sffmc/auto-max
-│   ├── compose/                    # @sffmc/compose (15 skills)
-│   ├── workflow/                   # @sffmc/workflow (5 builtins)
-│   ├── health/                     # @sffmc/health (F3+ Health, 11 checks)
-│   └── extra/                      # @sffmc/extra (opt-in: F5' Checkpoint, F6' Judge, F8 Dream)
-├── shared/                         # @sffmc/shared SDK (opt-in)
-└── scripts/
-    └── audit-load-order.py         # AST-based hook auditor
+├── CONTRIBUTING.md
+└── RELEASE.md
+```
+
+## Test
+
+```bash
+cd /data/projects/SFFMC
+bun test                              # 480 tests across 24 files
+cd packages/safety && bun test        # 3 tests (MSP smoke)
+cd packages/memory && bun test        # 20 tests (3 MSP + 17 DB-layer)
+cd packages/agentic && bun test       # 3 tests (MSP smoke)
 ```
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Each plugin is a standalone TypeScript module with its own README, tests, and changelog entry.
+See `CONTRIBUTING.md`. Each sub-feature is a standalone TypeScript module.
+MSP packages are thin wrappers that compose sub-features via `mergeHooks()`.
 
 ## Publishing
 
-See [RELEASE.md](RELEASE.md) for the per-plugin publish checklist (no remote currently configured; v0.7.0 is local-only).
+See `RELEASE.md` for the per-package publish checklist (local-only as of v0.9.0).
+
+## Migration from v0.8.x
+
+v0.8.2 configs work without changes. To migrate to MSPs (recommended for new
+configs):
+
+```diff
+- "plugin": [ ..., "memory", "watchdog", "rules", ..., "max-mode", "compose" ]
++ "plugin": [ ..., "safety", "memory", "agentic" ]
+```
+
+The 3 MSPs compose all 11 sub-features via `mergeHooks()` and have no
+user-visible behavior change — same hooks, same tools, same configs.
+Standalone loading will be deprecated in v1.0.0, not removed.
 
 ## License
 
-MIT
+MIT. See `LICENSE`.
