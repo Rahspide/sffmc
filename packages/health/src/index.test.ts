@@ -2,7 +2,7 @@
 // @sffmc/health — see ../../LICENSE
 
 import { describe, it, expect, afterEach } from "bun:test";
-import { mkdir, writeFile, rm, mkdtemp } from "node:fs/promises";
+import { mkdir, writeFile, rm, mkdtemp, rename } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -20,6 +20,7 @@ import {
   checkChangelogCurrency,
   checkExtraOptIn,
   checkCategorySplit,
+  checkMspStructure,
   type CheckResult,
   type CheckFn,
 } from "./index";
@@ -258,32 +259,37 @@ describe("checkVersionConsistency", () => {
 });
 
 describe("checkToolRegistration", () => {
+  const ALL_TOOL_FILES = {
+    "compose": "packages/compose/src/index.ts",
+    "workflow": "packages/workflow/src/tool.ts",
+    "health": "packages/health/src/index.ts",
+    "extra/checkpoint": "packages/extra/src/checkpoint.ts",
+    "extra/judge": "packages/extra/src/judge.ts",
+    "extra/dream": "packages/extra/src/dream.ts",
+  };
+
   it("reports ok when tool files have no name field at tool level", async () => {
     await withTempDir(async (dir) => {
-      // Simulate a correct tool file (no `name` field at tool level)
-      await mkdir(join(dir, "packages", "compose", "src"), { recursive: true });
-      await mkdir(join(dir, "packages", "workflow", "src"), { recursive: true });
-      await writeFile(join(dir, "packages", "compose", "src", "index.ts"), `
-        export default {
-          id: "@sffmc/compose",
-          server: async (ctx) => ({
-            tool: {
-              compose_skill: {
-                description: "Load a skill",
-                parameters: { name: { type: "string" } },
-                execute: async ({ name }) => "ok",
+      // Simulate correct tool files (no `name` field at tool level)
+      for (const [key, relPath] of Object.entries(ALL_TOOL_FILES)) {
+        const pkgDir = join(dir, "packages", key.split("/")[0]);
+        const srcDir = join(dir, relPath).replace(/\/[^/]+$/, "");
+        await mkdir(srcDir, { recursive: true });
+        await writeFile(join(dir, relPath), `
+          export default {
+            id: "@sffmc/${key.replace("/", "-")}",
+            server: async (ctx) => ({
+              tool: {
+                tool_${key.replace("/", "_")}: {
+                  description: "A tool",
+                  parameters: { name: { type: "string" } },
+                  execute: async ({ name }) => "ok",
+                }
               }
-            }
-          })
-        };
-      `);
-      await writeFile(join(dir, "packages", "workflow", "src", "tool.ts"), `
-        export const workflowTool = {
-          description: "Run workflows",
-          parameters: { type: "object", properties: {} },
-          execute: async (args) => "ok",
-        } as const;
-      `);
+            })
+          };
+        `);
+      }
 
       const result = await checkToolRegistration(dir);
       expect(result.status).toBe("ok");
@@ -292,29 +298,42 @@ describe("checkToolRegistration", () => {
 
   it("reports fail when a tool file has name field at tool level", async () => {
     await withTempDir(async (dir) => {
-      await mkdir(join(dir, "packages", "compose", "src"), { recursive: true });
-      await mkdir(join(dir, "packages", "workflow", "src"), { recursive: true });
-      await writeFile(join(dir, "packages", "compose", "src", "index.ts"), `
-        export default {
-          server: async (ctx) => ({
-            tool: {
-              my_tool: {
-                name: "my_tool",
-                description: "Bad tool with name field",
-                parameters: {},
-                execute: async () => "ok",
-              }
-            }
-          })
-        };
-      `);
-      await writeFile(join(dir, "packages", "workflow", "src", "tool.ts"), `
-        export const workflowTool = {
-          description: "Run workflows",
-          parameters: {},
-          execute: async () => "ok",
-        } as const;
-      `);
+      for (const [key, relPath] of Object.entries(ALL_TOOL_FILES)) {
+        const srcDir = join(dir, relPath).replace(/\/[^/]+$/, "");
+        await mkdir(srcDir, { recursive: true });
+        if (key === "compose") {
+          // This one has the name field bug
+          await writeFile(join(dir, relPath), `
+            export default {
+              server: async (ctx) => ({
+                tool: {
+                  my_tool: {
+                    name: "my_tool",
+                    description: "Bad tool with name field",
+                    parameters: {},
+                    execute: async () => "ok",
+                  }
+                }
+              })
+            };
+          `);
+        } else {
+          // Others are clean
+          await writeFile(join(dir, relPath), `
+            export default {
+              server: async (ctx) => ({
+                tool: {
+                  tool_${key.replace("/", "_")}: {
+                    description: "A tool",
+                    parameters: {},
+                    execute: async () => "ok",
+                  }
+                }
+              })
+            };
+          `);
+        }
+      }
 
       const result = await checkToolRegistration(dir);
       expect(result.status).toBe("fail");
@@ -440,12 +459,12 @@ describe("checkSdkCompliance", () => {
     });
   });
 
-  it("reports fail when a package directory is missing", async () => {
+  it("reports fail when a package is missing src/index.ts", async () => {
     await withTempDir(async (dir) => {
-      // Only create 9 of 10 package directories — omit "memory"
-      const allButMemory = SFFMC_PACKAGES.filter((p) => p !== "memory");
-      for (const pkg of allButMemory) {
+      for (const pkg of SFFMC_PACKAGES) {
         await mkdir(join(dir, "packages", pkg, "src"), { recursive: true });
+        // memory will have a directory but no src/index.ts (simulate missing file)
+        if (pkg === "memory") continue;
         let content: string;
         if (pkg === "max-mode" || pkg === "workflow") {
           content = `// SPDX-License-Identifier: MIT\nexport default { id: "@sffmc/${pkg}", server: async () => ({}) };`;
@@ -700,6 +719,185 @@ describe("checkCategorySplit", () => {
       const result = await checkCategorySplit(dir);
       expect(result.status).toBe("warn");
       expect(result.detail).toContain("uncategorized");
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// checkMspStructure
+// ---------------------------------------------------------------------------
+
+describe("checkMspStructure", () => {
+  it("reports ok when all 3 MSPs are valid", async () => {
+    await withTempDir(async (dir) => {
+      const features = ["feat-a", "feat-b", "feat-c", "feat-d", "feat-e", "feat-f"];
+      // Create sub-feature dirs referenced by mspFeatures
+      for (const feat of features) {
+        await mkdir(join(dir, "packages", feat), { recursive: true });
+        await writeFile(join(dir, "packages", feat, "package.json"), JSON.stringify({
+          name: `@sffmc/${feat}`,
+          version: "0.9.0",
+          category: "mimo-port",
+        }));
+      }
+
+      // Create 3 MSPs with proper structure
+      const msps: { name: string; features: string[] }[] = [
+        { name: "safety", features: ["feat-a", "feat-b"] },
+        { name: "memory", features: ["feat-c", "feat-d"] },
+        { name: "agentic", features: ["feat-e", "feat-f"] },
+      ];
+      for (const msp of msps) {
+        await mkdir(join(dir, "packages", msp.name, "src"), { recursive: true });
+        await writeFile(
+          join(dir, "packages", msp.name, "package.json"),
+          JSON.stringify({
+            name: `@sffmc/${msp.name}`,
+            version: "0.9.0",
+            category: "msp",
+            mspRole: msp.name,
+            mspFeatures: msp.features,
+          }),
+        );
+        await writeFile(
+          join(dir, "packages", msp.name, "src", "index.ts"),
+          `import { mergeHooks } from "@sffmc/shared";\nexport default mergeHooks([]);`,
+        );
+      }
+
+      const result = await checkMspStructure(dir);
+      expect(result.status).toBe("ok");
+      expect(result.detail).toContain("3 MSPs valid");
+      expect(result.detail).toContain("safety");
+      expect(result.detail).toContain("memory");
+      expect(result.detail).toContain("agentic");
+    });
+  });
+
+  it("reports fail when an MSP directory is missing", async () => {
+    await withTempDir(async (dir) => {
+      // Create only 2 of 3 MSPs (skip safety)
+      for (const msp of ["memory", "agentic"]) {
+        await mkdir(join(dir, "packages", msp, "src"), { recursive: true });
+        await writeFile(
+          join(dir, "packages", msp, "package.json"),
+          JSON.stringify({
+            name: `@sffmc/${msp}`,
+            version: "0.9.0",
+            category: "msp",
+            mspRole: msp,
+            mspFeatures: ["some-feat"],
+          }),
+        );
+        await mkdir(join(dir, "packages", "some-feat"), { recursive: true });
+        await writeFile(join(dir, "packages", "some-feat", "package.json"), JSON.stringify({ name: "@sffmc/some-feat", version: "0.9.0", category: "mimo-port" }));
+        await writeFile(
+          join(dir, "packages", msp, "src", "index.ts"),
+          `import { mergeHooks } from "@sffmc/shared";\nexport default mergeHooks([]);`,
+        );
+      }
+
+      const result = await checkMspStructure(dir);
+      expect(result.status).toBe("fail");
+      expect(result.detail).toContain("MSP directory missing");
+      expect(result.detail).toContain("safety");
+    });
+  });
+
+  it("reports fail when an MSP src/index.ts does not call mergeHooks", async () => {
+    await withTempDir(async (dir) => {
+      for (const msp of ["safety", "memory", "agentic"]) {
+        await mkdir(join(dir, "packages", msp, "src"), { recursive: true });
+        await writeFile(
+          join(dir, "packages", msp, "package.json"),
+          JSON.stringify({
+            name: `@sffmc/${msp}`,
+            version: "0.9.0",
+            category: "msp",
+            mspRole: msp,
+            mspFeatures: ["some-feat"],
+          }),
+        );
+        // safety gets no mergeHooks call; others are fine
+        const content = msp === "safety"
+          ? `import { something } from "@sffmc/shared";\nexport default { id: "safety" };`
+          : `import { mergeHooks } from "@sffmc/shared";\nexport default mergeHooks([]);`;
+        await writeFile(join(dir, "packages", msp, "src", "index.ts"), content);
+      }
+      await mkdir(join(dir, "packages", "some-feat"), { recursive: true });
+      await writeFile(join(dir, "packages", "some-feat", "package.json"), JSON.stringify({ name: "@sffmc/some-feat", version: "0.9.0", category: "mimo-port" }));
+
+      const result = await checkMspStructure(dir);
+      expect(result.status).toBe("fail");
+      expect(result.detail).toContain("does not call mergeHooks");
+      expect(result.detail).toContain("safety");
+    });
+  });
+
+  it("reports fail when an MSP lists a nonexistent feature", async () => {
+    await withTempDir(async (dir) => {
+      for (const msp of ["safety", "memory", "agentic"]) {
+        await mkdir(join(dir, "packages", msp, "src"), { recursive: true });
+        await writeFile(
+          join(dir, "packages", msp, "package.json"),
+          JSON.stringify({
+            name: `@sffmc/${msp}`,
+            version: "0.9.0",
+            category: "msp",
+            mspRole: msp,
+            mspFeatures: msp === "safety" ? ["nonexistent-feature"] : ["real-feat"],
+          }),
+        );
+        await writeFile(
+          join(dir, "packages", msp, "src", "index.ts"),
+          `import { mergeHooks } from "@sffmc/shared";\nexport default mergeHooks([]);`,
+        );
+      }
+      // Only create real-feat (not nonexistent-feature)
+      await mkdir(join(dir, "packages", "real-feat"), { recursive: true });
+      await writeFile(join(dir, "packages", "real-feat", "package.json"), JSON.stringify({ name: "@sffmc/real-feat", version: "0.9.0", category: "mimo-port" }));
+
+      const result = await checkMspStructure(dir);
+      expect(result.status).toBe("fail");
+      expect(result.detail).toContain("nonexistent-feature");
+      expect(result.detail).toContain("does not exist");
+    });
+  });
+
+  it("reports fail when a sub-feature claims to be an MSP", async () => {
+    await withTempDir(async (dir) => {
+      // Create 3 valid MSPs
+      for (const msp of ["safety", "memory", "agentic"]) {
+        await mkdir(join(dir, "packages", msp, "src"), { recursive: true });
+        await writeFile(
+          join(dir, "packages", msp, "package.json"),
+          JSON.stringify({
+            name: `@sffmc/${msp}`,
+            version: "0.9.0",
+            category: "msp",
+            mspRole: msp,
+            mspFeatures: ["feat-a"],
+          }),
+        );
+        await writeFile(
+          join(dir, "packages", msp, "src", "index.ts"),
+          `import { mergeHooks } from "@sffmc/shared";\nexport default mergeHooks([]);`,
+        );
+      }
+      await mkdir(join(dir, "packages", "feat-a"), { recursive: true });
+      await writeFile(join(dir, "packages", "feat-a", "package.json"), JSON.stringify({ name: "@sffmc/feat-a", version: "0.9.0", category: "mimo-port" }));
+
+      // rogue sub-feature claiming to be an MSP
+      await mkdir(join(dir, "packages", "rogue"), { recursive: true });
+      await writeFile(
+        join(dir, "packages", "rogue", "package.json"),
+        JSON.stringify({ name: "@sffmc/rogue", version: "0.9.0", category: "msp" }),
+      );
+
+      const result = await checkMspStructure(dir);
+      expect(result.status).toBe("fail");
+      expect(result.detail).toContain("rogue");
+      expect(result.detail).toContain("claims to be an MSP");
     });
   });
 });

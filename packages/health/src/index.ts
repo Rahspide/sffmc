@@ -277,8 +277,12 @@ export async function checkTypeCheck(repoRoot: string): Promise<CheckResult> {
 // ---------------------------------------------------------------------------
 
 const TOOL_FILES = [
-  "packages/compose/src/index.ts",
-  "packages/workflow/src/tool.ts",
+  "packages/compose/src/index.ts",       // compose_skill
+  "packages/workflow/src/tool.ts",       // workflow
+  "packages/health/src/index.ts",        // sffmc_health
+  "packages/extra/src/checkpoint.ts",    // extra_checkpoint
+  "packages/extra/src/judge.ts",         // extra_judge
+  "packages/extra/src/dream.ts",         // extra_dream
 ];
 
 export async function checkToolRegistration(repoRoot: string): Promise<CheckResult> {
@@ -318,8 +322,10 @@ export async function checkToolRegistration(repoRoot: string): Promise<CheckResu
         const indent = keyMatch[1].length;
         const key = keyMatch[2];
 
-        // Only track known tool-structure keys + the potentially-buggy `name` key.
-        const isToolKey = key === "description" || key === "execute" || key === "parameters" || key === "name";
+        // Only track known tool-structure keys + the potentially-buggy `name` key, plus `status` and
+        // `detail` so we can distinguish CheckResult returns (which have those) from tool definitions
+        // (which don't) when they appear at the same indent.
+        const isToolKey = key === "description" || key === "execute" || key === "parameters" || key === "name" || key === "status" || key === "detail";
         if (!isToolKey) continue;
 
         const afterColon = line.slice(keyMatch[0].length).trim();
@@ -334,9 +340,13 @@ export async function checkToolRegistration(repoRoot: string): Promise<CheckResu
         }
       }
 
-      // For each indent level that has both `description` and `execute`, check for `name` with string value
+      // For each indent level that has `description` + `parameters` + `execute`, check for `name` with string value.
+      // Also require that the indent does NOT have `status` or `detail` — those indicate a CheckResult
+      // return object (which legitimately has a `name` field), not a tool definition. This avoids false
+      // positives when the file contains both tool definitions and CheckResult returns at the same indent.
       for (const [indent, keys] of keysByIndent) {
-        if (!keys.has("description") || !keys.has("execute")) continue;
+        if (!keys.has("description") || !keys.has("execute") || !keys.has("parameters")) continue;
+        if (keys.has("status") || keys.has("detail")) continue;
         if (!keys.has("name")) continue;
 
         const stringKeys = stringKeysByIndent.get(indent);
@@ -465,19 +475,14 @@ export async function checkLicense(repoRoot: string): Promise<CheckResult> {
 // Check 8: SDK compliance (shared import)
 // ---------------------------------------------------------------------------
 
-const SFFMC_PACKAGES = [
-  "auto-max", "compose", "eos-stripper", "extra",
-  "health", "log-whitelist", "max-mode", "memory",
-  "rules", "watchdog", "workflow",
-] as const;
-
 const KNOWN_SDK_EXCEPTIONS = new Set(["max-mode", "workflow"]);
 
 export async function checkSdkCompliance(repoRoot: string): Promise<CheckResult> {
+  const pkgs = (await packageNames(repoRoot)).filter((p) => p !== "shared");
   const missingImport: string[] = [];
   const missingDir: string[] = [];
 
-  for (const pkg of SFFMC_PACKAGES) {
+  for (const pkg of pkgs) {
     if (KNOWN_SDK_EXCEPTIONS.has(pkg)) continue;
 
     const indexPath = join(repoRoot, "packages", pkg, "src", "index.ts");
@@ -506,7 +511,7 @@ export async function checkSdkCompliance(repoRoot: string): Promise<CheckResult>
     return {
       name: "sdk_compliance",
       status: "ok",
-      detail: `${SFFMC_PACKAGES.length - KNOWN_SDK_EXCEPTIONS.size}/${SFFMC_PACKAGES.length} packages import @sffmc/shared (2 known exceptions: ${[...KNOWN_SDK_EXCEPTIONS].join(", ")})`,
+      detail: `${pkgs.length - KNOWN_SDK_EXCEPTIONS.size}/${pkgs.length} packages import @sffmc/shared (2 known exceptions: ${[...KNOWN_SDK_EXCEPTIONS].join(", ")})`,
     };
   }
 
@@ -522,11 +527,12 @@ export async function checkSdkCompliance(repoRoot: string): Promise<CheckResult>
 // ---------------------------------------------------------------------------
 
 export async function checkTsConfigPresence(repoRoot: string): Promise<CheckResult> {
+  const pkgs = await packageNames(repoRoot);
   const missing: string[] = [];
   const invalidJson: string[] = [];
 
-  for (const pkg of SFFMC_PACKAGES) {
-    const tsconfigPath = join(repoRoot, "packages", pkg, "tsconfig.json");
+  for (const pkg of pkgs) {
+    const tsconfigPath = join(pkgDir(pkg, repoRoot), "tsconfig.json");
     try {
       const content = await readFile(tsconfigPath, "utf-8");
       try {
@@ -551,7 +557,7 @@ export async function checkTsConfigPresence(repoRoot: string): Promise<CheckResu
     return {
       name: "tsconfig_presence",
       status: "ok",
-      detail: `${SFFMC_PACKAGES.length}/${SFFMC_PACKAGES.length} packages have tsconfig.json`,
+      detail: `${pkgs.length}/${pkgs.length} packages have tsconfig.json`,
     };
   }
 
@@ -679,12 +685,14 @@ export async function checkExtraOptIn(repoRoot: string): Promise<CheckResult> {
 
 export async function checkCategorySplit(repoRoot: string): Promise<CheckResult> {
   const counts: Record<string, { count: number; features: string[] }> = {
+    "msp": { count: 0, features: [] },
     "mimo-port": { count: 0, features: [] },
     "sffmc-original": { count: 0, features: [] },
     uncategorized: { count: 0, features: [] },
   };
 
-  for (const pkg of SFFMC_PACKAGES) {
+  for (const pkg of await packageNames(repoRoot)) {
+    if (pkg === "shared") continue;
     const pkgJsonPath = join(repoRoot, "packages", pkg, "package.json");
     try {
       const content = await readFile(pkgJsonPath, "utf-8");
@@ -698,6 +706,7 @@ export async function checkCategorySplit(repoRoot: string): Promise<CheckResult>
     }
   }
 
+  const mspCount = counts["msp"].count;
   const portCount = counts["mimo-port"].count;
   const origCount = counts["sffmc-original"].count;
   const uncatCount = counts.uncategorized.count;
@@ -713,7 +722,109 @@ export async function checkCategorySplit(repoRoot: string): Promise<CheckResult>
   return {
     name: "category_split",
     status: "ok",
-    detail: `${portCount} mimo-port (MiMo-Code v8.0 features), ${origCount} sffmc-original (SFFMC team additions)`,
+    detail: `3 MSP categories: ${mspCount} msp (3-MSP bundles: safety/memory/agentic), ${portCount} mimo-port (MiMo-Code v8.0 features), ${origCount} sffmc-original (SFFMC team additions)`,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Check 13: MSP structure (v0.9.0)
+// ---------------------------------------------------------------------------
+
+const EXPECTED_MSPS = ["safety", "memory", "agentic"] as const;
+
+export async function checkMspStructure(repoRoot: string): Promise<CheckResult> {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  // 1. Each expected MSP exists
+  for (const mspName of EXPECTED_MSPS) {
+    const mspDir = join(repoRoot, "packages", mspName);
+    if (!(await fileExists(mspDir))) {
+      errors.push(`MSP directory missing: packages/${mspName}/`);
+      continue;
+    }
+
+    // 2. package.json has mspRole and mspFeatures
+    const pkgJsonPath = join(mspDir, "package.json");
+    try {
+      const content = await readFile(pkgJsonPath, "utf-8");
+      const parsed = JSON.parse(content) as {
+        mspRole?: string;
+        mspFeatures?: string[];
+        category?: string;
+      };
+
+      if (parsed.category !== "msp") {
+        errors.push(`${mspName}: package.json category is not "msp" (got ${parsed.category || "missing"})`);
+      }
+      if (!parsed.mspRole) {
+        errors.push(`${mspName}: package.json missing mspRole`);
+      }
+      if (!parsed.mspFeatures || parsed.mspFeatures.length === 0) {
+        errors.push(`${mspName}: package.json missing mspFeatures`);
+      } else {
+        // 3. Each listed feature corresponds to a real package
+        for (const feature of parsed.mspFeatures ?? []) {
+          const featureDir = join(repoRoot, "packages", feature);
+          if (!(await fileExists(featureDir))) {
+            errors.push(`${mspName} lists mspFeature "${feature}" but packages/${feature}/ does not exist`);
+          }
+        }
+      }
+    } catch (err) {
+      errors.push(`${mspName}: could not read package.json (${err})`);
+    }
+
+    // 4. src/index.ts uses mergeHooks
+    const indexPath = join(mspDir, "src", "index.ts");
+    try {
+      const content = await readFile(indexPath, "utf-8");
+      if (!/mergeHooks\s*\(/.test(content)) {
+        errors.push(`${mspName}: src/index.ts does not call mergeHooks()`);
+      }
+      if (!/from\s+["']@sffmc\/shared["']/.test(content)) {
+        warnings.push(`${mspName}: src/index.ts does not import from @sffmc/shared`);
+      }
+    } catch (err) {
+      errors.push(`${mspName}: could not read src/index.ts (${err})`);
+    }
+  }
+
+  // 5. No sub-feature claims to be an MSP (inverse check)
+  for (const pkg of await packageNames(repoRoot)) {
+    if (EXPECTED_MSPS.includes(pkg as typeof EXPECTED_MSPS[number])) continue;
+    const pkgJsonPath = join(repoRoot, "packages", pkg, "package.json");
+    try {
+      const content = await readFile(pkgJsonPath, "utf-8");
+      const parsed = JSON.parse(content) as { category?: string; mspRole?: string };
+      if (parsed.category === "msp" || parsed.mspRole) {
+        errors.push(`${pkg}: claims to be an MSP but is not in EXPECTED_MSPS`);
+      }
+    } catch {
+      // package.json unreadable — other checks handle this
+    }
+  }
+
+  if (errors.length > 0) {
+    return {
+      name: "msp_structure",
+      status: "fail",
+      detail: `${errors.length} MSP structure error(s): ${errors.join("; ")}`,
+    };
+  }
+
+  if (warnings.length > 0) {
+    return {
+      name: "msp_structure",
+      status: "warn",
+      detail: `3 MSPs valid (safety/memory/agentic), ${warnings.length} warning(s): ${warnings.join("; ")}`,
+    };
+  }
+
+  return {
+    name: "msp_structure",
+    status: "ok",
+    detail: `3 MSPs valid: safety (5 features), memory (4 features), agentic (4 features)`,
   };
 }
 
@@ -734,6 +845,7 @@ const ALL_CHECKS: CheckFn[] = [
   checkChangelogCurrency,
   checkExtraOptIn,
   checkCategorySplit,
+  checkMspStructure,
 ];
 
 export async function runAllChecks(
@@ -764,20 +876,22 @@ export const server = async (ctx: PluginContext) => {
   return {
     tool: {
       sffmc_health: {
-        description: `Run 11 diagnostic checks on the SFFMC monorepo to verify plugin health.
+        description: `Run 13 diagnostic checks on the SFFMC monorepo to verify plugin health.
 
 Checks performed:
 1. hook_conflicts — invokes scripts/audit-load-order.py, reports hook conflicts between plugins
 2. test_presence — verifies every package has at least one *.test.ts file
 3. readme_presence — verifies every package has a README.md
 4. type_check — runs bun build --no-bundle per package
-5. tool_registration — scans for 'name' field bug in tool definitions (fix-17 regression)
+5. tool_registration — scans for 'name' field bug in tool definitions (fix-17 regression, 6 tool files)
 6. version_consistency — compares root package.json version against all plugin versions
 7. license — verifies LICENSE exists and is referenced from all READMEs
 8. sdk_compliance — verifies packages import from @sffmc/shared (2 known exceptions: max-mode, workflow)
 9. tsconfig_presence — verifies each package has tsconfig.json (migration-progress check)
 10. changelog_currency — verifies CHANGELOG.md version matches root package.json
 11. extra_opt_in — reports @sffmc/extra opt-in status (informational; 3 opt-in features off by default)
+12. category_split — counts mimo-port (7) + sffmc-original (4) + msp (3) = 14 packages
+13. msp_structure — verifies safety/memory/agentic MSPs have valid package.json + mergeHooks() + listed features
 
 Returns JSON with ok (boolean), checks[] (per-check status), and summary (string).
 Use this before releases or after plugin changes to catch regressions early.`,

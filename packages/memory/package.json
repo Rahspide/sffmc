@@ -14,8 +14,8 @@
     "typecheck": "bun build --target=bun --no-bundle src/index.ts"
   },
   "mspRole": "memory",
-  "mspFeatures": ["memory", "checkpoint", "judge", "dream"],
-  "category": "mimo-port",
+  "mspFeatures": ["memory", "extra"],
+  "category": "msp",
   "portSource": "MiMo-Code v8.0",
   "portFeature": "memory"
 }
