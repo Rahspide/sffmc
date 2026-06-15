@@ -70,6 +70,8 @@ function getOrCreateSession(state: PluginState, sessionID: string) {
   return session;
 }
 
+let loadedLogged = false;
+
 const server = async (_ctx: PluginContext) => {
   const config = loadConfig();
   const state: PluginState = {
@@ -78,11 +80,13 @@ const server = async (_ctx: PluginContext) => {
     triggeredLog: [],
   };
 
-  if (config.enabled) {
+  if (config.enabled && !loadedLogged) {
+    loadedLogged = true;
     console.warn(
       `[auto-max] loaded, threshold=${config.watchdog_threshold}, cap=${config.cost_cap_per_session}/session`,
     );
-  } else {
+  } else if (!loadedLogged) {
+    loadedLogged = true;
     console.warn("[auto-max] loaded, DISABLED via config");
   }
 
