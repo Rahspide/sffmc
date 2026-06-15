@@ -45,7 +45,7 @@ export const server = async (_ctx: PluginContext) => {
         if (state.config.log_stripped_count) {
           console.warn(`[eos-stripper] stripped entire EOS-only text part`);
         }
-        return;
+        return data;
       }
 
       const original = data.text;
@@ -57,6 +57,7 @@ export const server = async (_ctx: PluginContext) => {
           console.warn(`[eos-stripper] stripped EOS from text end (${state.strippedCount} total)`);
         }
       }
+      return data;
     },
   };
 };

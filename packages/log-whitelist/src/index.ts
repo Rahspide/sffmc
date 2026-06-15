@@ -93,7 +93,7 @@ export const server = async (_ctx: PluginContext) => {
       _msgCtx: { sessionID: string; messageID: string; partID: string },
       data: { text: string },
     ) => {
-      if (state.whitelist.length === 0) return;
+      if (state.whitelist.length === 0) return data;
 
       const lines = data.text.split("\n");
       const { kept, dropped } = filterLines(
@@ -115,6 +115,7 @@ export const server = async (_ctx: PluginContext) => {
           );
         }
       }
+      return data;
     },
   };
 };

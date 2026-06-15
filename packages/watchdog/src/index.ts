@@ -141,10 +141,10 @@ export const server = async (ctx: PluginContext) => {
       data: { system: string[] },
     ) => {
       const sid = _input.sessionID || "";
-      if (!state.promotedSessions.has(sid)) return;
+      if (!state.promotedSessions.has(sid)) return data;
 
       const recent = state.counter.getRecentFailures(sid, 5);
-      if (recent.length === 0) return;
+      if (recent.length === 0) return data;
 
       const last = recent[recent.length - 1];
       const fragment = buildPromotionFragment(
@@ -156,6 +156,7 @@ export const server = async (ctx: PluginContext) => {
       data.system.push(fragment);
 
       state.promotedSessions.delete(sid);
+      return data;
     },
 
     "experimental.chat.messages.transform": async (
@@ -165,6 +166,7 @@ export const server = async (ctx: PluginContext) => {
       },
     ) => {
       // Recovery verdict injected in tool.execute.after, not here
+      return data;
     },
 
     "command.execute.before": async (

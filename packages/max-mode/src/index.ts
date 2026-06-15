@@ -206,6 +206,7 @@ export const server = async (ctx: PluginContext) => {
         data.system.push(result.message);
         delete (ctx as Record<string, unknown>)._maxModeResult;
       }
+      return data;
     },
 
     "tool.execute.before": async (
@@ -234,6 +235,7 @@ export const server = async (ctx: PluginContext) => {
         });
         delete (ctx as Record<string, unknown>)._maxModeResult;
       }
+      return data;
     },
   };
 };

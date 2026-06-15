@@ -200,6 +200,7 @@ export const server = async (_ctx: PluginContext) => {
         );
         delete (_ctx as Record<string, unknown>)._autoMaxTrigger;
       }
+      return data;
     },
   };
 };
