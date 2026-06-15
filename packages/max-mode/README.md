@@ -1,5 +1,9 @@
 # @sffmc/max-mode
 
+> **Part of `@sffmc/agentic` MSP.** This package is a sub-feature of the agentic bundle. Load via `@sffmc/agentic` for the full set (max-mode + workflow + compose + health), or standalone if you only need max-mode.
+
+
+
 F7 Max Mode — parallel drafts plus judge selection (W3).
 
 ## What it does

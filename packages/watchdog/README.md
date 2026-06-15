@@ -1,5 +1,7 @@
 # @sffmc/watchdog
 
+> **Part of `@sffmc/safety` MSP.** This package is a sub-feature of the safety bundle. Load via `@sffmc/safety` for the full set (watchdog + rules + auto-max + eos-stripper + log-whitelist), or standalone if you only need watchdog.
+
 F1 Watchdog — 3-failure counter with auto-recovery and model promotion (W2).
 
 ## What it does

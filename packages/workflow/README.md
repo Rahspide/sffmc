@@ -1,5 +1,9 @@
 # @sffmc/workflow
 
+> **Part of `@sffmc/agentic` MSP.** This package is a sub-feature of the agentic bundle. Load via `@sffmc/agentic` for the full set (workflow + max-mode + compose + health), or standalone if you only need the workflow tool.
+
+
+
 W5-6 Dynamic Workflow — sandboxed JavaScript orchestrator (quickjs-emscripten).
 
 ## What it does

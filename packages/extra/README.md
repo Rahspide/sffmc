@@ -1,5 +1,9 @@
 # @sffmc/extra
 
+> **Part of `@sffmc/memory` MSP.** This package houses 3 opt-in sub-features (checkpoint, judge, dream) used by the memory MSP. Load via `@sffmc/memory` for the full set, or standalone if you only need the extra bundle. All 3 sub-features are disabled by default — flip flags in `~/.config/SFFMC/extra.yaml` per feature.
+
+
+
 EXTRA plugin — opt-in bundle of 3 advanced features (F5' Checkpoint, F6' Judge, F8 Dream). All disabled by default.
 
 ## What it does

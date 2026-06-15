@@ -1,5 +1,7 @@
 # @sffmc/rules
 
+> **Part of `@sffmc/safety` MSP.** This package is a sub-feature of the safety bundle. Load via `@sffmc/safety` for the full set (rules + watchdog + auto-max + eos-stripper + log-whitelist), or standalone if you only need rules.
+
 F2 Rules — YAML gate-based allow/deny/ask for tool calls (W1).
 
 ## What it does

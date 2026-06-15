@@ -1,5 +1,9 @@
 # @sffmc/health
 
+> **Part of `@sffmc/agentic` MSP.** This package is a sub-feature of the agentic bundle. Load via `@sffmc/agentic` for the full set (health + max-mode + workflow + compose), or standalone if you only need sffmc_health.
+
+
+
 F3+ Health — diagnostic for SFFMC plugin authors. Runs 7 checks on the monorepo and returns a JSON health report.
 
 ## What it does

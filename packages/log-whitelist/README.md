@@ -1,5 +1,9 @@
 # @sffmc/log-whitelist
 
+> **Part of `@sffmc/safety` MSP.** This package is a sub-feature of the safety bundle. Load via `@sffmc/safety` for the full set (log-whitelist + watchdog + rules + auto-max + eos-stripper), or standalone if you only need log-whitelist.
+
+
+
 Agent log filter — keeps only whitelist-matching lines in tool output and chat text (W2).
 
 ## What it does

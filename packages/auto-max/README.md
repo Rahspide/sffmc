@@ -1,5 +1,9 @@
 # @sffmc/auto-max
 
+> **Part of `@sffmc/safety` MSP.** This package is a sub-feature of the safety bundle. Load via `@sffmc/safety` for the full set (auto-max + watchdog + rules + eos-stripper + log-whitelist), or standalone if you only need auto-max.
+
+
+
 F1+F2 auto-call F7 — auto-escalates to Max Mode when a tool is stuck in a failure loop (W3).
 
 ## What it does

@@ -1,5 +1,9 @@
 # @sffmc/eos-stripper
 
+> **Part of `@sffmc/safety` MSP.** This package is a sub-feature of the safety bundle. Load via `@sffmc/safety` for the full set (eos-stripper + watchdog + rules + auto-max + log-whitelist), or standalone if you only need eos-stripper.
+
+
+
 EOS token stripper — removes End-of-Sequence tokens from assistant text (W2).
 
 ## What it does
