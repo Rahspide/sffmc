@@ -1,5 +1,45 @@
 # SFFMC Changelog
 
+## v0.8.1 — Ship v0.8.1: known gaps fixed + F5'/F6'/F8 enhancements + 6 new skills/builtins (2026-06-15)
+
+- ## Known gaps fixed
+- - **compose**: graceful error on corrupted/missing skill file (try/catch + null-guard + empty-content check)
+- - **auto-max**: 3 improvements
+-   - `dry_run: boolean` config — counts failures but doesn't actually trigger max-mode
+-   - `/max` escape hatch hook (regex matches `/max`, `/max reset`, `/max clear`, `/max reset <id>`)
+-   - Object output error detection — `{ error }` or `{ code }` fields now counted as failures
+- ## F5'/F6'/F8 enhancements
+- - **F5' Checkpoint**: schema migration story — `CURRENT_VERSION=1`, `MIGRATIONS={}` scaffold,
+-   `migrateCheckpoint(raw, fromVersion)` exported, forward-compat restore logic
+- - **F6' Judge**: streaming mode — `callJudgeStream` with `onChunk` callback emitting
+-   `scores`/`winner`/`reasoning`/`complete`/`error` chunks
+- - **F8 Dream**: LLM cluster naming — `nameClusterViaLLM` generates 3-5 word topic phrase,
+-   prepended to summary as `Cluster: <name>`
+- ## New workflow builtins (3)
+- - `security-audit` (4 phases): Scope → Scan (4 parallel agents) → Triage → Report
+- - `doc-gen` (3 phases): Inventory → Generate (parallel batches) → Assemble
+- - `lib-migrate` (5 phases): Detect → Map → Transform → Verify → Report
+- - 7 builtins total (was 4)
+- ## New compose skills (3)
+- - `code-review` (6.7KB): structured review with severity-tagged findings
+- - `benchmark` (7.2KB): perf measurement + baseline comparison
+- - `audit-deps` (8.7KB): outdated/vuln/unused/license audit
+- - 18 skills total (was 15)
+- ## Infrastructure
+- - **tsconfig.json** added to 10 SFFMC packages (was only in workflow) — all 11 now have
+- - **Migrated to loadConfig**: auto-max, watchdog (raw YAML → shared SDK)
+- - **eosin-stripper/rules**: already on loadConfig or have domain-specific loading
+- - **Re-run codemap for extra**: 1738 + 1750 words (reflects dir + ctx changes)
+- ## Stats
+- - Tests: 429 → 465 (+36)
+- - sffmc_health: 9 ok 2 warn → 11 ok 0 warn 0 fail
+- - Plugins: 11 SFFMC (unchanged)
+- - Builtins: 4 → 7
+- - Skills: 15 → 18
+- - Files: 30 modified/created
+- - 12 packages: still 0.8.0 (no version bump, this is a feature-add release on top of v0.8.0)
+
+
 ## v0.8.0 — Ship @sffmc/extra plugin (F5'/F6'/F8 opt-in bundle) (2026-06-15)
 
 - ## Headline
