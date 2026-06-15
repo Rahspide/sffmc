@@ -1,5 +1,132 @@
 # SFFMC Changelog
 
+## v0.9.0 — 3-MSP restructure: safety, memory, agentic (2026-06-15)
+
+### 3-MSP structure (BREAKING for v0.8.2 configs that use only sub-features)
+
+11 standalone plugins are now composed into 3 Multi-Plugin Packages (MSPs).
+The 3 MSPs use a new `mergeHooks()` utility from `@sffmc/shared` to compose
+their sub-features into a single OpenCode plugin entry point.
+
+| MSP | Sub-features | Hooks | Tools | New skills |
+|---|---|---|---|---|
+| `@sffmc/safety` | watchdog, rules, auto-max, eos-stripper, log-whitelist | 9 keys | 0 | 3 |
+| `@sffmc/memory` | memory-core, checkpoint, judge, dream | 5 keys | 3 (extra_*) | 4 |
+| `@sffmc/agentic` | max-mode, workflow, compose, health | 5 keys | 3 | 5 |
+
+### New: `@sffmc/shared` exports `mergeHooks()`
+
+`shared/src/merge-hooks.ts` (127 lines) — composes N `server()` return values
+into one. 4 hook categories with distinct merge semantics:
+
+- **TRANSFORM** (chain): each handler receives the previous's output
+- **GATE** (first-truthy-wins): first handler returning truthy short-circuits
+- **SIDE_EFFECT** (sequential): all handlers run, no return value
+- **tool** (deep-merge with later-wins + warn on collision)
+
+6 tests cover each category. Unknown keys default to SIDE_EFFECT.
+
+### TRANSFORM hook audit
+
+7 handlers across 5 files were returning `void` instead of `data`, which
+would break `mergeHooks` TRANSFORM chaining. Fixed:
+
+- `auto-max`: `experimental.chat.system.transform` — added `return data;`
+- `eos-stripper`: `experimental.text.complete` — 2 fixes
+- `log-whitelist`: `experimental.text.complete` — 2 fixes
+- `max-mode`: `experimental.chat.system.transform` + `experimental.chat.messages.transform`
+- `watchdog`: `experimental.chat.system.transform` (3 fixes) + `experimental.chat.messages.transform`
+
+### extra refactor (factory → 3 named servers)
+
+`@sffmc/extra` previously bundled 3 sub-features (checkpoint, judge, dream)
+via a factory that returned one server. Now exposes 3 named servers:
+
+- `export const checkpointServer` — checkpoint as a composable
+- `export const judgeServer` — judge as a composable
+- `export const dreamServer` — dream as a composable
+- `export const server` — merged (calls all 3 + `mergeHooks()`) for standalone
+- `export default { id: "extra", server }` — backward compat
+
+This lets the memory MSP compose the 3 sub-features individually.
+
+### memory extracted to `plugin.ts` (id="memory-core")
+
+The original 150-line memory impl moved to `packages/memory/src/plugin.ts`
+with `id = "memory-core"` (to avoid conflict with the MSP's id). New
+`packages/memory/src/index.ts` is a thin wrapper that composes
+memory-core + extra's 3 named servers via `mergeHooks()`.
+
+DB-layer tests preserved in `memory.test.ts` (17 tests). New MSP smoke
+tests in `index.test.ts` (3 tests).
+
+### 12 new skills (3 + 4 + 5)
+
+Following the `packages/compose/skills/ask.md` style (YAML frontmatter,
+"The Rule", examples, "Why this skill exists"):
+
+**Safety (3):**
+- `safety:diagnose-tool-failure` — read watchdog's 3-failure verdict
+- `safety:write-rule` — add safety rules to `~/.config/SFFMC/rules.yaml`
+- `safety:manage-auto-max` — auto-max vs manual `/max`, when to suggest
+
+**Memory (4):**
+- `memory:recall` — read auto-injected recon, 5 budget categories
+- `memory:checkpoint-save` — 200K token resume point, schema versioning
+- `memory:judge-output` — multi-criteria verdict (correctness/readability/performance)
+- `memory:dream-cleanup` — 3-phase (cluster/score/archive), restore
+
+**Agentic (5):**
+- `agentic:run-workflow` — 7 builtins, QuickJS sandbox limits
+- `agentic:run-max-mode` — 3 parallel candidates + 1 judge, cost awareness
+- `agentic:compose-skill` — index of 18 compose skills
+- `agentic:health-check` — 12 sffmc_health checks
+- `agentic:resolve-hook-conflict` — TRANSFORM/GATE/SIDE_EFFECT semantics
+
+### Migration from v0.8.2
+
+v0.8.2 configs work without changes — all 11 sub-feature packages still
+load as standalone plugins. To use the new MSPs (recommended):
+
+```diff
+- "plugin": [ ..., "memory", "watchdog", "rules", "max-mode", "compose", ... ]
++ "plugin": [ ..., "safety", "memory", "agentic" ]
+```
+
+The 3 MSPs compose all 11 sub-features via `mergeHooks()` and have no
+user-visible behavior change. Same hooks, same tools, same YAML configs.
+
+### Tests
+
+- 467 → 480 (+13) tests across 21 → 24 files
+- New tests: 6 mergeHooks + 4 MSP stubs (Phase 1) + 3 MSP wired tests (Phase 2)
+- Skill smoke tests deferred (Phase 3 is markdown-only, no test harness)
+- All 12 packages + shared typecheck pass
+
+### Pre-commit 4-gate
+
+- sffmc_health: 12 ok (Phase 6 will add 13th checkMspStructure)
+- bun test: 480 pass
+- typecheck: clean
+- load-order audit: clean
+
+### Notes for v1.0.0
+
+- v1.0.0 will deprecate standalone sub-feature packages
+- v1.0.0 will physically move sub-feature source into MSP src/
+- Test split (Phase 4 of v0.9.0 plan) deferred to post-v0.9.0 cleanup
+
+### Files
+
+- Created: `packages/safety/`, `packages/agentic/` (Phase 1)
+- Modified: `packages/memory/src/{index,plugin}.ts` (Phase 2)
+- Modified: 5 sub-feature src/index.ts for TRANSFORM audit (Phase 2)
+- Modified: `packages/extra/src/{index,checkpoint,judge,dream}.ts` (Phase 2)
+- New: 12 skills in `packages/{safety,memory,agentic}/skills/` (Phase 3)
+- New: `shared/src/merge-hooks.{ts,test.ts}` (Phase 0.5)
+- Updated: 12 package.jsons (mspRole, mspFeatures), 3 new MSP READMEs
+
+
 ## v0.8.2 — Ship v0.8.2: package categories (mimo-port vs sffmc-original) (2026-06-15)
 
 - ## Package categories
