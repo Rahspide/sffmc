@@ -1,0 +1,13 @@
+{
+  "name": "@sffmc/health",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@sffmc/shared": "workspace:*"
+  },
+  "license": "MIT"
+}

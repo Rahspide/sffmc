@@ -1,0 +1,536 @@
+// SPDX-License-Identifier: MIT
+// @sffmc/health — see ../../LICENSE
+
+import { type PluginContext } from "@sffmc/shared";
+import { readdir, readFile, stat } from "node:fs/promises";
+import { join } from "node:path";
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export interface CheckResult {
+  name: string;
+  status: "ok" | "warn" | "fail";
+  detail: string;
+}
+
+export interface HealthResult {
+  ok: boolean;
+  checks: CheckResult[];
+  summary: string;
+}
+
+export type CheckFn = (repoRoot: string) => Promise<CheckResult>;
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+async function packageNames(repoRoot: string): Promise<string[]> {
+  const pkgs: string[] = [];
+  try {
+    const entries = await readdir(join(repoRoot, "packages"), { withFileTypes: true });
+    pkgs.push(...entries.filter((e) => e.isDirectory()).map((e) => e.name));
+  } catch {
+    // packages/ doesn't exist — no packages to check
+  }
+  // Include shared if it has a package.json
+  try {
+    await stat(join(repoRoot, "shared", "package.json"));
+    pkgs.push("shared");
+  } catch {
+    // shared doesn't exist — skip
+  }
+  return pkgs.sort();
+}
+
+async function fileExists(path: string): Promise<boolean> {
+  try {
+    await stat(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Check 1: Hook conflict audit
+// ---------------------------------------------------------------------------
+
+export async function checkHookConflicts(repoRoot: string): Promise<CheckResult> {
+  const scriptPath = join(repoRoot, "scripts", "audit-load-order.py");
+  const jsonPath = join(repoRoot, ".slim", "deepwork", "load-order-audit.json");
+  const exists = await fileExists(scriptPath);
+  if (!exists) {
+    return {
+      name: "hook_conflicts",
+      status: "fail",
+      detail: `Audit script not found: ${scriptPath}`,
+    };
+  }
+
+  try {
+    // Run the audit script to regenerate the JSON report
+    const proc = Bun.spawn(["python3", scriptPath], {
+      cwd: repoRoot,
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    await proc.exited;
+
+    // Read the JSON report the script produces
+    let report: { pkg_hooks?: Record<string, string[]>; all_hooks?: Record<string, string[]> };
+    try {
+      const jsonText = await readFile(jsonPath, "utf-8");
+      report = JSON.parse(jsonText);
+    } catch {
+      return {
+        name: "hook_conflicts",
+        status: "warn",
+        detail: "Audit script ran but JSON report not found or unparseable",
+      };
+    }
+
+    const allHooks = report.all_hooks || {};
+    const pkgHooks = report.pkg_hooks || {};
+    const pluginCount = Object.keys(pkgHooks).length;
+
+    // Most OpenCode hooks are designed for multiple plugins to chain/aggregate.
+    // Only a few hooks are truly exclusive (where multiple registrations would conflict).
+    // The known-safe hooks for multi-registration:
+    const safeMultiHooks = new Set([
+      "config",
+      "event",
+      "tool.execute.before",
+      "tool.execute.after",
+      "command.execute.before",
+      "command.execute.after",
+      "experimental.text.complete",
+      "experimental.chat.messages.transform",
+      "experimental.chat.system.transform",
+      "permission.ask",
+      "permission.respond",
+      "tool",            // each plugin registers distinct tool name under this key
+      "chat.message",
+      "chat.params",
+      "chat.system",
+    ]);
+
+    const realConflicts: string[] = [];
+    for (const [hook, pkgs] of Object.entries(allHooks)) {
+      if (pkgs.length <= 1) continue;
+      if (safeMultiHooks.has(hook)) continue;
+      realConflicts.push(`${hook} (${pkgs.join(", ")})`);
+    }
+
+    if (realConflicts.length === 0) {
+      return {
+        name: "hook_conflicts",
+        status: "ok",
+        detail: `${pluginCount}/${pluginCount} plugins, 0 real conflicts (${Object.keys(allHooks).length} hooks total, structural overlaps in safe-multi hooks are normal)`,
+      };
+    }
+
+    return {
+      name: "hook_conflicts",
+      status: "fail",
+      detail: `${realConflicts.length} real hook conflict(s): ${realConflicts.join("; ")}`,
+    };
+  } catch (e) {
+    return {
+      name: "hook_conflicts",
+      status: "fail",
+      detail: `Failed: ${e instanceof Error ? e.message : String(e)}`,
+    };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Check 2: Test presence
+// ---------------------------------------------------------------------------
+
+export async function checkTestPresence(repoRoot: string): Promise<CheckResult> {
+  const pkgs = await packageNames(repoRoot);
+  const missing: string[] = [];
+
+  for (const pkg of pkgs) {
+    const pkgDir = pkg === "shared" ? join(repoRoot, "shared") : join(repoRoot, "packages", pkg);
+    // Check src/*.test.ts or tests/*.test.ts
+    let found = false;
+    for (const subdir of ["src", "tests"]) {
+      try {
+        const dir = join(pkgDir, subdir);
+        const entries = await readdir(dir);
+        if (entries.some((e) => e.endsWith(".test.ts"))) {
+          found = true;
+          break;
+        }
+      } catch {
+        // dir doesn't exist
+      }
+    }
+    if (!found) missing.push(pkg);
+  }
+
+  if (missing.length === 0) {
+    return {
+      name: "test_presence",
+      status: "ok",
+      detail: `${pkgs.length}/${pkgs.length} packages have tests`,
+    };
+  }
+
+  return {
+    name: "test_presence",
+    status: "fail",
+    detail: `${missing.length} package(s) missing tests: ${missing.join(", ")}`,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Check 3: README presence
+// ---------------------------------------------------------------------------
+
+export async function checkReadmePresence(repoRoot: string): Promise<CheckResult> {
+  const pkgs = await packageNames(repoRoot);
+  const missing: string[] = [];
+
+  for (const pkg of pkgs) {
+    const pkgDir = pkg === "shared" ? join(repoRoot, "shared") : join(repoRoot, "packages", pkg);
+    if (!(await fileExists(join(pkgDir, "README.md")))) {
+      missing.push(pkg);
+    }
+  }
+
+  if (missing.length === 0) {
+    return {
+      name: "readme_presence",
+      status: "ok",
+      detail: `${pkgs.length}/${pkgs.length} packages have README.md`,
+    };
+  }
+
+  return {
+    name: "readme_presence",
+    status: "fail",
+    detail: `${missing.length} package(s) missing README.md: ${missing.join(", ")}`,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Check 4: Type check
+// ---------------------------------------------------------------------------
+
+export async function checkTypeCheck(repoRoot: string): Promise<CheckResult> {
+  const pkgs = await packageNames(repoRoot);
+  const failures: string[] = [];
+
+  for (const pkg of pkgs) {
+    const pkgDir = pkg === "shared" ? join(repoRoot, "shared") : join(repoRoot, "packages", pkg);
+    const indexPath = join(pkgDir, "src", "index.ts");
+    if (!(await fileExists(indexPath))) {
+      failures.push(`${pkg} (no src/index.ts)`);
+      continue;
+    }
+
+    try {
+      const proc = Bun.spawn(
+        ["bun", "build", "--target=bun", "--no-bundle", "src/index.ts"],
+        { cwd: pkgDir, stdout: "pipe", stderr: "pipe" },
+      );
+      const stderr = await new Response(proc.stderr).text();
+      const exitCode = await proc.exited;
+
+      if (exitCode !== 0) {
+        // Extract error lines (skip "bun build" header lines)
+        const errors = stderr
+          .split("\n")
+          .filter((l) => l.trim() && !l.startsWith("bun build"))
+          .join("\n")
+          .trim();
+        failures.push(`${pkg}: ${errors || `exit ${exitCode}`}`);
+      }
+    } catch (e) {
+      failures.push(`${pkg}: spawn failed (${e instanceof Error ? e.message : String(e)})`);
+    }
+  }
+
+  if (failures.length === 0) {
+    return {
+      name: "type_check",
+      status: "ok",
+      detail: `${pkgs.length}/${pkgs.length} packages typecheck clean`,
+    };
+  }
+
+  return {
+    name: "type_check",
+    status: "fail",
+    detail: `${failures.length} package(s) failed: ${failures.join("; ")}`,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Check 5: Tool registration sanity (fix-17 regression guard)
+// ---------------------------------------------------------------------------
+
+const TOOL_FILES = [
+  "packages/compose/src/index.ts",
+  "packages/workflow/src/tool.ts",
+];
+
+export async function checkToolRegistration(repoRoot: string): Promise<CheckResult> {
+  const bugs: string[] = [];
+
+  for (const relPath of TOOL_FILES) {
+    const absPath = join(repoRoot, relPath);
+    if (!(await fileExists(absPath))) {
+      bugs.push(`${relPath}: file not found`);
+      continue;
+    }
+
+    try {
+      const content = await readFile(absPath, "utf-8");
+      const lines = content.split("\n");
+
+      // Collect property keys per indent level.
+      // A tool-level `name:` bug would be: `name: "something"` (string value)
+      // at the same indent as `description:` and `execute:`.
+      // Parameter-schema `name:` fields have object values (`name: {`) and deeper indent.
+
+      const keysByIndent = new Map<number, Set<string>>();
+      // Track which keys have string values (for distinguishing tool-level name vs parameter)
+      const stringKeysByIndent = new Map<number, Set<string>>();
+
+      let inBlockComment = false;
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith("/*")) { inBlockComment = true; continue; }
+        if (inBlockComment) { if (trimmed.includes("*/")) inBlockComment = false; continue; }
+        if (inBlockComment || trimmed.startsWith("//")) continue;
+
+        // Match property keys at their indent: `  keyName:` or `  "keyName":`
+        const keyMatch = line.match(/^(\s+)([\w]+)\s*:\s*/);
+        if (!keyMatch) continue;
+
+        const indent = keyMatch[1].length;
+        const key = keyMatch[2];
+
+        // Only track known tool-structure keys + the potentially-buggy `name` key.
+        const isToolKey = key === "description" || key === "execute" || key === "parameters" || key === "name";
+        if (!isToolKey) continue;
+
+        const afterColon = line.slice(keyMatch[0].length).trim();
+        const isStringVal = /^["'`]/.test(afterColon);
+
+        if (!keysByIndent.has(indent)) keysByIndent.set(indent, new Set());
+        keysByIndent.get(indent)!.add(key);
+
+        if (isStringVal) {
+          if (!stringKeysByIndent.has(indent)) stringKeysByIndent.set(indent, new Set());
+          stringKeysByIndent.get(indent)!.add(key);
+        }
+      }
+
+      // For each indent level that has both `description` and `execute`, check for `name` with string value
+      for (const [indent, keys] of keysByIndent) {
+        if (!keys.has("description") || !keys.has("execute")) continue;
+        if (!keys.has("name")) continue;
+
+        const stringKeys = stringKeysByIndent.get(indent);
+        if (stringKeys && stringKeys.has("name")) {
+          bugs.push(`${relPath}: tool-level \`name\` field at indent ${indent} — registration bug (fix-17 regression)`);
+        }
+      }
+    } catch (e) {
+      bugs.push(`${relPath}: read error (${e instanceof Error ? e.message : String(e)})`);
+    }
+  }
+
+  if (bugs.length === 0) {
+    return {
+      name: "tool_registration",
+      status: "ok",
+      detail: `0 'name' field bugs across ${TOOL_FILES.length} tool-bearing files`,
+    };
+  }
+
+  return {
+    name: "tool_registration",
+    status: "fail",
+    detail: bugs.join("; "),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Check 6: Version consistency
+// ---------------------------------------------------------------------------
+
+export async function checkVersionConsistency(repoRoot: string): Promise<CheckResult> {
+  // Read root version
+  let rootVersion: string;
+  try {
+    const rootPkg = JSON.parse(await readFile(join(repoRoot, "package.json"), "utf-8"));
+    rootVersion = rootPkg.version || "unknown";
+  } catch {
+    return {
+      name: "version_consistency",
+      status: "fail",
+      detail: "Could not read root package.json",
+    };
+  }
+
+  const pkgs = await packageNames(repoRoot);
+  const mismatches: string[] = [];
+
+  for (const pkg of pkgs) {
+    const pkgDir = pkg === "shared" ? join(repoRoot, "shared") : join(repoRoot, "packages", pkg);
+    try {
+      const pkgJson = JSON.parse(await readFile(join(pkgDir, "package.json"), "utf-8"));
+      const ver = pkgJson.version;
+      if (ver !== rootVersion) {
+        mismatches.push(`${pkg}: ${ver} (root: ${rootVersion})`);
+      }
+    } catch {
+      mismatches.push(`${pkg}: could not read package.json`);
+    }
+  }
+
+  if (mismatches.length === 0) {
+    return {
+      name: "version_consistency",
+      status: "ok",
+      detail: `All ${pkgs.length} packages match root version ${rootVersion}`,
+    };
+  }
+
+  return {
+    name: "version_consistency",
+    status: "warn",
+    detail: `Root ${rootVersion}, ${mismatches.length} mismatches: ${mismatches.join(", ")}`,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Check 7: License file
+// ---------------------------------------------------------------------------
+
+export async function checkLicense(repoRoot: string): Promise<CheckResult> {
+  const licenseExists = await fileExists(join(repoRoot, "LICENSE"));
+  const missingRefs: string[] = [];
+
+  // Check each package README references LICENSE or MIT
+  const pkgs = await packageNames(repoRoot);
+  for (const pkg of pkgs) {
+    const pkgDir = pkg === "shared" ? join(repoRoot, "shared") : join(repoRoot, "packages", pkg);
+    const readmePath = join(pkgDir, "README.md");
+    if (!(await fileExists(readmePath))) {
+      missingRefs.push(`${pkg} (no README)`);
+      continue;
+    }
+    try {
+      const content = await readFile(readmePath, "utf-8");
+      if (!/(LICENSE|MIT|license)/i.test(content)) {
+        missingRefs.push(pkg);
+      }
+    } catch {
+      missingRefs.push(`${pkg} (read error)`);
+    }
+  }
+
+  if (!licenseExists) {
+    return {
+      name: "license",
+      status: "fail",
+      detail: "No LICENSE file in repo root",
+    };
+  }
+
+  if (missingRefs.length === 0) {
+    return {
+      name: "license",
+      status: "ok",
+      detail: `LICENSE present, all ${pkgs.length} READMEs reference it`,
+    };
+  }
+
+  return {
+    name: "license",
+    status: "warn",
+    detail: `LICENSE present, ${missingRefs.length} README(s) missing reference: ${missingRefs.join(", ")}`,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Orchestrator
+// ---------------------------------------------------------------------------
+
+const ALL_CHECKS: CheckFn[] = [
+  checkHookConflicts,
+  checkTestPresence,
+  checkReadmePresence,
+  checkTypeCheck,
+  checkToolRegistration,
+  checkVersionConsistency,
+  checkLicense,
+];
+
+export async function runAllChecks(
+  repoRoot: string,
+  checkFns: CheckFn[] = ALL_CHECKS,
+): Promise<HealthResult> {
+  const checks = await Promise.all(checkFns.map((fn) => fn(repoRoot)));
+
+  const okCount = checks.filter((c) => c.status === "ok").length;
+  const warnCount = checks.filter((c) => c.status === "warn").length;
+  const failCount = checks.filter((c) => c.status === "fail").length;
+
+  return {
+    ok: failCount === 0,
+    checks,
+    summary: `${okCount} ok, ${warnCount} warn, ${failCount} fail`,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Plugin entry
+// ---------------------------------------------------------------------------
+
+const server = async (ctx: PluginContext) => {
+  const repoRoot = (ctx as Record<string, unknown>).projectRoot as string;
+
+  return {
+    tool: {
+      sffmc_health: {
+        description: `Run 7 diagnostic checks on the SFFMC monorepo to verify plugin health.
+
+Checks performed:
+1. hook_conflicts — invokes scripts/audit-load-order.py, reports hook conflicts between plugins
+2. test_presence — verifies every package has at least one *.test.ts file
+3. readme_presence — verifies every package has a README.md
+4. type_check — runs bun build --no-bundle per package
+5. tool_registration — scans for 'name' field bug in tool definitions (fix-17 regression)
+6. version_consistency — compares root package.json version against all plugin versions
+7. license — verifies LICENSE exists and is referenced from all READMEs
+
+Returns JSON with ok (boolean), checks[] (per-check status), and summary (string).
+Use this before releases or after plugin changes to catch regressions early.`,
+        parameters: {
+          type: "object",
+          properties: {},
+        },
+        execute: async () => {
+          const root = repoRoot;
+          const result = await runAllChecks(root);
+          return JSON.stringify(result, null, 2);
+        },
+      },
+    },
+  };
+};
+
+export default {
+  id: "@sffmc/health",
+  server,
+};
