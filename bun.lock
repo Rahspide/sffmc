@@ -5,9 +5,16 @@
     "": {
       "name": "sffmc",
     },
+    "packages/agentic": {
+      "name": "@sffmc/agentic",
+      "version": "0.9.0-alpha.0",
+      "dependencies": {
+        "@sffmc/shared": "workspace:*",
+      },
+    },
     "packages/auto-max": {
       "name": "@sffmc/auto-max",
-      "version": "0.1.0",
+      "version": "0.8.1",
       "dependencies": {
         "@sffmc/shared": "workspace:*",
         "yaml": "^2.0.0",
@@ -15,14 +22,14 @@
     },
     "packages/compose": {
       "name": "@sffmc/compose",
-      "version": "0.1.0",
+      "version": "0.8.1",
       "dependencies": {
         "@sffmc/shared": "workspace:*",
       },
     },
     "packages/eos-stripper": {
       "name": "@sffmc/eos-stripper",
-      "version": "0.1.0",
+      "version": "0.8.1",
       "dependencies": {
         "@sffmc/shared": "workspace:*",
         "yaml": "^2.0.0",
@@ -30,21 +37,21 @@
     },
     "packages/extra": {
       "name": "@sffmc/extra",
-      "version": "0.1.0",
+      "version": "0.8.1",
       "dependencies": {
         "@sffmc/shared": "workspace:*",
       },
     },
     "packages/health": {
       "name": "@sffmc/health",
-      "version": "0.1.0",
+      "version": "0.8.1",
       "dependencies": {
         "@sffmc/shared": "workspace:*",
       },
     },
     "packages/log-whitelist": {
       "name": "@sffmc/log-whitelist",
-      "version": "0.1.0",
+      "version": "0.8.1",
       "dependencies": {
         "@sffmc/shared": "workspace:*",
         "yaml": "^2.0.0",
@@ -52,14 +59,14 @@
     },
     "packages/max-mode": {
       "name": "@sffmc/max-mode",
-      "version": "0.1.0",
+      "version": "0.8.1",
       "dependencies": {
         "yaml": "^2.0.0",
       },
     },
     "packages/memory": {
       "name": "@sffmc/memory",
-      "version": "0.1.0",
+      "version": "0.9.0-alpha.0",
       "dependencies": {
         "@sffmc/shared": "workspace:*",
         "chokidar": "^4.0.0",
@@ -68,15 +75,22 @@
     },
     "packages/rules": {
       "name": "@sffmc/rules",
-      "version": "0.1.0",
+      "version": "0.8.1",
       "dependencies": {
         "@sffmc/shared": "workspace:*",
         "yaml": "^2.0.0",
       },
     },
+    "packages/safety": {
+      "name": "@sffmc/safety",
+      "version": "0.9.0-alpha.0",
+      "dependencies": {
+        "@sffmc/shared": "workspace:*",
+      },
+    },
     "packages/watchdog": {
       "name": "@sffmc/watchdog",
-      "version": "0.1.0",
+      "version": "0.8.1",
       "dependencies": {
         "@sffmc/shared": "workspace:*",
         "yaml": "^2.0.0",
@@ -84,7 +98,7 @@
     },
     "packages/workflow": {
       "name": "@sffmc/workflow",
-      "version": "0.1.0",
+      "version": "0.8.1",
       "dependencies": {
         "quickjs-emscripten": "0.32.0",
         "yaml": "^2.5.0",
@@ -97,7 +111,7 @@
     },
     "shared": {
       "name": "@sffmc/shared",
-      "version": "0.1.0",
+      "version": "0.8.1",
       "dependencies": {
         "yaml": "^2.0.0",
       },
@@ -113,6 +127,8 @@
     "@jitl/quickjs-wasmfile-release-asyncify": ["@jitl/quickjs-wasmfile-release-asyncify@0.32.0", "", { "dependencies": { "@jitl/quickjs-ffi-types": "0.32.0" } }, "sha512-3oSwPfja12ICz4aIblB58cuY8JlEq5Txt8Cut4VLo+LH47QN+mzCnSgnbB03hWzg1LBcc+VyyI9UOag7a1NF+Q=="],
 
     "@jitl/quickjs-wasmfile-release-sync": ["@jitl/quickjs-wasmfile-release-sync@0.32.0", "", { "dependencies": { "@jitl/quickjs-ffi-types": "0.32.0" } }, "sha512-BKNDI/TPBfGlLNGYpLrhcDGXmIk4xHm4MRAisOBnOzpXVn9HZWsfmMAc9WMBrAHjvvds6HOikKeaOBKdPdpVrg=="],
+
+    "@sffmc/agentic": ["@sffmc/agentic@workspace:packages/agentic"],
 
     "@sffmc/auto-max": ["@sffmc/auto-max@workspace:packages/auto-max"],
 
@@ -131,6 +147,8 @@
     "@sffmc/memory": ["@sffmc/memory@workspace:packages/memory"],
 
     "@sffmc/rules": ["@sffmc/rules@workspace:packages/rules"],
+
+    "@sffmc/safety": ["@sffmc/safety@workspace:packages/safety"],
 
     "@sffmc/shared": ["@sffmc/shared@workspace:shared"],
 
