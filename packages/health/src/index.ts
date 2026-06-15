@@ -197,8 +197,8 @@ export async function checkHookConflicts(repoRoot: string): Promise<CheckResult>
 
 export async function checkTestPresence(repoRoot: string): Promise<CheckResult> {
   // After Phase 4 (v0.9.0), sub-feature packages are "code-only" — their
-  // tests live in the owning MSP's test/ dir. Only check packages that
-  // are themselves test owners: MSPs (have mspRole) and shared (infra).
+  // tests live in the owning composite's test/ dir. Only check packages that
+  // are themselves test owners: composites (have role) and shared (infra).
   const pkgs = await packageNames(repoRoot);
   const testOwners: string[] = [];
   for (const pkg of pkgs) {
@@ -208,8 +208,8 @@ export async function checkTestPresence(repoRoot: string): Promise<CheckResult> 
     }
     try {
       const content = await readFile(join(pkgDir(pkg, repoRoot), "package.json"), "utf-8");
-      const parsed = JSON.parse(content) as { mspRole?: string };
-      if (parsed.mspRole) testOwners.push(pkg);
+      const parsed = JSON.parse(content) as { role?: string };
+      if (parsed.role) testOwners.push(pkg);
     } catch {
       // package.json unreadable — skip
     }
@@ -764,78 +764,76 @@ export async function checkCategorySplit(repoRoot: string): Promise<CheckResult>
 }
 
 // ---------------------------------------------------------------------------
-// Check 13: MSP structure (v0.9.0)
+// Check 13: Composite structure (v0.9.0)
 // ---------------------------------------------------------------------------
 
-const EXPECTED_MSPS = ["safety", "memory", "agentic"] as const;
+const EXPECTED_COMPOSITES = ["safety", "memory", "agentic"] as const;
 
-export async function checkMspStructure(repoRoot: string): Promise<CheckResult> {
+export async function checkCompositeStructure(repoRoot: string): Promise<CheckResult> {
   const errors: string[] = [];
   const warnings: string[] = [];
 
-  // 1. Each expected MSP exists
-  for (const mspName of EXPECTED_MSPS) {
-    const mspDir = join(repoRoot, "packages", mspName);
-    if (!(await fileExists(mspDir))) {
-      errors.push(`MSP directory missing: packages/${mspName}/`);
+  // 1. Each expected composite exists
+  for (const compositeName of EXPECTED_COMPOSITES) {
+    const compositeDir = join(repoRoot, "packages", compositeName);
+    if (!(await fileExists(compositeDir))) {
+      errors.push(`Composite directory missing: packages/${compositeName}/`);
       continue;
     }
 
-    // 2. package.json has mspRole and mspFeatures
-    const pkgJsonPath = join(mspDir, "package.json");
+    // 2. package.json has role and composes
+    const pkgJsonPath = join(compositeDir, "package.json");
     try {
       const content = await readFile(pkgJsonPath, "utf-8");
       const parsed = JSON.parse(content) as {
-        mspRole?: string;
-        mspFeatures?: string[];
-        category?: string;
+        role?: string;
+        composes?: string[];
       };
 
-      if (parsed.category !== "msp") {
-        errors.push(`${mspName}: package.json category is not "msp" (got ${parsed.category || "missing"})`);
+      if (!parsed.role) {
+        errors.push(`${compositeName}: package.json missing role`);
+      } else if (parsed.role !== compositeName) {
+        errors.push(`${compositeName}: package.json role is "${parsed.role}" but expected "${compositeName}"`);
       }
-      if (!parsed.mspRole) {
-        errors.push(`${mspName}: package.json missing mspRole`);
-      }
-      if (!parsed.mspFeatures || parsed.mspFeatures.length === 0) {
-        errors.push(`${mspName}: package.json missing mspFeatures`);
+      if (!parsed.composes || parsed.composes.length === 0) {
+        errors.push(`${compositeName}: package.json missing composes`);
       } else {
         // 3. Each listed feature corresponds to a real package
-        for (const feature of parsed.mspFeatures ?? []) {
+        for (const feature of parsed.composes ?? []) {
           const featureDir = join(repoRoot, "packages", feature);
           if (!(await fileExists(featureDir))) {
-            errors.push(`${mspName} lists mspFeature "${feature}" but packages/${feature}/ does not exist`);
+            errors.push(`${compositeName} lists composes "${feature}" but packages/${feature}/ does not exist`);
           }
         }
       }
     } catch (err) {
-      errors.push(`${mspName}: could not read package.json (${err})`);
+      errors.push(`${compositeName}: could not read package.json (${err})`);
     }
 
     // 4. src/index.ts uses mergeHooks
-    const indexPath = join(mspDir, "src", "index.ts");
+    const indexPath = join(compositeDir, "src", "index.ts");
     try {
       const content = await readFile(indexPath, "utf-8");
       if (!/mergeHooks\s*\(/.test(content)) {
-        errors.push(`${mspName}: src/index.ts does not call mergeHooks()`);
+        errors.push(`${compositeName}: src/index.ts does not call mergeHooks()`);
       }
       if (!/from\s+["']@sffmc\/shared["']/.test(content)) {
-        warnings.push(`${mspName}: src/index.ts does not import from @sffmc/shared`);
+        warnings.push(`${compositeName}: src/index.ts does not import from @sffmc/shared`);
       }
     } catch (err) {
-      errors.push(`${mspName}: could not read src/index.ts (${err})`);
+      errors.push(`${compositeName}: could not read src/index.ts (${err})`);
     }
   }
 
-  // 5. No sub-feature claims to be an MSP (inverse check)
+  // 5. No sub-feature claims to be a composite (inverse check)
   for (const pkg of await packageNames(repoRoot)) {
-    if (EXPECTED_MSPS.includes(pkg as typeof EXPECTED_MSPS[number])) continue;
+    if (EXPECTED_COMPOSITES.includes(pkg as typeof EXPECTED_COMPOSITES[number])) continue;
     const pkgJsonPath = join(repoRoot, "packages", pkg, "package.json");
     try {
       const content = await readFile(pkgJsonPath, "utf-8");
-      const parsed = JSON.parse(content) as { category?: string; mspRole?: string };
-      if (parsed.category === "msp" || parsed.mspRole) {
-        errors.push(`${pkg}: claims to be an MSP but is not in EXPECTED_MSPS`);
+      const parsed = JSON.parse(content) as { role?: string };
+      if (parsed.role) {
+        errors.push(`${pkg}: claims role "${parsed.role}" but is not in EXPECTED_COMPOSITES`);
       }
     } catch {
       // package.json unreadable — other checks handle this
@@ -844,24 +842,24 @@ export async function checkMspStructure(repoRoot: string): Promise<CheckResult> 
 
   if (errors.length > 0) {
     return {
-      name: "msp_structure",
+      name: "composite_structure",
       status: "fail",
-      detail: `${errors.length} MSP structure error(s): ${errors.join("; ")}`,
+      detail: `${errors.length} composite structure error(s): ${errors.join("; ")}`,
     };
   }
 
   if (warnings.length > 0) {
     return {
-      name: "msp_structure",
+      name: "composite_structure",
       status: "warn",
-      detail: `3 MSPs valid (safety/memory/agentic), ${warnings.length} warning(s): ${warnings.join("; ")}`,
+      detail: `3 composites valid (safety/memory/agentic), ${warnings.length} warning(s): ${warnings.join("; ")}`,
     };
   }
 
   return {
-    name: "msp_structure",
+    name: "composite_structure",
     status: "ok",
-    detail: `3 MSPs valid: safety (5 features), memory (4 features), agentic (4 features)`,
+    detail: `3 composites valid: safety (5 features), memory (4 features), agentic (4 features)`,
   };
 }
 
@@ -882,7 +880,7 @@ const ALL_CHECKS: CheckFn[] = [
   checkChangelogCurrency,
   checkExtraOptIn,
   checkCategorySplit,
-  checkMspStructure,
+  checkCompositeStructure,
 ];
 
 export async function runAllChecks(
@@ -927,8 +925,8 @@ Checks performed:
 9. tsconfig_presence — verifies each package has tsconfig.json (migration-progress check)
 10. changelog_currency — verifies CHANGELOG.md version matches root package.json
 11. extra_opt_in — reports @sffmc/extra opt-in status (informational; 3 opt-in features off by default)
-12. category_split — counts mimo-port (7) + sffmc-original (4) + msp (3) = 14 packages
-13. msp_structure — verifies safety/memory/agentic MSPs have valid package.json + mergeHooks() + listed features
+12. category_split — counts mimo-port (7) + sffmc-original (4) + composites (3) = 14 packages
+13. composite_structure — verifies safety/memory/agentic composites have role + composes fields + mergeHooks() + listed features
 
 Returns JSON with ok (boolean), checks[] (per-check status), and summary (string).
 Use this before releases or after plugin changes to catch regressions early.`,

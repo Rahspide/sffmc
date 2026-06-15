@@ -1,0 +1,83 @@
+# Drone CI pipeline for SFFMC — bun-based monorepo (14 packages + shared)
+#
+# HMAC signature placeholder below will be replaced when running:
+#   drone repo add Rahspide/sffmc
+# The `drone` CLI signs the YAML and inserts the real HMAC.
+# Do NOT manually edit the signature block — it will be regenerated.
+
+---
+kind: pipeline
+name: default
+type: docker
+
+# ── Global trigger ──────────────────────────────────────────────
+trigger:
+  branch:
+    - main
+  event:
+    - push
+    - pull_request
+    - tag
+
+# ── Steps ───────────────────────────────────────────────────────
+steps:
+  - name: install
+    image: oven/bun:1
+    commands:
+      - bun install --frozen-lockfile
+    volumes:
+      - name: bun-cache
+        path: /root/.bun/install/cache
+
+  - name: typecheck
+    image: oven/bun:1
+    depends_on: [install]
+    commands:
+      - bun run typecheck
+    volumes:
+      - name: bun-cache
+        path: /root/.bun/install/cache
+
+  - name: test
+    image: oven/bun:1
+    depends_on: [install]
+    commands:
+      - bun run test:all
+    volumes:
+      - name: bun-cache
+        path: /root/.bun/install/cache
+
+  - name: verify-load
+    image: oven/bun:1
+    depends_on: [install]
+    commands:
+      - bun run scripts/e2e-load-msps.ts
+    volumes:
+      - name: bun-cache
+        path: /root/.bun/install/cache
+
+  - name: publish
+    image: oven/bun:1
+    depends_on: [test, typecheck, verify-load]
+    when:
+      event: tag
+      ref: refs/tags/v*.*.*
+    environment:
+      NPM_TOKEN:
+        from_secret: npm_token
+    commands:
+      - echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > ~/.npmrc
+      - bun run scripts/release.sh --actual
+    volumes:
+      - name: bun-cache
+        path: /root/.bun/install/cache
+
+# ── Volumes ─────────────────────────────────────────────────────
+volumes:
+  - name: bun-cache
+    host:
+      path: /var/lib/drone/bun-cache
+
+---
+kind: signature
+hmac: <placeholder>

@@ -11,7 +11,31 @@
     "test:watch": "bun test --watch",
     "typecheck": "bun build --target=bun --no-bundle src/index.ts"
   },
-  "category": "msp",
-  "mspRole": "safety",
-  "mspFeatures": ["watchdog", "rules", "auto-max", "eos-stripper", "log-whitelist"]
+  "license": "MIT",
+  "author": "SFFMC Contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Rahspide/sffmc.git",
+    "directory": "packages/safety"
+  },
+  "bugs": {
+    "url": "https://github.com/Rahspide/sffmc/issues"
+  },
+  "homepage": "https://github.com/Rahspide/sffmc/tree/main/packages/safety#readme",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "files": [
+    "src/**/*",
+    "skills/**/*",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": ["sffmc", "opencode", "plugin", "safety"],
+  "engines": {
+    "bun": ">=1.0.0"
+  },
+  "role": "safety",
+  "composes": ["watchdog", "rules", "auto-max", "eos-stripper", "log-whitelist"]
 }

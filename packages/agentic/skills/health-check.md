@@ -23,7 +23,7 @@ When something is broken and you don't know why, run `sffmc_health` first. It ch
 9. **hook_conflicts** — 2+ plugins registering same GATE hook
 10. **readme_presence** — all packages have README.md
 11. **changelog_currency** — CHANGELOG.md latest version matches root
-12. **msp_structure** — MSP compose structure valid (added in Phase 6)
+12. **composite_structure** — composite structure valid (added in Phase 6)
 
 ## Tool Call
 

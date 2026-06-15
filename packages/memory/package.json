@@ -13,9 +13,33 @@
     "test:watch": "bun test --watch",
     "typecheck": "bun build --target=bun --no-bundle src/index.ts"
   },
-  "mspRole": "memory",
-  "mspFeatures": ["memory", "extra"],
-  "category": "msp",
+  "license": "MIT",
+  "author": "SFFMC Contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Rahspide/sffmc.git",
+    "directory": "packages/memory"
+  },
+  "bugs": {
+    "url": "https://github.com/Rahspide/sffmc/issues"
+  },
+  "homepage": "https://github.com/Rahspide/sffmc/tree/main/packages/memory#readme",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "files": [
+    "src/**/*",
+    "skills/**/*",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": ["sffmc", "opencode", "plugin", "memory"],
+  "engines": {
+    "bun": ">=1.0.0"
+  },
+  "role": "memory",
+  "composes": ["extra"],
   "portSource": "MiMo-Code v8.0",
   "portFeature": "memory"
 }

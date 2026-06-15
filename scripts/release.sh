@@ -1,147 +1,239 @@
-#!/bin/bash
-# scripts/release.sh — automate SFFMC release flow
-#
-# Usage:
-#   ./scripts/release.sh <version> <notes-file> [--check]
-#
-# What it does:
-#   1. Verifies clean working tree, on main, tag not yet existing
-#   2. Runs 4 pre-commit gates (test, typecheck, audit, sffmc_health)
-#   3. Prepends ## v<version> section to CHANGELOG.md (title from notes line 1)
-#   4. git commit + git tag -a
-#
-# Example:
-#   cat > /tmp/notes.md <<EOF
-#   Tweak ergonomics
-#
-#   - scripts/release.sh: automate the release flow
-#   - CHANGELOG auto-update on tag
-#   EOF
-#   ./scripts/release.sh 0.7.6 /tmp/notes.md
-#
-# Options:
-#   --check    Run gates only, don't modify anything (CI-friendly)
-
+#!/usr/bin/env bash
 set -euo pipefail
 
-CHECK_ONLY=false
-if [[ "${3:-}" == "--check" ]]; then
-  CHECK_ONLY=true
-fi
+# scripts/release.sh — publish SFFMC monorepo packages to npm
+#
+# Usage:
+#   ./scripts/release.sh               # dry-run (default)
+#   ./scripts/release.sh --actual      # actually publish
+#   ./scripts/release.sh --only=safety # publish only one package
+#   ./scripts/release.sh --help        # show help
 
-VERSION="${1:?usage: $0 <version> <notes-file> [--check]}"
-NOTES_FILE="${2:?usage: $0 <version> <notes-file> [--check]}"
+# -- defaults ----------------------------------------------------------
+DRY_RUN=true
+ONLY=""      # if set, only publish this package (e.g. "shared" or "safety")
+VERBOSE=false
 
-DATE=$(date +%Y-%m-%d)
-TITLE=$(head -1 "$NOTES_FILE" | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
-if [[ -z "$TITLE" ]]; then
-  echo "[release] ERROR: notes file first line is empty (used as changelog title)"
-  exit 1
-fi
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
-cd "$(git rev-parse --show-toplevel)"
+# -- help --------------------------------------------------------------
+show_help() {
+  cat <<EOF
+release.sh — publish SFFMC monorepo packages to npm (via bun publish)
 
-# --- 1. Sanity checks ---
-if [[ -n "$(git status --porcelain)" ]]; then
-  echo "[release] ERROR: working tree not clean. Commit or stash first."
-  git status --short
-  exit 1
-fi
+Usage: $0 [flags]
 
-CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-if [[ "$CURRENT_BRANCH" != "main" ]]; then
-  echo "[release] WARNING: not on 'main' branch (you're on '$CURRENT_BRANCH')"
-  read -r -p "Continue anyway? [y/N] " REPLY
-  [[ "$REPLY" =~ ^[Yy]$ ]] || exit 1
-fi
+Flags:
+  --actual            Actually publish (default is dry-run)
+  --dry-run           Dry-run only (default; explicit form)
+  --only=<pkg>        Publish only <pkg> (e.g. "shared" or "safety")
+  -v, --verbose       Verbose output
+  -h, --help          Show this help
 
-if git rev-parse "v$VERSION" >/dev/null 2>&1; then
-  echo "[release] ERROR: tag v$VERSION already exists"
-  git log -1 --oneline "v$VERSION"
-  exit 1
-fi
+Publish order: shared/ first, then packages/ alphabetically.
 
-if ! bun --version >/dev/null 2>&1; then
-  echo "[release] ERROR: bun not in PATH"
-  exit 1
-fi
+Precondition checks (fail-fast before any publish):
+  1. Working tree clean (git status --porcelain)
+  2. npm login (npm whoami)
+  3. npm org sffmc exists (npm org ls sffmc)
+  4. git tag v0.9.0 exists (warns if missing)
 
-echo "[release] ok: clean tree, branch=$CURRENT_BRANCH, version=v$VERSION, title='$TITLE'"
-
-# --- 2. Run 4 gates ---
-echo ""
-echo "[release] === gate 1/4: bun test ==="
-bun test 2>&1 | tail -5
-
-echo ""
-echo "[release] === gate 2/4: bun run typecheck ==="
-if ! bun run typecheck >/dev/null 2>&1; then
-  echo "[release] typecheck FAILED"
-  bun run typecheck
-  exit 1
-fi
-echo "[release] typecheck ok"
-
-echo ""
-echo "[release] === gate 3/4: load-order audit ==="
-python3 scripts/audit-load-order.py 2>&1 | tail -5
-
-echo ""
-echo "[release] === gate 4/4: sffmc_health ==="
-HEALTH_JSON=$(bun run scripts/run-health.ts 2>&1)
-echo "$HEALTH_JSON" | python3 -c "import json, sys; d=json.load(sys.stdin); print('ok:', d['ok'], '|', d['summary'])" 2>/dev/null || {
-  echo "[release] sffmc_health FAILED (could not parse output)"
-  echo "$HEALTH_JSON"
-  exit 1
+Exit codes:
+  0  success
+  1  publish failure
+  2  precondition unmet
+EOF
 }
-HEALTH_OK=$(echo "$HEALTH_JSON" | python3 -c "import json, sys; d=json.load(sys.stdin); print('1' if d.get('ok') else '0')")
-if [[ "$HEALTH_OK" != "1" ]]; then
-  echo "[release] sffmc_health reports failures — see above"
-  exit 1
+
+# -- parse args --------------------------------------------------------
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --actual)   DRY_RUN=false; shift ;;
+    --dry-run)  DRY_RUN=true; shift ;;
+    --only=*)   ONLY="${1#*=}"; shift ;;
+    -v|--verbose) VERBOSE=true; shift ;;
+    -h|--help)  show_help; exit 0 ;;
+    *)          echo "[ERROR] Unknown arg: $1" >&2; exit 1 ;;
+  esac
+done
+
+# -- colors ------------------------------------------------------------
+if [[ -t 1 ]] && [[ -z "${NO_COLOR:-}" ]]; then
+  GREEN='\033[0;32m'
+  RED='\033[0;31m'
+  YELLOW='\033[1;33m'
+  NC='\033[0m'  # No Color
+else
+  GREEN=''; RED=''; YELLOW=''; NC=''
 fi
 
-echo ""
-echo "[release] === all 4 gates passed ==="
+# -- log helpers -------------------------------------------------------
+info()  { echo -e "[INFO]  $*"; }
+warn()  { echo -e "[WARN]  ${YELLOW}$*${NC}" >&2; }
+error() { echo -e "[ERROR] ${RED}$*${NC}" >&2; }
+ok()    { echo -e "${GREEN}OK${NC}"; }
 
-if [[ "$CHECK_ONLY" == "true" ]]; then
-  echo "[release] --check: not committing, not tagging"
-  exit 0
-fi
+# -- precondition checks -----------------------------------------------
+check_git_clean() {
+  info "Checking git working tree is clean..."
+  if [[ -n "$(git -C "$REPO_ROOT" status --porcelain)" ]]; then
+    error "Working tree is NOT clean. Commit or stash changes first."
+    git -C "$REPO_ROOT" status --short
+    exit 2
+  fi
+  echo -e "  ${GREEN}git working tree clean${NC}"
+}
 
-# --- 3. Update CHANGELOG (prepend) ---
-echo ""
-echo "[release] === updating CHANGELOG.md ==="
-TMPFILE=$(mktemp)
-{
-  echo "# SFFMC Changelog"
+check_npm_login() {
+  info "Checking npm login status..."
+  local user
+  if user=$(npm whoami 2>/dev/null); then
+    echo -e "  ${GREEN}logged in as: $user${NC}"
+  else
+    error "Not logged into npm."
+    error "Run: npm login"
+    exit 2
+  fi
+}
+
+check_npm_org() {
+  info "Checking npm org 'sffmc' exists..."
+  if npm org ls sffmc >/dev/null 2>&1; then
+    echo -e "  ${GREEN}org 'sffmc' exists${NC}"
+  else
+    error "npm org 'sffmc' not found."
+    error "Run: npm org create sffmc"
+    exit 2
+  fi
+}
+
+check_tag() {
+  info "Checking git tag v0.9.0 exists..."
+  if git -C "$REPO_ROOT" rev-parse "v0.9.0" >/dev/null 2>&1; then
+    echo -e "  ${GREEN}tag v0.9.0 exists${NC}"
+  else
+    warn "git tag v0.9.0 not found. Publishing without tag gate."
+  fi
+}
+
+check_bun() {
+  if ! command -v bun &>/dev/null; then
+    error "bun not found in PATH."
+    exit 2
+  fi
+}
+
+# -- plan --------------------------------------------------------------
+plan_publishes() {
   echo ""
-  echo "## v${VERSION} — ${TITLE} (${DATE})"
+  echo "Publish plan:"
+  echo "  1. shared/ (@sffmc/shared)"
+  local i=2
+  for p in "$REPO_ROOT"/packages/*/; do
+    local pkg_name
+    pkg_name=$(basename "$p")
+    local pkg_full
+    pkg_full=$(jq -r .name "$p/package.json" 2>/dev/null || echo "?")
+    echo "  $i. packages/${pkg_name}/ (${pkg_full})"
+    ((i++))
+  done
   echo ""
-  # Skip the title line (line 1) from notes, prepend the rest under the header
-  tail -n +2 "$NOTES_FILE" | sed '/^$/d; s/^/- /' | sed 's/^- $//'
+
+  if $DRY_RUN; then
+    info "Mode: ${YELLOW}DRY-RUN${NC} (no actual publishes)"
+  else
+    warn "Mode: ACTUAL publish (packages will be published to npm)"
+  fi
   echo ""
-  # Now append the rest of the existing CHANGELOG (skip its first line which is "# SFFMC Changelog")
-  tail -n +2 CHANGELOG.md
-} > "$TMPFILE"
-mv "$TMPFILE" CHANGELOG.md
-echo "[release] CHANGELOG.md updated"
+}
 
-# --- 4. Commit + tag ---
-echo ""
-echo "[release] === commit + tag ==="
-git add CHANGELOG.md
-git commit -m "docs: v${VERSION} changelog — ${TITLE}" 2>&1 | tail -3
+# -- publish one package -----------------------------------------------
+run_publish() {
+  local pkg_dir="$1"
+  local pkg_name
+  pkg_name=$(jq -r .name "$pkg_dir/package.json")
+  local pkg_version
+  pkg_version=$(jq -r .version "$pkg_dir/package.json")
 
-git tag -a "v${VERSION}" -m "v${VERSION} — ${TITLE}
+  if $DRY_RUN; then
+    info "DRY-RUN: ${pkg_name}@${pkg_version} (in ${pkg_dir#$REPO_ROOT/})"
+    if (cd "$pkg_dir" && bun publish --dry-run); then
+      echo -e "  ${GREEN}dry-run OK${NC}"
+    else
+      error "dry-run FAILED for ${pkg_name}"
+      return 1
+    fi
+  else
+    info "PUBLISH: ${pkg_name}@${pkg_version} (in ${pkg_dir#$REPO_ROOT/})"
+    if (cd "$pkg_dir" && bun publish --access public --tolerate-republish); then
+      echo -e "  ${GREEN}published OK${NC}"
+    else
+      error "publish FAILED for ${pkg_name}"
+      return 1
+    fi
+  fi
+}
 
-$(cat "$NOTES_FILE")"
+# -- main --------------------------------------------------------------
+main() {
+  # Schema check: CD to repo root now so relative paths are consistent
+  cd "$REPO_ROOT"
 
-echo ""
-echo "[release] === done ==="
-echo "  commit: $(git rev-parse --short HEAD)"
-echo "  tag:    v$VERSION"
-echo ""
-echo "verify with:"
-echo "  git tag -l"
-echo "  git show v$VERSION"
-echo "  git log --oneline -3"
+  echo ""
+  echo "=== SFFMC release.sh ==="
+  echo ""
+
+  # -- precondition checks (fail-fast) --
+  check_bun
+  check_git_clean
+  check_npm_login
+  check_npm_org
+  check_tag
+  echo ""
+
+  # -- show plan --
+  plan_publishes
+
+  # -- confirm if actual --
+  if ! $DRY_RUN; then
+    warn "About to ACTUALLY publish. Press Ctrl-C in 5 seconds to abort..."
+    sleep 5
+    echo ""
+  fi
+
+  # -- publish: shared first --
+  local errors=0
+
+  if [[ -z "$ONLY" || "$ONLY" == "shared" ]]; then
+    if [[ -f "$REPO_ROOT/shared/package.json" ]]; then
+      run_publish "$REPO_ROOT/shared" || ((errors++))
+    else
+      warn "shared/package.json not found — skipping"
+    fi
+  fi
+
+  # -- publish: packages alphabetically --
+  for p in "$REPO_ROOT"/packages/*/; do
+    local pkg_base
+    pkg_base=$(basename "$p")
+    if [[ -z "$ONLY" || "$ONLY" == "$pkg_base" ]]; then
+      if [[ -f "$p/package.json" ]]; then
+        run_publish "$p" || ((errors++))
+      else
+        warn "packages/${pkg_base}/package.json not found — skipping"
+      fi
+    fi
+  done
+
+  # -- summary --
+  echo ""
+  if [[ $errors -eq 0 ]]; then
+    echo -e "[INFO]  ${GREEN}All publishes complete.${NC}"
+    exit 0
+  else
+    error "${errors} package(s) failed to publish."
+    exit 1
+  fi
+}
+
+main "$@"

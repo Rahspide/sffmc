@@ -12,5 +12,29 @@
   "dependencies": {
     "yaml": "^2.0.0"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "author": "SFFMC Contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Rahspide/sffmc.git",
+    "directory": "shared"
+  },
+  "bugs": {
+    "url": "https://github.com/Rahspide/sffmc/issues"
+  },
+  "homepage": "https://github.com/Rahspide/sffmc/tree/main/shared#readme",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "files": [
+    "src/**/*",
+    "skills/**/*",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": ["sffmc", "opencode", "plugin", "shared"],
+  "engines": {
+    "bun": ">=1.0.0"
+  }
 }

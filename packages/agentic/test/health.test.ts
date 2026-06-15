@@ -20,7 +20,7 @@ import {
   checkChangelogCurrency,
   checkExtraOptIn,
   checkCategorySplit,
-  checkMspStructure,
+  checkCompositeStructure,
   type CheckResult,
   type CheckFn,
 } from "../../health/src/index";
@@ -178,9 +178,9 @@ describe("checkTestPresence", () => {
       await writeFile(join(dir, "packages", "pkg-a", "src", "index.test.ts"), "// test");
       await writeFile(join(dir, "packages", "pkg-b", "tests", "integration.test.ts"), "// test");
       await writeFile(join(dir, "shared", "src", "events.test.ts"), "// test");
-      // pkg-a and pkg-b are MSPs (have mspRole), shared is infra
-      await writeFile(join(dir, "packages", "pkg-a", "package.json"), JSON.stringify({ mspRole: "msp-a" }));
-      await writeFile(join(dir, "packages", "pkg-b", "package.json"), JSON.stringify({ mspRole: "msp-b" }));
+      // pkg-a and pkg-b have role, shared is infra
+      await writeFile(join(dir, "packages", "pkg-a", "package.json"), JSON.stringify({ role: "msp-a" }));
+      await writeFile(join(dir, "packages", "pkg-b", "package.json"), JSON.stringify({ role: "msp-b" }));
       await writeFile(join(dir, "shared", "package.json"), "{}");
 
       const result = await checkTestPresence(dir);
@@ -193,9 +193,9 @@ describe("checkTestPresence", () => {
     await withTempDir(async (dir) => {
       await mkdir(join(dir, "packages", "pkg-a", "src"), { recursive: true });
       await mkdir(join(dir, "packages", "pkg-b", "src"), { recursive: true });
-      // pkg-a is a test owner (mspRole) with tests, pkg-b is a test owner WITHOUT tests
-      await writeFile(join(dir, "packages", "pkg-a", "package.json"), JSON.stringify({ mspRole: "msp-a" }));
-      await writeFile(join(dir, "packages", "pkg-b", "package.json"), JSON.stringify({ mspRole: "msp-b" }));
+      // pkg-a is a test owner (role) with tests, pkg-b is a test owner WITHOUT tests
+      await writeFile(join(dir, "packages", "pkg-a", "package.json"), JSON.stringify({ role: "msp-a" }));
+      await writeFile(join(dir, "packages", "pkg-b", "package.json"), JSON.stringify({ role: "msp-b" }));
       await writeFile(join(dir, "packages", "pkg-a", "src", "index.test.ts"), "// test");
       // pkg-b has src/ but no test file
 
@@ -205,11 +205,11 @@ describe("checkTestPresence", () => {
     });
   });
 
-  it("ignores sub-feature packages (no mspRole) — they are code-only", async () => {
+  it("ignores sub-feature packages (no role) — they are code-only", async () => {
     await withTempDir(async (dir) => {
       await mkdir(join(dir, "packages", "pkg-a", "src"), { recursive: true });
       await mkdir(join(dir, "shared", "src"), { recursive: true });
-      // pkg-a is a sub-feature (no mspRole, no tests) — should be ignored
+      // pkg-a is a sub-feature (no role, no tests) — should be ignored
       await writeFile(join(dir, "packages", "pkg-a", "package.json"), JSON.stringify({ category: "mimo-port" }));
       await writeFile(join(dir, "shared", "package.json"), "{}");
       await writeFile(join(dir, "shared", "src", "events.test.ts"), "// test");
@@ -745,14 +745,14 @@ describe("checkCategorySplit", () => {
 });
 
 // ---------------------------------------------------------------------------
-// checkMspStructure
+// checkCompositeStructure
 // ---------------------------------------------------------------------------
 
-describe("checkMspStructure", () => {
-  it("reports ok when all 3 MSPs are valid", async () => {
+describe("checkCompositeStructure", () => {
+  it("reports ok when all 3 composites are valid", async () => {
     await withTempDir(async (dir) => {
       const features = ["feat-a", "feat-b", "feat-c", "feat-d", "feat-e", "feat-f"];
-      // Create sub-feature dirs referenced by mspFeatures
+      // Create sub-feature dirs referenced by composes
       for (const feat of features) {
         await mkdir(join(dir, "packages", feat), { recursive: true });
         await writeFile(join(dir, "packages", feat, "package.json"), JSON.stringify({
@@ -762,115 +762,111 @@ describe("checkMspStructure", () => {
         }));
       }
 
-      // Create 3 MSPs with proper structure
-      const msps: { name: string; features: string[] }[] = [
+      // Create 3 composites with proper structure
+      const composites: { name: string; features: string[] }[] = [
         { name: "safety", features: ["feat-a", "feat-b"] },
         { name: "memory", features: ["feat-c", "feat-d"] },
         { name: "agentic", features: ["feat-e", "feat-f"] },
       ];
-      for (const msp of msps) {
-        await mkdir(join(dir, "packages", msp.name, "src"), { recursive: true });
+      for (const composite of composites) {
+        await mkdir(join(dir, "packages", composite.name, "src"), { recursive: true });
         await writeFile(
-          join(dir, "packages", msp.name, "package.json"),
+          join(dir, "packages", composite.name, "package.json"),
           JSON.stringify({
-            name: `@sffmc/${msp.name}`,
+            name: `@sffmc/${composite.name}`,
             version: "0.9.0",
-            category: "msp",
-            mspRole: msp.name,
-            mspFeatures: msp.features,
+            role: composite.name,
+            composes: composite.features,
           }),
         );
         await writeFile(
-          join(dir, "packages", msp.name, "src", "index.ts"),
+          join(dir, "packages", composite.name, "src", "index.ts"),
           `import { mergeHooks } from "@sffmc/shared";\nexport default mergeHooks([]);`,
         );
       }
 
-      const result = await checkMspStructure(dir);
+      const result = await checkCompositeStructure(dir);
       expect(result.status).toBe("ok");
-      expect(result.detail).toContain("3 MSPs valid");
+      expect(result.detail).toContain("3 composites valid");
       expect(result.detail).toContain("safety");
       expect(result.detail).toContain("memory");
       expect(result.detail).toContain("agentic");
     });
   });
 
-  it("reports fail when an MSP directory is missing", async () => {
+  it("reports fail when a composite directory is missing", async () => {
     await withTempDir(async (dir) => {
-      // Create only 2 of 3 MSPs (skip safety)
-      for (const msp of ["memory", "agentic"]) {
-        await mkdir(join(dir, "packages", msp, "src"), { recursive: true });
+      // Create only 2 of 3 composites (skip safety)
+      for (const composite of ["memory", "agentic"]) {
+        await mkdir(join(dir, "packages", composite, "src"), { recursive: true });
         await writeFile(
-          join(dir, "packages", msp, "package.json"),
+          join(dir, "packages", composite, "package.json"),
           JSON.stringify({
-            name: `@sffmc/${msp}`,
+            name: `@sffmc/${composite}`,
             version: "0.9.0",
-            category: "msp",
-            mspRole: msp,
-            mspFeatures: ["some-feat"],
+            role: composite,
+            composes: ["some-feat"],
           }),
         );
         await mkdir(join(dir, "packages", "some-feat"), { recursive: true });
         await writeFile(join(dir, "packages", "some-feat", "package.json"), JSON.stringify({ name: "@sffmc/some-feat", version: "0.9.0", category: "mimo-port" }));
         await writeFile(
-          join(dir, "packages", msp, "src", "index.ts"),
+          join(dir, "packages", composite, "src", "index.ts"),
           `import { mergeHooks } from "@sffmc/shared";\nexport default mergeHooks([]);`,
         );
       }
 
-      const result = await checkMspStructure(dir);
+      const result = await checkCompositeStructure(dir);
       expect(result.status).toBe("fail");
-      expect(result.detail).toContain("MSP directory missing");
+      expect(result.detail).toContain("Composite directory missing");
       expect(result.detail).toContain("safety");
     });
   });
 
-  it("reports fail when an MSP src/index.ts does not call mergeHooks", async () => {
+  it("reports fail when a composite src/index.ts does not call mergeHooks", async () => {
     await withTempDir(async (dir) => {
-      for (const msp of ["safety", "memory", "agentic"]) {
-        await mkdir(join(dir, "packages", msp, "src"), { recursive: true });
+      for (const composite of ["safety", "memory", "agentic"]) {
+        await mkdir(join(dir, "packages", composite, "src"), { recursive: true });
         await writeFile(
-          join(dir, "packages", msp, "package.json"),
+          join(dir, "packages", composite, "package.json"),
           JSON.stringify({
-            name: `@sffmc/${msp}`,
+            name: `@sffmc/${composite}`,
             version: "0.9.0",
-            category: "msp",
-            mspRole: msp,
-            mspFeatures: ["some-feat"],
+            role: composite,
+            composes: ["some-feat"],
           }),
         );
         // safety gets no mergeHooks call; others are fine
-        const content = msp === "safety"
+        const content = composite === "safety"
           ? `import { something } from "@sffmc/shared";\nexport default { id: "safety" };`
           : `import { mergeHooks } from "@sffmc/shared";\nexport default mergeHooks([]);`;
-        await writeFile(join(dir, "packages", msp, "src", "index.ts"), content);
+        await writeFile(join(dir, "packages", composite, "src", "index.ts"), content);
       }
       await mkdir(join(dir, "packages", "some-feat"), { recursive: true });
       await writeFile(join(dir, "packages", "some-feat", "package.json"), JSON.stringify({ name: "@sffmc/some-feat", version: "0.9.0", category: "mimo-port" }));
 
-      const result = await checkMspStructure(dir);
+      const result = await checkCompositeStructure(dir);
       expect(result.status).toBe("fail");
       expect(result.detail).toContain("does not call mergeHooks");
       expect(result.detail).toContain("safety");
     });
   });
 
-  it("reports fail when an MSP lists a nonexistent feature", async () => {
+  it("reports fail when a composite lists a nonexistent feature", async () => {
     await withTempDir(async (dir) => {
-      for (const msp of ["safety", "memory", "agentic"]) {
-        await mkdir(join(dir, "packages", msp, "src"), { recursive: true });
+      for (const composite of ["safety", "memory", "agentic"]) {
+        await mkdir(join(dir, "packages", composite, "src"), { recursive: true });
         await writeFile(
-          join(dir, "packages", msp, "package.json"),
+          join(dir, "packages", composite, "package.json"),
           JSON.stringify({
-            name: `@sffmc/${msp}`,
+            name: `@sffmc/${composite}`,
             version: "0.9.0",
-            category: "msp",
-            mspRole: msp,
-            mspFeatures: msp === "safety" ? ["nonexistent-feature"] : ["real-feat"],
+            role: composite,
+            composes: composite === "safety" ? ["nonexistent-feature"] : ["real-feat"],
           }),
         );
         await writeFile(
-          join(dir, "packages", msp, "src", "index.ts"),
+          join(dir, "packages", composite, "src", "index.ts"),
           `import { mergeHooks } from "@sffmc/shared";\nexport default mergeHooks([]);`,
         );
       }
@@ -878,47 +874,46 @@ describe("checkMspStructure", () => {
       await mkdir(join(dir, "packages", "real-feat"), { recursive: true });
       await writeFile(join(dir, "packages", "real-feat", "package.json"), JSON.stringify({ name: "@sffmc/real-feat", version: "0.9.0", category: "mimo-port" }));
 
-      const result = await checkMspStructure(dir);
+      const result = await checkCompositeStructure(dir);
       expect(result.status).toBe("fail");
       expect(result.detail).toContain("nonexistent-feature");
       expect(result.detail).toContain("does not exist");
     });
   });
 
-  it("reports fail when a sub-feature claims to be an MSP", async () => {
+  it("reports fail when a sub-feature claims a role", async () => {
     await withTempDir(async (dir) => {
-      // Create 3 valid MSPs
-      for (const msp of ["safety", "memory", "agentic"]) {
-        await mkdir(join(dir, "packages", msp, "src"), { recursive: true });
+      // Create 3 valid composites
+      for (const composite of ["safety", "memory", "agentic"]) {
+        await mkdir(join(dir, "packages", composite, "src"), { recursive: true });
         await writeFile(
-          join(dir, "packages", msp, "package.json"),
+          join(dir, "packages", composite, "package.json"),
           JSON.stringify({
-            name: `@sffmc/${msp}`,
+            name: `@sffmc/${composite}`,
             version: "0.9.0",
-            category: "msp",
-            mspRole: msp,
-            mspFeatures: ["feat-a"],
+            role: composite,
+            composes: ["feat-a"],
           }),
         );
         await writeFile(
-          join(dir, "packages", msp, "src", "index.ts"),
+          join(dir, "packages", composite, "src", "index.ts"),
           `import { mergeHooks } from "@sffmc/shared";\nexport default mergeHooks([]);`,
         );
       }
       await mkdir(join(dir, "packages", "feat-a"), { recursive: true });
       await writeFile(join(dir, "packages", "feat-a", "package.json"), JSON.stringify({ name: "@sffmc/feat-a", version: "0.9.0", category: "mimo-port" }));
 
-      // rogue sub-feature claiming to be an MSP
+      // rogue sub-feature claiming a role
       await mkdir(join(dir, "packages", "rogue"), { recursive: true });
       await writeFile(
         join(dir, "packages", "rogue", "package.json"),
-        JSON.stringify({ name: "@sffmc/rogue", version: "0.9.0", category: "msp" }),
+        JSON.stringify({ name: "@sffmc/rogue", version: "0.9.0", role: "rogue" }),
       );
 
-      const result = await checkMspStructure(dir);
+      const result = await checkCompositeStructure(dir);
       expect(result.status).toBe("fail");
       expect(result.detail).toContain("rogue");
-      expect(result.detail).toContain("claims to be an MSP");
+      expect(result.detail).toContain("claims role");
     });
   });
 });

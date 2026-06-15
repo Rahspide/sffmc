@@ -91,3 +91,107 @@ jobs:
 5. **CI provider**: GitHub Actions (needs GitHub), GitLab CI (needs GitLab), or none?
 
 None of these block local development. They only matter at the moment you want someone else to install `@sffmc/workflow` from npm.
+
+## First Publish (v0.9.0)
+
+Pre-release checklist (do these once, before first `bun publish`):
+
+1. **Create GitHub repo**
+   - Go to https://github.com/new
+   - Owner: Rahspide
+   - Repo name: sffmc
+   - Public
+   - Don't initialize with README/LICENSE/.gitignore (we have them locally)
+   - Click "Create repository"
+
+2. **Push local repo to GitHub**
+   ```bash
+   cd /data/projects/SFFMC
+   git remote add origin https://github.com/Rahspide/sffmc.git
+   git push -u origin main
+   git push origin v0.9.0  # if tag not already pushed
+   ```
+
+3. **Create npm org**
+   - Go to https://www.npmjs.com/org/create
+   - Org name: sffmc
+   - Free org (public packages only)
+   - Add Rahspide as owner
+
+4. **npm login (local machine)**
+   ```bash
+   npm login
+   # Enter username, password, email
+   npm whoami  # verify
+   ```
+
+5. **Verify all packages ready**
+   ```bash
+   cd /data/projects/SFFMC
+   bun run version:list       # all 14 should show 0.9.0
+   bash scripts/release.sh --dry-run   # should pass preconditions
+   ```
+
+6. **First publish (dry-run first)**
+   ```bash
+   bun run publish:dry-run    # alias for scripts/release.sh --dry-run
+   ```
+   Check the output for any issues. The script will:
+   - Verify git status clean
+   - Verify npm login
+   - Verify npm org `sffmc` exists
+   - Plan publish order (shared first, then packages)
+   - For each package: `bun publish --dry-run` to verify metadata
+
+7. **Real publish**
+   ```bash
+   bun run publish:actual
+   ```
+   This will:
+   - Wait 5 seconds (press Ctrl-C to abort)
+   - Publish @sffmc/shared@0.9.0
+   - Publish @sffmc/safety@0.9.0
+   - ... 12 more packages ...
+
+8. **Verify on npm**
+   - https://www.npmjs.com/org/sffmc
+   - Should show 14 packages at v0.9.0
+
+## CI/CD (after first publish)
+
+Once packages are on npm, set up Drone:
+
+1. **Install Drone server** (one-time, on nipogi or another host)
+2. **Add repo to Drone**
+   ```bash
+   drone repo add Rahspide/sffmc
+   ```
+3. **Add secrets**
+   ```bash
+   drone secret add Rahspide/sffmc npm_token @/path/to/npm/token
+   ```
+4. **Sign .drone.yml**
+   ```bash
+   drone sign save Rahspide/sffmc
+   ```
+5. **Push trigger**
+   - Pushing to main or PR triggers full pipeline
+   - Pushing tag `v*.*.*` triggers publish step
+
+## Troubleshooting
+
+- "package name too similar to existing" — npm thinks scope is squatting. Use a different name.
+- "402 Payment Required" — npm org doesn't exist or user isn't member.
+- "EACCES permission denied" — wrong npm login. `npm logout && npm login`.
+- "workspace dep not found" — `bun publish` should rewrite `workspace:*` to version. If it doesn't, manually bump the dep version.
+
+## Rollback
+
+If a publish goes wrong:
+```bash
+# Unpublish within 72 hours
+npm unpublish @sffmc/<name>@0.9.0
+
+# Deprecate instead (preferred for older versions)
+npm deprecate @sffmc/<name>@0.9.0 "broken, use 0.9.1"
+```
