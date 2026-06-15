@@ -2,6 +2,7 @@ import { FailureCounter } from "./counter";
 import { buildPromotionFragment } from "./promote";
 import { buildRecoveryVerdict } from "./verdict";
 import { parse as parseYaml } from "yaml";
+import { type PluginContext } from "@sffmc/shared";
 import { readFileSync, existsSync } from "fs";
 import { resolve } from "path";
 import { homedir } from "os";
@@ -39,12 +40,6 @@ interface PluginState {
   config: WatchdogConfig;
   promotedSessions: Set<string>;
   recoveringTools: Map<string, { errorType: string; attempts: number }>;
-}
-
-interface PluginContext {
-  projectRoot: string;
-  config: Record<string, unknown>;
-  [key: string]: unknown;
 }
 
 function extractErrorType(args: Record<string, unknown>, output: unknown): string {

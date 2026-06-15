@@ -6,6 +6,7 @@ import {
   type Rules,
 } from "./rules";
 import { evaluate } from "./gate";
+import { type PluginContext } from "@sffmc/shared";
 import { existsSync } from "fs";
 import { resolve } from "path";
 import { homedir } from "os";
@@ -45,12 +46,6 @@ rules:
 interface PluginState {
   rules: Rules;
   watcher: { stop: () => void } | null;
-}
-
-interface PluginContext {
-  projectRoot: string;
-  config: Record<string, unknown>;
-  [key: string]: unknown;
 }
 
 const server = async (ctx: PluginContext) => {

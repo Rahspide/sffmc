@@ -6,5 +6,8 @@
   "dependencies": {
     "@sffmc/shared": "workspace:*",
     "yaml": "^2.0.0"
+  },
+  "scripts": {
+    "test:watch": "bun test --watch"
   }
 }

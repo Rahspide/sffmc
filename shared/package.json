@@ -5,7 +5,8 @@
   "main": "src/index.ts",
   "scripts": {
     "test": "bun test",
-    "build": "tsc --noEmit"
+    "build": "tsc --noEmit",
+    "test:watch": "bun test --watch"
   },
   "dependencies": {
     "yaml": "^2.0.0"

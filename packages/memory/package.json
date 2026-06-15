@@ -4,7 +4,11 @@
   "type": "module",
   "main": "src/index.ts",
   "dependencies": {
+    "@sffmc/shared": "workspace:*",
     "chokidar": "^4.0.0",
     "yaml": "^2.0.0"
+  },
+  "scripts": {
+    "test:watch": "bun test --watch"
   }
 }

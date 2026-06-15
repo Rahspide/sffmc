@@ -9,12 +9,16 @@
       "name": "@sffmc/auto-max",
       "version": "0.1.0",
       "dependencies": {
+        "@sffmc/shared": "workspace:*",
         "yaml": "^2.0.0",
       },
     },
     "packages/compose": {
       "name": "@sffmc/compose",
       "version": "0.1.0",
+      "dependencies": {
+        "@sffmc/shared": "workspace:*",
+      },
     },
     "packages/eos-stripper": {
       "name": "@sffmc/eos-stripper",
@@ -22,6 +26,13 @@
       "dependencies": {
         "@sffmc/shared": "workspace:*",
         "yaml": "^2.0.0",
+      },
+    },
+    "packages/health": {
+      "name": "@sffmc/health",
+      "version": "0.1.0",
+      "dependencies": {
+        "@sffmc/shared": "workspace:*",
       },
     },
     "packages/log-whitelist": {
@@ -43,6 +54,7 @@
       "name": "@sffmc/memory",
       "version": "0.1.0",
       "dependencies": {
+        "@sffmc/shared": "workspace:*",
         "chokidar": "^4.0.0",
         "yaml": "^2.0.0",
       },
@@ -51,6 +63,7 @@
       "name": "@sffmc/rules",
       "version": "0.1.0",
       "dependencies": {
+        "@sffmc/shared": "workspace:*",
         "yaml": "^2.0.0",
       },
     },
@@ -58,6 +71,7 @@
       "name": "@sffmc/watchdog",
       "version": "0.1.0",
       "dependencies": {
+        "@sffmc/shared": "workspace:*",
         "yaml": "^2.0.0",
       },
     },
@@ -98,6 +112,8 @@
     "@sffmc/compose": ["@sffmc/compose@workspace:packages/compose"],
 
     "@sffmc/eos-stripper": ["@sffmc/eos-stripper@workspace:packages/eos-stripper"],
+
+    "@sffmc/health": ["@sffmc/health@workspace:packages/health"],
 
     "@sffmc/log-whitelist": ["@sffmc/log-whitelist@workspace:packages/log-whitelist"],
 

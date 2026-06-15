@@ -8,6 +8,7 @@ import {
   type AutoMaxConfig,
 } from "./coordinator";
 import { parse as parseYaml } from "yaml";
+import { type PluginContext } from "@sffmc/shared";
 import { readFileSync, existsSync } from "fs";
 import { resolve } from "path";
 import { homedir } from "os";
@@ -43,12 +44,6 @@ interface PluginState {
     errorType: string;
     timestamp: number;
   }>;
-}
-
-interface PluginContext {
-  projectRoot: string;
-  config: Record<string, unknown>;
-  [key: string]: unknown;
 }
 
 function extractErrorType(output: unknown): string {

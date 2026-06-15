@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { type PluginContext } from "@sffmc/shared";
 
 const SKILLS_DIR = join(import.meta.dirname, "..", "skills");
 
@@ -22,12 +23,6 @@ const VALID_SKILLS = [
 ] as const;
 
 type SkillName = (typeof VALID_SKILLS)[number];
-
-interface PluginContext {
-  projectRoot: string;
-  config: Record<string, unknown>;
-  [key: string]: unknown;
-}
 
 const server = async (_ctx: PluginContext) => {
   return {

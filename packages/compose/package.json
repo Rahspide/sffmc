@@ -3,7 +3,11 @@
   "version": "0.1.0",
   "type": "module",
   "main": "src/index.ts",
+  "dependencies": {
+    "@sffmc/shared": "workspace:*"
+  },
   "scripts": {
-    "test": "bun test"
+    "test": "bun test",
+    "test:watch": "bun test --watch"
   }
 }
