@@ -1,5 +1,43 @@
 # SFFMC Changelog
 
+## v0.7.5 — Full repository codemap (2026-06-15)
+
+Generated via Codemap skill. 11 parallel fixer agents + orchestrator umbrella + root atlas.
+
+### Files written (24 codemap.md + 1 atlas)
+
+- `codemap.md` (root) — 1380 words, master entry point with directory map
+- `packages/codemap.md` (umbrella) — 1415 words, 10 plugins + shared SDK overview
+- 10 × `packages/<plugin>/codemap.md` — package-level architecture per plugin
+- 10 × `packages/<plugin>/src/codemap.md` — file-by-file breakdown per plugin
+- 2 × `shared/codemap.md` + `shared/src/codemap.md` — SDK architecture
+- `AGENTS.md` — auto-load entry with Repository Map section
+- `.slim/codemap.json` — change-detection state (56 files tracked)
+
+**Total: ~11000 words across 24 codemap.md files**
+
+### Plugin codemap word counts
+
+| Plugin | Package | src | Total |
+|---|---|---|---|
+| memory | 954 | 1187 | 2141 |
+| rules | 585 | 730 | 1315 |
+| watchdog | 535 | 714 | 1249 |
+| eos-stripper | 501 | 547 | 1048 |
+| log-whitelist | 475 | 415 | 890 |
+| max-mode | 888 | 929 | 1817 |
+| auto-max | 802 | 546 | 1348 |
+| compose | 755 | 652 | 1407 |
+| workflow | 1604 | 2266 | 3870 |
+| health | 766 | 516 | 1282 |
+| shared | 426 | 653 | 1079 |
+
+### Verification
+- 292/292 tests pass
+- sffmc_health 7/7 ok
+- pre-commit hook (4-gate) clean
+- bunfig.toml scopes test discovery correctly
+
 ## v0.7.4 — Shared SDK migration + test log cleanup (2026-06-15)
 
 Two parallel cleanups: increase shared SDK adoption and silence noisy test output.
