@@ -1,5 +1,34 @@
 # SFFMC Changelog
 
+## v0.7.2 — F3+ Health plugin (2026-06-15)
+
+Revived F3+ Health from v8.0 cut list (`docs/v8-decision.md`) as a real diagnostic tool. Plugin authors can now run `sffmc_health` to check monorepo health in <1s.
+
+### New package: `@sffmc/health`
+
+- Exposes one LLM-callable tool `sffmc_health` returning JSON.
+- 7 diagnostic checks:
+  1. `hook_conflicts` — 0 real conflicts across 9 plugins (reuses `audit-load-order.py` logic)
+  2. `test_presence` — every package must have `*.test.ts`
+  3. `readme_presence` — every package must have `README.md`
+  4. `type_check` — `bun build --no-bundle` per plugin
+  5. `tool_registration` — no `name:` field inside tool defs (regression for fix-17)
+  6. `version_consistency` — root version matches all plugins
+  7. `license` — LICENSE present + every README references it
+- Each check returns `ok | warn | fail` with human-readable detail.
+- Top-level `ok` is `false` if any check fails.
+
+### Other changes
+
+- `shared/README.md` — created (caught by `sffmc_health`'s first run; closed by this release)
+- Pre-commit hook: runs `bun test` + `bun run typecheck` + `python3 scripts/audit-load-order.py` automatically
+- `bun run test:watch` — bun's built-in watch mode re-runs tests on every `.ts` save
+
+### Tests
+
+- 272 → 292 (+20 from `health`)
+- `sffmc_health` self-tested: live output 7/7 ok against the current repo
+
 ## v0.7.0 — Workflow builtins + shared SDK + docs (2026-06-15)
 
 4 user-facing features, ~1500 LOC, 102/102 tests pass.
