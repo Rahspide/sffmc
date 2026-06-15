@@ -60,6 +60,8 @@ function isFiltered(errorType: string, filter: string[]): boolean {
   return filter.some((f) => errorType.toLowerCase().includes(f.toLowerCase()));
 }
 
+let loadedLogged = false;
+
 const server = async (ctx: PluginContext) => {
   const config = loadConfig();
   const state: PluginState = {
@@ -71,7 +73,8 @@ const server = async (ctx: PluginContext) => {
 
   const model = config.promote_model || String(ctx.config?.model || "ocg/deepseek-v4-flash");
 
-  if (config.log_failures) {
+  if (config.log_failures && !loadedLogged) {
+    loadedLogged = true;
     console.warn(
       `[watchdog] loaded, threshold=${config.threshold}, model=${model}`,
     );
