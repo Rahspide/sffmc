@@ -1,5 +1,58 @@
 # SFFMC Changelog
 
+## v0.11.0 (2026-06-16)
+
+DLC lattice completion: max-mode + workflow onboarded into `@sffmc/shared`, 5 module-level singletons eliminated, ESM-only imports, plus 2 correctness bug fixes. **No API changes** for the public `@sffmc/workflow` surface (v0.10.0 BREAKING interface preserved).
+
+### Shared SDK (3 new exports + 1 new type)
+
+- **`extractErrorType(output)` + `isToolError(output)`** in `shared/src/errors.ts`
+  - Consolidates 21 LOC × 2 duplicated across `auto-max` + `watchdog`
+  - **Bug fix**: replaces auto-max's loose `/error|fail/i` (false positives on "failsafe"/"errorless") with watchdog's strict pattern
+  - 13 unit tests covering null/undefined, ENOENT/ERR_, object.code/name fallback, ">4096 chars" long-output
+- **`MAX_COMMAND` + `MAX_SUBCOMMANDS` + `MAX_PATTERN` + `MaxSubcommand`** in `shared/src/max-command.ts`
+  - Consolidates `/max` strings from 3 packages (max-mode:92, auto-max:172-174, watchdog:175)
+  - **Bug fix**: replaces watchdog's strict `cmdCtx.command === "/max"` (didn't catch `/max reset`) with `MAX_PATTERN.test()` (matches `/max`, `/max reset [id]`, `/max clear [id]`)
+  - 8 unit tests
+- **`RichPluginContext`** type in `shared/src/context.ts`
+  - `extends PluginContext` with optional `client.session.message()` + `usage.totalTokens`
+  - Replaces 4 separate `PluginContext` interfaces (3 in max-mode, 1 in workflow)
+- **Adoption**: 12/13 packages now use `@sffmc/shared` (was 11/13 in v0.10.1)
+
+### Refactor (6 mechanical + 1 architectural)
+
+- **R1** Fix ESM/CJS mixing: 3 `require()` → `import` (`memory/plugin.ts:33`, `workflow/runtime.ts:46`, `workflow/persistence.ts:160`)
+- **R7** Remove redundant `yaml` deps from 4 packages (watchdog, auto-max, eos-stripper, log-whitelist)
+- **R8** Use `SCRIPT_DEADLINE_MS` constant in 3 places (was 3 literals of `12*60*60*1000`)
+- **R9** Add `.unref()` to 2 timers (event loop hygiene: `runtime.ts:909` scheduleFlush, `sandbox.ts:222` pumpTimer)
+- **R5** Move 5 module-level singletons → factory closures (DLC compliance):
+  - `extra/checkpoint.ts`: `sessionBuffers` (Map), `headersWritten` (Set), `flushTimer` (setInterval)
+  - `extra/dream.ts`: `dreamLock` (Promise), `cronTimer` (setInterval)
+  - Backward-compat wrappers preserved for existing imports
+- **F1** Max-Mode DLC Onboarding:
+  - Dropped 3 `PluginContext` duplicates (51 LOC)
+  - Dropped 1 `loadConfig` duplicate (11 LOC)
+  - Dropped 4 unused imports
+  - Added `@sffmc/shared` to max-mode deps
+  - `max-mode/src/types.ts` (NEW): extracted `SchemaOnlyTool` interface
+  - `workflow/runtime.ts`: keeps local `PluginContext = RichPluginContext & { config?: Partial<WorkflowConfig> }` for typed `maxSteps`/`maxTokens` (15 lines replacing 19)
+
+### Tests
+
+- **21 new unit tests** in `shared/src/` (errors ×13, max-command ×8)
+- 1 test updated: `safety/test/watchdog.test.ts` to match shared's `>4096 → true` long-output behavior
+- 1 import fix: `workflow/tests/e2e-200-steps.test.ts` (`../src/types` → `../src/runtime`)
+
+### Stats
+
+- 24 files modified + 4 new (`shared/src/errors.ts`, `shared/src/errors.test.ts`, `shared/src/max-command.ts`, `shared/src/max-command.test.ts`, `packages/max-mode/src/types.ts`) + 1 (`bun.lock`)
+- +250/-266 = **−16 LOC net**
+- Tests: 510/510 → **534/534** (+21 new, 0 fail)
+- 2 bug fixes (auto-max false positives, watchdog `/max reset` miss)
+- 5 fixers dispatched: shared, mech (R1/R7/R8/R9), R5 singletons, auto-watchdog (F3+R3), maxmode-workflow (F1+R3)
+- All cross-referenced via council v1 + oracle reviews
+- **Strategic significance**: SFFMC is now DLC-pure (all packages conform, no module-level singletons, shared SDK adopted by 12/13) — foundation for v0.12.0+ features
+
 ## v0.10.1 (2026-06-16)
 
 Post-v0.10.0 cleanup: simplify refactor (6 runtime.ts + 1 builtin-registry) + 27 new unit tests for the refactored helpers. **No API changes** — all simplify work preserves v0.10.0 BREAKING interface.
