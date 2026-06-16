@@ -7,7 +7,9 @@ import {
   resetSession,
   type AutoMaxConfig,
 } from "./coordinator";
-import { extractErrorType, isToolError, MAX_COMMAND, MAX_SUBCOMMANDS, MAX_PATTERN, loadConfig, type PluginContext } from "@sffmc/shared";
+import { extractErrorType, isToolError, MAX_COMMAND, MAX_SUBCOMMANDS, MAX_PATTERN, loadConfig, type PluginContext, createLogger } from "@sffmc/shared"
+
+const log = createLogger("auto-max");;
 
 const defaultConfig: AutoMaxConfig = {
   enabled: true,
@@ -55,12 +57,12 @@ export const server = async (_ctx: PluginContext) => {
 
   if (config.enabled && !loadedLogged) {
     loadedLogged = true;
-    console.warn(
-      `[auto-max] loaded, threshold=${config.watchdog_threshold}, cap=${config.cost_cap_per_session}/session`,
+    log.warn(
+      `loaded, threshold=${config.watchdog_threshold}, cap=${config.cost_cap_per_session}/session`,
     );
   } else if (!loadedLogged) {
     loadedLogged = true;
-    console.warn("[auto-max] loaded, DISABLED via config");
+    log.warn("loaded, DISABLED via config");
   }
 
   return {
@@ -115,8 +117,8 @@ export const server = async (_ctx: PluginContext) => {
       if (shouldTriggerMaxMode(session, tool, errorType, config)) {
         if (config.dry_run) {
           const failCount = session.failCount.get(`${tool}::${errorType}`) ?? 0;
-          console.warn(
-            `[auto-max] dry_run=true: would trigger max-mode for session=${sessionID} (failures=${failCount}, threshold=${config.watchdog_threshold})`,
+          log.warn(
+            `dry_run=true: would trigger max-mode for session=${sessionID} (failures=${failCount}, threshold=${config.watchdog_threshold})`,
           );
           return;
         }
@@ -130,11 +132,11 @@ export const server = async (_ctx: PluginContext) => {
           timestamp: Date.now(),
         });
 
-        console.warn(
-          `[auto-max] TRIGGERED: ${tool}:${errorType} failed ${config.watchdog_threshold}x in session ${sessionID}`,
+        log.warn(
+          `TRIGGERED: ${tool}:${errorType} failed ${config.watchdog_threshold}x in session ${sessionID}`,
         );
-        console.warn(
-          `[auto-max] Activating Max Mode — generating ${config.max_mode_config.n} candidates`,
+        log.warn(
+          `Activating Max Mode — generating ${config.max_mode_config.n} candidates`,
         );
 
         // Store trigger info in ctx for max-mode to pick up
@@ -161,8 +163,8 @@ export const server = async (_ctx: PluginContext) => {
       const session = getOrCreateSession(state, targetSessionID);
       resetSession(session);
       session.maxCallsThisSession = 0;
-      console.warn(
-        `[auto-max] /max escape: counters reset for session ${targetSessionID}`,
+      log.warn(
+        `/max escape: counters reset for session ${targetSessionID}`,
       );
     },
 

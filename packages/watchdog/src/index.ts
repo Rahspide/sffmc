@@ -1,7 +1,9 @@
 import { FailureCounter } from "./counter";
 import { buildPromotionFragment } from "./promote";
 import { buildRecoveryVerdict } from "./verdict";
-import { extractErrorType, isToolError, MAX_COMMAND, MAX_SUBCOMMANDS, MAX_PATTERN, loadConfig, type PluginContext } from "@sffmc/shared";
+import { extractErrorType, isToolError, MAX_COMMAND, MAX_SUBCOMMANDS, MAX_PATTERN, loadConfig, type PluginContext, createLogger } from "@sffmc/shared"
+
+const log = createLogger("watchdog");;
 
 interface WatchdogConfig {
   threshold: number;
@@ -48,8 +50,8 @@ export const server = async (ctx: PluginContext) => {
 
   if (config.log_failures && !loadedLogged) {
     loadedLogged = true;
-    console.warn(
-      `[watchdog] loaded, threshold=${config.threshold}, model=${model}`,
+    log.warn(
+      `loaded, threshold=${config.threshold}, model=${model}`,
     );
   }
 
@@ -106,7 +108,7 @@ export const server = async (ctx: PluginContext) => {
       state.counter.recordFailure(tool, errorType, sessionID);
 
       if (config.log_failures) {
-        console.warn(`[watchdog] failure: ${tool}:${errorType} (session ${sessionID})`);
+        log.warn(`failure: ${tool}:${errorType} (session ${sessionID})`);
       }
 
       if (state.counter.shouldPromote(tool, errorType, sessionID)) {
@@ -160,7 +162,7 @@ export const server = async (ctx: PluginContext) => {
         state.promotedSessions.delete(sid);
         state.recoveringTools.clear();
         if (config.log_failures) {
-          console.warn(`[watchdog] /max escape hatch: all counters reset for session ${sid}`);
+          log.warn(`/max escape hatch: all counters reset for session ${sid}`);
         }
       }
     },

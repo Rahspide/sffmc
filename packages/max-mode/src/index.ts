@@ -1,7 +1,9 @@
 import { generateCandidates, type Candidate } from "./candidates";
 import { judgeCandidates, type Verdict } from "./judge";
 import { createRestoreState, stripToolExecutes, restoreToolExecutes, isSchemaOnly } from "./restore";
-import { loadConfig, MAX_COMMAND, type RichPluginContext } from "@sffmc/shared"
+import { loadConfig, MAX_COMMAND, type RichPluginContext, createLogger } from "@sffmc/shared"
+
+const log = createLogger("max-mode");
 
 interface MaxModeConfig {
   n_candidates: number;
@@ -71,7 +73,7 @@ export const server = async (ctx: RichPluginContext) => {
   };
 
   if (config.dry_run) {
-    console.warn("[max-mode] dry_run=true — Max Mode will only estimate costs");
+    log.warn("dry_run=true — Max Mode will only estimate costs");
   }
 
   return {
@@ -102,7 +104,7 @@ export const server = async (ctx: RichPluginContext) => {
 
       const session = ctx.client?.session;
       if (!session?.message) {
-        console.warn("[max-mode] SDK client.session.message() not available — cannot run Max Mode");
+        log.warn("SDK client.session.message() not available — cannot run Max Mode");
         return;
       }
 
@@ -113,13 +115,13 @@ export const server = async (ctx: RichPluginContext) => {
         || "Solve the current problem with maximum quality.";
 
       if (isDryRun || config.dry_run) {
-        console.warn(`[max-mode] DRY RUN: would generate ${config.n_candidates} candidates using model ${config.candidate_models[0] || "default"} at temperature ${config.candidate_temperature}`);
-        console.warn(`[max-mode] Estimated cost: ~${config.n_candidates}x single call (budget cap: ${config.budget_cap_multiplier}x)`);
+        log.warn(`DRY RUN: would generate ${config.n_candidates} candidates using model ${config.candidate_models[0] || "default"} at temperature ${config.candidate_temperature}`);
+        log.warn(`Estimated cost: ~${config.n_candidates}x single call (budget cap: ${config.budget_cap_multiplier}x)`);
         return;
       }
 
       const budgetCap = config.budget_cap_multiplier;
-      console.warn(`[max-mode] Generating ${config.n_candidates} candidates (budget cap: ${budgetCap}x)...`);
+      log.warn(`Generating ${config.n_candidates} candidates (budget cap: ${budgetCap}x)...`);
 
       try {
         const candidates = await generateCandidates(
@@ -133,7 +135,7 @@ export const server = async (ctx: RichPluginContext) => {
         );
 
         const totalCost = estimateCost(candidates);
-        console.warn(`[max-mode] Generated ${candidates.length} candidates, ${totalCost} tokens`);
+        log.warn(`Generated ${candidates.length} candidates, ${totalCost} tokens`);
 
         const verdict = await judgeCandidates(
           candidates,
@@ -144,7 +146,7 @@ export const server = async (ctx: RichPluginContext) => {
         const winner = candidates[verdict.winner];
         const message = buildWinnerMessage(winner, verdict);
 
-        console.warn(`[max-mode] Winner: Candidate #${verdict.winner + 1}, confidence: ${(verdict.confidence * 100).toFixed(0)}%`);
+        log.warn(`Winner: Candidate #${verdict.winner + 1}, confidence: ${(verdict.confidence * 100).toFixed(0)}%`);
 
         // Inject winner as system message via the command context
         // The actual injection depends on how the SDK exposes message manipulation
@@ -155,7 +157,7 @@ export const server = async (ctx: RichPluginContext) => {
           message,
         };
       } catch (err) {
-        console.warn(`[max-mode] Error: ${String(err)}`);
+        log.warn(`Error: ${String(err)}`);
         state.maxUsedThisSession = false;
       }
     },

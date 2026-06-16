@@ -1,5 +1,7 @@
 import { filterLines } from "./filter";
-import { loadConfig, type PluginContext } from "@sffmc/shared";
+import { loadConfig, type PluginContext, createLogger } from "@sffmc/shared"
+
+const log = createLogger("log-whitelist");;
 
 interface LogWhitelistConfig {
   whitelist: string[];
@@ -82,8 +84,8 @@ export const server = async (_ctx: PluginContext) => {
         result.output = kept.join("\n");
 
         if (state.config.log_filtered_count) {
-          console.warn(
-            `[log-whitelist] filtered ${dropped} lines (total: ${state.totalFiltered})`,
+          log.warn(
+            `filtered ${dropped} lines (total: ${state.totalFiltered})`,
           );
         }
       }
@@ -110,8 +112,8 @@ export const server = async (_ctx: PluginContext) => {
         data.text = kept.join("\n");
 
         if (state.config.log_filtered_count) {
-          console.warn(
-            `[log-whitelist] filtered ${dropped} text lines (total: ${state.totalFiltered})`,
+          log.warn(
+            `filtered ${dropped} text lines (total: ${state.totalFiltered})`,
           );
         }
       }

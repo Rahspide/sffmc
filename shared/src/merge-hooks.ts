@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/shared — see ../../LICENSE
 
+import { createLogger } from "./logger.ts"
+
+const log = createLogger("sffmc/shared")
+
 /**
  * Type for the return value of an OpenCode plugin's `server()` function.
  * `id` is the plugin identifier; all other keys are hook names.
@@ -76,8 +80,8 @@ export function mergeHooks(servers: PluginServer[]): PluginServer {
     const tools = s.tool as Record<string, unknown>;
     for (const tkey of Object.keys(tools)) {
       if (tkey in toolMerged) {
-        console.warn(
-          `[@sffmc/shared] mergeHooks: tool "${tkey}" registered by multiple servers — later wins`,
+        log.warn(
+          `mergeHooks: tool "${tkey}" registered by multiple servers — later wins`,
         );
       }
       toolMerged[tkey] = tools[tkey];

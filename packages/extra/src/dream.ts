@@ -6,7 +6,10 @@
 import { Database } from "bun:sqlite";
 import { mkdirSync, existsSync, appendFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { homedir } from "node:os";
+import { homedir } from "node:os"
+import { createLogger } from "@sffmc/shared";
+
+const log = createLogger("extra");;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -565,16 +568,16 @@ Actions: dedup (Jaccard > 0.9), stale removal (>${STALE_DAYS}d), cluster summari
           .get() as { cnt: number } | null;
         const count = row?.cnt ?? 0;
         if (count > config.threshold) {
-          console.log(
-            `[extra] dream: auto-triggered (count=${count} > threshold=${config.threshold})`,
+          log.info(
+            `dream: auto-triggered (count=${count} > threshold=${config.threshold})`,
           );
           // Fire-and-forget so the hook doesn't block the tool pipeline
           executeDream(false).catch((err) => {
-            console.error("[extra] dream: auto-trigger error:", err);
+            log.error("dream: auto-trigger error:", err);
           });
         }
       } catch (err) {
-        console.error("[extra] dream: count check error:", err);
+        log.error("dream: count check error:", err);
       }
     },
   };
@@ -591,11 +594,11 @@ Actions: dedup (Jaccard > 0.9), stale removal (>${STALE_DAYS}d), cluster summari
     }
     const intervalMs = config.intervalHours * 3600 * 1000;
     state.cronTimer = setInterval(() => {
-      console.log(
-        `[extra] dream: cron triggered (${config.intervalHours}h interval)`,
+      log.info(
+        `dream: cron triggered (${config.intervalHours}h interval)`,
       );
       executeDream(false).catch((err) => {
-        console.error("[extra] dream: cron error:", err);
+        log.error("dream: cron error:", err);
       });
     }, intervalMs);
     if (typeof state.cronTimer.unref === "function") {

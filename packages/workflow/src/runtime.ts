@@ -35,7 +35,7 @@ import {
 } from "./types.ts"
 import { getBuiltin, loadBuiltin } from "./builtin-registry.ts"
 import { cpus } from "node:os"
-import { type RichPluginContext } from "@sffmc/shared"
+import { type RichPluginContext, createLogger } from "@sffmc/shared"
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -43,6 +43,7 @@ import { type RichPluginContext } from "@sffmc/shared"
 
 export const SCRIPT_DEADLINE_MS = 12 * 60 * 60 * 1000 // 12h
 const MAX_LIFECYCLE_AGENTS = 1000
+const log = createLogger("workflow")
 const DEFAULT_MAX_CONCURRENT = Math.min(16, 2 * Math.max(1, cpus().length))
 const MAX_DEPTH_DEFAULT = 8
 const MAX_TOKENS_DEFAULT = 2_000_000
@@ -497,7 +498,7 @@ export class WorkflowRuntime {
       if (entry.agentCountTotal >= entry.cfg.maxLifecycleAgents) {
         if (!entry.capWarned) {
           entry.capWarned = true
-          console.warn(`[workflow] lifecycle cap ${entry.cfg.maxLifecycleAgents} reached for ${entry.runID}`)
+          log.warn(`lifecycle cap ${entry.cfg.maxLifecycleAgents} reached for ${entry.runID}`)
         }
         this.publishAgentFailed(entry.runID, key, AFR.OverCap)
         return null
@@ -882,8 +883,8 @@ export class WorkflowRuntime {
   private publishAgentFailed(runID: string, agentKey: string, reason: AgentFailureReason): void {
     try {
       this.events.emit("workflow:agent_failed", { runID, agentKey, reason })
-    } catch {
-      // observability must never escape
+    } catch (e) {
+      log.debug("publishAgentFailed emit error:", e)
     }
   }
 
@@ -910,8 +911,8 @@ export class WorkflowRuntime {
         `UPDATE workflow_runs SET running = ?, succeeded = ?, failed = ?, time_updated = ? WHERE id = ?`,
         [entry.running, entry.succeeded, entry.failed, Math.floor(Date.now() / 1000), entry.runID],
       )
-    } catch {
-      // best-effort
+    } catch (e) {
+      log.debug("flushNow DB update error:", e)
     }
   }
 }

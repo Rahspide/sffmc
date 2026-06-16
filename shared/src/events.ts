@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/shared — see ../../LICENSE
 
+import { createLogger } from "./logger.ts"
+
 type Listener<T = unknown> = (event: T) => void
 
 const listeners = new Map<string, Array<{ fn: Listener; key: string }>>()
@@ -39,8 +41,8 @@ export function emit<T>(event: string, payload: T): void {
   for (const { fn } of [...list]) {
     try {
       fn(payload)
-    } catch {
-      // silently ignore listener errors
+    } catch (e) {
+      createLogger("sffmc/shared").debug("EventBus: listener error in", event, ":", e)
     }
   }
 }

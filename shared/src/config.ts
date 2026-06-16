@@ -5,6 +5,8 @@ import { parse as parseYaml } from "yaml"
 import { readFileSync, existsSync } from "fs"
 import { resolve } from "path"
 import { homedir } from "os"
+import { createLogger } from "./logger.ts"
+
 
 /**
  * Load plugin config by merging user YAML over defaults.
@@ -27,7 +29,7 @@ export async function loadConfig<T extends object>(
     const parsed = parseYaml(raw) as Partial<T>
     return { ...defaults, ...parsed }
   } catch (err) {
-    console.warn(`[@sffmc/shared] failed to parse ${configPath}:`, err)
+    createLogger("sffmc/shared").warn(` failed to parse ${configPath}:`, err)
     return { ...defaults }
   }
 }

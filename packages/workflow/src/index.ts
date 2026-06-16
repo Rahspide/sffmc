@@ -5,6 +5,9 @@ import { WorkflowRuntime, type RuntimeOpts } from "./runtime.ts"
 import { createWorkflowTool } from "./tool.ts"
 import type { PluginContext } from "./runtime.ts"
 import type { WorkflowAgentFailedEvent, WorkflowFinishedEvent } from "./events.ts"
+import { createLogger } from "@sffmc/shared"
+
+const log = createLogger("workflow")
 
 // Re-export types for consumers
 export type {
@@ -41,13 +44,13 @@ export const server = async (ctx: PluginContext) => {
   // Register observability listeners on the runtime's event bus
   runtime.events.on("workflow:agent_failed", (e) => {
     const ev = e as WorkflowAgentFailedEvent
-    console.warn(`[workflow] agent ${ev.agentKey} in ${ev.runID} failed: ${ev.reason}`)
+    log.warn(`agent ${ev.agentKey} in ${ev.runID} failed: ${ev.reason}`)
   })
 
   runtime.events.on("workflow:finished", (e) => {
     const ev = e as WorkflowFinishedEvent
     if (ev.status !== "completed") {
-      console.warn(`[workflow] ${ev.runID} finished: ${ev.status}${ev.error ? ` — ${ev.error}` : ""}`)
+      log.warn(`${ev.runID} finished: ${ev.status}${ev.error ? ` — ${ev.error}` : ""}`)
     }
   })
 

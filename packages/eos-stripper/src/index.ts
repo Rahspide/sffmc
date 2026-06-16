@@ -1,5 +1,7 @@
 import { stripEos, looksLikeEosOnly, DEFAULT_EOS_PATTERNS } from "./patterns";
-import { loadConfig, type PluginContext } from "@sffmc/shared";
+import { loadConfig, type PluginContext, createLogger } from "@sffmc/shared"
+
+const log = createLogger("eos-stripper");;
 
 interface EosConfig {
   patterns: string[];
@@ -43,7 +45,7 @@ export const server = async (_ctx: PluginContext) => {
         data.text = "";
         state.strippedCount++;
         if (state.config.log_stripped_count) {
-          console.warn(`[eos-stripper] stripped entire EOS-only text part`);
+          log.warn(`stripped entire EOS-only text part`);
         }
         return data;
       }
@@ -54,7 +56,7 @@ export const server = async (_ctx: PluginContext) => {
       if (data.text !== original) {
         state.strippedCount++;
         if (state.config.log_stripped_count) {
-          console.warn(`[eos-stripper] stripped EOS from text end (${state.strippedCount} total)`);
+          log.warn(`stripped EOS from text end (${state.strippedCount} total)`);
         }
       }
       return data;

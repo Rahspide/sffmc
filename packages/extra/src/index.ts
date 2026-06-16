@@ -9,7 +9,9 @@
 // Phase 2 (v0.9.0): factory pattern replaced with named server
 // exports so the memory MSP can compose them via mergeHooks().
 
-import { loadConfig, mergeHooks, type PluginContext, type PluginServer } from "@sffmc/shared";
+import { loadConfig, mergeHooks, type PluginContext, createLogger, type PluginServer } from "@sffmc/shared"
+
+const log = createLogger("extra");;
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { createCheckpointTool } from "./checkpoint";
@@ -63,8 +65,8 @@ export const id = "@sffmc/extra";
 export const checkpointServer = async (ctx: PluginContext): Promise<PluginServer> => {
   const config = await loadConfig<ExtraConfig>("extra", defaultConfig);
   const resolvedCheckpointDir = config.checkpoint_dir || DEFAULT_CHECKPOINT_DIR;
-  console.log(
-    `[extra] checkpoint: ${config.checkpoint ? "enabled" : "disabled"}`,
+  log.info(
+    `checkpoint: ${config.checkpoint ? "enabled" : "disabled"}`,
   );
   const cp = createCheckpointTool({ enabled: config.checkpoint, dir: resolvedCheckpointDir });
   return { id: "extra-checkpoint", tool: { extra_checkpoint: cp.tool }, ...cp.hooks };
@@ -72,8 +74,8 @@ export const checkpointServer = async (ctx: PluginContext): Promise<PluginServer
 
 export const judgeServer = async (ctx: PluginContext): Promise<PluginServer> => {
   const config = await loadConfig<ExtraConfig>("extra", defaultConfig);
-  console.log(
-    `[extra] judge: ${config.judge ? "enabled" : "disabled"}`,
+  log.info(
+    `judge: ${config.judge ? "enabled" : "disabled"}`,
   );
   const j = createJudgeTool({
     enabled: config.judge,
@@ -87,8 +89,8 @@ export const judgeServer = async (ctx: PluginContext): Promise<PluginServer> => 
 
 export const dreamServer = async (ctx: PluginContext): Promise<PluginServer> => {
   const config = await loadConfig<ExtraConfig>("extra", defaultConfig);
-  console.log(
-    `[extra] dream: ${config.dream ? "enabled" : "disabled"}`,
+  log.info(
+    `dream: ${config.dream ? "enabled" : "disabled"}`,
   );
   const d = createDreamTool({
     enabled: config.dream,

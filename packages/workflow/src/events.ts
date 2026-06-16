@@ -2,6 +2,9 @@
 // @sffmc/workflow — see ../../LICENSE
 
 import type { AgentFailureReason, WorkflowStatus } from "./types.ts"
+import { createLogger } from "@sffmc/shared"
+
+const log = createLogger("workflow")
 
 // ---------------------------------------------------------------------------
 // Event payloads
@@ -99,7 +102,7 @@ export function createEventBus() {
       try {
         fn(payload)
       } catch (e) {
-        console.error(`[workflow] error in listener ${key} for event ${name}:`, e)
+        log.error(`error in listener ${key} for event ${name}:`, e)
       }
     }
   }

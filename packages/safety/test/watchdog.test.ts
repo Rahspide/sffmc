@@ -233,9 +233,11 @@ describe("tool.execute.after error detection", () => {
     );
 
     // extractErrorType finds "Error:" as leftmost match → "ERROR:"
-    expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining("[watchdog] failure: bash:ERROR:"),
+    // logger calls console.warn("[watchdog]", message) — check second arg
+    const warnCalls1 = warnSpy.mock.calls.filter(
+      (c: unknown[]) => typeof c[1] === "string" && (c[1] as string).includes("failure: bash:ERROR:"),
     );
+    expect(warnCalls1.length).toBe(1);
   });
 
   it("DOES flag long output (>4096 chars) as a likely error dump", async () => {
@@ -253,9 +255,10 @@ describe("tool.execute.after error detection", () => {
 
     // isToolError returns true for length > 4096 (likely error dump)
     // extractErrorType finds no token → "UNKNOWN"
-    expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining("[watchdog] failure: read:UNKNOWN"),
+    const warnCalls2 = warnSpy.mock.calls.filter(
+      (c: unknown[]) => typeof c[1] === "string" && (c[1] as string).includes("failure: read:UNKNOWN"),
     );
+    expect(warnCalls2.length).toBe(1);
   });
 
   it("DOES flag throw new Error patterns", async () => {
@@ -268,9 +271,10 @@ describe("tool.execute.after error detection", () => {
     );
 
     // extractErrorType finds no error-code token → "UNKNOWN"
-    expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining("[watchdog] failure: bash:UNKNOWN"),
+    const warnCalls3 = warnSpy.mock.calls.filter(
+      (c: unknown[]) => typeof c[1] === "string" && (c[1] as string).includes("failure: bash:UNKNOWN"),
     );
+    expect(warnCalls3.length).toBe(1);
   });
 
   it("does NOT flag bare 'fail' in descriptive text", async () => {

@@ -539,7 +539,8 @@ describe("Plugin entry", () => {
 
       const calls = warnSpy.mock.calls.filter(
         (c: unknown[]) =>
-          typeof c[0] === "string" && (c[0] as string).includes("would trigger"),
+          (typeof c[0] === "string" && (c[0] as string).includes("would trigger")) ||
+          (typeof c[1] === "string" && (c[1] as string).includes("would trigger")),
       );
       expect(calls.length).toBeGreaterThan(0);
       warnSpy.mockRestore();
