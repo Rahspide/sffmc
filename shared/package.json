@@ -33,8 +33,14 @@
     "README.md",
     "LICENSE"
   ],
-  "keywords": ["sffmc", "opencode", "plugin", "shared"],
+  "keywords": [
+    "sffmc",
+    "opencode",
+    "plugin",
+    "shared"
+  ],
   "engines": {
     "bun": ">=1.0.0"
-  }
+  },
+  "description": "SFFMC plugin SDK — PluginContext type, mergeHooks, EventBus, loadConfig"
 }

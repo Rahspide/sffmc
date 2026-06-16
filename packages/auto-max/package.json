@@ -31,11 +31,17 @@
     "README.md",
     "LICENSE"
   ],
-  "keywords": ["sffmc", "opencode", "plugin", "auto-max"],
+  "keywords": [
+    "sffmc",
+    "opencode",
+    "plugin",
+    "auto-max"
+  ],
   "engines": {
     "bun": ">=1.0.0"
   },
   "category": "mimo-port",
   "portSource": "MiMo-Code v8.0",
-  "portFeature": "auto-max"
+  "portFeature": "auto-max",
+  "description": "Auto-escalate to max-mode when tool-failure loops hit threshold"
 }

@@ -54,7 +54,11 @@ extra_judge()
 extra_dream()
 ```
 
-When a feature is disabled, its tool returns `{ ok: true, skipped: true, reason: "feature disabled" }`. When enabled but not yet implemented (current state), it returns `{ ok: true, status: "stub" }`.
+When a feature is enabled but the underlying data layer returns no candidates
+(e.g. no checkpoints exist, no judge candidates pending), the tool returns
+`{ ok: true, skipped: true, reason: "no work pending" }`. Full snapshot,
+verdict, and dream-restore operations return rich data when invoked against
+populated state.
 
 ## Config
 

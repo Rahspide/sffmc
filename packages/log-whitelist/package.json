@@ -31,10 +31,16 @@
     "README.md",
     "LICENSE"
   ],
-  "keywords": ["sffmc", "opencode", "plugin", "log-whitelist"],
+  "keywords": [
+    "sffmc",
+    "opencode",
+    "plugin",
+    "log-whitelist"
+  ],
   "engines": {
     "bun": ">=1.0.0"
   },
   "category": "sffmc-original",
-  "rationale": "Added by SFFMC team for own use case"
+  "rationale": "Added by SFFMC team for own use case",
+  "description": "Whitelist/blacklist filter for OpenCode permission logs (prevents runaway log files)"
 }

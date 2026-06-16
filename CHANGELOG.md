@@ -5,21 +5,21 @@
 ### What's new in v0.9.0
 
 - **3 composite packages** (safety, memory, agentic) replace 14 standalone imports — each MSP composes multiple sub-features via `mergeHooks()`
-- **11 sub-features** can still be used independently as standalone plugins (backward compatible)
+- **10 sub-features** can still be used independently as standalone plugins (backward compatible)
 - **486/486 tests passing**, 96% long-form agent test coverage
 - **Drone CI pipeline** with automated npm publish on tags
 - **Public release** under `@sffmc/*` on npm
 
 ### Breaking changes
 
-- Configs using 11 standalone plugins: should migrate to 3 MSPs for new features, but **standalone still works** — no forced migration
+- Configs using 10 sub-features: should migrate to 3 MSPs for new features, but **standalone still works** — no forced migration
 - Pre-v0.9.0 localStorage seed format: still compatible (no migration needed)
 
 > Ported from [MiMo-Code v8.0](https://github.com/XiaomiMiMo/MiMo-Code) by Xiaomi. See README for per-feature attribution.
 
 ### 3-MSP structure (BREAKING for v0.8.2 configs that use only sub-features)
 
-11 standalone plugins are now composed into 3 Multi-Plugin Packages (MSPs).
+10 sub-features are now composed into 3 Multi-Plugin Packages (MSPs).
 The 3 MSPs use a new `mergeHooks()` utility from `@sffmc/shared` to compose
 their sub-features into a single OpenCode plugin entry point.
 
@@ -100,7 +100,7 @@ Following the `packages/compose/skills/ask.md` style (YAML frontmatter,
 
 ### Migration from v0.8.2
 
-v0.8.2 configs work without changes — all 11 sub-feature packages still
+v0.8.2 configs work without changes — all 10 sub-feature packages still
 load as standalone plugins. To use the new MSPs (recommended):
 
 ```diff
@@ -108,7 +108,7 @@ load as standalone plugins. To use the new MSPs (recommended):
 + "plugin": [ ..., "safety", "memory", "agentic" ]
 ```
 
-The 3 MSPs compose all 11 sub-features via `mergeHooks()` and have no
+The 3 MSPs compose all 10 sub-features via `mergeHooks()` and have no
 user-visible behavior change. Same hooks, same tools, same YAML configs.
 
 ### Tests

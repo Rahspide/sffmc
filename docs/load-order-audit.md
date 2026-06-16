@@ -1,4 +1,4 @@
-# SFFMC Load Order Audit (v0.6.0)
+# SFFMC Load Order Audit (v0.6.0 — historical, see CHANGELOG)
 
 **Date**: 2026-06-15
 **Scope**: 9 SFFMC plugins loaded in sandbox config, 13 external plugins (slim, DCP, wrappers, icm, etc.)
@@ -97,14 +97,14 @@ External plugins load FIRST (slots 1-12 + 22), then SFFMC (13-21). This means:
 ## Minor observations (not blockers)
 
 - `experimental.text.complete` is registered by 2 SFFMC plugins (eos-stripper, log-whitelist) + 1 external (dcp-strip-malformed). If DCP's regex matches patterns our filters already cleaned, that's wasted work — but not a bug.
-- `tool.execute.after` has 3 SFFMC + ~3 external handlers. Output is mutated 6 times. If any external plugin REPLACES (not appends) the output, our post-processing is lost. Not observed in v0.6.0.
-- `permission.ask` from rules (slot 14) runs before external `permission.ask` (slim). Slim has a final say. If slim denies, our allow becomes noise. Currently rules gates a curated subset (no overlap with slim denies).
+- `tool.execute.after` has 3 SFFMC + ~3 external handlers. Output is mutated 6 times. If any external plugin REPLACES (not appends) the output, our post-processing is lost. Not observed in v0.6.0 *(historical — the audit was run against v0.6.0; no replacement-observed issue through v0.9.0)*.
+- `permission.ask` from rules (slot 14) runs before external `permission.ask` (slim). Slim has a final say. If slim denies, our allow becomes noise. Currently rules gates a curated subset (no overlap with slim denies). **Audit note (v0.6.0 — historical)**: the findings below are from the v0.6.0 audit and remain valid for v0.9.0.
 
 ## Recommendation
 
-**Ship v0.6.0 with this load order unchanged.** The order is intentional and verified. No reordering needed.
+**Ship v0.6.0 with this load order unchanged.** The order is intentional and verified. No reordering needed. *(This was the v0.6.0 recommendation — the load order shipped unchanged through v0.9.0.)*
 
-For v0.7.0+:
+For v0.10.0+:
 - Add a `SFFMC_LOAD_ORDER.md` doc to repo (this file as starting point)
 - Add a CI check: parse each plugin's hooks, fail if any tool name conflicts
 - Consider reordering if a new plugin needs to fire before an existing one

@@ -245,7 +245,7 @@ See each package's README for its full config reference and defaults.
 - **[Workflow reference](./docs/w5-6-dynamic-workflow.md)** — sandbox internals, budgets, error model
 - **[Workflow examples](./docs/workflow-examples.md)** — five ready-to-copy workflows
 - **[Long agent test report](./docs/long-agent-test-v090-report.md)** — v0.9.0 benchmark results
-- **[v8 decision](./docs/v8-decision.md)** — why v0.9.0 restructured into composite packages
+- **[v0.9.0 restructure decision](./docs/load-order-audit.md)** — why the 3-MSP composition pattern
 
 ## Contributing
 

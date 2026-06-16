@@ -32,10 +32,22 @@
     "README.md",
     "LICENSE"
   ],
-  "keywords": ["sffmc", "opencode", "plugin", "safety"],
+  "keywords": [
+    "sffmc",
+    "opencode",
+    "plugin",
+    "safety"
+  ],
   "engines": {
     "bun": ">=1.0.0"
   },
   "role": "safety",
-  "composes": ["watchdog", "rules", "auto-max", "eos-stripper", "log-whitelist"]
+  "composes": [
+    "watchdog",
+    "rules",
+    "auto-max",
+    "eos-stripper",
+    "log-whitelist"
+  ],
+  "description": "Safety composite — composes watchdog, rules, auto-max, eos-stripper, log-whitelist via mergeHooks()"
 }

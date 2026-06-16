@@ -31,11 +31,17 @@
     "README.md",
     "LICENSE"
   ],
-  "keywords": ["sffmc", "opencode", "plugin", "watchdog"],
+  "keywords": [
+    "sffmc",
+    "opencode",
+    "plugin",
+    "watchdog"
+  ],
   "engines": {
     "bun": ">=1.0.0"
   },
   "category": "mimo-port",
   "portSource": "MiMo-Code v8.0",
-  "portFeature": "watchdog"
+  "portFeature": "watchdog",
+  "description": "F1 Watchdog — 3-failure rolling counter with auto-recovery and model promotion"
 }

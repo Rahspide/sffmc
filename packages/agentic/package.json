@@ -32,10 +32,21 @@
     "README.md",
     "LICENSE"
   ],
-  "keywords": ["sffmc", "opencode", "plugin", "agentic"],
+  "keywords": [
+    "sffmc",
+    "opencode",
+    "plugin",
+    "agentic"
+  ],
   "engines": {
     "bun": ">=1.0.0"
   },
   "role": "agentic",
-  "composes": ["max-mode", "workflow", "compose", "health"]
+  "composes": [
+    "max-mode",
+    "workflow",
+    "compose",
+    "health"
+  ],
+  "description": "Agentic composite — composes max-mode, workflow, compose, health via mergeHooks()"
 }

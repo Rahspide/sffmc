@@ -34,12 +34,20 @@
     "README.md",
     "LICENSE"
   ],
-  "keywords": ["sffmc", "opencode", "plugin", "memory"],
+  "keywords": [
+    "sffmc",
+    "opencode",
+    "plugin",
+    "memory"
+  ],
   "engines": {
     "bun": ">=1.0.0"
   },
   "role": "memory",
-  "composes": ["extra"],
+  "composes": [
+    "extra"
+  ],
   "portSource": "MiMo-Code v8.0",
-  "portFeature": "memory"
+  "portFeature": "memory",
+  "description": "Memory composite — FTS5 SQLite recall + chokidar file watcher + opt-in checkpoint/judge/dream"
 }

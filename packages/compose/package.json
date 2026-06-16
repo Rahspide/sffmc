@@ -30,11 +30,17 @@
     "README.md",
     "LICENSE"
   ],
-  "keywords": ["sffmc", "opencode", "plugin", "compose"],
+  "keywords": [
+    "sffmc",
+    "opencode",
+    "plugin",
+    "compose"
+  ],
   "engines": {
     "bun": ">=1.0.0"
   },
   "category": "mimo-port",
   "portSource": "MiMo-Code v8.0",
-  "portFeature": "compose"
+  "portFeature": "compose",
+  "description": "W4 Compose — 18 markdown skills loaded via compose_skill tool"
 }

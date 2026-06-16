@@ -4,12 +4,12 @@
 
 ## Sub-features
 
-Memory bundles 1 external sub-feature:
+Memory composes 2 sub-features via `mergeHooks()`:
 
 | Sub-feature | Description |
 |---|---|
-| [`@sffmc/extra`](../extra/README.md) | 3 named tools: `extra_checkpoint`, `extra_judge`, `extra_dream` for cross-turn state, verdict scoring, and dream summaries |
-| `memory-core` | (internal) mergeHooks orchestrator at `packages/memory/src/plugin.ts` |
+| `memory-core` | FTS5 SQLite index + chokidar watcher + context-recon injection (internal, in `packages/memory/src/plugin.ts`) |
+| [`@sffmc/extra`](../extra/README.md) | 3 opt-in named tools: `extra_checkpoint`, `extra_judge`, `extra_dream` (disabled by default; enable per-feature in `~/.config/SFFMC/extra.yaml`) |
 
 ## Opt-in configuration
 
@@ -81,7 +81,7 @@ default_importance: 0.5
 bun test packages/memory/
 ```
 
-19 tests in `src/index.test.ts`.
+20 tests across 2 files (`memory.test.ts` + `index.test.ts`).
 
 ## License
 

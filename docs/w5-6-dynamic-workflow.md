@@ -1,6 +1,6 @@
 # W5-6: Dynamic Workflow Engine
 
-**Shipped**: 2026-06-14 · **Version**: v0.6.0 · **Package**: `@sffmc/workflow` · **LOC**: ~1500
+**Shipped**: 2026-06-14 · **Version**: v0.6.0 (historical — see CHANGELOG) · **Package**: `@sffmc/workflow` · **LOC**: ~1500
 
 ## What it is
 
@@ -437,9 +437,9 @@ What we changed and why:
 
 | Wave | What | When |
 |---|---|---|
-| **W7** | Streaming progress (SSE events per agent) | After v0.6.0 |
-| **W7** | Multi-server resume (Redis/pubsub for cross-process) | After v0.6.0 |
-| **W7** | MCP bindings (agent can call mcp__* tools directly) | After v0.6.0 |
+| **W7** | Streaming progress (SSE events per agent) | Post-v0.9.0 |
+| **W7** | Multi-server resume (Redis/pubsub for cross-process) | Post-v0.9.0 |
+| **W7** | MCP bindings (agent can call mcp__* tools directly) | Post-v0.9.0 |
 | **W8** | Web UI dashboard for monitoring running workflows | TBD |
 | **W8** | Integration with slim v2 scheduler (workflow as subagent) | TBD |
 | **W8** | Workflow templates (pre-built: code-review, release-checklist, etc) | TBD |

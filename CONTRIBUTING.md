@@ -131,4 +131,4 @@ Bypass with `git commit --no-verify` (use sparingly — CI will catch it later i
 
 ## Release process
 
-See [RELEASE.md](RELEASE.md). v0.7.0 is local-only; future tags may be published per-plugin.
+See [RELEASE.md](RELEASE.md). v0.9.0 is the current release; future tags may be published per-plugin.

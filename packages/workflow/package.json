@@ -37,11 +37,17 @@
     "README.md",
     "LICENSE"
   ],
-  "keywords": ["sffmc", "opencode", "plugin", "workflow"],
+  "keywords": [
+    "sffmc",
+    "opencode",
+    "plugin",
+    "workflow"
+  ],
   "engines": {
     "bun": ">=1.0.0"
   },
   "category": "mimo-port",
   "portSource": "MiMo-Code v8.0",
-  "portFeature": "workflow"
+  "portFeature": "workflow",
+  "description": "W5-6 Dynamic Workflow — sandboxed JS orchestrator (QuickJS WASM), 7 builtins"
 }

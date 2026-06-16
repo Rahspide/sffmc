@@ -31,11 +31,17 @@
     "README.md",
     "LICENSE"
   ],
-  "keywords": ["sffmc", "opencode", "plugin", "rules"],
+  "keywords": [
+    "sffmc",
+    "opencode",
+    "plugin",
+    "rules"
+  ],
   "engines": {
     "bun": ">=1.0.0"
   },
   "category": "mimo-port",
   "portSource": "MiMo-Code v8.0",
-  "portFeature": "rules"
+  "portFeature": "rules",
+  "description": "F2 Rules — YAML gate-based allow/deny/ask for destructive tool calls"
 }
