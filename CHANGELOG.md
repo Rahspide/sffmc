@@ -12,12 +12,53 @@
 - **workflow**: Log errors in `events.ts` emit catch blocks (was silent swallow).
 - **scrub**: Replace `claude-sonnet-4-20250514` defaults with `""` in 6 source files (watchdog, max-mode, extra, auto-max).
 
+### Documentation
+- **agentic + workflow + safety**: 8 files updated to reflect v0.10.0 BREAKING API (removed `setRuntime`/`setJail`/`runtime-ref` references; replaced `WorkflowPersistence.createRun` with class-instance pattern). Two missed `claude-sonnet-4-20250514` references in `run-max-mode.md` and `judge-output.md` scrubbed.
+- **codemaps**: `packages/workflow/{,src/}codemap.md` fully rewritten for class-based architecture.
+
+### Security audit (council v1)
+- **CRITICAL**: `claude-sonnet-4-20250514` scrubbed from 2 example YAML configs (`auto-max`, `max-mode`) that escaped the v0.9.0 scrub.
+- **HIGH**: `.slim/deepwork/load-order-audit.json` path renamed to `.sffmc/load-order-audit.json` in `scripts/audit-load-order.py:221` (writer) and `packages/health/src/index.ts:108` (reader) — coupled bug fix.
+- **MEDIUM**: `.slim/` references scrubbed from 3 skill/code files; `bunfig.toml` no longer ignores `.slim/**`.
+- **audit-public-content.sh extended** to also scan `config/*.example.yaml`, `skills/*.md`, `*.py`, `*.ts` source — closes the v0.9.0 scrub blind spot.
+
+### New: one-liner install + `sffmc` CLI
+- `install.sh` (Linux/macOS) + `install.ps1` (Windows): curl/irm one-liner that clones to `~/.sffmc/plugins/sffmc` and auto-runs init.
+- `bin/sffmc` + `bin/sffmc.ps1`: CLI with 6 subcommands — `init` (auto-edit `opencode.json` with `--minimal|--all|--only`), `update`, `uninstall`, `doctor` (13-check diagnostic), `path`, `help`.
+- `docs/install.md`: full install guide with troubleshooting.
+- **README "Quick start"** replaced with one-liner install.
+
+### Infrastructure
+- `bun.lock` regenerated after dependabot PR #1 (chokidar 4.0.3→5.0.0, typescript 5.9.3→6.0.3).
+- `sffmc_health` tool: added `paths` parameter to schema (was failing MCP wrapper validation).
+- All 15 packages at v0.10.0, version-consistent.
+
 ### Migration guide
 If you consume `@sffmc/workflow`:
 - `WorkflowPersistence.createRun(...)` → `new WorkflowPersistence({ db?: Database, dataDir?: string })` then `.createRun(...)`
 - `setRuntime(runtime)` → use `createWorkflowTool(runtime)` directly
 - `setJail(root)` → `new WorkflowRuntime(ctx, { workspace: root })`
 - All consumers (agentic, memory, safety) updated in this release.
+
+### Install (replaces manual `opencode.json` editing)
+```bash
+# macOS / Linux
+curl -fsSL https://raw.githubusercontent.com/Rahspide/sffmc/main/install.sh | sh
+
+# Windows PowerShell
+irm https://raw.githubusercontent.com/Rahspide/sffmc/main/install.ps1 | iex
+
+# Then
+sffmc init              # 3 composites (default)
+sffmc init --all        # all 13 packages
+sffmc doctor            # 13-check diagnostic
+```
+
+### Stats
+- 13 commits since v0.9.0 (`8a86aa0` → `9d7cbc2`)
+- 483/483 tests pass, 1285 expect() calls, 24 files
+- 22+ files touched (refactor + docs + install + security)
+- 0 secrets / 0 internal infra references (council audit v1)
 
 ## v0.9.1 — Post-release cleanup + bug fixes (2026-06-16)
 
