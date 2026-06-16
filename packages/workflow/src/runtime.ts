@@ -2,7 +2,7 @@
 // @sffmc/workflow — see ../../LICENSE
 
 import { createHash } from "node:crypto"
-import { writeFile, mkdir, readFile } from "node:fs/promises"
+import { readFile } from "node:fs/promises"
 import {
   WorkflowPersistence,
   generateRunID,
@@ -206,73 +206,26 @@ export class WorkflowRuntime {
     const name = parsed.meta.name
 
     // Resolve config
-    const cfg = {
-      maxSteps: this.ctx.config?.maxSteps ?? DEFAULT_WORKFLOW_CONFIG.maxSteps,
-      maxTokens: this.ctx.config?.maxTokens ?? MAX_TOKENS_DEFAULT,
-      maxWallClockMs: this.ctx.config?.maxWallClockMs ?? DEFAULT_WORKFLOW_CONFIG.maxWallClockMs,
-      perStepTimeoutMs: this.ctx.config?.perStepTimeoutMs ?? DEFAULT_WORKFLOW_CONFIG.perStepTimeoutMs,
-      maxDepth: MAX_DEPTH_DEFAULT,
-      maxLifecycleAgents: MAX_LIFECYCLE_AGENTS,
-    }
+    const cfg = this.resolveConfig()
 
     // Persist — createRun generates its own runID, use that as ours
     const scriptSha = computeScriptSha(script)
     const runID = this.persistence.createRun(name, name, scriptSha)
     await this.persistence.writeScript(runID, script)
-    // Also persist as "script file" under data dir
-    const dataDir = this.persistence.dataDir
-    await mkdir(dataDir, { recursive: true })
-    await writeFile(
-      `${dataDir}/${runID}_script.js`,
-      script,
-      "utf-8",
-    )
 
     // Resolve workspace
     const workspace = input.workspace ?? process.cwd()
     const jail = new WorkspaceJail(workspace)
 
-    // Create deferred outcome
-    let resolveOutcome!: (outcome: WorkflowOutcome) => void
-    const outcomePromise = new Promise<WorkflowOutcome>((res) => { resolveOutcome = res })
-
     // Load journal (empty on fresh run)
     const journal = await this.persistence.loadJournal(runID)
 
-    const entry: InternalRunEntry = {
-      runID,
-      name,
-      status: "running",
-      running: 0,
-      succeeded: 0,
-      failed: 0,
-      agentCount: 0,
-      agentCountTotal: 0,
-      tokensUsed: 0,
-      capWarned: false,
-      childRunIDs: new Set(),
-      startedMs: Date.now(),
-      deadlineMs: Date.now() + cfg.maxWallClockMs,
-      outcomePromise,
-      resolveOutcome,
-      controller: new AbortController(),
-      journalResults: journal.results,
-      journalPass: journal.pass,
-      cfg,
-    }
+    const entry = this.makeEntry({ runID, name, cfg, journalResults: journal.results, journalPass: journal.pass })
 
     this.runs.set(runID, entry)
 
     // Launch async — sandbox never throws, but defensively handle rejections
-    this.launchScript(entry, script, parsed.meta.name, input.args, jail).then((result) => {
-      if (result === null) {
-        this.failRun(entry, "Sandbox execution failed")
-      } else {
-        this.completeRun(entry, result !== undefined ? result : undefined)
-      }
-    }).catch((err) => {
-      this.failRun(entry, err instanceof Error ? err.message : String(err))
-    })
+    this.settleEntry(entry, script, parsed.meta.name, input.args, jail)
 
     this.events.emit("workflow:started", { runID, name })
     return { runID }
@@ -356,14 +309,7 @@ export class WorkflowRuntime {
     if (!entry || entry.status !== "running") return
     entry.controller.abort()
     entry.status = "cancelled"
-    entry.resolveOutcome({
-      runID: entry.runID,
-      status: "cancelled",
-      stepsCompleted: entry.succeeded + entry.failed,
-      stepsTotal: entry.cfg.maxSteps,
-      tokensUsed: entry.tokensUsed,
-      durationMs: Date.now() - entry.startedMs,
-    })
+    entry.resolveOutcome(this.outcomeFor(entry, "cancelled"))
     this.persistence.updateRunStatus(entry.runID, "cancelled")
     this.events.emit("workflow:finished", { runID: entry.runID, status: "cancelled" })
   }
@@ -411,56 +357,18 @@ export class WorkflowRuntime {
       const parsed = parseMeta(script)
       const name = parsed.ok ? parsed.meta.name : row.name
 
-      const cfg = {
-        maxSteps: this.ctx.config?.maxSteps ?? DEFAULT_WORKFLOW_CONFIG.maxSteps,
-        maxTokens: this.ctx.config?.maxTokens ?? MAX_TOKENS_DEFAULT,
-        maxWallClockMs: this.ctx.config?.maxWallClockMs ?? DEFAULT_WORKFLOW_CONFIG.maxWallClockMs,
-        perStepTimeoutMs: input.agentTimeoutMs ?? row.agentTimeoutMs ?? DEFAULT_WORKFLOW_CONFIG.perStepTimeoutMs,
-        maxDepth: MAX_DEPTH_DEFAULT,
-        maxLifecycleAgents: MAX_LIFECYCLE_AGENTS,
-      }
+      const cfg = this.resolveConfig(input.agentTimeoutMs ?? row.agentTimeoutMs ?? undefined)
 
       const journal = await this.persistence.loadJournal(input.runID)
 
-      let resolveOutcome!: (outcome: WorkflowOutcome) => void
-      const outcomePromise = new Promise<WorkflowOutcome>((res) => { resolveOutcome = res })
-
-      const entry: InternalRunEntry = {
-        runID: input.runID,
-        name,
-        status: "running",
-        running: 0,
-        succeeded: 0,
-        failed: 0,
-        agentCount: 0,
-        agentCountTotal: 0,
-        tokensUsed: 0,
-        capWarned: false,
-        childRunIDs: new Set(),
-        startedMs: Date.now(),
-        deadlineMs: Date.now() + cfg.maxWallClockMs,
-        outcomePromise,
-        resolveOutcome,
-        controller: new AbortController(),
-        journalResults: journal.results,
-        journalPass: journal.pass,
-        cfg,
-      }
+      const entry = this.makeEntry({ runID: input.runID, name, cfg, journalResults: journal.results, journalPass: journal.pass })
 
       this.runs.set(input.runID, entry)
       this.persistence.updateRunStatus(input.runID, "running")
 
       this.events.emit("workflow:started", { runID: input.runID, name })
 
-      this.launchScript(entry, script, name, row.args, new WorkspaceJail(process.cwd())).then((result) => {
-        if (result === null) {
-          this.failRun(entry, "Sandbox execution failed")
-        } else {
-          this.completeRun(entry, result !== undefined ? result : undefined)
-        }
-      }).catch((err) => {
-        this.failRun(entry, err instanceof Error ? err.message : String(err))
-      })
+      this.settleEntry(entry, script, name, row.args, new WorkspaceJail(process.cwd()))
 
       return { runID: input.runID, resumed: true }
     } finally {
@@ -691,14 +599,12 @@ export class WorkflowRuntime {
         this.scheduleFlush(entry)
 
         // Journal successful result
-        if (deliverable !== null) {
-          this.persistence.appendJournalSync(entry.runID, {
-            t: "agent",
-            key,
-            result: deliverable,
-            pass: entry.journalPass,
-          })
-        }
+        this.persistence.appendJournalSync(entry.runID, {
+          t: "agent",
+          key,
+          result: deliverable,
+          pass: entry.journalPass,
+        })
 
         return deliverable as AgentResult
       } catch (e) {
@@ -882,44 +788,13 @@ export class WorkflowRuntime {
     const runID = this.persistence.createRun(name, name, scriptSha)
     await this.persistence.writeScript(runID, script)
 
-    let resolveOutcome!: (outcome: WorkflowOutcome) => void
-    const outcomePromise = new Promise<WorkflowOutcome>((res) => { resolveOutcome = res })
-
-    const entry: InternalRunEntry = {
-      runID,
-      name: parsed.ok ? parsed.meta.name : name,
-      status: "running",
-      running: 0,
-      succeeded: 0,
-      failed: 0,
-      agentCount: 0,
-      agentCountTotal: 0,
-      tokensUsed: 0,
-      capWarned: false,
-      childRunIDs: new Set(),
-      startedMs: Date.now(),
-      deadlineMs: Date.now() + parent.cfg.maxWallClockMs,
-      outcomePromise,
-      resolveOutcome,
-      controller: new AbortController(),
-      journalResults: new Map(),
-      journalPass: 0,
-      cfg: parent.cfg,
-    }
+    const entry = this.makeEntry({ runID, name: parsed.ok ? parsed.meta.name : name, cfg: parent.cfg })
 
     this.runs.set(runID, entry)
 
     this.events.emit("workflow:started", { runID, name })
 
-    this.launchScript(entry, script, name, args, new WorkspaceJail(process.cwd())).then((result) => {
-      if (result === null) {
-        this.failRun(entry, "Sandbox execution failed")
-      } else {
-        this.completeRun(entry, result !== undefined ? result : undefined)
-      }
-    }).catch((err) => {
-      this.failRun(entry, err instanceof Error ? err.message : String(err))
-    })
+    this.settleEntry(entry, script, name, args, new WorkspaceJail(process.cwd()))
 
     return entry
   }
@@ -932,15 +807,7 @@ export class WorkflowRuntime {
     // overwrites entry.status / DB row from "cancelled" → "completed".
     if (entry.status !== "running") return
     entry.status = "completed"
-    entry.resolveOutcome({
-      runID: entry.runID,
-      status: "completed",
-      result,
-      stepsCompleted: entry.succeeded + entry.failed,
-      stepsTotal: entry.cfg.maxSteps,
-      tokensUsed: entry.tokensUsed,
-      durationMs: Date.now() - entry.startedMs,
-    })
+    entry.resolveOutcome(this.outcomeFor(entry, "completed", { result }))
     this.persistence.updateRunStatus(entry.runID, "completed")
     this.events.emit("workflow:finished", { runID: entry.runID, status: "completed" })
   }
@@ -950,20 +817,82 @@ export class WorkflowRuntime {
     entry.status = error.includes("budget_exceeded") || error.includes("deadline exceeded")
       ? "budget_exceeded"
       : "failed"
-    entry.resolveOutcome({
-      runID: entry.runID,
-      status: entry.status as "failed" | "budget_exceeded",
-      error,
-      stepsCompleted: entry.succeeded + entry.failed,
-      stepsTotal: entry.cfg.maxSteps,
-      tokensUsed: entry.tokensUsed,
-      durationMs: Date.now() - entry.startedMs,
-    })
+    entry.resolveOutcome(this.outcomeFor(entry, entry.status as "failed" | "budget_exceeded", { error }))
     this.persistence.updateRunStatus(entry.runID, entry.status, error)
     this.events.emit("workflow:finished", { runID: entry.runID, status: entry.status, error })
   }
 
   // ── Private: helpers ───────────────────────────────────────────────────
+
+  private resolveConfig(perStepTimeoutMsOverride?: number): Required<WorkflowConfig> & { maxDepth: number; maxLifecycleAgents: number } {
+    return {
+      maxSteps: this.ctx.config?.maxSteps ?? DEFAULT_WORKFLOW_CONFIG.maxSteps,
+      maxTokens: this.ctx.config?.maxTokens ?? MAX_TOKENS_DEFAULT,
+      maxWallClockMs: this.ctx.config?.maxWallClockMs ?? DEFAULT_WORKFLOW_CONFIG.maxWallClockMs,
+      perStepTimeoutMs: perStepTimeoutMsOverride ?? this.ctx.config?.perStepTimeoutMs ?? DEFAULT_WORKFLOW_CONFIG.perStepTimeoutMs,
+      maxDepth: MAX_DEPTH_DEFAULT,
+      maxLifecycleAgents: MAX_LIFECYCLE_AGENTS,
+    }
+  }
+
+  private async settleEntry(entry: InternalRunEntry, script: string, name: string, args: unknown, jail: WorkspaceJail): Promise<void> {
+    try {
+      const result = await this.launchScript(entry, script, name, args, jail)
+      if (result === null) {
+        this.failRun(entry, "Sandbox execution failed")
+      } else {
+        this.completeRun(entry, result !== undefined ? result : undefined)
+      }
+    } catch (err) {
+      this.failRun(entry, err instanceof Error ? err.message : String(err))
+    }
+  }
+
+  private makeEntry(opts: {
+    runID: string
+    name: string
+    cfg: Required<WorkflowConfig> & { maxDepth: number; maxLifecycleAgents: number }
+    journalResults?: Map<string, unknown>
+    journalPass?: number
+  }): InternalRunEntry {
+    const startedMs = Date.now()
+    let resolveOutcome!: (outcome: WorkflowOutcome) => void
+    const outcomePromise = new Promise<WorkflowOutcome>((res) => { resolveOutcome = res })
+    return {
+      runID: opts.runID,
+      name: opts.name,
+      status: "running",
+      running: 0,
+      succeeded: 0,
+      failed: 0,
+      agentCount: 0,
+      agentCountTotal: 0,
+      tokensUsed: 0,
+      capWarned: false,
+      childRunIDs: new Set(),
+      startedMs,
+      deadlineMs: startedMs + opts.cfg.maxWallClockMs,
+      outcomePromise,
+      resolveOutcome,
+      controller: new AbortController(),
+      journalResults: opts.journalResults ?? new Map(),
+      journalPass: opts.journalPass ?? 0,
+      cfg: opts.cfg,
+    }
+  }
+
+  private outcomeFor(entry: InternalRunEntry, status: WorkflowOutcome["status"], extras?: { result?: unknown; error?: string }): WorkflowOutcome {
+    return {
+      runID: entry.runID,
+      status,
+      result: extras?.result,
+      error: extras?.error,
+      stepsCompleted: entry.succeeded + entry.failed,
+      stepsTotal: entry.cfg.maxSteps,
+      tokensUsed: entry.tokensUsed,
+      durationMs: Date.now() - entry.startedMs,
+    }
+  }
 
   private publishAgentFailed(runID: string, agentKey: string, reason: AgentFailureReason): void {
     try {
