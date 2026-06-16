@@ -43,7 +43,7 @@ LLM calls sffmc_health()
 | `node:fs/promises` | `readdir`, `readFile`, `stat` — all check functions |
 | `node:path` | `join` — path construction for `repoRoot`-relative lookups |
 | `Bun.spawn` | `checkHookConflicts` (python3 audit script), `checkTypeCheck` (bun build per package) |
-| `scripts/audit-load-order.py` (external) | `checkHookConflicts` — spawns as subprocess, reads `.slim/deepwork/load-order-audit.json` output |
+| `scripts/audit-load-order.py` (external) | `checkHookConflicts` — spawns as subprocess, reads `.sffmc/load-order-audit.json` output |
 | `bun build --no-bundle` (external) | `checkTypeCheck` — spawns per-package typecheck, parses stderr exit codes |
 
 ## Public API

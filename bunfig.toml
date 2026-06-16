@@ -13,6 +13,5 @@ root = "."
 pathIgnorePatterns = [
   "dependencies/**",
   "node_modules/**",
-  ".slim/**",
   ".sffmc/**",
 ]

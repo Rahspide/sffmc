@@ -19,7 +19,7 @@ When something is broken and you don't know why, run `sffmc_health` first. It ch
 5. **load_order** — no conflicting plugin load order
 6. **version_consistency** — all packages on the same version
 7. **category_split** — mimo-port vs sffmc-original counts
-8. **codemap_fresh** — `.slim/codemap.json` current
+8. **codemap_fresh** — `.sffmc/codemap.json` current
 9. **hook_conflicts** — 2+ plugins registering same GATE hook
 10. **readme_presence** — all packages have README.md
 11. **changelog_currency** — CHANGELOG.md latest version matches root

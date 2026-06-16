@@ -105,7 +105,7 @@ async function fileExists(path: string): Promise<boolean> {
 
 export async function checkHookConflicts(repoRoot: string): Promise<CheckResult> {
   const scriptPath = join(repoRoot, "scripts", "audit-load-order.py");
-  const jsonPath = join(repoRoot, ".slim", "deepwork", "load-order-audit.json");
+  const jsonPath = join(repoRoot, ".sffmc", "load-order-audit.json");
   const exists = await fileExists(scriptPath);
   if (!exists) {
     return {

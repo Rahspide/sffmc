@@ -218,7 +218,7 @@ def main():
         print(f'  {r}: {unique}')
 
     # Save report
-    output_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".slim", "deepwork", "load-order-audit.json")
+    output_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".sffmc", "load-order-audit.json")
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     report = {
         'pkg_hooks': pkg_hooks,

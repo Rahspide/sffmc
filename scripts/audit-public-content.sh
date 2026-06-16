@@ -29,6 +29,11 @@ SCOPE=(
   CONTRIBUTING.md
   docs/
   packages/*/README.md
+  packages/*/config/*.example.yaml
+  packages/*/skills/*.md
+  scripts/*.py
+  packages/*/src/*.ts
+  shared/src/*.ts
 )
 
 # Files excluded from the public audit (maintainer-internal docs that
@@ -115,7 +120,9 @@ for entry in "${PATTERNS[@]}"; do
     for f in "${EXCLUDE_FILES[@]}"; do
       rg_glob_extras+=(--glob "!**/$f")
     done
-    out=$(rg --no-heading --line-number --type=md \
+    out=$(rg --no-heading --line-number \
+          --type=md --type-add 'yaml:*.yaml' --type=yaml \
+          --type-add 'py:*.py' --type=py --type-add 'ts:*.ts' --type=ts \
           --glob '!CHANGELOG.md' \
           --glob '!LICENSE*' \
           --glob '!docs/long-agent-test-v090-report.md' \
@@ -123,7 +130,9 @@ for entry in "${PATTERNS[@]}"; do
           --glob '!*.bak-pre-*' \
           "${rg_glob_extras[@]}" \
           -e "$pat" \
-          README.md CONTRIBUTING.md docs/ packages/*/README.md 2>/dev/null || true)
+          README.md CONTRIBUTING.md docs/ packages/*/README.md \
+          packages/*/config/*.example.yaml packages/*/skills/*.md \
+          scripts/*.py packages/*/src/*.ts shared/src/*.ts 2>/dev/null || true)
   else
     # Fallback: shell out to find + grep. Slower, but no rg dep.
     find_filter_excludes=(
@@ -138,7 +147,7 @@ for entry in "${PATTERNS[@]}"; do
     for f in "${EXCLUDE_FILES[@]}"; do
       find_filter_excludes+=(-not -path "./$f")
     done
-    out=$(find . \( -name "*.md" -o -path "*/README.md" \) \
+    out=$(find . \( -name "*.md" -o -name "*.yaml" -o -name "*.py" -o -name "*.ts" \) \
         "${find_filter_excludes[@]}" \
         2>/dev/null \
         | xargs grep -nE "$pat" 2>/dev/null || true)
