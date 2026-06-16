@@ -25,7 +25,7 @@ Do **not** suggest max-mode for known-fact questions, trivial choices, or when b
 
 1. Generate 3 candidate responses in parallel (3 different `candidate_models` or same model with different temperatures)
 2. Strip tool executes from candidates (only judge the prose)
-3. Judge all 3 with `judge_model` (default `ocg/deepseek-v4-flash`)
+3. Judge all 3 with `judge_model` (default `claude-sonnet-4-20250514`)
 4. Pick the winner, restore tool executes, return
 
 ## Configuration (`~/.config/SFFMC/max-mode.yaml`)
@@ -34,7 +34,7 @@ Do **not** suggest max-mode for known-fact questions, trivial choices, or when b
 n_candidates: 3                  # default
 candidate_models: []             # empty = use current model
 candidate_temperature: 1.0       # default
-judge_model: "ocg/deepseek-v4-flash"
+judge_model: "claude-sonnet-4-20250514"
 budget_cap_multiplier: 5         # hard cap on cost
 dry_run: false                   # if true, generate but don't judge
 ```

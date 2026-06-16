@@ -16,7 +16,7 @@ This plugin is loaded by the SFFMC monorepo's sandbox config. To use standalone:
 // ~/.config/opencode/opencode.json
 {
   "plugin": [
-    "file:///data/projects/SFFMC/packages/watchdog/src/index.ts"
+    "file:///path/to/SFFMC/packages/watchdog/src/index.ts"
   ]
 }
 ```
@@ -28,7 +28,7 @@ Edit `~/.config/SFFMC/watchdog.yaml`:
 ```yaml
 threshold: 3                     # consecutive failures before promote
 rolling_window: 10               # track last N tool calls per session
-promote_model: null              # null = same as primary; or override like "ocg/claude-opus-4-7"
+promote_model: null              # null = same as primary; or override like "claude-opus-4-7"
 error_class_filter:              # skip these (legitimate retries)
   - "fetch_429"                  # rate-limited retry is normal
   - "playwright_timeout"         # playwright retries are normal

@@ -14,6 +14,7 @@
 // Exit 0 = all turns completed without uncaught exception.
 // Exit 1 = a tool threw an exception (categorical failure).
 
+import { resolve } from "node:path"
 import { server as agenticServer } from "../packages/agentic/src/index.ts"
 import { server as memoryServer } from "../packages/memory/src/index.ts"
 
@@ -37,7 +38,7 @@ const TOTAL_TURNS = Number(process.argv[2] ?? "30")
 const SANDBOX_TAG = `random-sandbox-${Date.now()}`
 
 const ctx = {
-  projectRoot: "/data/projects/SFFMC",
+  projectRoot: resolve(import.meta.dir, ".."),
   config: {},
   sessionID: SANDBOX_TAG,
 }

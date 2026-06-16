@@ -1,14 +1,14 @@
 # Workflow Examples
 
-Пять готовых к копированию примеров для `@sffmc/workflow`.
-Каждый можно сохранить как `.sffmc/workflows/<name>.ts` и запустить
-через `workflow({ operation: "run", name: "<name>" })`.
+Five ready-to-copy examples for `@sffmc/workflow`.
+Each can be saved as `.sffmc/workflows/<name>.ts` and run
+via `workflow({ operation: "run", name: "<name>" })`.
 
 ---
 
 ## 1. Hello world
 
-Самый простой workflow — один агент, один результат.
+The simplest workflow — one agent, one result.
 
 ```ts
 export const meta = {
@@ -26,20 +26,20 @@ export default async function main() {
 }
 ```
 
-**Ожидаемое время**: 2-5 секунд, ~500 токенов.
+**Expected time**: 2-5 seconds, ~500 tokens.
 
-**Что смотреть**: `outcome.result.answer` должен быть `"4"` (или `4`,
-зависит от модели). Если `null` — проверьте что workflow-плагин
-загружен.
+**What to check**: `outcome.result.answer` should be `"4"` (or `4`,
+depending on the model). If `null` — check that the workflow plugin
+is loaded.
 
-**Частая ошибка**: забыли `export default async function main()` — без
-`main()` скрипт исполнится, но результат не попадёт в `outcome.result`.
+**Common mistake**: forgot `export default async function main()` — without
+`main()` the script runs, but the result won't end up in `outcome.result`.
 
 ---
 
 ## 2. API migration (3-stage pipeline)
 
-Миграция API: найти использования → заменить → проверить тесты.
+API migration: find usages → replace → verify tests.
 
 ```ts
 export const meta = {
@@ -98,21 +98,21 @@ export default async function main(args) {
 }
 ```
 
-**Ожидаемое время**: 3-8 минут, ~30-80k токенов (зависит от размера
-кодовой базы).
+**Expected time**: 3-8 minutes, ~30-80k tokens (depends on codebase
+size).
 
-**Что смотреть**: `outcome.result.filesAffected` — сколько найдено,
-`filesChanged` — сколько успешно заменено.
+**What to check**: `outcome.result.filesAffected` — how many were found,
+`filesChanged` — how many were successfully replaced.
 
-**Частая ошибка**: не указали `tools: ["grep_app"]` — agent не сможет
-искать по коду и вернёт `null` (no-deliverable).
+**Common mistake**: didn't specify `tools: ["grep_app"]` — agent won't be
+able to search code and will return `null` (no-deliverable).
 
 ---
 
 ## 3. Security audit (parallel per file)
 
-Параллельный аудит безопасности — каждый файл проверяется отдельным
-агентом, результаты агрегируются.
+Parallel security audit — each file is checked by a separate
+agent, results are aggregated.
 
 ```ts
 export const meta = {
@@ -194,21 +194,21 @@ export default async function main(args) {
 }
 ```
 
-**Ожидаемое время**: 5-15 минут, ~50-150k токенов (зависит от количества
-файлов).
+**Expected time**: 5-15 minutes, ~50-150k tokens (depends on the number of
+files).
 
-**Что смотреть**: `outcome.result.issues` — массив находок, отсортирован
-по severity. `outcome.result.summary` — текстовая сводка.
+**What to check**: `outcome.result.issues` — array of findings, sorted
+by severity. `outcome.result.summary` — text summary.
 
-**Частая ошибка**: `glob("**/*.ts")` занимает ОЧЕНЬ много времени в
-больших проектах (node_modules, dist). Используйте конкретный путь:
+**Common mistake**: `glob("**/*.ts")` takes VERY long in
+large projects (node_modules, dist). Use a specific path:
 `glob("src/**/*.ts")`.
 
 ---
 
 ## 4. Daily report (read → summarize → write)
 
-Сбор логов или метрик, параллельное суммирование, запись отчёта.
+Collect logs or metrics, parallel summarization, write a report.
 
 ```ts
 export const meta = {
@@ -259,21 +259,21 @@ export default async function main(args) {
 }
 ```
 
-**Ожидаемое время**: 1-5 минут, ~10-30k токенов.
+**Expected time**: 1-5 minutes, ~10-30k tokens.
 
-**Что смотреть**: `outcome.result.report` — путь к записанному файлу.
-`emptySummaries` — сколько файлов не удалось просуммировать.
+**What to check**: `outcome.result.report` — path to the written file.
+`emptySummaries` — how many files couldn't be summarized.
 
-**Частая ошибка**: если лог-файлы большие (>100KB), agent не сможет
-прочитать их целиком. Используйте `tools: ["bash"]` с `head`/`tail`
-вместо `tools: ["read"]`.
+**Common mistake**: if log files are large (>100KB), agent won't be able
+to read them in full. Use `tools: ["bash"]` with `head`/`tail`
+instead of `tools: ["read"]`.
 
 ---
 
 ## 5. Deep research (built-in, 6 phases)
 
-Самый сложный встроенный workflow. Не нужно писать код — просто
-запустите по имени:
+The most complex built-in workflow. No code needed — just
+run by name:
 
 ```ts
 workflow({
@@ -283,50 +283,50 @@ workflow({
 })
 ```
 
-Что происходит внутри (280 строк песочницы):
+What happens inside (280 lines of sandbox code):
 
-1. **Plan** — вопрос разбивается на 3-7 поисковых линий
-2. **Search** — параллельный поиск по каждой линии
-3. **Extract** — дедупликация URL, чтение топ-источников, извлечение
-   фактов
-4. **Group** — группировка одинаковых фактов (чтобы не проверять дважды)
-5. **Crosscheck** — adversarial jury: 3 "присяжных" голосуют
-   accept/reject по каждому факту. 2 reject = факт выброшен
-6. **Report** — финальный отчёт: summary, sections с цитатами, limits
+1. **Plan** — question is broken into 3-7 search lines
+2. **Search** — parallel search along each line
+3. **Extract** — URL deduplication, read top sources, extract
+   facts
+4. **Group** — group identical facts (so they aren't verified twice)
+5. **Crosscheck** — adversarial jury: 3 "jurors" vote
+   accept/reject on each fact. 2 rejects = fact discarded
+6. **Report** — final report: summary, sections with citations, limits
 
-**Константы** (можно изменить только в коде builtin):
+**Constants** (only changeable in the builtin code):
 
-| Параметр | Значение | Что делает |
+| Parameter | Value | What it does |
 |---|---|---|
-| `JURY_SIZE` | 3 | Сколько присяжных на факт |
-| `REJECT_QUORUM` | 2 | Сколько reject-голосов убивают факт |
-| `SOURCE_BUDGET` | 15 | Максимум прочитанных источников |
-| `FACT_CAP` | 25 | Максимум фактов, доходящих до crosscheck |
+| `JURY_SIZE` | 3 | How many jurors per fact |
+| `REJECT_QUORUM` | 2 | How many reject votes kill a fact |
+| `SOURCE_BUDGET` | 15 | Maximum sources read |
+| `FACT_CAP` | 25 | Maximum facts reaching crosscheck |
 
-**Ожидаемое время**: 10-30 минут, ~200-500k токенов.
+**Expected time**: 10-30 minutes, ~200-500k tokens.
 
-**Что смотреть**: `outcome.result.summary` — ответ на вопрос.
-`outcome.result.sections` — структурированные findings с цитатами.
-`outcome.result.stats` — метрики (сколько источников, фактов, upheld vs
+**What to check**: `outcome.result.summary` — answer to the question.
+`outcome.result.sections` — structured findings with citations.
+`outcome.result.stats` — metrics (how many sources, facts, upheld vs
 dropped).
 
-**Частая ошибка**: все факты rejected на crosscheck → ответ "inconclusive".
-Значит источники слабые или вопрос слишком широкий. Сузьте вопрос или
-увеличьте `SOURCE_BUDGET` в коде.
+**Common mistake**: all facts rejected at crosscheck → answer "inconclusive".
+This means sources are weak or the question is too broad. Narrow the
+question or increase `SOURCE_BUDGET` in the code.
 
 ---
 
-## Советы
+## Tips
 
-1. **Начинайте с hello-world** — убедитесь что workflow engine работает,
-   прежде чем писать сложные сценарии.
-2. **Используйте structured output** — `schema` в `agent()` даёт
-   предсказуемые результаты, которые легко обрабатывать дальше в коде.
-3. **Проверяйте на null** — каждый `agent()` может вернуть `null`.
-   Пишите fallback-логику.
-4. **Не злоупотребляйте parallel** — 16 конкурентных агентов = 16×
-   токенов одновременно. Для 200-шаговых задач это быстро сжигает бюджет.
-5. **Логируйте ключевые моменты** — `log()` и `phase()` бесплатны и
-   помогают отлаживать через `workflow status`.
-6. **Тестируйте на маленьких данных** — перед запуском security-audit на
-   всём проекте, запустите на одном файле.
+1. **Start with hello-world** — make sure the workflow engine works
+   before writing complex scenarios.
+2. **Use structured output** — `schema` in `agent()` gives
+   predictable results that are easy to process further in code.
+3. **Check for null** — every `agent()` can return `null`.
+   Write fallback logic.
+4. **Don't overuse parallel** — 16 concurrent agents = 16×
+   tokens simultaneously. For 200-step tasks this burns budget fast.
+5. **Log key moments** — `log()` and `phase()` are free and
+   help debugging via `workflow status`.
+6. **Test on small data** — before running security-audit on the
+   whole project, run it on one file first.

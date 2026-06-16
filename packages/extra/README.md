@@ -24,7 +24,7 @@ This plugin is part of the SFFMC monorepo. To use standalone:
 // ~/.config/opencode/opencode.json
 {
   "plugin": [
-    "file:///data/projects/SFFMC/packages/extra/src/index.ts"
+    "file:///path/to/SFFMC/packages/extra/src/index.ts"
   ]
 }
 ```

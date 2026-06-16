@@ -19,7 +19,7 @@ const defaultConfig: MaxModeConfig = {
   n_candidates: 3,
   candidate_models: [],
   candidate_temperature: 1.0,
-  judge_model: "ocg/deepseek-v4-flash",
+  judge_model: "claude-sonnet-4-20250514",
   budget_cap_multiplier: 5,
   dry_run: false,
 };

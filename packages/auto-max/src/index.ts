@@ -15,7 +15,7 @@ const defaultConfig: AutoMaxConfig = {
   watchdog_threshold: 3,
   max_mode_config: {
     n: 3,
-    judge_model: "ocg/deepseek-v4-flash",
+    judge_model: "claude-sonnet-4-20250514",
   },
   cost_cap_per_session: 1,
 };

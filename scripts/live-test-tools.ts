@@ -9,6 +9,7 @@
 // Exit 0 = all 5 tools executed without throwing.
 // Exit 1 = at least one tool failed.
 
+import { resolve } from "node:path"
 import { server as agenticServer } from "../packages/agentic/src/index.ts"
 import { server as memoryServer } from "../packages/memory/src/index.ts"
 
@@ -19,7 +20,7 @@ interface Tool {
 }
 
 const mockCtx = {
-  projectRoot: "/data/projects/SFFMC",
+  projectRoot: resolve(import.meta.dir, ".."),
   config: {},
   sessionID: "live-test-tools",
 }

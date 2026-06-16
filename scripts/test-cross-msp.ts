@@ -9,6 +9,7 @@
 // Exit 0 = all 3 MSPs received the mock event.
 // Exit 1 = at least one MSP's hook was not invoked.
 
+import { resolve } from "node:path"
 import { server as safetyServer } from "../packages/safety/src/index.ts"
 import { server as memoryServer } from "../packages/memory/src/index.ts"
 import { server as agenticServer } from "../packages/agentic/src/index.ts"
@@ -16,7 +17,7 @@ import { server as agenticServer } from "../packages/agentic/src/index.ts"
 type Hook = (input: unknown, output: unknown) => unknown | Promise<unknown>
 
 const mockCtx = {
-  projectRoot: "/data/projects/SFFMC",
+  projectRoot: resolve(import.meta.dir, ".."),
   config: {},
   sessionID: "cross-msp-test",
 }

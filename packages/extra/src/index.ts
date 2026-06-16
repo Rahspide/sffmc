@@ -38,7 +38,7 @@ const defaultConfig: ExtraConfig = {
   dream: false,
   dream_threshold: 50,
   dream_interval_hours: 24,
-  judge_model: "ocg/deepseek-v4-flash",
+  judge_model: "claude-sonnet-4-20250514",
   judge_rubric:
     "Score each candidate 0-10 on correctness, completeness, and conciseness. Pick the winner with brief reasoning.",
   judge_auto: false,

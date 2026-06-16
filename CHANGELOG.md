@@ -113,7 +113,7 @@ user-visible behavior change. Same hooks, same tools, same YAML configs.
 
 ### Tests
 
-- 467 → 480 (+13) tests across 21 → 24 files
+- 467 → 486 (+19) tests across 21 → 24 files
 - New tests: 6 mergeHooks + 4 MSP stubs (Phase 1) + 3 MSP wired tests (Phase 2)
 - Skill smoke tests deferred (Phase 3 is markdown-only, no test harness)
 - All 12 packages + shared typecheck pass
@@ -121,7 +121,7 @@ user-visible behavior change. Same hooks, same tools, same YAML configs.
 ### Pre-commit 4-gate
 
 - sffmc_health: 12 ok (Phase 6 will add 13th checkMspStructure)
-- bun test: 480 pass
+- bun test: 486 pass
 - typecheck: clean
 - load-order audit: clean
 
@@ -171,7 +171,7 @@ due to changelog_currency mismatch — fixed by version bump).
 - Each package.json: `category` field + `portSource` (mimo-port) or
   `rationale` (sffmc-original)
 ## Version sync
-All 13 packages (12 SFFMC + shared + root) bumped 0.8.0 → 0.8.1 to
+All 13 packages (11 SFFMC + shared + root) bumped 0.8.0 → 0.8.1 to
 align with CHANGELOG v0.8.1 (was inconsistent in v0.8.1 release).
 ## Stats
 - Tests: 465 → 467 (+2 for checkCategorySplit)
@@ -240,7 +240,7 @@ All features disabled by default — toggle per feature via config flags.
 - LLM judge scoring 2-8 candidate outputs
 - Multi-criteria rubric: correctness, completeness, conciseness (0-10 each)
 - Returns `{ scores, winner, reasoning, model, latencyMs }`
-- Configurable model (default `ocg/deepseek-v4-flash`) + rubric
+- Configurable model (default `claude-sonnet-4-20250514`) + rubric
 - `judge_auto` flag: hook `experimental.chat.messages.transform` to auto-judge
   candidates marked with `<!-- EXTRA_JUDGE_CANDIDATES: [...] -->`
 - LLM call at temperature 0.2 for determinism
@@ -285,7 +285,7 @@ dream: true           # F8 background memory cleaner
 checkpoint_dir: ""    # default ~/.local/share/sffmc/extra/checkpoints/
 dream_threshold: 50   # count > N triggers dream
 dream_interval_hours: 24
-judge_model: "ocg/deepseek-v4-flash"
+judge_model: "claude-sonnet-4-20250514"
 judge_auto: false     # auto-judge markers in messages
 ```
 ## Known gaps (documented, not blocking)

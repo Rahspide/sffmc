@@ -9,7 +9,7 @@ import os
 import re
 import json
 
-PLUGINS_ROOT = "/data/projects/SFFMC/packages"
+PLUGINS_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "packages")
 PKG_LIST = ['memory', 'rules', 'watchdog', 'eos-stripper', 'log-whitelist',
             'max-mode', 'auto-max', 'compose', 'workflow']
 
@@ -218,15 +218,17 @@ def main():
         print(f'  {r}: {unique}')
 
     # Save report
+    output_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".slim", "deepwork", "load-order-audit.json")
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
     report = {
         'pkg_hooks': pkg_hooks,
         'all_hooks': all_hooks,
         'role': role,
         'conflicts': conflicts,
     }
-    with open('/data/projects/SFFMC/.slim/deepwork/load-order-audit.json', 'w') as f:
+    with open(output_path, 'w') as f:
         json.dump(report, f, indent=2)
-    print(f'\n→ saved to /data/projects/SFFMC/.slim/deepwork/load-order-audit.json')
+    print(f'\n→ saved to {output_path}')
 
 
 if __name__ == '__main__':

@@ -49,7 +49,7 @@ Returns: `{ winner: 0, reasoning: "Option A is simplest and most readable...", s
 
 ## Cost
 
-1 judge call = 1 model invocation × 3 criteria = ~3K-10K tokens consumed. Budget accordingly. The judge uses `ocg/deepseek-v4-flash` by default, configurable via `judge_model` in `extra` config.
+1 judge call = 1 model invocation × 3 criteria = ~3K-10K tokens consumed. Budget accordingly. The judge uses `claude-sonnet-4-20250514` by default, configurable via `judge_model` in `extra` config.
 
 ## Why This Skill Exists
 

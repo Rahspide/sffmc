@@ -2,7 +2,7 @@
 
 Guide for migrating settings, skills, and configuration from
 [MiMo-Code](https://github.com/XiaomiMiMo/MiMo-Code) to
-[SFFMC](https://github.com/settingsfuck/SFFMC) v0.9.0.
+[SFFMC](https://github.com/Rahspide/sffmc) v0.9.0.
 
 ## What is MiMo-Code
 
@@ -15,7 +15,7 @@ plugin ecosystem.
 
 ## What is SFFMC
 
-[SFFMC v0.9.0](https://github.com/settingsfuck/SFFMC) is a **discipline overlay**
+[SFFMC v0.9.0](https://github.com/Rahspide/sffmc) is a **discipline overlay**
 plugin pack for vanilla OpenCode 1.17.6. It does NOT fork or replace OpenCode
 — it injects hooks (rules enforcement, log filtering, error detection,
 auto-max-mode escalation, multi-model council, and the Compose Mode skills)
@@ -35,14 +35,14 @@ the upstream OpenCode platform.**
 | Agent presets (cheap/powerful/etc) | Not replicated — use OpenCode per-agent model config | N/A |
 | Built-in Chinese UI | Not applicable — SFFMC is headless, UI is upstream OpenCode desktop | N/A |
 | MiMo-specific model routing | 9Router gateway (4 provider endpoints at `:20129`-`:20132`) | ✅ Separate |
-| MiMo config system (`.mimocode/`) | `~/.config/SFFMC/` YAML configs (rules, watchdog, auto-max, eos, log, memory) | ✅ v0.9.0 |
+| MiMo config system (`.mimo/`) | `~/.config/SFFMC/` YAML configs (rules, watchdog, auto-max, eos, log, memory) | ✅ v0.9.0 |
 | Rules enforcement (deny write outside project) | `@sffmc/rules` — gate-based allow/deny | ✅ v0.9.0 |
 | Watchdog (failure detection) | `@sffmc/watchdog` — threshold-based error escalation | ✅ v0.9.0 |
 | Auto-max-mode (3-strikes escalation) | `@sffmc/auto-max` + `@sffmc/max-mode` | ✅ v0.9.0 |
 | EOS stripper | `@sffmc/eos-stripper` | ✅ v0.9.0 |
 | Log whitelist filter | `@sffmc/log-whitelist` | ✅ v0.9.0 |
 | Memory system (ICM) | `@sffmc/memory` + ICM MCP server | ✅ v0.9.0 |
-| Multi-model council | Built-in council agent (minimax/MiniMax-M3 + councillor subagents) | ✅ v0.9.0 |
+| Multi-model council | Built-in council agent (claude-sonnet-4-20250514 + councillor subagents) | ✅ v0.9.0 |
 
 ### Deferred to v8.1+
 
@@ -57,15 +57,15 @@ the upstream OpenCode platform.**
 
 ### 1. Copy your MiMo config to SFFMC
 
-MiMo stores config in `~/.mimocode/` (or the project's `.mimocode/`).
+MiMo stores config in `~/.mimo/` (or the project's `.mimo/`).
 SFFMC uses `~/.config/SFFMC/`.
 
 ```bash
 # If you have MiMo config files:
-cp -r ~/.mimocode/*.yaml ~/.config/SFFMC/
+cp -r ~/.mimo/*.yaml ~/.config/SFFMC/
 # Or just the ones you customized:
-cp ~/.mimocode/rules.yaml ~/.config/SFFMC/
-cp ~/.mimocode/watchdog.yaml ~/.config/SFFMC/
+cp ~/.mimo/rules.yaml ~/.config/SFFMC/
+cp ~/.mimo/watchdog.yaml ~/.config/SFFMC/
 ```
 
 **Note:** MiMo uses a different config format in some areas. Check each file:
@@ -88,10 +88,10 @@ endpoint). SFFMC uses **9Router** as the AI gateway, running locally:
 ```bash
 # 9Router is at 127.0.0.1:20128 (or your-LAN-IP:20128 on LAN)
 # Provider endpoints:
-#   ocg → 127.0.0.1:20130/v1 (DeepSeek, GLM, Kimi, Qwen, MiniMax via prefix-proxy)
-#   minimax → 127.0.0.1:20129/v1 (MiniMax native)
-#   cx → 127.0.0.1:20131/v1 (Codex/GPT)
-#   gemini → 127.0.0.1:20132/v1 (Gemini)
+#   ocg → 127.0.0.1:<native-port>/v1 (DeepSeek, GLM, Kimi, Qwen, MiniMax via prefix-proxy)
+#   provider-2 → 127.0.0.1:<prefix-proxy-port>/v1 (provider native)
+#   cx → 127.0.0.1:<native-port>/v1 (Codex/GPT)
+#   gemini → 127.0.0.1:<native-port>/v1 (Gemini)
 ```
 
 **Action:** Check your `~/.config/opencode/opencode.json` (or equivalent
@@ -104,7 +104,7 @@ replace them with the 9Router endpoints above. See 9Router's docs for setup: htt
     "ocg": {
       "name": "ocg",
       "npm": "@ai-sdk/openai-compatible",
-      "options": { "baseURL": "http://127.0.0.1:20130/v1" },
+      "options": { "baseURL": "http://127.0.0.1:<native-port>/v1" },
       "apiKey": "<YOUR_9ROUTER_API_KEY>"
     }
   }
@@ -118,17 +118,17 @@ agent system with these additions:
 
 | MiMo Agent | SFFMC Equivalent | Notes |
 |---|---|---|
-| Primary agent (default) | `orchestrator` (model: `minimax/MiniMax-M3`) | SFFMC orchestrator is a workflow manager |
-| Explorer | `explorer` (model: `ocg/deepseek-v4-flash`) | Read-only code recon |
-| Librarian | `librarian` (model: `minimax/MiniMax-M3`) | External research |
-| Fixer | `fixer` (model: `ocg/deepseek-v4-pro`) | Implementation specialist |
-| Oracle | `oracle` (model: `ocg/deepseek-v4-pro`, variant=max) | Strategic advisor |
-| Designer | `designer` (model: `minimax/MiniMax-M3`) | UI/UX specialist |
+| Primary agent (default) | `orchestrator` (model: `claude-sonnet-4-20250514`) | SFFMC orchestrator is a workflow manager |
+| Explorer | `explorer` (model: `claude-sonnet-4-20250514`) | Read-only code recon |
+| Librarian | `librarian` (model: `claude-sonnet-4-20250514`) | External research |
+| Fixer | `fixer` (model: `claude-opus-4-7`) | Implementation specialist |
+| Oracle | `oracle` (model: `claude-opus-4-7`, variant=max) | Strategic advisor |
+| Designer | `designer` (model: `claude-sonnet-4-20250514`) | UI/UX specialist |
 | Council | `council` + `councillor` subagents | Multi-model consensus |
 | PAL Specialist | `pal-specialist` (variant=max) | On-demand PAL tools |
 
-Model selection: SFFMC uses `ocg/deepseek-v4-flash` as the default (cheap,
-fast) and `ocg/deepseek-v4-pro` for complex tasks. MiMo's default model may
+Model selection: SFFMC uses `claude-sonnet-4-20250514` as the default (cheap,
+fast) and `claude-opus-4-7` for complex tasks. MiMo's default model may
 differ — adjust per-agent models in your config.
 
 ### 4. Drop MiMo-specific hook configs
@@ -157,17 +157,17 @@ they need to be ported to the OpenCode 1.17.6 plugin shape (see existing SFFMC
 packages for the pattern). The SFFMC plugin list in the sandbox includes:
 
 ```
-file:///data/projects/SFFMC/packages/memory/src/index.ts
-file:///data/projects/SFFMC/packages/rules/src/index.ts
-file:///data/projects/SFFMC/packages/watchdog/src/index.ts
-file:///data/projects/SFFMC/packages/eos-stripper/src/index.ts
-file:///data/projects/SFFMC/packages/log-whitelist/src/index.ts
-file:///data/projects/SFFMC/packages/max-mode/src/index.ts
-file:///data/projects/SFFMC/packages/auto-max/src/index.ts
-file:///data/projects/SFFMC/packages/compose/src/index.ts
+file:///path/to/SFFMC/packages/memory/src/index.ts
+file:///path/to/SFFMC/packages/rules/src/index.ts
+file:///path/to/SFFMC/packages/watchdog/src/index.ts
+file:///path/to/SFFMC/packages/eos-stripper/src/index.ts
+file:///path/to/SFFMC/packages/log-whitelist/src/index.ts
+file:///path/to/SFFMC/packages/max-mode/src/index.ts
+file:///path/to/SFFMC/packages/auto-max/src/index.ts
+file:///path/to/SFFMC/packages/compose/src/index.ts
 ```
 
-8 SFFMC plugins total. Add the compose plugin as the 8th entry.
+14 SFFMC packages total. Add the compose plugin as the 8th entry.
 
 ## Sanity Checks
 
@@ -176,14 +176,14 @@ After migration, verify everything works:
 ### 1. Check sandbox health
 
 ```bash
-curl -s http://127.0.0.1:4200/global/health
+curl -s http://127.0.0.1:<sandbox-port>/global/health
 # Expected: {"status": "healthy"}
 ```
 
 ### 2. Verify SFFMC plugins loaded
 
 ```bash
-curl -s http://127.0.0.1:4200/config | python3 -c "
+curl -s http://127.0.0.1:<sandbox-port>/config | python3 -c "
 import json,sys
 c = json.load(sys.stdin)
 plugins = c.get('plugin', [])
@@ -192,13 +192,13 @@ print(f'{len(sffmc)} SFFMC plugins loaded')
 for p in sffmc:
     print(f'  {p}')
 "
-# Expected: 8 SFFMC plugins loaded
+# Expected: 14 SFFMC packages loaded
 ```
 
 ### 3. Check journal for errors
 
 ```bash
-journalctl -u opencode-root --no-pager -n 20 | grep -i error
+journalctl -u opencode --no-pager -n 20 | grep -i error
 # Expected: no output (or only pre-existing non-plugin errors)
 ```
 
@@ -213,7 +213,7 @@ Expected: Returns the full verify.md content (starts with `<!-- Copied verbatim`
 ### 5. Verify skill content integrity
 
 ```bash
-cd /data/projects/SFFMC/packages/compose
+cd /path/to/SFFMC/packages/compose
 bun test
 # Expected: all 19 tests pass (14 file integrity + 5 plugin smoke)
 ```
@@ -236,7 +236,7 @@ array. Each package README includes the exact path and config snippet needed.
 
 Make sure the path in `plugin[]` points to an absolute path that exists:
 ```bash
-ls -la /data/projects/SFFMC/packages/compose/src/index.ts
+ls -la /path/to/SFFMC/packages/compose/src/index.ts
 ```
 
 ### "compose_skill tool not available in agent list"
@@ -267,14 +267,14 @@ Stay on MiMo-Code instead of migrating to SFFMC if:
    (beyond the compose skills), they won't work in SFFMC without porting.
 
 5. **You're not running OpenCode 1.17.6 on Linux** — SFFMC is developed and
-   tested on CachyOS (Arch-based) with systemd. While the plugins themselves
-    are portable TypeScript, the service management (e.g., `opencode-root.service`)
+   tested on Linux with systemd. While the plugins themselves
+    are portable TypeScript, the service management (e.g., `opencode.service`)
    assumes systemd.
 
 ## Reference
 
 - **MiMo-Code:** https://github.com/XiaomiMiMo/MiMo-Code
-- **SFFMC:** https://github.com/settingsfuck/SFFMC
+- **SFFMC:** https://github.com/Rahspide/sffmc
 - **Compose skills source:** `packages/opencode/src/skill/compose/.bundle/<name>/SKILL.md`
   in MiMo-Code (commit `42e7da3`, 2026-06-11)
-- **SFFMC compose package:** `/data/projects/SFFMC/packages/compose/`
+- **SFFMC compose package:** `/path/to/SFFMC/packages/compose/`

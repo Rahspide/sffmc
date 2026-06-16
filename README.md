@@ -219,7 +219,7 @@ need; missing files fall back to safe defaults.
 max_failures: 3
 recovery_prompt: "The last 3 tool calls failed. Pause and diagnose the root cause before continuing."
 auto_promote_model: true
-promote_model: "ocg/deepseek-v4-flash"
+promote_model: null  # inherits session primary model
 ```
 
 **`~/.config/SFFMC/extra.yaml`** — opt-in advanced memory features (all disabled by default):

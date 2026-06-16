@@ -4,6 +4,7 @@
 // 121 turns × 12 blocks × 41 patterns. Inline mockLLM, no shared refactor.
 // Per-turn tracking, assertion checks, coverage report.
 
+import { resolve } from "node:path"
 import { server as agenticServer } from "../packages/agentic/src/index.ts"
 import { server as memoryServer } from "../packages/memory/src/index.ts"
 import { server as safetyServer } from "../packages/safety/src/index.ts"
@@ -47,7 +48,7 @@ const mockMessage = async (args: unknown): Promise<MockResp> => {
 
 const SESSION = `long-test-${Date.now()}`
 const ctx = {
-  projectRoot: "/data/projects/SFFMC",
+  projectRoot: resolve(import.meta.dir, ".."),
   config: {},
   sessionID: SESSION,
   client: { session: { message: mockMessage } },

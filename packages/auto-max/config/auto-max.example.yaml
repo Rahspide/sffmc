@@ -11,7 +11,7 @@ watchdog_threshold: 3
 # Max Mode configuration passed through on trigger
 max_mode_config:
   n: 3
-  judge_model: ocg/deepseek-v4-flash
+  judge_model: claude-sonnet-4-20250514
 
 # Maximum Max Mode invocations per session (safety cap)
 # 1 = only fire once per session, even if stuck again

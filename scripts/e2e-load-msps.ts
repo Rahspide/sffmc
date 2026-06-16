@@ -11,6 +11,7 @@
 // Exit 0 = all 3 MSPs load with expected shape.
 // Exit 1 = at least one MSP failed.
 
+import { resolve } from "node:path"
 import { server as safetyServer, id as safetyId } from "../packages/safety/src/index.ts"
 import { server as memoryServer, id as memoryId } from "../packages/memory/src/index.ts"
 import { server as agenticServer, id as agenticId } from "../packages/agentic/src/index.ts"
@@ -23,7 +24,7 @@ interface MspSpec {
 }
 
 const mockCtx = {
-  projectRoot: "/data/projects/SFFMC",
+  projectRoot: resolve(import.meta.dir, ".."),
   config: {},
   sessionID: "e2e-test",
 }

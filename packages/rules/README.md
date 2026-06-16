@@ -16,7 +16,7 @@ This plugin is loaded by the SFFMC monorepo's sandbox config. To use standalone:
 // ~/.config/opencode/opencode.json
 {
   "plugin": [
-    "file:///data/projects/SFFMC/packages/rules/src/index.ts"
+    "file:///path/to/SFFMC/packages/rules/src/index.ts"
   ]
 }
 ```

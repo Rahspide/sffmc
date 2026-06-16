@@ -9,9 +9,9 @@
 // Exit 1 = at least one skill is malformed.
 
 import { readFile } from "node:fs/promises"
-import { join } from "node:path"
+import { join, resolve } from "node:path"
 
-const REPO_ROOT = "/data/projects/SFFMC"
+const REPO_ROOT = resolve(import.meta.dir, "..")
 
 interface SkillExpect {
   readonly msp: string

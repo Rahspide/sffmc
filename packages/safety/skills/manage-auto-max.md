@@ -26,7 +26,7 @@ User types `/max` in chat. The `command.execute.before` hook in safety matches `
 Auto-max listens to `tool.execute.after` events. When the watchdog's FailureCounter reaches threshold AND verdict is `escalate`, auto-max:
 
 1. Generates 3 candidate responses in parallel
-2. Calls the judge model (default `ocg/deepseek-v4-flash`) to pick the best
+2. Calls the judge model (default `claude-sonnet-4-20250514`) to pick the best
 3. Replaces the failing call's continuation with the winning candidate
 4. User sees: `[auto-max] escalated to max-mode for tool X`
 
@@ -49,7 +49,7 @@ Auto-max listens to `tool.execute.after` events. When the watchdog's FailureCoun
 auto_max:
   threshold: 3            # failures before trigger
   verdict: escalate       # only on 'escalate' verdicts
-  judge_model: ocg/deepseek-v4-flash
+  judge_model: claude-sonnet-4-20250514
   fallback: "/max"        # manual escape hatch
 ```
 

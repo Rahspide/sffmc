@@ -18,7 +18,7 @@ This plugin is loaded by the SFFMC monorepo's sandbox config. To use standalone:
 // ~/.config/opencode/opencode.json
 {
   "plugin": [
-    "file:///data/projects/SFFMC/packages/auto-max/src/index.ts"
+    "file:///path/to/SFFMC/packages/auto-max/src/index.ts"
   ]
 }
 ```
@@ -41,7 +41,7 @@ watchdog_threshold: 3
 # Max Mode configuration passed through on trigger
 max_mode_config:
   n: 3
-  judge_model: ocg/deepseek-v4-flash
+  judge_model: claude-sonnet-4-20250514
 
 # Maximum Max Mode invocations per session (safety cap)
 # 1 = only fire once per session, even if stuck again

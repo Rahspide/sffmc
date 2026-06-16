@@ -18,7 +18,7 @@ This plugin is loaded by the SFFMC monorepo's sandbox config. To use standalone:
 // ~/.config/opencode/opencode.json
 {
   "plugin": [
-    "file:///data/projects/SFFMC/packages/max-mode/src/index.ts"
+    "file:///path/to/SFFMC/packages/max-mode/src/index.ts"
   ]
 }
 ```
@@ -42,7 +42,7 @@ candidate_models: []
 candidate_temperature: 1.0
 
 # Judge model for selecting the best candidate
-judge_model: ocg/deepseek-v4-flash
+judge_model: claude-sonnet-4-20250514
 
 # Safety cap: abort if total token cost exceeds N × single call
 # 5 means abort if > 5x the cost of 1 candidate call

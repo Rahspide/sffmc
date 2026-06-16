@@ -9,6 +9,7 @@
 // Exit 0 = health check returned ok=true.
 // Exit 1 = health check failed OR threw.
 
+import { resolve } from "node:path"
 import { server as healthServer } from "../packages/health/src/index.ts"
 import { server as agenticServer } from "../packages/agentic/src/index.ts"
 
@@ -19,7 +20,7 @@ interface Tool {
 }
 
 const mockCtx = {
-  projectRoot: "/data/projects/SFFMC",
+  projectRoot: resolve(import.meta.dir, ".."),
   config: {},
   sessionID: "live-test",
 }

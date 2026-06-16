@@ -80,7 +80,7 @@ python3 scripts/audit-load-order.py
 
 ### Pre-commit hook
 
-Install: `cp scripts/pre-commit-hook.sh .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit`
+The pre-commit hook is already configured in `.git/hooks/pre-commit`.
 
 The hook runs automatically before every commit:
 1. `bun test` (must pass)

@@ -99,5 +99,5 @@ Path: `~/.config/SFFMC/auto-max.yaml` (YAML v1, optional — defaults apply if m
 | `enabled` | `true` | Master on/off switch |
 | `watchdog_threshold` | `3` | Consecutive same-tool-same-error failures before trigger |
 | `max_mode_config.n` | `3` | Number of parallel candidates passed to Max Mode |
-| `max_mode_config.judge_model` | `ocg/deepseek-v4-flash` | Judge model for Max Mode candidate selection |
+| `max_mode_config.judge_model` | `claude-sonnet-4-20250514` | Judge model for Max Mode candidate selection |
 | `cost_cap_per_session` | `1` | Max triggers per session (safety limit) |

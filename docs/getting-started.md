@@ -24,15 +24,15 @@ Add the SFFMC plugin paths to your `~/.config/opencode/opencode.json` under the 
 ```jsonc
 {
   "plugin": [
-    "file:///data/projects/SFFMC/packages/memory/src/index.ts",
-    "file:///data/projects/SFFMC/packages/rules/src/index.ts",
-    "file:///data/projects/SFFMC/packages/watchdog/src/index.ts",
-    "file:///data/projects/SFFMC/packages/eos-stripper/src/index.ts",
-    "file:///data/projects/SFFMC/packages/log-whitelist/src/index.ts",
-    "file:///data/projects/SFFMC/packages/max-mode/src/index.ts",
-    "file:///data/projects/SFFMC/packages/auto-max/src/index.ts",
-    "file:///data/projects/SFFMC/packages/compose/src/index.ts",
-    "file:///data/projects/SFFMC/packages/workflow/src/index.ts"
+    "file:///path/to/SFFMC/packages/memory/src/index.ts",
+    "file:///path/to/SFFMC/packages/rules/src/index.ts",
+    "file:///path/to/SFFMC/packages/watchdog/src/index.ts",
+    "file:///path/to/SFFMC/packages/eos-stripper/src/index.ts",
+    "file:///path/to/SFFMC/packages/log-whitelist/src/index.ts",
+    "file:///path/to/SFFMC/packages/max-mode/src/index.ts",
+    "file:///path/to/SFFMC/packages/auto-max/src/index.ts",
+    "file:///path/to/SFFMC/packages/compose/src/index.ts",
+    "file:///path/to/SFFMC/packages/workflow/src/index.ts"
   ]
 }
 ```

@@ -56,7 +56,7 @@ export const server = async (ctx: PluginContext) => {
     recoveringTools: new Map(),
   };
 
-  const model = config.promote_model || String(ctx.config?.model || "ocg/deepseek-v4-flash");
+  const model = config.promote_model || String(ctx.config?.model || "claude-sonnet-4-20250514");
 
   if (config.log_failures && !loadedLogged) {
     loadedLogged = true;

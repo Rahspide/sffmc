@@ -70,7 +70,7 @@ bun install
 # 5. Restart OpenCode
 
 # DO NOT restart from the OpenCode web UI — use SSH:
-# sudo systemctl restart opencode-root
+# sudo systemctl restart opencode
 ```
 
 **What you get immediately**:
@@ -114,7 +114,7 @@ cp ~/.local/share/opencode/opencode.db ~/opencode.db.bak-opencode-$(date +%Y%m%d
 
 # 2. Install MiMo-Code
 
-# Follow Xiaomi's install guide: https://mimo.xiaomi.com/mimocode/start
+# Follow Xiaomi's install guide: https://mimo.xiaomi.com/mimo-code/start
 # MiMo-Code replaces your OpenCode binary with its fork
 
 # 3. Copy sessions (if compatible)
@@ -143,7 +143,7 @@ cp ~/.local/share/opencode/opencode.db ~/opencode.db.bak-opencode-$(date +%Y%m%d
 # 3. Migrate sessions (if possible)
 
 # MiMo-Code session format may differ. Try:
-cp ~/.local/share/mimocode/mimocode.db ~/.local/share/opencode/opencode.db
+cp ~/.local/share/mimo/mimo.db ~/.local/share/opencode/opencode.db
 # If OpenCode doesn't read it, you'll start fresh.
 
 # 4. Install SFFMC plugins (see "OpenCode → SFFMC" above)
@@ -296,5 +296,4 @@ bun test
 - [MiMo-Code PR #609](https://github.com/XiaomiMiMo/MiMo-Code/pull/609) — 200K context calibration
 - [MiMo-Code issue #472](https://github.com/XiaomiMiMo/MiMo-Code/issues/472) — voice control contradiction (do not claim)
 - [MiMo-Code issue #607](https://github.com/XiaomiMiMo/MiMo-Code/issues/607) — macOS IPC bug (Linux-only is honest)
-- [MiMo-Code official docs](https://mimo.xiaomi.com/mimocode/start)
-- [SFFMC v8 decision](docs/v8-decision.md) — full cut/ship rationale
+- [MiMo-Code official docs](https://mimo.xiaomi.com/mimo-code/start)

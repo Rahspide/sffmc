@@ -8,40 +8,40 @@ Sandboxed JavaScript execution for orchestrating long-running, multi-step
 LLM tasks — 200+ steps, with budget caps, crash recovery, and a journal
 that replays completed work after restart.
 
-Три примитива внутри песочницы:
-- `agent(task, opts?)` — запустить одного LLM-агента и дождаться ответа
-- `parallel(thunks)` — параллельный запуск N агентов
-- `pipeline(items, ...stages)` — последовательная цепочка стадий для
-  каждого элемента
+Three primitives inside the sandbox:
+- `agent(task, opts?)` — launch one LLM agent and wait for a response
+- `parallel(thunks)` — launch N agents in parallel
+- `pipeline(items, ...stages)` — sequential chain of stages for
+  each item
 
-Пример: исследовательский workflow на 6 фаз (Plan → Search → Extract →
-Group → Crosscheck → Report) запускается одной командой:
+Example: a 6-phase research workflow (Plan → Search → Extract →
+Group → Crosscheck → Report) runs with a single command:
 
 ```bash
 workflow run --name deep-research --args.question "What is the best Rust web framework for 2026?"
 ```
 
-Под капотом: ~30 агентов (планировщик + поисковики + чтецы + жюри +
-автор отчёта), каждый изолирован, каждый с дедлайном, результат
-сохраняется даже при падении процесса.
+Under the hood: ~30 agents (planner + searchers + readers + jury +
+report author), each isolated, each with a deadline, the result
+survives even a process crash.
 
 ## Why we built it
 
-В одном LLM-сеансе для задачи на 200+ шагов контекстное окно раздувается,
-внимание теряется, модель начинает галлюцинировать или зацикливаться.
-Подход "один сеанс = одна задача" работает до ~30 шагов, дальше —
-деградация.
+In a single LLM session for a 200+ step task, the context window bloats,
+attention decays, the model starts hallucinating or looping.
+The "one session = one task" approach works up to ~30 steps, then —
+degradation.
 
-Workflow engine решает это иначе:
-- Каждый шаг (agent) — изолированный LLM-вызов, без накопления истории
-- Состояние живёт вне контекстного окна — в SQLite + JSONL-журнале
-- При краше процесса workflow поднимается с последнего чекпоинта
-- Жёсткие капы не дают разойтись бюджету (1000 шагов lifecycle,
-  2M токенов, 16 конкурентных, 12 часов wall-clock)
+The workflow engine solves this differently:
+- Each step (agent) is an isolated LLM call with no history accumulation
+- State lives outside the context window — in SQLite + JSONL journal
+- On process crash, workflow resumes from the last checkpoint
+- Hard caps prevent budget runaway (1000 lifecycle agents,
+  2M tokens, 16 concurrent, 12 hours wall-clock)
 
-Итог: один workflow заменяет 5-10 ручных сеансов, а стоит столько же
-токенов, сколько эти сеансы стоили бы по отдельности (часто меньше,
-потому что нет повторных запросов).
+Result: one workflow replaces 5-10 manual sessions and costs the same
+tokens those sessions would cost individually (often less,
+since there are no duplicate queries).
 
 ## Quick start
 
@@ -63,10 +63,10 @@ export default async function main(args) {
 }
 ```
 
-Запуск:
+Launch:
 
 ```bash
-# В любом чате OpenCode:
+# In any OpenCode chat:
 workflow({ operation: "run", name: "my-task", args: { goal: "migrate to Bun" } })
 ```
 
@@ -76,27 +76,27 @@ workflow({ operation: "run", name: "my-task", args: { goal: "migrate to Bun" } }
 
 ```ts
 agent(task: string, opts?: {
-  model?: string          // override модель (e.g. "deepseek-v4-pro")
-  tools?: string[]        // какие инструменты доступны (default: все)
-  schema?: object         // JSON Schema для structured output
-  label?: string          // человекочитаемая метка для логов
-  phase?: string          // к какой фазе относится (для журнала)
-  timeoutMs?: number      // per-agent дедлайн (default: 120s)
+  model?: string          // override model (e.g. "claude-sonnet-4-20250514")
+  tools?: string[]        // which tools are available (default: all)
+  schema?: object         // JSON Schema for structured output
+  label?: string          // human-readable label for logs
+  phase?: string          // which phase this belongs to (for journal)
+  timeoutMs?: number      // per-agent deadline (default: 120s)
 }): Promise<AgentResult>  // null | string | object
 ```
 
-**Контракт**: `agent()` **никогда не бросает исключение**. Если что-то
-пошло не так — возвращает `null`. 5 причин почему:
+**Contract**: `agent()` **never throws an exception**. If something
+goes wrong — it returns `null`. 5 reasons why:
 
-| Причина | Когда | Что делать в workflow |
+| Reason | When | What to do in workflow |
 |---|---|---|
-| `over-cap` | Шаги/токены/время превысили лимит | Вернуть промежуточный результат |
-| `spawn-reject` | LLM-вызов выбросил исключение | Повторить с fallback-промптом |
-| `timeout` | Агент не ответил за `timeoutMs` | Увеличить таймаут или упростить задачу |
-| `actor-error` | Агент вернул ответ без структуры | Проверить schema в opts |
-| `no-deliverable` | Ответ есть, но structured/finalText пустые | Проверить промпт |
+| `over-cap` | Steps/tokens/time exceeded limit | Return intermediate result |
+| `spawn-reject` | LLM call threw exception | Retry with fallback prompt |
+| `timeout` | Agent didn't respond within `timeoutMs` | Increase timeout or simplify task |
+| `actor-error` | Agent returned response without structure | Check schema in opts |
+| `no-deliverable` | Response exists but structured/finalText empty | Check prompt |
 
-**Пример с structured output**:
+**Structured output example**:
 
 ```ts
 const SCHEMA = {
@@ -110,7 +110,7 @@ const result = await agent("List all .ts files in src/", {
   label: "file-lister",
 })
 // result = { items: ["src/index.ts", "src/runtime.ts", ...] }
-// или null если агент не справился
+// or null if agent failed
 ```
 
 ### `parallel(thunks)`
@@ -119,20 +119,20 @@ const result = await agent("List all .ts files in src/", {
 parallel(thunks: Array<() => Promise<T>>): Promise<Array<T | null>>
 ```
 
-Запускает все thunk-функции одновременно. Каждая функция возвращает
-Promise — они исполняются конкурентно (до 16 одновременно, регулируется
-глобальной семафорой). Результат — массив той же длины.
+Launches all thunk functions simultaneously. Each function returns a
+Promise — they execute concurrently (up to 16 at once, governed by a
+global semaphore). The result is an array of the same length.
 
-Thunk, который упал с исключением, роняет ВЕСЬ parallel (в отличие от
-agent(), который never-throw). Если нужна изоляция — оборачивайте:
+A thunk that throws crashes the ENTIRE parallel (unlike agent(), which
+never-throws). If you need isolation — wrap:
 
 ```ts
 const results = await parallel(
   items.map(item => () =>
-    agent("process: " + item)  // never-throw — безопасно
+    agent("process: " + item)  // never-throw — safe
   )
 )
-// results[i] = результат или null
+// results[i] = result or null
 ```
 
 ### `pipeline(items, ...stages)`
@@ -144,9 +144,9 @@ pipeline<T>(
 ): Promise<Array<unknown>>
 ```
 
-Каждый элемент проходит через ВСЕ стадии последовательно, а элементы
-обрабатываются параллельно. Stage получает на вход: результат предыдущей
-стадии, оригинальный элемент, индекс.
+Each item passes through ALL stages sequentially, and items are
+processed in parallel. Each stage receives: the previous stage's result,
+the original item, the index.
 
 ```ts
 const perLine = await pipeline(
@@ -156,94 +156,94 @@ const perLine = await pipeline(
   // Stage 2: read top hit
   (found) => agent("read: " + found.hits[0].url, { schema: READ_SHAPE }),
 )
-// perLine[i] = результат второго stage для каждого элемента
+// perLine[i] = result of the second stage for each item
 ```
 
 ## Workflow files
 
-### Где хранить
+### Where to store
 
-- `packages/workflow/builtin/` — встроенные (deep-research)
-- `.sffmc/workflows/*.ts` — проектные
-- `.claude/workflows/*.ts` — legacy (совместимость с Claude Code)
+- `packages/workflow/builtin/` — built-in (deep-research)
+- `.sffmc/workflows/*.ts` — project-level
+- `.claude/workflows/*.ts` — legacy (Claude Code compatibility)
 
-### Структура
+### Structure
 
 ```ts
-// Обязательный meta-блок (парсится без исполнения кода)
+// Required meta-block (parsed without executing code)
 export const meta = {
-  name: "unique-name",           // обязательное, непустое
-  description: "What it does",   // обязательное, непустое
-  whenToUse: "When to pick it",  // опционально, подсказка LLM
-  phases: [                      // опционально, для прогресс-бара
+  name: "unique-name",           // required, non-empty
+  description: "What it does",   // required, non-empty
+  whenToUse: "When to pick it",  // optional, LLM hint
+  phases: [                      // optional, for progress bar
     { title: "Phase 1", detail: "What happens in phase 1" },
     { title: "Phase 2", detail: "What happens in phase 2" },
   ],
-  model: "deepseek-v4-pro",      // опционально, модель по умолчанию
+  model: "claude-sonnet-4-20250514",      // optional, default model
 }
 
-// Основная функция (вызывается автоматически)
+// Main function (called automatically)
 export default async function main(args) {
-  // args — что передали в workflow({ operation: "run", args: {...} })
+  // args — what was passed to workflow({ operation: "run", args: {...} })
 
-  phase("Setup")        // отметить начало фазы
-  log("Starting...")    // записать в журнал
+  phase("Setup")        // mark phase start
+  log("Starting...")    // write to journal
 
   const result = await agent("Do the thing")
 
-  return result         // вернуть итог (попадёт в outcome.result)
+  return result         // return result (goes into outcome.result)
 }
 ```
 
-Или без `main()` — код на верхнем уровне тоже исполнится:
+Or without `main()` — top-level code also runs:
 
 ```ts
 export const meta = { name: "inline", ... }
 
 phase("One shot")
 const answer = await agent("What is 2+2?")
-// answer попадёт в результат
+// answer goes into result
 ```
 
 ## Side-channel primitives
 
-Помимо `agent`/`parallel`/`pipeline`, внутри workflow доступны:
+Beyond `agent`/`parallel`/`pipeline`, the following are available inside workflow:
 
-| Примитив | Сигнатура | Что делает |
+| Primitive | Signature | What it does |
 |---|---|---|
-| `phase(title)` | `(title: string) => void` | Устанавливает текущую фазу (отражается в `workflow status`) |
-| `log(msg)` | `(msg: string) => void` | Пишет в JSONL-журнал (видно в `workflow status`) |
-| `args` | `unknown` | Аргументы, переданные при запуске |
-| `readFile(path)` | `(path: string) => Promise<string \| null>` | Читает файл внутри jailed workspace |
-| `writeFile(path, content)` | `(path: string, content: string) => Promise<void>` | Пишет файл |
-| `glob(pattern)` | `(pattern: string) => Promise<string[]>` | Glob внутри workspace |
-| `exists(path)` | `(path: string) => Promise<boolean>` | Проверяет существование |
-| `workflow(name, args?)` | `(name: string, args?: unknown) => Promise<unknown>` | Запускает дочерний workflow |
+| `phase(title)` | `(title: string) => void` | Sets the current phase (reflected in `workflow status`) |
+| `log(msg)` | `(msg: string) => void` | Writes to the JSONL journal (visible in `workflow status`) |
+| `args` | `unknown` | Arguments passed at launch |
+| `readFile(path)` | `(path: string) => Promise<string \| null>` | Reads a file inside the jailed workspace |
+| `writeFile(path, content)` | `(path: string, content: string) => Promise<void>` | Writes a file |
+| `glob(pattern)` | `(pattern: string) => Promise<string[]>` | Globs inside workspace |
+| `exists(path)` | `(path: string) => Promise<boolean>` | Checks existence |
+| `workflow(name, args?)` | `(name: string, args?: unknown) => Promise<unknown>` | Launches a child workflow |
 
-**Jail**: все файловые операции заперты внутри workspace (директория,
-переданная при запуске). `readFile("/etc/passwd")` вернёт `null`.
+**Jail**: all filesystem operations are jailed inside the workspace (directory
+passed at launch). `readFile("/etc/passwd")` returns `null`.
 
 ## Error handling
 
-Главное правило: `agent()` **никогда не бросает**. Это означает:
+The key rule: `agent()` **never throws**. This means:
 
 ```ts
-// ПРАВИЛЬНО — проверять на null
+// CORRECT — check for null
 const res = await agent("risky task")
 if (res === null) {
   log("agent failed, trying fallback")
   return await agent("simpler task")
 }
 
-// НЕПРАВИЛЬНО — надеяться что res всегда объект
-const items = res.items  // TypeError если res === null
+// INCORRECT — assume res is always an object
+const items = res.items  // TypeError if res === null
 ```
 
-`parallel()` и `pipeline()` — наоборот, бросают. Если thunk упал с
-исключением — весь batch падает. Исключение из песочницы = статус
-`failed` для всего run'а.
+`parallel()` and `pipeline()` — conversely, do throw. If a thunk throws
+an exception — the whole batch crashes. An exception from the sandbox =
+`failed` status for the entire run.
 
-**Детектить причину отказа** можно через события (на хосте):
+**Detect the failure reason** via events (on the host):
 
 ```ts
 import { on } from "@sffmc/workflow"
@@ -255,67 +255,67 @@ on("workflow:agent_failed", (e) => {
 
 ## Budgets
 
-5 уровней капов, все настраиваются:
+5 cap levels, all configurable:
 
-| Кап | По умолчанию | Переопределение |
+| Cap | Default | Override |
 |---|---|---|
 | **Lifecycle agents** | 1000 | `config.maxLifecycleAgents` |
 | **Steps per run** | 200 | `config.maxSteps` |
-| **Concurrent agents** | 16 | Глобальная семафора (auto = 2×CPU) |
-| **Wall-clock** | 12 часов | `config.maxWallClockMs` |
+| **Concurrent agents** | 16 | Global semaphore (auto = 2×CPU) |
+| **Wall-clock** | 12 hours | `config.maxWallClockMs` |
 | **Tokens** | 2 000 000 | `config.maxTokens` |
 
-При достижении любого капа — agent() начинает возвращать `null` (reason:
-`over-cap`). Workflow-скрипт должен сам решить, что делать — вернуть
-промежуточный результат или закончить с ошибкой.
+When any cap is reached — agent() starts returning `null` (reason:
+`over-cap`). The workflow script must decide what to do — return an
+intermediate result or fail with an error.
 
 ## Resume
 
-Workflow автоматически восстанавливается после краша процесса:
+Workflow automatically recovers after a process crash:
 
-1. При старте OpenCode вызывает `recoverOrphanedWorkflows()` — все run'ы
-   со статусом `running` переводятся в `crashed`
-2. Команда `workflow({ operation: "resume", run_id: "wf_..." })` —
-   поднимает workflow с последнего чекпоинта
-3. SHA-256 тела скрипта сравнивается с сохранённым — если скрипт
-   изменился, журнал сбрасывается (edit detection)
-4. Каждый успешный agent() пишется в JSONL-журнал — при повторе
-   результат достаётся из кеша, агент не перезапускается
+1. At OpenCode startup, `recoverOrphanedWorkflows()` is called — all runs
+   with status `running` transition to `crashed`
+2. The command `workflow({ operation: "resume", run_id: "wf_..." })` —
+   resumes the workflow from the last checkpoint
+3. SHA-256 of the script body is compared with the stored hash — if the
+   script changed, the journal is reset (edit detection)
+4. Every successful agent() is written to the JSONL journal — on replay
+   the result is pulled from cache, the agent is not re-invoked
 
 ## MCP integration
 
-Workflow НЕ имеет прямого доступа к MCP-серверам. Вместо этого
-используйте `agent()` с указанием `tools`:
+Workflow does NOT have direct access to MCP servers. Instead,
+use `agent()` with `tools` specified:
 
 ```ts
-// Поиск через 9router (работает внутри agent)
+// Search via 9router (works inside agent)
 const hits = await agent("search: Rust web frameworks", {
-  tools: ["bash"],  // agent может вызвать bash, а bash — curl к 9router
+  tools: ["bash"],  // agent can call bash, and bash — curl to 9router
 })
 
-// Или прямо через внешний инструмент если он зарегистрирован
+// Or directly via external tool if registered
 const page = await agent("fetch: " + url, {
   tools: ["webfetch"],
 })
 ```
 
-Прямые MCP-биндинги запланированы на W7.
+Direct MCP bindings are planned for W7.
 
 ## Sandbox isolation
 
-Workflow-скрипты исполняются внутри **quickjs-emscripten** WASM-песочницы:
+Workflow scripts execute inside a **quickjs-emscripten** WASM sandbox:
 
-- **Нет доступа** к Node.js API, файловой системе, сети, process.env
-- **Нет Date** (заменён, чтобы избежать недетерминизма при replay)
-- **Math.random** заменён на seeded PRNG (mulberry32) — replay
-  воспроизводим
-- **URL** — минимальная реализация для парсинга (protocol, hostname,
+- **No access** to Node.js API, filesystem, network, process.env
+- **No Date** (replaced to avoid non-determinism on replay)
+- **Math.random** replaced with seeded PRNG (mulberry32) — replay
+  is reproducible
+- **URL** — minimal implementation for parsing (protocol, hostname,
   pathname)
 - **Memory limit**: 64 MB
-- **Instruction limit**: 5 000 000 (прерывает бесконечные циклы)
-- **Wall-clock deadline**: 12 часов на скрипт
+- **Instruction limit**: 5 000 000 (interrupts infinite loops)
+- **Wall-clock deadline**: 12 hours per script
 
-Попытка `require("fs")`, `process.exit()`, или `fetch()` упадёт с
+An attempt to `require("fs")`, `process.exit()`, or `fetch()` will throw
 ReferenceError.
 
 ## Examples
@@ -386,62 +386,60 @@ return { files: logs.length, report: "report.md" }
 
 ### Deep research
 
-Самый большой встроенный workflow — 6 фаз, adversarial jury:
+The largest built-in workflow — 6 phases, adversarial jury:
 
 ```ts
 workflow({ operation: "run", name: "deep-research", args: { question: "What is the best Rust web framework for 2026?" } })
 ```
 
-[Подробнее в коде →](../packages/workflow/builtin/deep-research.ts)
+[More in code →](../packages/workflow/builtin/deep-research.ts)
 
 ## Comparison to MiMo-Code
 
-| Аспект | MiMo-Code | SFFMC Workflow |
+| Aspect | MiMo-Code | SFFMC Workflow |
 |---|---|---|
 | **Sandbox** | `vm.createContext` (Node-only) | quickjs-emscripten WASM (Bun/Node/browser) |
-| **Примитивы** | agent, parallel, pipeline | agent, parallel, pipeline (те же сигнатуры) |
-| **Состояние** | 3-layer (SQLite + script + JSONL) | То же + WAL-расширение |
-| **Бюджеты** | 2 caps (lifecycle, concurrent) | 5 caps (добавлены: depth, token, wall-clock) |
-| **LLM-интерфейс** | 5 tool operations | Те же 5 (run/status/wait/cancel/resume) |
-| **Deep research** | 391 строк JS, JURY_SIZE=3 | Портирован в TS, 280 строк, те же параметры |
-| **MCP** | Прямые биндинги | Нет (W7) — через agent({ tools }) |
-| **Streaming** | Есть (SSE через событие) | Нет (W7) |
+| **Primitives** | agent, parallel, pipeline | agent, parallel, pipeline (same signatures) |
+| **State** | 3-layer (SQLite + script + JSONL) | Same + WAL extension |
+| **Budgets** | 2 caps (lifecycle, concurrent) | 5 caps (added: depth, token, wall-clock) |
+| **LLM interface** | 5 tool operations | Same 5 (run/status/wait/cancel/resume) |
+| **Deep research** | 391 lines JS, JURY_SIZE=3 | Ported to TS, 280 lines, same parameters |
+| **MCP** | Direct bindings | No (W7) — via agent({ tools }) |
+| **Streaming** | Yes (SSE via event) | No (W7) |
 
-Что мы изменили и почему:
-- **Добавили token cap (2M)** — MiMo не считал токены, можно было сжечь
-  бюджет
-- **Добавили depth cap (8)** — предотвращает рекурсивные взрывы
-- **Заменили vm на QuickJS** — песочница работает в Bun (MiMo был только
-  Node)
-- **Убрали model: "lite"** — в 9Router нет концепции "lite", используем
-  модель по умолчанию
-- **Добавили seeded PRNG** — replay стал полностью детерминированным
+What we changed and why:
+- **Added token cap (2M)** — MiMo didn't count tokens, could burn budget
+- **Added depth cap (8)** — prevents recursive explosions
+- **Replaced vm with QuickJS** — sandbox works in Bun (MiMo was Node-only)
+- **Removed model: "lite"** — 9Router has no "lite" concept, use default
+  model
+- **Added seeded PRNG** — replay is now fully deterministic
 
 ## Known limitations
 
-1. **Cross-process resume** — работает только в рамках одного процесса.
-   После рестарта OpenCode нужно явно вызвать `resume`. Автоматического
-   поднятия нет (W7).
-2. **No direct MCP** — agent() не может напрямую дёргать MCP-сервера.
-   Только через `tools: ["bash"]` и curl к 9router (W7).
-3. **No streaming** — результат workflow виден только после завершения.
-   Нельзя наблюдать за прогрессом в реальном времени (W7).
-4. **QuickJS performance** — маршалинг JSON между хостом и гостем стоит
-   ~0.5-2ms на вызов. Для 200 шагов это ~100-400ms — незаметно. Для 2000
-   шагов — ~1-4s оверхеда.
-5. **Однопоточная песочница** — parallel() внутри QuickJS использует
-   microtasks (Promise.all), не настоящие потоки. Конкурентность
-   достигается на стороне хоста.
-6. **Максимум 1000 lifecycle agents** — жёсткий предел на один экземпляр
-   runtime. При превышении agent() молча возвращает null.
+1. **Cross-process resume** — works only within a single process.
+   After restarting OpenCode, `resume` must be called explicitly. No
+   automatic resume (W7).
+2. **No direct MCP** — agent() cannot directly call MCP servers.
+   Only via `tools: ["bash"]` and curl to 9router (W7).
+3. **No streaming** — workflow result is only visible after completion.
+   Cannot observe progress in real time (W7).
+4. **QuickJS performance** — JSON marshalling between host and guest costs
+   ~0.5-2ms per call. For 200 steps that's ~100-400ms — negligible. For 2000
+   steps — ~1-4s of overhead.
+5. **Sandbox is single-threaded** — parallel() inside QuickJS uses
+   microtasks (Promise.all), not real threads. Concurrency
+   is achieved on the host side.
+6. **Maximum 1000 lifecycle agents** — hard limit per runtime
+   instance. When exceeded, agent() silently returns null.
 
 ## Roadmap
 
-| Wave | Что | Когда |
+| Wave | What | When |
 |---|---|---|
-| **W7** | Streaming прогресса (SSE события per agent) | После v0.6.0 |
-| **W7** | Multi-server resume (Redis/pubsub для cross-process) | После v0.6.0 |
-| **W7** | MCP bindings (agent может дёргать mcp__* tools напрямую) | После v0.6.0 |
-| **W8** | Web UI дашборд для мониторинга запущенных workflow | TBD |
-| **W8** | Интеграция с slim v2 scheduler (workflow как subagent) | TBD |
-| **W8** | Шаблоны workflow (pre-built: code-review, release-checklist, etc) | TBD |
+| **W7** | Streaming progress (SSE events per agent) | After v0.6.0 |
+| **W7** | Multi-server resume (Redis/pubsub for cross-process) | After v0.6.0 |
+| **W7** | MCP bindings (agent can call mcp__* tools directly) | After v0.6.0 |
+| **W8** | Web UI dashboard for monitoring running workflows | TBD |
+| **W8** | Integration with slim v2 scheduler (workflow as subagent) | TBD |
+| **W8** | Workflow templates (pre-built: code-review, release-checklist, etc) | TBD |
