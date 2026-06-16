@@ -2,6 +2,7 @@
 // @sffmc/workflow — see ../../LICENSE
 
 import { createHash } from "node:crypto"
+import { writeFile, mkdir, readFile } from "node:fs/promises"
 import {
   WorkflowPersistence,
   computeScriptSha,
@@ -205,8 +206,6 @@ export class WorkflowRuntime {
     await WorkflowPersistence.writeScript(runID, script)
     // Also persist as "script file" under data dir
     const dataDir = WorkflowPersistence.dataDir()
-    const { writeFile } = await import("node:fs/promises")
-    const { mkdir } = await import("node:fs/promises")
     await mkdir(dataDir, { recursive: true })
     await writeFile(
       `${dataDir}/${runID}_script.js`,
@@ -487,7 +486,6 @@ export class WorkflowRuntime {
 
     // File path
     if (input.file) {
-      const { readFile } = await import("node:fs/promises")
       return readFile(input.file, "utf-8")
     }
 

@@ -2,6 +2,13 @@
 // @sffmc/workflow — see ../../LICENSE
 
 import type { Meta } from "./meta.ts"
+import * as deepResearchMod from "../builtin/deep-research.ts"
+import * as planMod from "../builtin/plan.ts"
+import * as tddMod from "../builtin/tdd.ts"
+import * as refactorMod from "../builtin/refactor.ts"
+import * as securityAuditMod from "../builtin/security-audit.ts"
+import * as docGenMod from "../builtin/doc-gen.ts"
+import * as libMigrateMod from "../builtin/lib-migrate.ts"
 
 export interface BuiltinEntry {
   name: string
@@ -13,42 +20,32 @@ export interface BuiltinEntry {
 
 type Loader = () => Promise<{ source: string; meta: Meta }>
 
-// Lazy-load the deep-research builtin so the module is only imported on first use.
-let _deepResearchLoader: Loader | undefined
-
-async function loadDeepResearch(): Promise<{ source: string; meta: Meta }> {
-  const mod = await import("../builtin/deep-research.ts")
-  return { source: mod.source, meta: mod.meta }
+function loadDeepResearch(): Promise<{ source: string; meta: Meta }> {
+  return Promise.resolve({ source: deepResearchMod.source, meta: deepResearchMod.meta })
 }
 
-async function loadPlan(): Promise<{ source: string; meta: Meta }> {
-  const mod = await import("../builtin/plan.ts")
-  return { source: mod.source, meta: mod.meta }
+function loadPlan(): Promise<{ source: string; meta: Meta }> {
+  return Promise.resolve({ source: planMod.source, meta: planMod.meta })
 }
 
-async function loadTdd(): Promise<{ source: string; meta: Meta }> {
-  const mod = await import("../builtin/tdd.ts")
-  return { source: mod.source, meta: mod.meta }
+function loadTdd(): Promise<{ source: string; meta: Meta }> {
+  return Promise.resolve({ source: tddMod.source, meta: tddMod.meta })
 }
 
-async function loadRefactor(): Promise<{ source: string; meta: Meta }> {
-  const mod = await import("../builtin/refactor.ts")
-  return { source: mod.source, meta: mod.meta }
+function loadRefactor(): Promise<{ source: string; meta: Meta }> {
+  return Promise.resolve({ source: refactorMod.source, meta: refactorMod.meta })
 }
 
-async function loadSecurityAudit(): Promise<{ source: string; meta: Meta }> {
-  const mod = await import("../builtin/security-audit.ts")
-  return { source: mod.source, meta: mod.meta }
+function loadSecurityAudit(): Promise<{ source: string; meta: Meta }> {
+  return Promise.resolve({ source: securityAuditMod.source, meta: securityAuditMod.meta })
 }
 
-async function loadDocGen(): Promise<{ source: string; meta: Meta }> {
-  const mod = await import("../builtin/doc-gen.ts")
-  return { source: mod.source, meta: mod.meta }
+function loadDocGen(): Promise<{ source: string; meta: Meta }> {
+  return Promise.resolve({ source: docGenMod.source, meta: docGenMod.meta })
 }
 
-async function loadLibMigrate(): Promise<{ source: string; meta: Meta }> {
-  const mod = await import("../builtin/lib-migrate.ts")
-  return { source: mod.source, meta: mod.meta }
+function loadLibMigrate(): Promise<{ source: string; meta: Meta }> {
+  return Promise.resolve({ source: libMigrateMod.source, meta: libMigrateMod.meta })
 }
 
 /**
