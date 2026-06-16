@@ -5,6 +5,7 @@ import { createHash } from "node:crypto"
 import { writeFile, mkdir, readFile } from "node:fs/promises"
 import {
   WorkflowPersistence,
+  generateRunID,
   computeScriptSha,
   journalKeyBase,
 } from "./persistence.ts"
@@ -162,6 +163,16 @@ interface InternalRunEntry {
 }
 
 // ---------------------------------------------------------------------------
+// Runtime options
+// ---------------------------------------------------------------------------
+
+export interface RuntimeOpts {
+  /** Optional persistence instance. When omitted, a default on-disk
+   *  persistence is created using XDG_DATA_HOME or ~/.local/share. */
+  persistence?: WorkflowPersistence
+}
+
+// ---------------------------------------------------------------------------
 // WorkflowRuntime
 // ---------------------------------------------------------------------------
 
@@ -170,10 +181,12 @@ export class WorkflowRuntime {
   private runs = new Map<string, InternalRunEntry>()
   private globalSem: ReturnType<typeof makeSemaphore>
   private flushTimers = new Map<string, ReturnType<typeof setTimeout>>()
+  private persistence: WorkflowPersistence
 
-  constructor(ctx: PluginContext) {
+  constructor(ctx: PluginContext, opts?: RuntimeOpts) {
     this.ctx = ctx
     this.globalSem = makeSemaphore(DEFAULT_MAX_CONCURRENT)
+    this.persistence = opts?.persistence ?? new WorkflowPersistence()
   }
 
   // ── Public API ──────────────────────────────────────────────────────────
@@ -202,10 +215,10 @@ export class WorkflowRuntime {
 
     // Persist — createRun generates its own runID, use that as ours
     const scriptSha = computeScriptSha(script)
-    const runID = WorkflowPersistence.createRun(name, name, scriptSha)
-    await WorkflowPersistence.writeScript(runID, script)
+    const runID = this.persistence.createRun(name, name, scriptSha)
+    await this.persistence.writeScript(runID, script)
     // Also persist as "script file" under data dir
-    const dataDir = WorkflowPersistence.dataDir()
+    const dataDir = this.persistence.dataDir
     await mkdir(dataDir, { recursive: true })
     await writeFile(
       `${dataDir}/${runID}_script.js`,
@@ -222,7 +235,7 @@ export class WorkflowRuntime {
     const outcomePromise = new Promise<WorkflowOutcome>((res) => { resolveOutcome = res })
 
     // Load journal (empty on fresh run)
-    const journal = await WorkflowPersistence.loadJournal(runID)
+    const journal = await this.persistence.loadJournal(runID)
 
     const entry: InternalRunEntry = {
       runID,
@@ -267,7 +280,7 @@ export class WorkflowRuntime {
     const entry = this.runs.get(input.runID)
     if (!entry) {
       // Try loading from DB
-      const row = WorkflowPersistence.loadRun(input.runID)
+      const row = this.persistence.loadRun(input.runID)
       if (!row) {
         return {
           runID: input.runID,
@@ -349,13 +362,13 @@ export class WorkflowRuntime {
       tokensUsed: entry.tokensUsed,
       durationMs: Date.now() - entry.startedMs,
     })
-    WorkflowPersistence.updateRunStatus(entry.runID, "cancelled")
+    this.persistence.updateRunStatus(entry.runID, "cancelled")
     emit("workflow:finished", { runID: entry.runID, status: "cancelled" })
   }
 
   async list(): Promise<Array<{ runID: string; name: string; status: WorkflowStatus }>> {
     // Combine in-memory and DB rows
-    const dbRuns = WorkflowPersistence.listRuns()
+    const dbRuns = this.persistence.listRuns()
     const result = new Map<string, { runID: string; name: string; status: WorkflowStatus }>()
 
     for (const row of dbRuns) {
@@ -378,18 +391,18 @@ export class WorkflowRuntime {
       }
 
       // Load from DB
-      const row = WorkflowPersistence.loadRun(input.runID)
+      const row = this.persistence.loadRun(input.runID)
       if (!row) return { runID: input.runID, resumed: false }
 
       // Read script
-      const script = await WorkflowPersistence.readScript(input.runID)
+      const script = await this.persistence.readScript(input.runID)
       if (!script) return { runID: input.runID, resumed: false }
 
       // Edit detection
       const currentSha = computeScriptSha(script)
       const freshJournal = row.scriptSha !== currentSha
       if (freshJournal) {
-        await WorkflowPersistence.clearJournal(input.runID)
+        await this.persistence.clearJournal(input.runID)
       }
 
       // Re-build via start-like flow
@@ -405,7 +418,7 @@ export class WorkflowRuntime {
         maxLifecycleAgents: MAX_LIFECYCLE_AGENTS,
       }
 
-      const journal = await WorkflowPersistence.loadJournal(input.runID)
+      const journal = await this.persistence.loadJournal(input.runID)
 
       let resolveOutcome!: (outcome: WorkflowOutcome) => void
       const outcomePromise = new Promise<WorkflowOutcome>((res) => { resolveOutcome = res })
@@ -433,7 +446,7 @@ export class WorkflowRuntime {
       }
 
       this.runs.set(input.runID, entry)
-      WorkflowPersistence.updateRunStatus(input.runID, "running")
+      this.persistence.updateRunStatus(input.runID, "running")
 
       emit("workflow:started", { runID: input.runID, name })
 
@@ -455,10 +468,10 @@ export class WorkflowRuntime {
 
   /** Recover orphaned workflows on startup. */
   async recoverOrphanedWorkflows(): Promise<void> {
-    const rows = WorkflowPersistence.listRuns()
+    const rows = this.persistence.listRuns()
     for (const row of rows) {
       if (row.status === "running" && !this.runs.has(row.runID)) {
-        WorkflowPersistence.updateRunStatus(row.runID, "crashed", "Process restarted — workflow orphaned")
+        this.persistence.updateRunStatus(row.runID, "crashed", "Process restarted — workflow orphaned")
       }
     }
   }
@@ -655,7 +668,7 @@ export class WorkflowRuntime {
 
         // Journal successful result
         if (deliverable !== null) {
-          WorkflowPersistence.appendJournalSync(entry.runID, {
+          this.persistence.appendJournalSync(entry.runID, {
             t: "agent",
             key,
             result: deliverable,
@@ -739,7 +752,7 @@ export class WorkflowRuntime {
     const childName = isInlineScript(spec) ? "inline:" + base.slice(0, 12) : spec
 
     // Launch child sub-run
-    const childRunID = WorkflowPersistence.generateRunID()
+    const childRunID = generateRunID()
     entry.childRunIDs.add(childRunID)
 
     const childEntry = await this.startChildWorkflow(entry, childScript, childName, childArgs, childRunID)
@@ -762,7 +775,7 @@ export class WorkflowRuntime {
 
     // Journal successful child
     if (value !== null) {
-      WorkflowPersistence.appendJournalSync(entry.runID, {
+      this.persistence.appendJournalSync(entry.runID, {
         t: "agent",
         key,
         result: value,
@@ -776,7 +789,7 @@ export class WorkflowRuntime {
   /** phase(title) — set the current phase for a run. */
   private setPhase(entry: InternalRunEntry, title: string): void {
     entry.currentPhase = title
-    WorkflowPersistence.appendJournal(entry.runID, {
+    this.persistence.appendJournal(entry.runID, {
       t: "phase",
       title,
       pass: entry.journalPass,
@@ -786,7 +799,7 @@ export class WorkflowRuntime {
 
   /** log(msg) — append a log message to the run journal. */
   private appendLog(entry: InternalRunEntry, msg: string): void {
-    WorkflowPersistence.appendJournal(entry.runID, {
+    this.persistence.appendJournal(entry.runID, {
       t: "log",
       msg,
       pass: entry.journalPass,
@@ -862,8 +875,8 @@ export class WorkflowRuntime {
     const parsed = parseMeta(script)
 
     const scriptSha = computeScriptSha(script)
-    const runID = WorkflowPersistence.createRun(name, name, scriptSha)
-    await WorkflowPersistence.writeScript(runID, script)
+    const runID = this.persistence.createRun(name, name, scriptSha)
+    await this.persistence.writeScript(runID, script)
 
     let resolveOutcome!: (outcome: WorkflowOutcome) => void
     const outcomePromise = new Promise<WorkflowOutcome>((res) => { resolveOutcome = res })
@@ -924,7 +937,7 @@ export class WorkflowRuntime {
       tokensUsed: entry.tokensUsed,
       durationMs: Date.now() - entry.startedMs,
     })
-    WorkflowPersistence.updateRunStatus(entry.runID, "completed")
+    this.persistence.updateRunStatus(entry.runID, "completed")
     emit("workflow:finished", { runID: entry.runID, status: "completed" })
   }
 
@@ -942,7 +955,7 @@ export class WorkflowRuntime {
       tokensUsed: entry.tokensUsed,
       durationMs: Date.now() - entry.startedMs,
     })
-    WorkflowPersistence.updateRunStatus(entry.runID, entry.status, error)
+    this.persistence.updateRunStatus(entry.runID, entry.status, error)
     emit("workflow:finished", { runID: entry.runID, status: entry.status, error })
   }
 
@@ -974,7 +987,7 @@ export class WorkflowRuntime {
       this.flushTimers.delete(entry.runID)
     }
     // Update DB counters
-    const db = WorkflowPersistence.getDB()
+    const db = this.persistence.getDB()
     try {
       db.run(
         `UPDATE workflow_runs SET running = ?, succeeded = ?, failed = ?, time_updated = ? WHERE id = ?`,

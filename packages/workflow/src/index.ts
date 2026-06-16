@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/workflow — see ../../LICENSE
 
-import { WorkflowRuntime } from "./runtime.ts"
+import { WorkflowRuntime, type RuntimeOpts } from "./runtime.ts"
 import { setRuntime } from "./runtime-ref.ts"
 import { workflowTool } from "./tool.ts"
 import { on } from "./events.ts"
@@ -34,7 +34,7 @@ export { getRuntime, setRuntime } from "./runtime-ref.ts"
 export { registerBuiltin, getBuiltin, loadBuiltin, listBuiltins } from "./builtin-registry.ts"
 export { on, off, emit, clearAll } from "./events.ts"
 export { workflowTool } from "./tool.ts"
-export { WorkflowRuntime } from "./runtime.ts"
+export { WorkflowRuntime, type RuntimeOpts } from "./runtime.ts"
 
 export const id = "@sffmc/workflow"
 export const server = async (ctx: PluginContext) => {

@@ -20,19 +20,9 @@ import {
 import {
   generateRunID,
   RUN_ID_REGEX,
-  createRun,
-  loadRun,
-  updateRunStatus,
-  writeScript,
-  readScript,
-  appendJournalSync,
-  appendJournal,
-  loadJournal,
-  clearJournal,
-  checkpointStep,
-  loadCompletedSteps,
   computeScriptSha,
   journalKeyBase,
+  WorkflowPersistence,
 } from "../src/persistence.ts"
 
 import {
@@ -102,6 +92,8 @@ describe("types.ts", () => {
 // ---------------------------------------------------------------------------
 
 describe("persistence.ts", () => {
+  const p = new WorkflowPersistence({ dataDir: tmpDir })
+
   test("generateRunID produces valid IDs", () => {
     const ids = new Set<string>()
     for (let i = 0; i < 10; i++) {
@@ -124,10 +116,10 @@ describe("persistence.ts", () => {
 
   test("createRun → loadRun roundtrip", () => {
     const sha = computeScriptSha("export const meta = { name: 'test' }")
-    const runID = createRun("test.ts", "test-workflow", sha)
+    const runID = p.createRun("test.ts", "test-workflow", sha)
     expect(runID).toMatch(RUN_ID_REGEX)
 
-    const run = loadRun(runID)
+    const run = p.loadRun(runID)
     expect(run).not.toBeNull()
     expect(run!.name).toBe("test-workflow")
     expect(run!.status).toBe("running")
@@ -139,37 +131,37 @@ describe("persistence.ts", () => {
 
   test("updateRunStatus changes status", () => {
     const sha = computeScriptSha("script")
-    const runID = createRun("f.ts", "failing", sha)
-    updateRunStatus(runID, "failed", "something broke")
-    const run = loadRun(runID)
+    const runID = p.createRun("f.ts", "failing", sha)
+    p.updateRunStatus(runID, "failed", "something broke")
+    const run = p.loadRun(runID)
     expect(run!.status).toBe("failed")
     expect(run!.error).toBe("something broke")
   })
 
   test("writeScript → readScript roundtrip", async () => {
     const sha = computeScriptSha("my workflow source")
-    const runID = createRun("w.ts", "writer", sha)
-    await writeScript(runID, "my workflow source")
-    const source = await readScript(runID)
+    const runID = p.createRun("w.ts", "writer", sha)
+    await p.writeScript(runID, "my workflow source")
+    const source = await p.readScript(runID)
     expect(source).toBe("my workflow source")
   })
 
   test("readScript returns null for unknown runID", async () => {
     // Generate a valid-looking ID that doesn't exist
     const fakeID = "wf_00000000000000000000000000"
-    const source = await readScript(fakeID)
+    const source = await p.readScript(fakeID)
     expect(source).toBeNull()
   })
 
   test("appendJournalSync → loadJournal roundtrip", async () => {
     const sha = computeScriptSha("journal test")
-    const runID = createRun("j.ts", "journal-test", sha)
+    const runID = p.createRun("j.ts", "journal-test", sha)
 
-    appendJournalSync(runID, { t: "agent", key: "k1", result: "hello", pass: 1 })
-    appendJournalSync(runID, { t: "log", msg: "log msg", pass: 1 })
-    appendJournalSync(runID, { t: "agent", key: "k2", result: { x: 1 }, pass: 2 })
+    p.appendJournalSync(runID, { t: "agent", key: "k1", result: "hello", pass: 1 })
+    p.appendJournalSync(runID, { t: "log", msg: "log msg", pass: 1 })
+    p.appendJournalSync(runID, { t: "agent", key: "k2", result: { x: 1 }, pass: 2 })
 
-    const { results, pass } = await loadJournal(runID)
+    const { results, pass } = await p.loadJournal(runID)
     expect(pass).toBe(3) // maxPass + 1
     expect(results.get("k1")).toBe("hello")
     expect(results.get("k2")).toEqual({ x: 1 })
@@ -178,28 +170,28 @@ describe("persistence.ts", () => {
 
   test("appendJournal (async) works", async () => {
     const sha = computeScriptSha("async journal")
-    const runID = createRun("aj.ts", "async-journal", sha)
+    const runID = p.createRun("aj.ts", "async-journal", sha)
 
-    await appendJournal(runID, { t: "log", msg: "async log", pass: 1 })
-    const { results } = await loadJournal(runID)
+    await p.appendJournal(runID, { t: "log", msg: "async log", pass: 1 })
+    const { results } = await p.loadJournal(runID)
     expect(results.size).toBe(0) // log events don't populate results
   })
 
   test("clearJournal truncates", async () => {
     const sha = computeScriptSha("clear test")
-    const runID = createRun("c.ts", "clear-test", sha)
-    appendJournalSync(runID, { t: "agent", key: "k1", result: "x", pass: 1 })
-    await clearJournal(runID)
-    const { results, pass } = await loadJournal(runID)
+    const runID = p.createRun("c.ts", "clear-test", sha)
+    p.appendJournalSync(runID, { t: "agent", key: "k1", result: "x", pass: 1 })
+    await p.clearJournal(runID)
+    const { results, pass } = await p.loadJournal(runID)
     expect(results.size).toBe(0)
     expect(pass).toBe(1) // no events → default pass
   })
 
   test("checkpointStep + loadCompletedSteps", () => {
     const sha = computeScriptSha("checkpoint test")
-    const runID = createRun("cp.ts", "checkpoint", sha)
+    const runID = p.createRun("cp.ts", "checkpoint", sha)
 
-    checkpointStep(runID, {
+    p.checkpointStep(runID, {
       runID,
       stepIndex: 0,
       kind: "agent",
@@ -210,7 +202,7 @@ describe("persistence.ts", () => {
       timestamp: Math.floor(Date.now() / 1000),
     })
 
-    const steps = loadCompletedSteps(runID)
+    const steps = p.loadCompletedSteps(runID)
     expect(steps.length).toBe(1)
     expect(steps[0].stepIndex).toBe(0)
     expect(steps[0].kind).toBe("agent")
@@ -238,18 +230,18 @@ describe("persistence.ts", () => {
   test("end-to-end: create → script → journal → load", async () => {
     const source = "export const meta = { name: 'e2e', description: 'test' }"
     const sha = computeScriptSha(source)
-    const runID = createRun("e2e.ts", "e2e-test", sha)
+    const runID = p.createRun("e2e.ts", "e2e-test", sha)
 
-    await writeScript(runID, source)
-    appendJournalSync(runID, { t: "agent", key: "k1", result: "done", pass: 1 })
+    await p.writeScript(runID, source)
+    p.appendJournalSync(runID, { t: "agent", key: "k1", result: "done", pass: 1 })
 
-    const run = loadRun(runID)
+    const run = p.loadRun(runID)
     expect(run!.scriptSha).toBe(sha)
 
-    const script = await readScript(runID)
+    const script = await p.readScript(runID)
     expect(script).toBe(source)
 
-    const { results } = await loadJournal(runID)
+    const { results } = await p.loadJournal(runID)
     expect(results.get("k1")).toBe("done")
   })
 })
