@@ -4,8 +4,6 @@
 import { describe, test, expect, beforeAll, afterAll } from "bun:test"
 import { WorkflowRuntime } from "../src/runtime"
 import type { PluginContext } from "../src/types"
-import { setRuntime } from "../src/runtime-ref"
-import { clearAll } from "../src/events"
 import { setJail } from "../src/workspace"
 import { tmpdir } from "node:os"
 import { mkdtempSync, rmSync } from "node:fs"
@@ -38,7 +36,6 @@ const mockCtx: PluginContext = {
 }
 
 beforeAll(() => {
-  clearAll()
   setJail(tmpDir)
 })
 
@@ -54,7 +51,6 @@ describe("workflow 200-step E2E", () => {
   test("runs 200 sequential agent() calls", async () => {
     counter = 0
     const runtime = new WorkflowRuntime(mockCtx)
-    setRuntime(runtime as Parameters<typeof setRuntime>[0])
 
     const { runID } = await runtime.start({
       script: `export const meta = { name: "200-step", description: "200 agents", whenToUse: "test", phases: [] }
@@ -78,7 +74,6 @@ describe("workflow 200-step E2E", () => {
   test("lifecycle cap (1000) trips at the right step", async () => {
     counter = 0
     const runtime = new WorkflowRuntime(mockCtx)
-    setRuntime(runtime as Parameters<typeof setRuntime>[0])
 
     const { runID } = await runtime.start({
       script: `export const meta = { name: "over-cap", description: "over cap", whenToUse: "test", phases: [] }
@@ -122,7 +117,6 @@ describe("workflow 200-step E2E", () => {
       },
     }
     const runtime = new WorkflowRuntime(expensiveCtx)
-    setRuntime(runtime as Parameters<typeof setRuntime>[0])
 
     const { runID } = await runtime.start({
       script: `export const meta = { name: "token-cap", description: "token cap", whenToUse: "test", phases: [] }
@@ -145,7 +139,6 @@ describe("workflow 200-step E2E", () => {
   test("parallel agent calls complete correctly", async () => {
     counter = 0
     const runtime = new WorkflowRuntime(mockCtx)
-    setRuntime(runtime as Parameters<typeof setRuntime>[0])
 
     const { runID } = await runtime.start({
       script: `export const meta = { name: "parallel-test", description: "parallel agents", whenToUse: "test", phases: [] }
@@ -171,7 +164,6 @@ describe("workflow 200-step E2E", () => {
   test("pipeline stages chain correctly", async () => {
     counter = 0
     const runtime = new WorkflowRuntime(mockCtx)
-    setRuntime(runtime as Parameters<typeof setRuntime>[0])
 
     const { runID } = await runtime.start({
       script: `export const meta = { name: "pipeline-test", description: "pipeline stages", whenToUse: "test", phases: [] }

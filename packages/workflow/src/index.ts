@@ -2,11 +2,9 @@
 // @sffmc/workflow — see ../../LICENSE
 
 import { WorkflowRuntime, type RuntimeOpts } from "./runtime.ts"
-import { setRuntime } from "./runtime-ref.ts"
-import { workflowTool } from "./tool.ts"
-import { on } from "./events.ts"
-import type { WorkflowRuntime as RuntimeRef } from "./runtime-ref.ts"
+import { createWorkflowTool } from "./tool.ts"
 import type { PluginContext } from "./runtime.ts"
+import type { WorkflowAgentFailedEvent, WorkflowFinishedEvent } from "./events.ts"
 
 // Re-export types for consumers
 export type {
@@ -30,25 +28,24 @@ export { DEFAULT_WORKFLOW_CONFIG, DEFAULT_SANDBOX_CONSTRAINTS } from "./types.ts
 export { WorkflowPersistence } from "./persistence.ts"
 export { parseMeta } from "./meta.ts"
 export { resolveWorkflow, isInlineScript } from "./resolve.ts"
-export { getRuntime, setRuntime } from "./runtime-ref.ts"
 export { registerBuiltin, getBuiltin, loadBuiltin, listBuiltins } from "./builtin-registry.ts"
-export { on, off, emit, clearAll } from "./events.ts"
-export { workflowTool } from "./tool.ts"
+export { createEventBus } from "./events.ts"
+export { createWorkflowTool } from "./tool.ts"
 export { WorkflowRuntime, type RuntimeOpts } from "./runtime.ts"
 
 export const id = "@sffmc/workflow"
 export const server = async (ctx: PluginContext) => {
   const runtime = new WorkflowRuntime(ctx)
-  setRuntime(runtime as RuntimeRef)
+  const tool = createWorkflowTool(runtime)
 
-  // Register observability listeners
-  on("workflow:agent_failed", (e) => {
-    const ev = e as import("./events.ts").WorkflowAgentFailedEvent
+  // Register observability listeners on the runtime's event bus
+  runtime.events.on("workflow:agent_failed", (e) => {
+    const ev = e as WorkflowAgentFailedEvent
     console.warn(`[workflow] agent ${ev.agentKey} in ${ev.runID} failed: ${ev.reason}`)
   })
 
-  on("workflow:finished", (e) => {
-    const ev = e as import("./events.ts").WorkflowFinishedEvent
+  runtime.events.on("workflow:finished", (e) => {
+    const ev = e as WorkflowFinishedEvent
     if (ev.status !== "completed") {
       console.warn(`[workflow] ${ev.runID} finished: ${ev.status}${ev.error ? ` — ${ev.error}` : ""}`)
     }
@@ -60,7 +57,7 @@ export const server = async (ctx: PluginContext) => {
       await runtime.recoverOrphanedWorkflows()
     },
     tool: {
-      workflow: workflowTool,
+      workflow: tool,
     },
     // Optional: hook into chat to suggest workflows for long-running tasks
     // Deferred to Lane D.

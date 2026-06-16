@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/workflow — see ../../LICENSE
 
-import { describe, test, expect, beforeAll, afterAll, beforeEach } from "bun:test"
+import { describe, test, expect, beforeAll, afterAll } from "bun:test"
 import { tmpdir } from "node:os"
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs"
 import path from "node:path"
@@ -35,16 +35,12 @@ import {
 } from "../src/workspace.ts"
 
 import {
-  on,
-  emit,
-  off,
-  clearAll,
+  createEventBus,
 } from "../src/events.ts"
 
 import { parseMeta } from "../src/meta.ts"
 import { resolveWorkflow, isInlineScript } from "../src/resolve.ts"
 import { registerBuiltin, getBuiltin, listBuiltins, loadBuiltin } from "../src/builtin-registry.ts"
-import { getRuntime, setRuntime, type WorkflowRuntime } from "../src/runtime-ref.ts"
 import { meta as securityAuditMeta } from "../builtin/security-audit.ts"
 import { meta as docGenMeta } from "../builtin/doc-gen.ts"
 import { meta as libMigrateMeta } from "../builtin/lib-migrate.ts"
@@ -322,41 +318,39 @@ describe("workspace.ts", () => {
 // ---------------------------------------------------------------------------
 
 describe("events.ts", () => {
-  afterAll(() => {
-    clearAll()
-  })
+  const bus = createEventBus()
 
   test("on/emit roundtrip", () => {
     const events: unknown[] = []
-    const key = on("workflow:started", (e) => events.push(e))
-    emit("workflow:started", { runID: "wf_abc", name: "test" })
+    const key = bus.on("workflow:started", (e) => events.push(e))
+    bus.emit("workflow:started", { runID: "wf_abc", name: "test" })
     expect(events.length).toBe(1)
     expect(events[0]).toEqual({ runID: "wf_abc", name: "test" })
-    off(key)
+    bus.off(key)
   })
 
   test("off unsubscribes", () => {
     const events: unknown[] = []
-    const key = on("workflow:log", (e) => events.push(e))
-    off(key)
-    emit("workflow:log", { runID: "x", message: "hi" })
+    const key = bus.on("workflow:log", (e) => events.push(e))
+    bus.off(key)
+    bus.emit("workflow:log", { runID: "x", message: "hi" })
     expect(events.length).toBe(0)
   })
 
   test("multiple listeners receive events", () => {
     const log1: string[] = []
     const log2: string[] = []
-    on("workflow:phase", (e) => log1.push(e.title))
-    on("workflow:phase", (e) => log2.push(e.title))
-    emit("workflow:phase", { runID: "wf_x", title: "Search" })
+    bus.on("workflow:phase", (e) => log1.push(e.title))
+    bus.on("workflow:phase", (e) => log2.push(e.title))
+    bus.emit("workflow:phase", { runID: "wf_x", title: "Search" })
     expect(log1).toEqual(["Search"])
     expect(log2).toEqual(["Search"])
   })
 
   test("agent_failed event carries reason", () => {
     const events: unknown[] = []
-    on("workflow:agent_failed", (e) => events.push(e))
-    emit("workflow:agent_failed", { runID: "wf_a", agentKey: "k1", reason: "timeout" })
+    bus.on("workflow:agent_failed", (e) => events.push(e))
+    bus.emit("workflow:agent_failed", { runID: "wf_a", agentKey: "k1", reason: "timeout" })
     expect(events[0]).toEqual({ runID: "wf_a", agentKey: "k1", reason: "timeout" })
   })
 })
@@ -768,36 +762,5 @@ describe("builtin: new builtins export shape", () => {
     expect(builtins).toContain("doc-gen")
     expect(builtins).toContain("lib-migrate")
     expect(builtins.length).toBeGreaterThanOrEqual(7)
-  })
-})
-
-// ---------------------------------------------------------------------------
-// runtime-ref.ts
-// ---------------------------------------------------------------------------
-
-describe("runtime-ref.ts", () => {
-  // runtime-ref.ts uses a module-level singleton; reset before every test so
-  // test order does not leak state between cases.
-  beforeEach(() => {
-    setRuntime(undefined as unknown as WorkflowRuntime)
-  })
-
-  test("initially undefined", () => {
-    expect(getRuntime()).toBeUndefined()
-  })
-
-  test("setRuntime and getRuntime roundtrip", () => {
-    const mock: WorkflowRuntime = {
-      start: async () => ({ runID: "wf_test" }),
-      status: async () => ({ runID: "x", status: "running", agentCount: 1, succeeded: 0, failed: 0, stepsCompleted: 5, stepsTotal: 10, tokensUsed: 1000 }),
-      wait: async () => ({ runID: "x", status: "completed", stepsCompleted: 10, stepsTotal: 10, tokensUsed: 2000, durationMs: 5000 }),
-      cancel: async () => {},
-      resume: async () => ({ runID: "x", resumed: true }),
-      list: async () => [],
-    }
-    setRuntime(mock)
-    const rt = getRuntime()
-    expect(rt).toBeDefined()
-    expect(rt).toBe(mock)
   })
 })

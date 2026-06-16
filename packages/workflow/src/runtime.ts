@@ -9,7 +9,7 @@ import {
   computeScriptSha,
   journalKeyBase,
 } from "./persistence.ts"
-import { emit } from "./events.ts"
+import { createEventBus } from "./events.ts"
 import { parseMeta } from "./meta.ts"
 import {
   resolveWorkflow,
@@ -182,6 +182,8 @@ export class WorkflowRuntime {
   private globalSem: ReturnType<typeof makeSemaphore>
   private flushTimers = new Map<string, ReturnType<typeof setTimeout>>()
   private persistence: WorkflowPersistence
+  /** Event bus for observability listeners. */
+  readonly events = createEventBus()
 
   constructor(ctx: PluginContext, opts?: RuntimeOpts) {
     this.ctx = ctx
@@ -272,7 +274,7 @@ export class WorkflowRuntime {
       this.failRun(entry, err instanceof Error ? err.message : String(err))
     })
 
-    emit("workflow:started", { runID, name })
+    this.events.emit("workflow:started", { runID, name })
     return { runID }
   }
 
@@ -363,7 +365,7 @@ export class WorkflowRuntime {
       durationMs: Date.now() - entry.startedMs,
     })
     this.persistence.updateRunStatus(entry.runID, "cancelled")
-    emit("workflow:finished", { runID: entry.runID, status: "cancelled" })
+    this.events.emit("workflow:finished", { runID: entry.runID, status: "cancelled" })
   }
 
   async list(): Promise<Array<{ runID: string; name: string; status: WorkflowStatus }>> {
@@ -448,7 +450,7 @@ export class WorkflowRuntime {
       this.runs.set(input.runID, entry)
       this.persistence.updateRunStatus(input.runID, "running")
 
-      emit("workflow:started", { runID: input.runID, name })
+      this.events.emit("workflow:started", { runID: input.runID, name })
 
       this.launchScript(entry, script, name, row.args).then((result) => {
         if (result === null) {
@@ -631,12 +633,12 @@ export class WorkflowRuntime {
 
         // Check token cap
         if (entry.tokensUsed >= entry.cfg.maxTokens) {
-          emit("workflow:step_checkpoint", {
+          this.events.emit("workflow:step_checkpoint", {
             runID: entry.runID,
             stepIndex: entry.succeeded + entry.failed,
             costTokens: totalTokens,
           })
-          emit("workflow:finished", {
+          this.events.emit("workflow:finished", {
             runID: entry.runID,
             status: "budget_exceeded",
             error: `Token cap ${entry.cfg.maxTokens} exceeded`,
@@ -794,7 +796,7 @@ export class WorkflowRuntime {
       title,
       pass: entry.journalPass,
     })
-    emit("workflow:phase", { runID: entry.runID, title })
+    this.events.emit("workflow:phase", { runID: entry.runID, title })
   }
 
   /** log(msg) — append a log message to the run journal. */
@@ -804,7 +806,7 @@ export class WorkflowRuntime {
       msg,
       pass: entry.journalPass,
     })
-    emit("workflow:log", { runID: entry.runID, message: msg })
+    this.events.emit("workflow:log", { runID: entry.runID, message: msg })
   }
 
   /** readFile(path) — read from the jailed workspace. */
@@ -905,7 +907,7 @@ export class WorkflowRuntime {
 
     this.runs.set(runID, entry)
 
-    emit("workflow:started", { runID, name })
+    this.events.emit("workflow:started", { runID, name })
 
     this.launchScript(entry, script, name, args).then((result) => {
       if (result === null) {
@@ -938,7 +940,7 @@ export class WorkflowRuntime {
       durationMs: Date.now() - entry.startedMs,
     })
     this.persistence.updateRunStatus(entry.runID, "completed")
-    emit("workflow:finished", { runID: entry.runID, status: "completed" })
+    this.events.emit("workflow:finished", { runID: entry.runID, status: "completed" })
   }
 
   private failRun(entry: InternalRunEntry, error: string): void {
@@ -956,14 +958,14 @@ export class WorkflowRuntime {
       durationMs: Date.now() - entry.startedMs,
     })
     this.persistence.updateRunStatus(entry.runID, entry.status, error)
-    emit("workflow:finished", { runID: entry.runID, status: entry.status, error })
+    this.events.emit("workflow:finished", { runID: entry.runID, status: entry.status, error })
   }
 
   // ── Private: helpers ───────────────────────────────────────────────────
 
   private publishAgentFailed(runID: string, agentKey: string, reason: AgentFailureReason): void {
     try {
-      emit("workflow:agent_failed", { runID, agentKey, reason })
+      this.events.emit("workflow:agent_failed", { runID, agentKey, reason })
     } catch {
       // observability must never escape
     }

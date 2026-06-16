@@ -4,8 +4,6 @@
 import { describe, test, expect, beforeAll, afterAll } from "bun:test"
 import { WorkflowRuntime } from "../src/runtime"
 import type { PluginContext } from "../src/types"
-import { setRuntime } from "../src/runtime-ref"
-import { clearAll } from "../src/events"
 import { setJail } from "../src/workspace"
 import { tmpdir } from "node:os"
 import { mkdtempSync, rmSync } from "node:fs"
@@ -32,7 +30,6 @@ const mockCtx: PluginContext = {
 }
 
 beforeAll(() => {
-  clearAll()
   setJail(tmpDir)
 })
 
@@ -47,7 +44,6 @@ afterAll(() => {
 describe("workflow integration: sandbox + runtime", () => {
   test("runs simple workflow via sandbox", async () => {
     const runtime = new WorkflowRuntime(mockCtx)
-    setRuntime(runtime)
 
     const { runID } = await runtime.start({
       script: `export const meta = { name: "test", description: "test", whenToUse: "test", phases: [] }
@@ -66,7 +62,6 @@ describe("workflow integration: sandbox + runtime", () => {
 
   test("sandbox blocks escape attempt", async () => {
     const runtime = new WorkflowRuntime(mockCtx)
-    setRuntime(runtime)
 
     const { runID } = await runtime.start({
       script: `export const meta = { name: "escape", description: "escape test", whenToUse: "test", phases: [] }
@@ -110,7 +105,6 @@ describe("workflow integration: sandbox + runtime", () => {
       },
     }
     const runtime = new WorkflowRuntime(ctx)
-    setRuntime(runtime)
 
     const { runID } = await runtime.start({
       script: `export const meta = { name: "agent-fail", description: "agent failure test", phases: [] }
@@ -128,7 +122,6 @@ describe("workflow integration: sandbox + runtime", () => {
 
   test("file read/write primitives work", async () => {
     const runtime = new WorkflowRuntime(mockCtx)
-    setRuntime(runtime)
 
     const { runID } = await runtime.start({
       script: `export const meta = { name: "file-io", description: "file io test", phases: [] }
