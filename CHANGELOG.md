@@ -1,5 +1,24 @@
 # SFFMC Changelog
 
+## v0.10.0 (2026-06-16)
+
+### Refactor (BREAKING)
+- **workflow**: Break singleton chain — `WorkflowPersistence` is now a class with optional `db`/`dataDir` injection; `EventBus` is a `createEventBus()` factory owned by `WorkflowRuntime`; `WorkspaceJail` is a class. `runtime-ref.ts` is **deleted**. `WorkflowRuntime.close()` for lifecycle.
+
+### Performance
+- **workflow**: Convert builtin-registry dynamic imports to static; convert `node:fs/promises` dynamic imports in runtime.ts to static.
+
+### Fixes
+- **workflow**: Log errors in `events.ts` emit catch blocks (was silent swallow).
+- **scrub**: Replace `claude-sonnet-4-20250514` defaults with `""` in 6 source files (watchdog, max-mode, extra, auto-max).
+
+### Migration guide
+If you consume `@sffmc/workflow`:
+- `WorkflowPersistence.createRun(...)` → `new WorkflowPersistence({ db?: Database, dataDir?: string })` then `.createRun(...)`
+- `setRuntime(runtime)` → use `createWorkflowTool(runtime)` directly
+- `setJail(root)` → `new WorkflowRuntime(ctx, { workspace: root })`
+- All consumers (agentic, memory, safety) updated in this release.
+
 ## v0.9.1 — Post-release cleanup + bug fixes (2026-06-16)
 
 ### Bug fixes (from council round 2 audit)
