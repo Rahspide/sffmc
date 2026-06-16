@@ -2,11 +2,11 @@
 
 > **Part of `@sffmc/agentic` MSP.** This package is a sub-feature of the agentic bundle. Load via `@sffmc/agentic` for the full set (compose + max-mode + workflow + health), or standalone if you only need the 18 compose skills.
 
-15 compose skills (W4) — ported from MiMo-Code.
+18 compose skills (W4) — ported from MiMo-Code.
 
 ## What it does
 
-Loads Compose Mode skills on demand via the `compose_skill` tool. Each skill is a markdown document under `skills/` that the agent can pull into its context with a single tool call. The 15 skills are: `ask`, `brainstorm`, `debug`, `execute`, `feedback`, `merge`, `new-skill`, `parallel`, `plan`, `report`, `review`, `subagent`, `tdd`, `verify`, `worktree`. Originally part of MiMo-Code's Compose Mode; ported over as structured workflows for SFFMC agents.
+Loads Compose Mode skills on demand via the `compose_skill` tool. Each skill is a markdown document under `skills/` that the agent can pull into its context with a single tool call. The 18 skills are: `ask`, `audit-deps`, `benchmark`, `brainstorm`, `code-review`, `debug`, `execute`, `feedback`, `merge`, `new-skill`, `parallel`, `plan`, `report`, `review`, `subagent`, `tdd`, `verify`, `worktree`. Originally part of MiMo-Code's Compose Mode; ported over as structured workflows for SFFMC agents.
 
 ## Install
 

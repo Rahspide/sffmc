@@ -9,7 +9,8 @@ OpenCode, MiMo-Code, and SFFMC all share the same engine:
 - **Agent loop** — user prompt → tool calls → response → repeat
 - **TUI** — terminal-based interface with session management
 - **Plugin system** — OpenCode hooks (`tool.execute.before`, `experimental.chat.messages.transform`, `permission.ask`)
-- **Providers** — Anthropic, OpenAI, Google, DeepSeek, and custom API endpoints (9Router)
+- **Providers** — Anthropic, OpenAI, Google, DeepSeek, and any OpenAI-compatible
+  custom API endpoint
 - **MCP servers** — same protocol, same JSON-RPC transport
 - **Session persistence** — SQLite-backed session history
 

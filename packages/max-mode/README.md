@@ -42,7 +42,8 @@ candidate_models: []
 candidate_temperature: 1.0
 
 # Judge model for selecting the best candidate
-judge_model: claude-sonnet-4-20250514
+# Use any chat-capable model identifier from your provider config.
+judge_model: your-model-id
 
 # Safety cap: abort if total token cost exceeds N × single call
 # 5 means abort if > 5x the cost of 1 candidate call

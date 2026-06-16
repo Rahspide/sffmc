@@ -43,8 +43,9 @@ composite packages, individual sub-features, or a mix — and they compose clean
 - **Zero shared state.** Every plugin is DLC. No side effects from load order.
 - **Drop-in.** Three `file://` lines in `opencode.json`. No build step, no npm
   install, no configuration required to start.
-- **Battle-tested.** 486 tests passing across 14 packages. Long-form agent test:
-  96% pass rate on 50-task benchmark.
+- **Battle-tested.** 486 unit tests across 24 files. Long-form agent test:
+  96% pass rate on 121 turns covering 41 patterns and 12 plugin-coverage
+  blocks.
 - **MIT licensed.** Ported from MiMo-Code (Xiaomi) plus SFFMC team originals.
   Use freely in commercial and private projects.
 
@@ -245,7 +246,9 @@ See each package's README for its full config reference and defaults.
 - **[Workflow reference](./docs/w5-6-dynamic-workflow.md)** — sandbox internals, budgets, error model
 - **[Workflow examples](./docs/workflow-examples.md)** — five ready-to-copy workflows
 - **[Long agent test report](./docs/long-agent-test-v090-report.md)** — v0.9.0 benchmark results
-- **[v0.9.0 restructure decision](./docs/load-order-audit.md)** — why the 3-MSP composition pattern
+- **[v0.9.0 restructure decision](./CHANGELOG.md)** — see the v0.9.0 entry
+  for why the 3-composite composition pattern replaced the per-feature
+  install
 
 ## Contributing
 

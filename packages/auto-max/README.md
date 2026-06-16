@@ -41,7 +41,8 @@ watchdog_threshold: 3
 # Max Mode configuration passed through on trigger
 max_mode_config:
   n: 3
-  judge_model: claude-sonnet-4-20250514
+  # Use any chat-capable model identifier from your provider config.
+  judge_model: your-model-id
 
 # Maximum Max Mode invocations per session (safety cap)
 # 1 = only fire once per session, even if stuck again

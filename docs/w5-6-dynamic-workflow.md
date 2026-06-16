@@ -76,7 +76,7 @@ workflow({ operation: "run", name: "my-task", args: { goal: "migrate to Bun" } }
 
 ```ts
 agent(task: string, opts?: {
-  model?: string          // override model (e.g. "claude-sonnet-4-20250514")
+  model?: string          // override model (e.g. "your-model-id")
   tools?: string[]        // which tools are available (default: all)
   schema?: object         // JSON Schema for structured output
   label?: string          // human-readable label for logs
@@ -179,7 +179,7 @@ export const meta = {
     { title: "Phase 1", detail: "What happens in phase 1" },
     { title: "Phase 2", detail: "What happens in phase 2" },
   ],
-  model: "claude-sonnet-4-20250514",      // optional, default model
+  model: "your-model-id",      // optional, default model
 }
 
 // Main function (called automatically)
@@ -411,8 +411,8 @@ What we changed and why:
 - **Added token cap (2M)** — MiMo didn't count tokens, could burn budget
 - **Added depth cap (8)** — prevents recursive explosions
 - **Replaced vm with QuickJS** — sandbox works in Bun (MiMo was Node-only)
-- **Removed model: "lite"** — 9Router has no "lite" concept, use default
-  model
+- **Removed model: "lite"** — use the default model configured for your
+  provider
 - **Added seeded PRNG** — replay is now fully deterministic
 
 ## Known limitations
@@ -441,5 +441,5 @@ What we changed and why:
 | **W7** | Multi-server resume (Redis/pubsub for cross-process) | Post-v0.9.0 |
 | **W7** | MCP bindings (agent can call mcp__* tools directly) | Post-v0.9.0 |
 | **W8** | Web UI dashboard for monitoring running workflows | TBD |
-| **W8** | Integration with slim v2 scheduler (workflow as subagent) | TBD |
+| **W8** | Integration with upstream OpenCode scheduler (workflow as subagent) | TBD |
 | **W8** | Workflow templates (pre-built: code-review, release-checklist, etc) | TBD |

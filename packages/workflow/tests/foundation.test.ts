@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/workflow — see ../../LICENSE
 
-import { describe, test, expect, beforeAll, afterAll } from "bun:test"
+import { describe, test, expect, beforeAll, afterAll, beforeEach } from "bun:test"
 import { tmpdir } from "node:os"
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs"
 import path from "node:path"
@@ -784,6 +784,12 @@ describe("builtin: new builtins export shape", () => {
 // ---------------------------------------------------------------------------
 
 describe("runtime-ref.ts", () => {
+  // runtime-ref.ts uses a module-level singleton; reset before every test so
+  // test order does not leak state between cases.
+  beforeEach(() => {
+    setRuntime(undefined as unknown as WorkflowRuntime)
+  })
+
   test("initially undefined", () => {
     expect(getRuntime()).toBeUndefined()
   })

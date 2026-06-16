@@ -56,9 +56,18 @@ steps:
       - name: bun-cache
         path: /root/.bun/install/cache
 
+  - name: audit-public
+    image: oven/bun:1
+    depends_on: [install]
+    commands:
+      - bun run audit:public
+    volumes:
+      - name: bun-cache
+        path: /root/.bun/install/cache
+
   - name: publish
     image: oven/bun:1
-    depends_on: [test, typecheck, verify-load]
+    depends_on: [test, typecheck, verify-load, audit-public]
     when:
       event: tag
       ref: refs/tags/v*.*.*
