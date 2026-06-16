@@ -1,10 +1,13 @@
 # SFFMC — one-liner install for Windows PowerShell
 # Usage: irm https://raw.githubusercontent.com/Rahspide/sffmc/main/install.ps1 | iex
+#        (requires SSH key on GitHub OR $env:SFFMC_GITHUB_TOKEN for non-interactive runs)
 #
 # Defaults (override via env vars):
 #   $env:SFFMC_INSTALL_DIR → $HOME\.sffmc\plugins\sffmc
 #   $env:SFFMC_VERSION     → main
 #   $env:SFFMC_AUTO_YES    → (if set, skip init confirmation prompt)
+#   $env:SFFMC_GITHUB_TOKEN → GitHub PAT for HTTPS fallback (optional)
+#   $env:GITHUB_TOKEN       → same as SFFMC_GITHUB_TOKEN (fallback)
 #
 # After clone/pull, runs `bin/sffmc init --yes`.
 
@@ -19,7 +22,7 @@ function Write-Err   { Write-Host "[SFFMC] $args" -ForegroundColor Red }
 # --- resolve install dir --------------------------------------------
 $SFFMC_INSTALL_DIR = if ($env:SFFMC_INSTALL_DIR) { $env:SFFMC_INSTALL_DIR } else { Join-Path $HOME ".sffmc\plugins\sffmc" }
 $SFFMC_VERSION = if ($env:SFFMC_VERSION) { $env:SFFMC_VERSION } else { "main" }
-$REPO_URL = "https://github.com/Rahspide/sffmc.git"
+$REPO_URL = "git@github.com:Rahspide/sffmc.git"
 
 Write-Info "Install dir : $SFFMC_INSTALL_DIR"
 Write-Info "Version     : $SFFMC_VERSION"
@@ -40,6 +43,20 @@ if (Test-Path (Join-Path $SFFMC_INSTALL_DIR ".git")) {
     Push-Location $SFFMC_INSTALL_DIR
     try {
         git fetch origin --tags 2>&1 | ForEach-Object { Write-Host "  $_" }
+        $fetchExit = $LASTEXITCODE
+
+        $token = if ($env:SFFMC_GITHUB_TOKEN) { $env:SFFMC_GITHUB_TOKEN } elseif ($env:GITHUB_TOKEN) { $env:GITHUB_TOKEN } else { $null }
+        if ($fetchExit -ne 0 -and $token) {
+            Write-Warn "SSH failed; retrying with HTTPS+token..."
+            git remote set-url origin "https://x-access-token:$token@github.com/Rahspide/sffmc.git"
+            git fetch origin --tags 2>&1 | ForEach-Object { Write-Host "  $_" }
+        } elseif ($fetchExit -ne 0) {
+            Write-Err "SSH authentication failed and no SFFMC_GITHUB_TOKEN / GITHUB_TOKEN set."
+            Write-Err "  Set up SSH: https://docs.github.com/en/authentication/connecting-to-github-with-ssh"
+            Write-Err "  Or set token: `$env:SFFMC_GITHUB_TOKEN = 'ghp_xxx'"
+            exit 1
+        }
+
         git checkout $SFFMC_VERSION 2>&1 | ForEach-Object { Write-Host "  $_" }
         git pull --ff-only origin $SFFMC_VERSION 2>&1 | ForEach-Object { Write-Host "  $_" }
         $head = (git rev-parse --short HEAD 2>$null) -replace "`n|`r", ""
@@ -52,6 +69,20 @@ if (Test-Path (Join-Path $SFFMC_INSTALL_DIR ".git")) {
     $parent = Split-Path $SFFMC_INSTALL_DIR -Parent
     New-Item -ItemType Directory -Force -Path $parent | Out-Null
     git clone --branch $SFFMC_VERSION --depth 1 $REPO_URL $SFFMC_INSTALL_DIR 2>&1 | ForEach-Object { Write-Host "  $_" }
+    $cloneExit = $LASTEXITCODE
+
+    $token = if ($env:SFFMC_GITHUB_TOKEN) { $env:SFFMC_GITHUB_TOKEN } elseif ($env:GITHUB_TOKEN) { $env:GITHUB_TOKEN } else { $null }
+    if ($cloneExit -ne 0 -and $token) {
+        Write-Warn "SSH failed; retrying with HTTPS+token..."
+        $REPO_URL = "https://x-access-token:$token@github.com/Rahspide/sffmc.git"
+        git clone --branch $SFFMC_VERSION --depth 1 $REPO_URL $SFFMC_INSTALL_DIR 2>&1 | ForEach-Object { Write-Host "  $_" }
+    } elseif ($cloneExit -ne 0) {
+        Write-Err "SSH authentication failed and no SFFMC_GITHUB_TOKEN / GITHUB_TOKEN set."
+        Write-Err "  Set up SSH: https://docs.github.com/en/authentication/connecting-to-github-with-ssh"
+        Write-Err "  Or set token: `$env:SFFMC_GITHUB_TOKEN = 'ghp_xxx'"
+        exit 1
+    }
+
     Push-Location $SFFMC_INSTALL_DIR
     try {
         $head = (git rev-parse --short HEAD 2>$null) -replace "`n|`r", ""

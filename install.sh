@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # SFFMC — one-liner install for Linux / macOS
 # Usage: curl -fsSL https://raw.githubusercontent.com/Rahspide/sffmc/main/install.sh | sh
+#        (requires SSH key on GitHub OR SFFMC_GITHUB_TOKEN env var for non-interactive runs)
 #
 # Defaults (override via env vars):
 #   SFFMC_INSTALL_DIR  → ~/.sffmc/plugins/sffmc
@@ -31,7 +32,7 @@ err()   { echo "${RED}[SFFMC]${RESET} $*" >&2; }
 # --- resolve install dir ------------------------------------------
 SFFMC_INSTALL_DIR="${SFFMC_INSTALL_DIR:-$HOME/.sffmc/plugins/sffmc}"
 SFFMC_VERSION="${SFFMC_VERSION:-main}"
-REPO_URL="https://github.com/Rahspide/sffmc.git"
+REPO_URL="git@github.com:Rahspide/sffmc.git"
 
 info "Install dir : ${SFFMC_INSTALL_DIR}"
 info "Version     : ${SFFMC_VERSION}"
@@ -47,6 +48,14 @@ fi
 git_ver=$(git --version 2>/dev/null || true)
 info "Git         : ${git_ver}"
 
+# --- preflight: non-interactive auth -------------------------------
+if [ ! -t 0 ] && [ -z "${SFFMC_GITHUB_TOKEN:-${GITHUB_TOKEN:-}}" ] && ! command -v ssh >/dev/null 2>&1; then
+  err "Running non-interactively (curl | sh). You need either:"
+  err "  1. SSH key set up with GitHub (https://docs.github.com/en/authentication/connecting-to-github-with-ssh)"
+  err "  2. GITHUB_TOKEN set: curl -fsSL ... | SFFMC_GITHUB_TOKEN=ghp_xxx sh"
+  exit 1
+fi
+
 # --- install ------------------------------------------------------
 if [ -d "${SFFMC_INSTALL_DIR}/.git" ]; then
   info "Repo exists; updating via git pull --ff-only..."
@@ -58,7 +67,25 @@ if [ -d "${SFFMC_INSTALL_DIR}/.git" ]; then
 else
   info "Cloning repo (branch=${SFFMC_VERSION}, depth=1)..."
   mkdir -p "$(dirname "${SFFMC_INSTALL_DIR}")"
-  git clone --branch "${SFFMC_VERSION}" --depth 1 "${REPO_URL}" "${SFFMC_INSTALL_DIR}" 2>&1 | sed 's/^/  /'
+
+  # Try SSH first (REPO_URL), fall back to HTTPS+token on failure
+  clone_ok=0
+  git clone --branch "${SFFMC_VERSION}" --depth 1 "${REPO_URL}" "${SFFMC_INSTALL_DIR}" 2>&1 | sed 's/^/  /' && clone_ok=1 || true
+
+  if [ $clone_ok -eq 0 ]; then
+    _sffmc_token="${SFFMC_GITHUB_TOKEN:-${GITHUB_TOKEN:-}}"
+    if [ -n "${_sffmc_token}" ]; then
+      warn "SSH failed; retrying with HTTPS+token..."
+      REPO_URL="https://x-access-token:${_sffmc_token}@github.com/Rahspide/sffmc.git"
+      git clone --branch "${SFFMC_VERSION}" --depth 1 "${REPO_URL}" "${SFFMC_INSTALL_DIR}" 2>&1 | sed 's/^/  /'
+    else
+      err "SSH authentication failed and no SFFMC_GITHUB_TOKEN / GITHUB_TOKEN set."
+      err "  Set up SSH: https://docs.github.com/en/authentication/connecting-to-github-with-ssh"
+      err "  Or set token: export SFFMC_GITHUB_TOKEN=ghp_xxx"
+      exit 1
+    fi
+  fi
+
   cd "${SFFMC_INSTALL_DIR}"
   ok "Cloned to $(git rev-parse --short HEAD)"
 fi
