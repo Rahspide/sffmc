@@ -14,6 +14,7 @@ import { startWatcher } from "./watcher"
 import { loadConfig, type PluginContext } from "@sffmc/shared"
 import { readFileSync, existsSync, mkdirSync } from "fs"
 import { resolve, dirname } from "path"
+import { homedir } from "node:os"
 
 interface MemoryConfig {
   storagePath: string
@@ -30,7 +31,7 @@ interface MemoryConfig {
 
 const defaultConfig: MemoryConfig = {
   storagePath: resolve(
-    require("os").homedir(),
+    homedir(),
     ".local/share/SFFMC/memory/index.sqlite",
   ),
   reconBudgets: {

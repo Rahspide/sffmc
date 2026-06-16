@@ -206,35 +206,33 @@ function deleteCheckpoint(sessionID: string, dir?: string): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// In-memory buffer
+// In-memory buffer — per-instance state (DLC: no shared state between plugins)
 // ---------------------------------------------------------------------------
 
-const sessionBuffers = new Map<string, ToolCall[]>();
-const headersWritten = new Set<string>();
-let flushTimer: ReturnType<typeof setInterval> | null = null;
-
-function getOrCreateBuffer(sessionID: string): ToolCall[] {
-  let buf = sessionBuffers.get(sessionID);
-  if (!buf) {
-    buf = [];
-    sessionBuffers.set(sessionID, buf);
-  }
-  return buf;
+interface CheckpointBufferState {
+  sessionBuffers: Map<string, ToolCall[]>;
+  headersWritten: Set<string>;
+  flushTimer: ReturnType<typeof setInterval> | null;
+  dir: string;
 }
 
-export function flushSession(sessionID: string, dir?: string): void {
-  const buf = sessionBuffers.get(sessionID);
+/** Reference to the most recently created factory instance's state.
+ *  Module-level wrapper functions (flushSession, flushAll, __cleanup)
+ *  delegate to this for backward compatibility with tests. */
+let _activeState: CheckpointBufferState | null = null;
+
+function _flushSession(state: CheckpointBufferState, sessionID: string): void {
+  const buf = state.sessionBuffers.get(sessionID);
   if (!buf || buf.length === 0) return;
 
-  const d = dir ?? getCheckpointDir();
-  ensureDir(d);
+  ensureDir(state.dir);
 
-  if (!headersWritten.has(sessionID)) {
-    writeHeader(sessionID, dir);
-    headersWritten.add(sessionID);
+  if (!state.headersWritten.has(sessionID)) {
+    writeHeader(sessionID, state.dir);
+    state.headersWritten.add(sessionID);
   }
 
-  const fp = filePath(sessionID, dir);
+  const fp = filePath(sessionID, state.dir);
   for (const tc of buf) {
     appendFileSync(fp, JSON.stringify(tc) + "\n");
   }
@@ -242,25 +240,77 @@ export function flushSession(sessionID: string, dir?: string): void {
   buf.length = 0;
 }
 
+function _flushAll(state: CheckpointBufferState): void {
+  for (const sid of state.sessionBuffers.keys()) {
+    _flushSession(state, sid);
+  }
+}
+
+function _startFlushTimer(state: CheckpointBufferState): void {
+  if (state.flushTimer) return;
+  state.flushTimer = setInterval(() => _flushAll(state), FLUSH_INTERVAL_MS);
+  if (state.flushTimer && typeof state.flushTimer === "object" && "unref" in state.flushTimer) {
+    state.flushTimer.unref();
+  }
+}
+
+function _stopFlushTimer(state: CheckpointBufferState): void {
+  if (state.flushTimer) {
+    clearInterval(state.flushTimer);
+    state.flushTimer = null;
+  }
+}
+
+function _getOrCreateBuffer(state: CheckpointBufferState, sessionID: string): ToolCall[] {
+  let buf = state.sessionBuffers.get(sessionID);
+  if (!buf) {
+    buf = [];
+    state.sessionBuffers.set(sessionID, buf);
+  }
+  return buf;
+}
+
+/** Flush a single session's buffer to disk.
+ *  Delegates to the most recently created factory instance. */
+export function flushSession(sessionID: string, dir?: string): void {
+  if (!_activeState) return;
+  // If a custom dir is passed, treat as an override (tests use this for
+  // custom-dir scenarios).  Otherwise use the factory's own dir.
+  if (dir !== undefined && dir !== _activeState.dir) {
+    // Custom dir — use factory state but write to the custom dir
+    const buf = _activeState.sessionBuffers.get(sessionID);
+    if (!buf || buf.length === 0) return;
+
+    ensureDir(dir);
+
+    // Write header to custom dir if not already tracked for that dir
+    if (!_activeState.headersWritten.has(sessionID)) {
+      writeHeader(sessionID, dir);
+      // Don't add to headersWritten — custom dir is a one-off
+    }
+
+    const fp = filePath(sessionID, dir);
+    for (const tc of buf) {
+      appendFileSync(fp, JSON.stringify(tc) + "\n");
+    }
+
+    buf.length = 0;
+    return;
+  }
+  _flushSession(_activeState, sessionID);
+}
+
+/** Flush all buffered sessions to disk.
+ *  Delegates to the most recently created factory instance. */
 export function flushAll(dir?: string): void {
-  for (const sid of sessionBuffers.keys()) {
-    flushSession(sid, dir);
+  if (!_activeState) return;
+  if (dir !== undefined && dir !== _activeState.dir) {
+    for (const sid of _activeState.sessionBuffers.keys()) {
+      flushSession(sid, dir);
+    }
+    return;
   }
-}
-
-function startFlushTimer(dir?: string): void {
-  if (flushTimer) return;
-  flushTimer = setInterval(() => flushAll(dir), FLUSH_INTERVAL_MS);
-  if (flushTimer && typeof flushTimer === "object" && "unref" in flushTimer) {
-    flushTimer.unref();
-  }
-}
-
-function stopFlushTimer(): void {
-  if (flushTimer) {
-    clearInterval(flushTimer);
-    flushTimer = null;
-  }
+  _flushAll(_activeState);
 }
 
 // ---------------------------------------------------------------------------
@@ -291,8 +341,24 @@ const RESTORE_MARKER = /<!--\s*EXTRA_RESTORE:\s*(\S+)\s*-->/;
 export function createCheckpointTool(config: { enabled: boolean; dir?: string }): {
   tool: CheckpointTool;
   hooks: CheckpointHooks;
+  /** Flush a single session's buffer (uses this instance's state). */
+  flushSession: (sessionID: string) => void;
+  /** Flush all buffered sessions (uses this instance's state). */
+  flushAll: () => void;
+  /** Cleanup: flush all, stop timer, clear buffers. */
+  cleanup: () => void;
 } {
   const dir = config.dir || getCheckpointDir();
+
+  // Per-instance state (DLC: no shared state between plugins)
+  const state: CheckpointBufferState = {
+    sessionBuffers: new Map(),
+    headersWritten: new Set(),
+    flushTimer: null,
+    dir,
+  };
+  _activeState = state;
+
   const tool: CheckpointTool = {
     description: `F5' Checkpoint — session snapshot and resumability.
 Status: ${config.enabled ? "enabled" : "disabled"}.
@@ -337,8 +403,8 @@ Auto-restore: inject <!-- EXTRA_RESTORE: <sessionID> --> in a message to auto-lo
           }
           const deleted = deleteCheckpoint(sessionID, dir);
           if (deleted) {
-            sessionBuffers.delete(sessionID);
-            headersWritten.delete(sessionID);
+            state.sessionBuffers.delete(sessionID);
+            state.headersWritten.delete(sessionID);
           }
           return { ok: true, deleted };
         }
@@ -404,11 +470,11 @@ Auto-restore: inject <!-- EXTRA_RESTORE: <sessionID> --> in a message to auto-lo
         callID: toolCtx.callID,
       };
 
-      const buf = getOrCreateBuffer(toolCtx.sessionID);
+      const buf = _getOrCreateBuffer(state, toolCtx.sessionID);
       buf.push(call);
 
       if (buf.length >= FLUSH_THRESHOLD) {
-        flushSession(toolCtx.sessionID, dir);
+        _flushSession(state, toolCtx.sessionID);
       }
     };
 
@@ -469,10 +535,21 @@ Auto-restore: inject <!-- EXTRA_RESTORE: <sessionID> --> in a message to auto-lo
       return data;
     };
 
-    startFlushTimer(dir);
+    _startFlushTimer(state);
   }
 
-  return { tool, hooks };
+  return {
+    tool,
+    hooks,
+    flushSession: (sessionID: string) => _flushSession(state, sessionID),
+    flushAll: () => _flushAll(state),
+    cleanup: () => {
+      _flushAll(state);
+      _stopFlushTimer(state);
+      state.sessionBuffers.clear();
+      state.headersWritten.clear();
+    },
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -480,8 +557,11 @@ Auto-restore: inject <!-- EXTRA_RESTORE: <sessionID> --> in a message to auto-lo
 // ---------------------------------------------------------------------------
 
 export function __cleanup(): void {
-  flushAll();
-  stopFlushTimer();
-  sessionBuffers.clear();
-  headersWritten.clear();
+  if (_activeState) {
+    _flushAll(_activeState);
+    _stopFlushTimer(_activeState);
+    _activeState.sessionBuffers.clear();
+    _activeState.headersWritten.clear();
+    _activeState = null;
+  }
 }

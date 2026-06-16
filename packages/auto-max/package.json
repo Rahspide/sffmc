@@ -4,8 +4,7 @@
   "type": "module",
   "main": "src/index.ts",
   "dependencies": {
-    "@sffmc/shared": "workspace:*",
-    "yaml": "^2.0.0"
+    "@sffmc/shared": "workspace:*"
   },
   "scripts": {
     "typecheck": "bun build --target=bun --no-bundle src/index.ts"

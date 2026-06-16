@@ -7,7 +7,7 @@ import {
   resetSession,
   type AutoMaxConfig,
 } from "./coordinator";
-import { loadConfig, type PluginContext } from "@sffmc/shared";
+import { extractErrorType, isToolError, MAX_COMMAND, MAX_SUBCOMMANDS, MAX_PATTERN, loadConfig, type PluginContext } from "@sffmc/shared";
 
 const defaultConfig: AutoMaxConfig = {
   enabled: true,
@@ -31,20 +31,7 @@ interface PluginState {
   }>;
 }
 
-function extractErrorType(output: unknown): string {
-  if (typeof output === "string") {
-    const errMatch = output.match(
-      /(ENOENT|EACCES|EPERM|EAGAIN|ECONNREFUSED|ETIMEDOUT|ERR_|Error:|error:)/i,
-    );
-    if (errMatch) return errMatch[1].toUpperCase();
-  }
-  if (output && typeof output === "object") {
-    const o = output as Record<string, unknown>;
-    if (typeof o.code === "string") return o.code;
-    if (typeof o.name === "string") return o.name;
-  }
-  return "UNKNOWN";
-}
+
 
 function getOrCreateSession(state: PluginState, sessionID: string) {
   let session = state.sessions.get(sessionID);
@@ -97,9 +84,7 @@ export const server = async (_ctx: PluginContext) => {
       const { tool, sessionID } = toolCtx;
       const output = result.output ?? result.metadata ?? "";
 
-      const isError =
-        typeof output === "string" &&
-        /error|fail|ERR_|ENOENT|EACCES|ETIMEDOUT|ECONNREFUSED/i.test(output);
+      const isError = isToolError(output);
 
       const meta = result.metadata as Record<string, unknown> | undefined;
       const hasErrorFlag =
@@ -169,9 +154,7 @@ export const server = async (_ctx: PluginContext) => {
     }) => {
       if (!config.enabled) return;
       const cmd = (cmdCtx.command ?? "").trim();
-      const maxMatch = cmd.match(
-        /^\/max(?:\s+(reset|clear)(?:\s+(\S+))?)?$/,
-      );
+      const maxMatch = MAX_PATTERN.exec(cmd);
       if (!maxMatch) return;
 
       const targetSessionID = maxMatch[2] || cmdCtx.sessionID;

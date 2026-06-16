@@ -220,6 +220,7 @@ export async function runSandboxed(
       pumpTimer = setTimeout(pumpOnce, idleTicks < FAST_WINDOW ? FAST_MS : SLOW_MS)
     }
     pumpTimer = setTimeout(pumpOnce, FAST_MS)
+    pumpTimer.unref?.()
 
     // --- Wall-clock deadline (hard kill via Promise.race) ---
     // The runtime interrupt handler only fires during guest bytecode

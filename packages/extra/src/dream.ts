@@ -442,23 +442,29 @@ async function runDream(
 }
 
 // ---------------------------------------------------------------------------
-// Concurrency lock & cron state (module-level)
+// Concurrency lock & cron state — per-instance (DLC: no shared state between plugins)
 // ---------------------------------------------------------------------------
 
-let dreamLock: Promise<DreamResult> | null = null;
-let cronTimer: ReturnType<typeof setInterval> | null = null;
+interface DreamInstanceState {
+  dreamLock: Promise<DreamResult> | null;
+  cronTimer: ReturnType<typeof setInterval> | null;
+}
+
+/** Reference to the most recently created factory instance's state.
+ *  Module-level wrapper functions delegate to this for backward compatibility with tests. */
+let _activeDreamState: DreamInstanceState | null = null;
 
 /** Clear a previously-set cron timer (useful for tests). */
 export function clearCronTimer(): void {
-  if (cronTimer !== null) {
-    clearInterval(cronTimer);
-    cronTimer = null;
+  if (_activeDreamState?.cronTimer !== null && _activeDreamState?.cronTimer !== undefined) {
+    clearInterval(_activeDreamState.cronTimer);
+    _activeDreamState.cronTimer = null;
   }
 }
 
 /** Expose the dream lock so tests can inspect concurrency state. */
 export function isDreamLocked(): boolean {
-  return dreamLock !== null;
+  return (_activeDreamState?.dreamLock ?? null) !== null;
 }
 
 // ---------------------------------------------------------------------------
@@ -471,6 +477,13 @@ export function createDreamTool(config: DreamConfig): {
 } {
   const dbPath = config.storagePath ?? DEFAULT_STORAGE_PATH;
   let db: Database | null = null;
+
+  // Per-instance state (DLC: no shared state between plugins)
+  const state: DreamInstanceState = {
+    dreamLock: null,
+    cronTimer: null,
+  };
+  _activeDreamState = state;
 
   function getDB(): Database {
     if (!db) {
@@ -499,7 +512,7 @@ export function createDreamTool(config: DreamConfig): {
     }
 
     // Concurrency lock: only one dream run at a time
-    if (dreamLock) {
+    if (state.dreamLock) {
       return {
         scanned: 0,
         deduped: 0,
@@ -514,12 +527,12 @@ export function createDreamTool(config: DreamConfig): {
     }
 
     const database = getDB();
-    dreamLock = runDream(database, dryRun, config.ctx, config.summaryModel);
+    state.dreamLock = runDream(database, dryRun, config.ctx, config.summaryModel);
     try {
-      const result = await dreamLock;
+      const result = await state.dreamLock;
       return result;
     } finally {
-      dreamLock = null;
+      state.dreamLock = null;
     }
   }
 
@@ -573,11 +586,11 @@ Actions: dedup (Jaccard > 0.9), stale removal (>${STALE_DAYS}d), cluster summari
   // waiting for the next tick.
   if (config.enabled && config.intervalHours > 0) {
     // Clear any previous timer (tests may call createDreamTool multiple times)
-    if (cronTimer !== null) {
-      clearInterval(cronTimer);
+    if (state.cronTimer !== null) {
+      clearInterval(state.cronTimer);
     }
     const intervalMs = config.intervalHours * 3600 * 1000;
-    cronTimer = setInterval(() => {
+    state.cronTimer = setInterval(() => {
       console.log(
         `[extra] dream: cron triggered (${config.intervalHours}h interval)`,
       );
@@ -585,8 +598,8 @@ Actions: dedup (Jaccard > 0.9), stale removal (>${STALE_DAYS}d), cluster summari
         console.error("[extra] dream: cron error:", err);
       });
     }, intervalMs);
-    if (typeof cronTimer.unref === "function") {
-      cronTimer.unref();
+    if (typeof state.cronTimer.unref === "function") {
+      state.cronTimer.unref();
     }
   }
 

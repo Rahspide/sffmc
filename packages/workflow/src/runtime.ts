@@ -34,21 +34,16 @@ import {
   AgentFailureReason as AFR,
 } from "./types.ts"
 import { getBuiltin, loadBuiltin } from "./builtin-registry.ts"
+import { cpus } from "node:os"
+import { type RichPluginContext } from "@sffmc/shared"
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
-const SCRIPT_DEADLINE_MS = 12 * 60 * 60 * 1000 // 12h
+export const SCRIPT_DEADLINE_MS = 12 * 60 * 60 * 1000 // 12h
 const MAX_LIFECYCLE_AGENTS = 1000
-const DEFAULT_MAX_CONCURRENT = Math.min(16, 2 * ((): number => {
-  try {
-    const os = require("node:os") as typeof import("node:os")
-    return Math.max(1, os.cpus().length)
-  } catch {
-    return 4
-  }
-})())
+const DEFAULT_MAX_CONCURRENT = Math.min(16, 2 * Math.max(1, cpus().length))
 const MAX_DEPTH_DEFAULT = 8
 const MAX_TOKENS_DEFAULT = 2_000_000
 
@@ -59,26 +54,11 @@ const WORKFLOW_STRUCTURAL_ERROR = "WorkflowStructuralError"
 const STRAGGLER_TIMEOUT = Symbol("straggler-timeout")
 
 // ---------------------------------------------------------------------------
-// Plugin context type (minimal interface)
+// Plugin context type (extends shared with WorkflowConfig constraint)
 // ---------------------------------------------------------------------------
 
-export interface PluginContext {
-  client: {
-    session: {
-      message(params: {
-        messages: Array<{ role: string; content: string }>
-        model?: string
-        tools?: string[] | "INHERIT"
-      }): Promise<{
-        content: Array<{ type: string; text?: string; data?: string }>
-        info?: { tokens?: { input?: number; output?: number } }
-        structured?: unknown
-        finalText?: string
-      }>
-    }
-  }
-  config?: WorkflowConfig
-  sessionID?: string
+export type PluginContext = RichPluginContext & {
+  config?: Partial<WorkflowConfig>
 }
 
 // ---------------------------------------------------------------------------
@@ -473,7 +453,7 @@ export class WorkflowRuntime {
 
     const result = await runSandboxed(source, primitives, {
       memoryMB: 64,
-      deadlineMs: 12 * 60 * 60 * 1000, // 12h wall-clock for the sandbox
+      deadlineMs: SCRIPT_DEADLINE_MS, // 12h wall-clock for the sandbox
       seed,
       runID: entry.runID,
     })
@@ -765,7 +745,12 @@ export class WorkflowRuntime {
         messages,
         model: opts.model,
         tools: opts.tools ? [...opts.tools] as string[] : "INHERIT",
-      })
+      }) as Promise<{
+        content: Array<{ type: string; text?: string; data?: string }>
+        info?: { tokens?: { input?: number; output?: number } }
+        structured?: unknown
+        finalText?: string
+      }>
     }
 
     // Fallback: no LLM client available — return empty
@@ -904,13 +889,12 @@ export class WorkflowRuntime {
 
   private scheduleFlush(entry: InternalRunEntry): void {
     if (this.flushTimers.has(entry.runID)) return
-    this.flushTimers.set(
-      entry.runID,
-      setTimeout(() => {
-        this.flushTimers.delete(entry.runID)
-        this.flushNow(entry)
-      }, 250),
-    )
+    const t = setTimeout(() => {
+      this.flushTimers.delete(entry.runID)
+      this.flushNow(entry)
+    }, 250)
+    t.unref?.()
+    this.flushTimers.set(entry.runID, t)
   }
 
   private flushNow(entry: InternalRunEntry): void {

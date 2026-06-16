@@ -1,7 +1,7 @@
 import { FailureCounter } from "./counter";
 import { buildPromotionFragment } from "./promote";
 import { buildRecoveryVerdict } from "./verdict";
-import { loadConfig, type PluginContext } from "@sffmc/shared";
+import { extractErrorType, isToolError, MAX_COMMAND, MAX_SUBCOMMANDS, MAX_PATTERN, loadConfig, type PluginContext } from "@sffmc/shared";
 
 interface WatchdogConfig {
   threshold: number;
@@ -26,19 +26,7 @@ interface PluginState {
   recoveringTools: Map<string, { errorType: string; attempts: number }>;
 }
 
-function extractErrorType(args: Record<string, unknown>, output: unknown): string {
-  if (typeof output === "string") {
-    const errMatch = output.match(/(ENOENT|EACCES|EPERM|EAGAIN|ECONNREFUSED|ETIMEDOUT|ERR_|Error:|error:)/i);
-    if (errMatch) return errMatch[1].toUpperCase();
-  }
-  // Check for structured error
-  if (output && typeof output === "object") {
-    const o = output as Record<string, unknown>;
-    if (typeof o.code === "string") return o.code;
-    if (typeof o.name === "string") return o.name;
-  }
-  return "UNKNOWN";
-}
+
 
 function isFiltered(errorType: string, filter: string[]): boolean {
   return filter.some((f) => errorType.toLowerCase().includes(f.toLowerCase()));
@@ -88,10 +76,7 @@ export const server = async (ctx: PluginContext) => {
 
       // Detect failures via output content or metadata error flag
       const meta = result.metadata as Record<string, unknown> | undefined;
-      const isError =
-        typeof output === "string" &&
-        output.length <= 4096 &&
-        /(?:^Error[:\s]|ERR_[A-Z_]+|ENOENT|EACCES|EPERM|EAGAIN|ETIMEDOUT|ECONNREFUSED|throw\s+new\s+Error|Error:\s*\w)/i.test(output);
+      const isError = isToolError(output);
 
       const hasErrorFlag =
         meta?.error !== undefined && meta?.error !== null && meta?.error !== false;
@@ -112,10 +97,7 @@ export const server = async (ctx: PluginContext) => {
         return;
       }
 
-      const errorType = extractErrorType(
-        {},
-        output,
-      );
+      const errorType = extractErrorType(output);
 
       if (isFiltered(errorType, config.error_class_filter)) {
         return;
@@ -172,7 +154,7 @@ export const server = async (ctx: PluginContext) => {
     "command.execute.before": async (
       cmdCtx: { command: string; sessionID: string },
     ) => {
-      if (cmdCtx.command === "/max") {
+      if (MAX_PATTERN.test(cmdCtx.command)) {
         const sid = cmdCtx.sessionID;
         state.counter.resetSession(sid);
         state.promotedSessions.delete(sid);

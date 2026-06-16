@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/workflow — see ../../LICENSE
 
-import type { Database } from "bun:sqlite"
+import { Database } from "bun:sqlite"
 import { randomBytes, createHash } from "node:crypto"
 import { mkdirSync, appendFileSync } from "node:fs"
 import { readFile, writeFile, appendFile, mkdir } from "node:fs/promises"
@@ -157,7 +157,6 @@ export class WorkflowPersistence {
       this.db = opts.db
       this._owned = false
     } else {
-      const { Database } = require("bun:sqlite") as { Database: typeof import("bun:sqlite").Database }
       mkdirSync(this.dir, { recursive: true })
       this.db = new Database(dbPathForDir(this.dir))
       applySchema(this.db)

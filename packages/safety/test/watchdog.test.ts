@@ -238,12 +238,12 @@ describe("tool.execute.after error detection", () => {
     );
   });
 
-  it("does NOT flag long output (>4096 chars) even if it contains 'error'", async () => {
+  it("DOES flag long output (>4096 chars) as a likely error dump", async () => {
     const hooks = await createHooks();
     warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
 
-    // Build a 5000-char string containing "error" once
-    const long = "x".repeat(2000) + " error happened somewhere " + "y".repeat(2970);
+    // Build a 5000-char string (no error tokens, just length)
+    const long = "x".repeat(5000);
     expect(long.length).toBeGreaterThan(4096);
 
     await hooks["tool.execute.after"]!(
@@ -251,7 +251,11 @@ describe("tool.execute.after error detection", () => {
       { output: long },
     );
 
-    expect(warnSpy).not.toHaveBeenCalled();
+    // isToolError returns true for length > 4096 (likely error dump)
+    // extractErrorType finds no token → "UNKNOWN"
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("[watchdog] failure: read:UNKNOWN"),
+    );
   });
 
   it("DOES flag throw new Error patterns", async () => {

@@ -1,3 +1,6 @@
+import { type RichPluginContext } from "@sffmc/shared"
+import { type SchemaOnlyTool } from "./types"
+
 export interface ToolCall {
   name: string;
   args: Record<string, unknown>;
@@ -16,33 +19,6 @@ interface GenerateConfig {
   n: number;
   models: string[];
   temperature: number;
-}
-
-interface PluginContext {
-  sessionID?: string;
-  client?: {
-    session?: {
-      message?(params: {
-        messages: Array<{ role: string; content: string }>;
-        model: string;
-        temperature: number;
-        tools?: unknown[];
-      }): Promise<{
-        content: Array<{ type: string; text?: string; toolCall?: ToolCall }>;
-        usage: { totalTokens: number };
-      }>;
-    };
-  };
-  [key: string]: unknown;
-}
-
-interface SchemaOnlyTool {
-  definition: {
-    name: string;
-    description: string;
-    parameters: Record<string, unknown>;
-  };
-  execute?: (...args: unknown[]) => unknown;
 }
 
 export function makeSchemaOnlyTools(tools: SchemaOnlyTool[]): SchemaOnlyTool[] {
@@ -80,7 +56,7 @@ export function buildCandidatePrompt(
 export async function generateCandidates(
   prompt: string,
   config: GenerateConfig,
-  ctx: PluginContext,
+  ctx: RichPluginContext,
 ): Promise<Candidate[]> {
   const session = ctx.client?.session;
   if (!session?.message) {

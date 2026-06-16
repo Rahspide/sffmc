@@ -1,10 +1,7 @@
 import { generateCandidates, type Candidate } from "./candidates";
 import { judgeCandidates, type Verdict } from "./judge";
 import { createRestoreState, stripToolExecutes, restoreToolExecutes, isSchemaOnly } from "./restore";
-import { parse as parseYaml } from "yaml";
-import { readFileSync, existsSync } from "fs";
-import { resolve } from "path";
-import { homedir } from "os";
+import { loadConfig, MAX_COMMAND, type RichPluginContext } from "@sffmc/shared"
 
 interface MaxModeConfig {
   n_candidates: number;
@@ -24,42 +21,10 @@ const defaultConfig: MaxModeConfig = {
   dry_run: false,
 };
 
-function loadConfig(): MaxModeConfig {
-  const configPath = resolve(homedir(), ".config/SFFMC/max-mode.yaml");
-  if (!existsSync(configPath)) return { ...defaultConfig };
-  try {
-    const raw = readFileSync(configPath, "utf-8");
-    const parsed = parseYaml(raw) as Partial<MaxModeConfig>;
-    return { ...defaultConfig, ...parsed };
-  } catch {
-    return { ...defaultConfig };
-  }
-}
-
 interface PluginState {
   config: MaxModeConfig;
   restore: ReturnType<typeof createRestoreState>;
   maxUsedThisSession: boolean;
-}
-
-interface PluginContext {
-  projectRoot: string;
-  config: Record<string, unknown>;
-  sessionID?: string;
-  client?: {
-    session?: {
-      message?(params: {
-        messages: Array<{ role: string; content: string }>;
-        model: string;
-        temperature: number;
-        tools?: unknown[];
-      }): Promise<{
-        content: Array<{ type: string; text?: string; toolCall?: { name: string; args: Record<string, unknown>; id: string } }>;
-        usage: { totalTokens: number };
-      }>;
-    };
-  };
-  [key: string]: unknown;
 }
 
 function estimateCost(candidates: Candidate[]): number {
@@ -89,7 +54,7 @@ function buildWinnerMessage(
     }
     lines.push(
       "",
-      "To execute: type '/max execute' to confirm tool calls.",
+      `To execute: type '${MAX_COMMAND} execute' to confirm tool calls.`,
     );
   }
 
@@ -97,8 +62,8 @@ function buildWinnerMessage(
 }
 
 export const id = "@sffmc/max-mode"
-export const server = async (ctx: PluginContext) => {
-  const config = loadConfig();
+export const server = async (ctx: RichPluginContext) => {
+  const config = await loadConfig<MaxModeConfig>("max-mode", defaultConfig);
   const state: PluginState = {
     config,
     restore: createRestoreState(),
@@ -119,7 +84,7 @@ export const server = async (ctx: PluginContext) => {
     ) => {
       const cmd = cmdCtx.command.trim();
 
-      if (!cmd.startsWith("/max")) return;
+      if (!cmd.startsWith(MAX_COMMAND)) return;
 
       const isDryRun = cmd.includes("--dry-run");
       const isExecute = cmd.includes("execute");

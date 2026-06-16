@@ -3,7 +3,7 @@
 
 import { describe, test, expect, afterAll } from "bun:test"
 import { WorkflowRuntime } from "../src/runtime"
-import type { PluginContext } from "../src/types"
+import type { PluginContext } from "../src/runtime"
 import { tmpdir } from "node:os"
 import { mkdtempSync, rmSync } from "node:fs"
 import path from "node:path"

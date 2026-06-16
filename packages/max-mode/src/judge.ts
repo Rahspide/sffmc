@@ -1,25 +1,10 @@
 import type { Candidate } from "./candidates";
+import { type RichPluginContext } from "@sffmc/shared"
 
 export interface Verdict {
   winner: number;
   reasoning: string;
   confidence: number;
-}
-
-interface PluginContext {
-  client?: {
-    session?: {
-      message?(params: {
-        messages: Array<{ role: string; content: string }>;
-        model: string;
-        temperature: number;
-      }): Promise<{
-        content: Array<{ type: string; text?: string }>;
-        usage: { totalTokens: number };
-      }>;
-    };
-  };
-  [key: string]: unknown;
 }
 
 export function buildJudgePrompt(candidates: Candidate[]): string {
@@ -94,7 +79,7 @@ function fallbackVerdict(candidates: Candidate[]): Verdict {
 export async function judgeCandidates(
   candidates: Candidate[],
   judgeModel: string,
-  ctx: PluginContext,
+  ctx: RichPluginContext,
 ): Promise<Verdict> {
   const session = ctx.client?.session;
   if (!session?.message) {

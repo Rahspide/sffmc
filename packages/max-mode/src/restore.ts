@@ -1,11 +1,4 @@
-interface SchemaOnlyTool {
-  definition: {
-    name: string;
-    description: string;
-    parameters: Record<string, unknown>;
-  };
-  execute?: (...args: unknown[]) => unknown;
-}
+import { type SchemaOnlyTool } from "./types"
 
 interface RestoreState {
   tools: Map<string, SchemaOnlyTool>;

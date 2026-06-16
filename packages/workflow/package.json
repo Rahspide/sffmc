@@ -8,6 +8,7 @@
     "typecheck": "bun build --target=bun --no-bundle src/index.ts"
   },
   "dependencies": {
+    "@sffmc/shared": "workspace:*",
     "quickjs-emscripten": "0.32.0",
     "yaml": "^2.5.0"
   },
