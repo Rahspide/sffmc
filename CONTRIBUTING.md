@@ -89,6 +89,33 @@ The hook runs automatically before every commit:
 
 Bypass with `git commit --no-verify` (use sparingly — CI will catch it later if remote is set up).
 
+## Local development install
+
+End users should follow the one-liner in [`docs/install.md`](docs/install.md).
+Contributors who want hot-reload of their in-progress edits should clone
+manually and add `file://` entries pointing at their working copy:
+
+```bash
+git clone https://github.com/Rahspide/sffmc.git ~/dev/sffmc
+cd ~/dev/sffmc
+bun install
+```
+
+Then add the 3 composite plugin paths to `~/.config/opencode/opencode.json`:
+
+```jsonc
+{
+  "plugin": [
+    "file:///home/you/dev/sffmc/packages/safety/src/index.ts",
+    "file:///home/you/dev/sffmc/packages/memory/src/index.ts",
+    "file:///home/you/dev/sffmc/packages/agentic/src/index.ts"
+  ]
+}
+```
+
+Restart OpenCode. Your local TypeScript changes hot-reload on the next
+OpenCode restart.
+
 ## Testing plugin changes locally
 
 1. Edit your plugin files under `packages/<plugin>/src/`

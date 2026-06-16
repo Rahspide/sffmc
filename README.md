@@ -19,7 +19,7 @@
 
 SFFMC is a Bun-workspace monorepo of OpenCode plugins that port the productivity
 wins from Xiaomi's MiMo-Code fork into vanilla OpenCode — no fork required.
-Install 3 `file://` lines in `opencode.json` and you get tool-failure recovery,
+One curl command and you get tool-failure recovery,
 destructive-op safety gates, cross-session memory recall, parallel reasoning
 with judge selection, a sandboxed JavaScript workflow engine, and 18 markdown
 compose skills.
@@ -41,7 +41,7 @@ composite packages, individual sub-features, or a mix — and they compose clean
 - **Composable.** Load one composite package or all three, or pick individual
   sub-features. `mergeHooks()` handles hook collision for you.
 - **Zero shared state.** Every plugin is DLC. No side effects from load order.
-- **Drop-in.** Three `file://` lines in `opencode.json`. No build step, no npm
+- **Drop-in.** `curl ... | sh` then restart OpenCode. No build step, no npm
   install, no configuration required to start.
 - **Battle-tested.** 486 unit tests across 24 files. Long-form agent test:
   96% pass rate on 121 turns covering 41 patterns and 12 plugin-coverage
@@ -49,25 +49,43 @@ composite packages, individual sub-features, or a mix — and they compose clean
 - **MIT licensed.** Ported from MiMo-Code (Xiaomi) plus SFFMC team originals.
   Use freely in commercial and private projects.
 
-## Quick start
+## Install
 
-Add three lines to your `~/.config/opencode/opencode.json`:
+```bash
+# macOS / Linux
+curl -fsSL https://raw.githubusercontent.com/Rahspide/sffmc/main/install.sh | sh
 
-```jsonc
-{
-  "plugin": [
-    "file:///path/to/SFFMC/packages/safety/src/index.ts",
-    "file:///path/to/SFFMC/packages/memory/src/index.ts",
-    "file:///path/to/SFFMC/packages/agentic/src/index.ts"
-  ]
-}
+# Windows PowerShell
+irm https://raw.githubusercontent.com/Rahspide/sffmc/main/install.ps1 | iex
 ```
 
-Replace `/path/to/SFFMC` with the repo location on your machine. Restart
-OpenCode, then verify with the `sffmc_health` tool in any chat session.
+The one-liner clones the repo to `~/.sffmc/plugins/sffmc` and runs
+`sffmc init` to add 3 `file://` entries to your `opencode.json`.
+Restart OpenCode, then verify with `sffmc doctor` or the `sffmc_health`
+tool in any chat session.
+
+```bash
+# From source
+git clone https://github.com/Rahspide/sffmc.git ~/.sffmc/plugins/sffmc
+cd ~/.sffmc/plugins/sffmc
+./install.sh
+```
+
+### CLI quick reference
+
+| Command | Effect |
+|---|---|
+| `sffmc init` | Auto-detect config + add 3 composite plugins (safety, memory, agentic) |
+| `sffmc init --all` | Add all 13 packages |
+| `sffmc init --only workflow,compose` | Pick specific packages |
+| `sffmc update` | `git pull --ff-only` + re-sync config |
+| `sffmc doctor` | Run 13-check diagnostic |
+| `sffmc uninstall` | Remove all SFFMC entries from config |
+
+See [`docs/install.md`](./docs/install.md) for the full guide (pinned versions, PATH setup, troubleshooting).
 
 <details>
-<summary>Want individual sub-features instead?</summary>
+<summary>Want individual sub-features instead? (after `sffmc init --all`)</summary>
 
 All 10 sub-feature packages still work standalone for backward compatibility:
 
@@ -90,7 +108,7 @@ All 10 sub-feature packages still work standalone for backward compatibility:
 
 - [What is SFFMC?](#what-is-sffmc)
 - [Why use it?](#why-use-it)
-- [Quick start](#quick-start)
+- [Install](#install)
 - [Architecture](#architecture)
 - [Packages](#packages)
 - [Hook example](#hook-example)

@@ -1,0 +1,1 @@
+# Pinned SHA256SUMS for SFFMC releases. See install.sh for verification.

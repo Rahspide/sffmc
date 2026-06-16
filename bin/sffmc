@@ -1,0 +1,361 @@
+#!/usr/bin/env bash
+# sffmc — SFFMC plugin CLI
+# Subcommands: init, update, uninstall, doctor, path, help
+#
+# Resolves SFFMC_DIR from the script's own location.
+# Safe to run from anywhere; no sudo required.
+
+set -euo pipefail
+
+# --- resolve SFFMC_DIR from script location ------------------------
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SFFMC_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# --- colors --------------------------------------------------------
+if [ -t 1 ] && command -v tput >/dev/null 2>&1; then
+  RED=$(tput setaf 1)
+  GREEN=$(tput setaf 2)
+  YELLOW=$(tput setaf 3)
+  CYAN=$(tput setaf 6)
+  BOLD=$(tput bold)
+  RESET=$(tput sgr0)
+else
+  RED='' GREEN='' YELLOW='' CYAN='' BOLD='' RESET=''
+fi
+
+info()  { echo "${CYAN}[sffmc]${RESET} $*"; }
+ok()    { echo "${GREEN}[sffmc]${RESET} $*"; }
+warn()  { echo "${YELLOW}[sffmc]${RESET} $*"; }
+err()   { echo "${RED}[sffmc]${RESET} $*" >&2; }
+
+# --- usage ---------------------------------------------------------
+usage() {
+  cat <<EOF
+${BOLD}Usage:${RESET} sffmc <command> [options]
+
+${BOLD}Commands:${RESET}
+  init [--minimal|--all|--only <pkg,...>|--yes]
+                              Add SFFMC plugin paths to opencode.json.
+                              --minimal (default): 3 composite packages
+                              --all:            all 13 packages
+                              --only p1,p2,...: specific packages
+                              --yes:            skip confirmation prompt
+  update                      git pull + re-init
+  uninstall                   Remove all SFFMC entries from opencode.json
+  doctor                      Run 13-check diagnostic
+  path                        Print install directory
+  help                        Show this help
+
+${BOLD}Examples:${RESET}
+  sffmc init                  # Default: safety, memory, agentic
+  sffmc init --all            # All 13 packages
+  sffmc init --only workflow,compose,health  # Specific packages
+  sffmc init --yes            # Skip confirmation
+  sffmc update                # Pull latest + re-sync config
+  sffmc doctor                # Full diagnostic
+  sffmc uninstall             # Remove all entries
+
+${BOLD}Environment:${RESET}
+  SFFMC_INSTALL_DIR   Override install directory
+  SFFMC_AUTO_YES      Skip confirmation prompts (same as --yes)
+EOF
+}
+
+# --- detect opencode config path -----------------------------------
+detect_config() {
+  local config="${XDG_CONFIG_HOME:-$HOME/.config}/opencode/opencode.json"
+  if [ ! -f "$config" ]; then
+    config="$HOME/.config/opencode/opencode.json"
+  fi
+  echo "$config"
+}
+
+# --- list of all plugin directories (relative to SFFMC_DIR) --------
+PLUGIN_DIRS=(
+  "packages/safety/src/index.ts"
+  "packages/memory/src/index.ts"
+  "packages/agentic/src/index.ts"
+  "packages/watchdog/src/index.ts"
+  "packages/rules/src/index.ts"
+  "packages/auto-max/src/index.ts"
+  "packages/eos-stripper/src/index.ts"
+  "packages/log-whitelist/src/index.ts"
+  "packages/extra/src/index.ts"
+  "packages/max-mode/src/index.ts"
+  "packages/workflow/src/index.ts"
+  "packages/compose/src/index.ts"
+  "packages/health/src/index.ts"
+)
+
+# Package name → index mapping
+declare -A PKG_INDEX
+for i in "${!PLUGIN_DIRS[@]}"; do
+  pkg_name="$(basename "$(dirname "$(dirname "${PLUGIN_DIRS[$i]}")")")"
+  PKG_INDEX["$pkg_name"]=$i
+done
+
+# Resolve wanted plugin paths (comma-separated names) → plugin_path list
+resolve_plugins() {
+  local names="$1"  # comma-separated
+  local IFS=','
+  local -a result=()
+  for name in $names; do
+    name="${name#"${name%%[![:space:]]*}"}"  # trim leading
+    name="${name%"${name##*[![:space:]]}"}"  # trim trailing
+    if [ -z "$name" ]; then continue; fi
+    if [ -n "${PKG_INDEX[$name]:-}" ]; then
+      result+=("file://${SFFMC_DIR}/${PLUGIN_DIRS[${PKG_INDEX[$name]}]}")
+    else
+      warn "Unknown package: $name (skipping)"
+    fi
+  done
+  printf '%s\n' "${result[@]}"
+}
+
+# --- init subcommand -----------------------------------------------
+cmd_init() {
+  local mode="minimal" yes=0 only=""
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --minimal) mode="minimal"; shift ;;
+      --all)     mode="all"; shift ;;
+      --only)
+        if [ $# -lt 2 ]; then err "--only requires a comma-separated list of packages"; exit 2; fi
+        mode="only"
+        only="$2"
+        shift 2
+        ;;
+      --yes)     yes=1; shift ;;
+      -h|--help) usage; exit 0 ;;
+      *) err "Unknown option: $1"; usage; exit 2 ;;
+    esac
+  done
+
+  # Auto-yes via env var
+  if [ "${SFFMC_AUTO_YES:-}" = "1" ] || [ "${SFFMC_AUTO_YES:-}" = "true" ]; then
+    yes=1
+  fi
+
+  # Check for jq
+  if ! command -v jq >/dev/null 2>&1; then
+    err "jq is required for opencode.json editing."
+    err "  macOS:   brew install jq"
+    err "  Ubuntu:  sudo apt install jq"
+    err "  Arch:    sudo pacman -S jq"
+    exit 2
+  fi
+
+  local config
+  config="$(detect_config)"
+
+  if [ ! -f "$config" ]; then
+    err "No opencode.json found at: $config"
+    err "Create one first (e.g. echo '{}' > $config) and run sffmc init again."
+    exit 2
+  fi
+
+  # Determine plugin paths to add
+  local -a wanted=()
+  case "$mode" in
+    minimal)
+      mapfile -t wanted < <(resolve_plugins "safety,memory,agentic")
+      info "Minimal install: adding 3 composite packages (safety, memory, agentic)"
+      ;;
+    all)
+      mapfile -t wanted < <(resolve_plugins "safety,memory,agentic,watchdog,rules,auto-max,eos-stripper,log-whitelist,extra,max-mode,workflow,compose,health")
+      info "Full install: adding all 13 packages"
+      ;;
+    only)
+      mapfile -t wanted < <(resolve_plugins "$only")
+      info "Selective install: adding requested packages"
+      ;;
+  esac
+
+  if [ ${#wanted[@]} -eq 0 ]; then
+    err "No valid packages to add."
+    exit 2
+  fi
+
+  # Show what we'll add
+  echo ""
+  for p in "${wanted[@]}"; do
+    echo "  + $p"
+  done
+  echo ""
+
+  # Confirm
+  if [ $yes -eq 0 ]; then
+    read -r -p "${CYAN}[sffmc]${RESET} Add these to ${config}? [Y/n] " answer
+    if [ "$answer" = "n" ] || [ "$answer" = "N" ]; then
+      info "Aborted."
+      exit 0
+    fi
+  fi
+
+  # Backup
+  local backup="${config}.bak-sffmc-$(date +%Y%m%d-%H%M%S)"
+  cp "$config" "$backup"
+  ok "Backed up config to $(basename "$backup")"
+
+  # Ensure plugin array exists
+  local has_plugin
+  has_plugin=$(jq -r 'has("plugin")' "$config")
+  if [ "$has_plugin" != "true" ]; then
+    info "Adding \"plugin\" array to config..."
+    config_content="$(cat "$config")"
+    echo "$config_content" | jq '. + {"plugin": []}' > "$config"
+  fi
+
+  # Get current plugins
+  local -a current_plugins
+  mapfile -t current_plugins < <(jq -r '.plugin[]?' "$config" 2>/dev/null || true)
+
+  # Check which wanted plugins already exist
+  local added=0 skipped=0
+  local -a to_add=()
+  for p in "${wanted[@]}"; do
+    local found=0
+    for c in "${current_plugins[@]}"; do
+      if [ "$c" = "$p" ]; then
+        found=1
+        break
+      fi
+    done
+    if [ $found -eq 0 ]; then
+      to_add+=("$p")
+    else
+      info "Already present: $p (skipping)"
+      skipped=$((skipped + 1))
+    fi
+  done
+
+  if [ ${#to_add[@]} -eq 0 ]; then
+    ok "All requested plugins already in config. Nothing to do."
+    exit 0
+  fi
+
+  # Build new plugin array
+  local -a new_plugins=()
+  for c in "${current_plugins[@]}"; do
+    [ -n "$c" ] && new_plugins+=("$c")
+  done
+  for p in "${to_add[@]}"; do
+    new_plugins+=("$p")
+    added=$((added + 1))
+  done
+
+  # Write back
+  jq --argjson plugins "$(printf '%s\n' "${new_plugins[@]}" | jq -R . | jq -s .)" \
+    '.plugin = $plugins' "$config" > "${config}.tmp"
+  mv "${config}.tmp" "$config"
+
+  ok "Added $added new plugin(s) to $config"
+  if [ $skipped -gt 0 ]; then
+    info "Skipped $skipped already-present plugin(s)"
+  fi
+  echo ""
+  info "Restart OpenCode for changes to take effect."
+  info "Verify with: sffmc doctor"
+}
+
+# --- update subcommand ---------------------------------------------
+cmd_update() {
+  info "Updating SFFMC from git..."
+  cd "$SFFMC_DIR"
+  git fetch origin --tags 2>&1 | sed 's/^/  /' || warn "git fetch had non-zero exit"
+  git pull --ff-only 2>&1 | sed 's/^/  /'
+  ok "Updated to $(git rev-parse --short HEAD)"
+  echo ""
+  info "Re-syncing opencode.json..."
+  cmd_init --yes "$@"
+}
+
+# --- uninstall subcommand ------------------------------------------
+cmd_uninstall() {
+  local config
+  config="$(detect_config)"
+
+  if [ ! -f "$config" ]; then
+    err "No opencode.json found at: $config"
+    exit 2
+  fi
+
+  if ! command -v jq >/dev/null 2>&1; then
+    err "jq is required."
+    exit 2
+  fi
+
+  # Count SFFMC entries
+  local count
+  count=$(jq -r --arg dir "$SFFMC_DIR" '[.plugin[]? | select(startswith("file://\($dir)/"))] | length' "$config")
+  if [ "$count" -eq 0 ]; then
+    info "No SFFMC entries found in config. Nothing to uninstall."
+    exit 0
+  fi
+
+  info "Found $count SFFMC plugin(s) in $config"
+  read -r -p "${CYAN}[sffmc]${RESET} Remove them? [y/N] " answer
+  if [ "$answer" != "y" ] && [ "$answer" != "Y" ]; then
+    info "Aborted."
+    exit 0
+  fi
+
+  # Backup
+  local backup="${config}.bak-sffmc-$(date +%Y%m%d-%H%M%S)"
+  cp "$config" "$backup"
+  ok "Backed up to $(basename "$backup")"
+
+  # Filter out SFFMC entries
+  jq --arg dir "$SFFMC_DIR" '.plugin = [.plugin[]? | select(startswith("file://\($dir)/") | not)]' "$config" > "${config}.tmp"
+  mv "${config}.tmp" "$config"
+
+  ok "Removed $count SFFMC plugin(s) from $config"
+  info "Restart OpenCode for changes to take effect."
+}
+
+# --- doctor subcommand ---------------------------------------------
+cmd_doctor() {
+  local health_script="${SFFMC_DIR}/scripts/run-health.ts"
+  if [ ! -f "$health_script" ]; then
+    err "Health script not found: ${health_script}"
+    exit 2
+  fi
+
+  if ! command -v bun >/dev/null 2>&1; then
+    err "bun is required to run the doctor diagnostic. Install: https://bun.sh"
+    exit 2
+  fi
+
+  info "Running 13-check diagnostic..."
+  cd "$SFFMC_DIR"
+  bun run "$health_script"
+}
+
+# --- path subcommand -----------------------------------------------
+cmd_path() {
+  echo "${SFFMC_DIR}"
+}
+
+# --- dispatch ------------------------------------------------------
+if [ $# -eq 0 ]; then
+  usage
+  exit 0
+fi
+
+CMD="$1"
+shift
+
+case "$CMD" in
+  init)       cmd_init "$@" ;;
+  update)     cmd_update "$@" ;;
+  uninstall)  cmd_uninstall "$@" ;;
+  doctor)     cmd_doctor "$@" ;;
+  path)       cmd_path ;;
+  help|--help|-h) usage ;;
+  *)
+    err "Unknown command: $CMD"
+    usage
+    exit 2
+    ;;
+esac
