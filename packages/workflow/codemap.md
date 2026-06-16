@@ -68,14 +68,14 @@ Exported from `src/index.ts`:
 ```ts
 // Classes
 export { WorkflowRuntime }         // Core runtime: start/status/wait/cancel/resume/list/recoverOrphanedWorkflows
-export { WorkflowPersistence }     // Static persistence: CRUD, journal, checkpoints, dataDir
+export class WorkflowPersistence — class with ctor({ db?, dataDir? }) + 14 instance methods + close()
 
 // Functions
 export { parseMeta }               // Parse `export const meta = { ... }` from script source
 export { resolveWorkflow, isInlineScript }  // Resolve workflow by name/path/inline
-export { getRuntime, setRuntime }  // Late-bound runtime singleton
 export { registerBuiltin, getBuiltin, loadBuiltin, listBuiltins }  // Builtin registry
-export { on, off, emit, clearAll } // Event bus
+export function createEventBus() → { on, off, emit, clearAll }  // Event bus factory
+export function createWorkflowTool(runtime: WorkflowRuntime)     // Tool factory: runtime passed as arg, no global ref
 
 // Constants
 export { DEFAULT_WORKFLOW_CONFIG, DEFAULT_SANDBOX_CONSTRAINTS }
@@ -138,14 +138,13 @@ pending → running ──→ completed
 | `src/index.ts` | Plugin entry point: registers OpenCode hooks, wires observability, re-exports all public API |
 | `src/runtime.ts` | WorkflowRuntime: start/status/wait/cancel/resume/list, semaphore, lock, agent spawning with budget checks, journal dedup, LLM calls, child workflows, flush scheduling |
 | `src/sandbox.ts` | quickjs-emscripten sandbox: runSandboxed(), PRELUDE injection, host function bridging, deterministic hardening, concurrent pump, deadline enforcement |
-| `src/tool.ts` | workflowTool definition: 5 operations with JSON schema, execute() dispatches to runtime via runtime-ref |
+| `src/tool.ts` | `createWorkflowTool(runtime)` factory: returns a tool object whose `execute()` calls `runtime.start(input)` (or other ops). Runtime passed in as arg, no global ref. |
 | `src/persistence.ts` | WorkflowPersistence: SQLite CRUD, base62 runID generation, script SHA, journal IO (sync/async JSONL), step checkpoints, canonical key derivation |
 | `src/resolve.ts` | resolveWorkflow(): inline detection, file path resolution, saved workflow lookup in .sffmc/workflows/ and .claude/workflows/ |
-| `src/workspace.ts` | Lexical jail: setJail, resolveInWorkspace, readFile_/writeFile_/exists/glob — all confined to workspace root |
+| `src/workspace.ts` | WorkspaceJail class (per-runtime): resolveInWorkspace, readFile_/writeFile_/exists/glob — all confined to workspace root |
 | `src/events.ts` | EventBus: on/off/emit/clearAll with 6 event types (started, agent_failed, phase, log, finished, step_checkpoint) |
 | `src/meta.ts` | parseMeta(): recursive-descent parser for `export const meta = { ... }` — no eval, comment-aware, validates name+description |
 | `src/builtin-registry.ts` | Lazy-loaded builtin registry: registerBuiltin/getBuiltin/loadBuiltin/listBuiltins with 4 builtins |
-| `src/runtime-ref.ts` | Late-bound singleton WorkflowRuntime ref; breaks circular import between tool.ts and runtime.ts |
 | `src/schema.ts` | SQL DDL: workflow_runs (19 cols), workflow_steps (10 cols), 2 indexes, WAL mode |
 | `src/api.ts` | Public API type re-exports: AgentFn, ParallelFn, PipelineFn |
 | `src/types.ts` | All TypeScript types and default configs: WorkflowStatus, WorkflowRun, WorkflowStep, JournalEvent, RunEntry, WorkflowConfig, SandboxConstraints, AgentOptions, AgentResult, etc. |

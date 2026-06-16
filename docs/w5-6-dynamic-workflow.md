@@ -243,15 +243,18 @@ const items = res.items  // TypeError if res === null
 an exception — the whole batch crashes. An exception from the sandbox =
 `failed` status for the entire run.
 
-**Detect the failure reason** via events (on the host):
+**Detect the failure reason** via the runtime's event bus (the module-level `on` export was removed in v0.10.0):
 
 ```ts
-import { on } from "@sffmc/workflow"
+import { createEventBus, WorkflowRuntime } from "@sffmc/workflow"
 
-on("workflow:agent_failed", (e) => {
+const runtime = new WorkflowRuntime(ctx)
+runtime.events.on("workflow:agent_failed", (e) => {
   console.log(`Agent ${e.agentKey} failed: ${e.reason}`)
 })
 ```
+
+When using the workflow tool via `createWorkflowTool(runtime)`, observability listeners on the runtime's event bus are auto-wired — no manual `on()` call needed in typical setups.
 
 ## Budgets
 

@@ -8,7 +8,7 @@ Core implementation of the @sffmc/workflow plugin — the sandboxed JavaScript o
 
 **Plugin Entry (index.ts)** — Default export with `id: "@sffmc/workflow"` and `server(ctx)` function. Creates a `WorkflowRuntime`, registers it in the singleton ref, wires observability listeners (`workflow:agent_failed`, `workflow:finished`), and returns `config` (orphan recovery) + `tool` (workflow registration) hooks. Uses the wrapper pattern (`server: async (ctx) => { ... }`) required by OpenCode 1.17.x plugin loader.
 
-**Late-Bound Singleton (runtime-ref.ts)** — Breaks the circular import between `tool.ts` (needs runtime to dispatch) and `runtime.ts` (imports tool utilities). `runtime-ref.ts` holds a `{ current: WorkflowRuntime | undefined }` object. `tool.ts` reads `getRuntime()` at call time; `index.ts` calls `setRuntime()` after constructing the runtime. Paths that never use the workflow tool simply leave `current` undefined.
+**Tool → Runtime wiring** (`tool.ts` → `index.ts`): `createWorkflowTool(runtime)` passes the runtime directly to the tool's `execute()` function. No global ref needed; tool closes over the runtime.
 
 **Sync-Promise Bridge (sandbox.ts)** — Host functions returning Promises are bridged into the guest via `ctx.newPromise()`. When the host promise settles, `executePendingJobs()` runs synchronously so guest microtasks advance immediately. A concurrent pump (adaptive 1-50ms polling) drains guest-internal pending jobs. Deferred promises (`QuickJSDeferredPromise[]`) are tracked and disposed before context disposal to prevent process abort from live GC objects.
 
@@ -22,7 +22,7 @@ Core implementation of the @sffmc/workflow plugin — the sandboxed JavaScript o
 
 **Base62 RunID (persistence.ts)** — 19 bytes of `crypto.randomBytes()` → BigInt → base62 encoding → 26-char string with `wf_` prefix (e.g., `wf_3xK9mB7nP2qR8vL4jW5cA1dF`). Non-cryptographic base62 chosen for URL-safe, human-typable IDs. Validated by `RUN_ID_REGEX` before any filesystem access.
 
-**Lexical Jail (workspace.ts)** — All file primitives resolve user paths against `workspaceRoot` (set once via `setJail()`). The check `abs.startsWith(root + "/") || abs === root` prevents traversal attacks lexically (no symlink resolution). `globFs` results are filtered for `..` and absolute paths.
+**Lexical Jail (workspace.ts)** — All file primitives resolve user paths against `workspaceRoot` (set via `new WorkspaceJail(root)` constructor, passed to `WorkflowRuntime` via `opts.workspace`). The check `abs.startsWith(root + "/") || abs === root` prevents traversal attacks lexically (no symlink resolution). `globFs` results are filtered for `..` and absolute paths.
 
 **Event Bus (events.ts)** — Map-based pub/sub: `on(name, fn)` returns a key string; `off(key)` unsubscribes; `emit(name, payload)` iterates a copied listener array to allow listeners to `off()` themselves. Listeners never throw (caught silently). 6 event types: `workflow:started`, `workflow:agent_failed`, `workflow:phase`, `workflow:log`, `workflow:finished`, `workflow:step_checkpoint`.
 
@@ -38,13 +38,13 @@ Core implementation of the @sffmc/workflow plugin — the sandboxed JavaScript o
 Tool call: workflow({op: "run", name: "...", args: {...}})
   │
   ├─ tool.ts: execute()
-  │   └─ getRuntime() via runtime-ref.ts → runtime.start(input)
+  │   └─ `createWorkflowTool(runtime).execute({ operation: 'run', ... })` → `runtime.start(input)`
   │
   └─ runtime.ts: WorkflowRuntime.start()
       ├─ resolveScript() → builtin-registry or resolve.ts
       ├─ parseMeta() → validate export const meta { name, description }
-      ├─ WorkflowPersistence.createRun() → SQLite INSERT + script file write
-      ├─ setJail() → workspace.ts
+  ├─ `persistence.createRun(...)` (instance method) → SQLite INSERT + script file write, where `persistence = new WorkflowPersistence({ db?, dataDir? })`
+  ├─ WorkspaceJail constructor (per-runtime, lives in `runtime.workspace`)
       ├─ loadJournal() → populate journalResults (empty on fresh run)
       ├─ Create InternalRunEntry with outcomePromise + AbortController
       └─ launchScript() → runSandboxed() [async, fire-and-forget]
@@ -78,17 +78,16 @@ Tool call: workflow({op: "run", name: "...", args: {...}})
 Registered in `index.ts` → default export → `server()`:
 
 - **`config` hook**: Calls `runtime.recoverOrphanedWorkflows()` — marks any `workflow_runs` rows with status `running` not in the in-memory map as `crashed` with message "Process restarted — workflow orphaned".
-- **`tool` hook**: Registers `workflow` tool via `tool: { workflow: workflowTool }`. The tool object has no `name` field (key comes from the hook return key, and `name` causes OpenCode 1.17.x to silently reject).
+- **`tool` hook**: Exports tool via `createWorkflowTool(runtime)` factory — returns `{ tool: { workflow: <tool> } }`. The tool object has no `name` field (key comes from the hook return key, and `name` causes OpenCode 1.17.x to silently reject).
 
 ## Integration Points
 
 | Module | Consumed By | Notes |
 |--------|-----------|-------|
-| `runtime-ref.ts` | `tool.ts`, `index.ts` | Singleton bridge; `getRuntime()` called at tool dispatch time |
-| `persistence.ts` | `runtime.ts` | All DB/script/journal IO; `WorkflowPersistence` is a static namespace |
+| `persistence.ts` | `runtime.ts` | All DB/script/journal IO; `WorkflowPersistence` class with `new WorkflowPersistence({ db?, dataDir? })` constructor; `close()` method; instance methods for all 14 CRUD ops |
 | `sandbox.ts` | `runtime.ts` | `runSandboxed(source, primitives, opts)` is the sole sandbox entry point |
 | `resolve.ts` | `runtime.ts` (via `resolveScript()`) | Resolves workflow names to source strings |
-| `workspace.ts` | `runtime.ts` (via primitives) | `setJail()` called once at `start()`; file primitives jailed thereafter |
+| `workspace.ts` | `runtime.ts` (via primitives) | `new WorkspaceJail(root)` constructed per-runtime in `WorkflowRuntime` ctor; file primitives jailed thereafter |
 | `meta.ts` | `runtime.ts`, `resolve.ts` | `parseMeta()` validates and extracts metadata from script source |
 | `events.ts` | `runtime.ts` (emit), `index.ts` (on) | Pub/sub for cross-module observability |
 | `builtin-registry.ts` | `runtime.ts` (via `resolveScript()`) | Lazy-loads builtin source strings |
@@ -104,10 +103,7 @@ Re-exported through `src/index.ts`:
 export { WorkflowRuntime }         // Core lifecycle: start, status, wait, cancel, resume, list, recoverOrphanedWorkflows
 
 // Persistence
-export { WorkflowPersistence }     // Static: createRun, loadRun, updateRunStatus, listRuns, writeScript, readScript,
-                                   //          appendJournal, appendJournalSync, loadJournal, clearJournal,
-                                   //          checkpointStep, loadCompletedSteps, computeScriptSha, journalKey,
-                                   //          journalKeyBase, dataDir, dbPath, getDB, generateRunID
+export class WorkflowPersistence — constructor({ db?: Database, dataDir?: string }), close(): void, [14 instance methods]
 
 // Resolution
 export { resolveWorkflow, isInlineScript }  // Resolve by name/inline/path
@@ -117,10 +113,10 @@ export { parseMeta }                         // Parse export const meta from sou
 export { registerBuiltin, getBuiltin, loadBuiltin, listBuiltins }  // Builtin workflow management
 
 // Events
-export { on, off, emit, clearAll }  // Event bus for observability
+export function createEventBus() → { on, off, emit, clearAll }  // Event bus factory for observability
 
-// Singleton ref
-export { getRuntime, setRuntime }   // Late-bound runtime reference
+// Tool
+export function createWorkflowTool(runtime: WorkflowRuntime)
 
 // Config defaults
 export { DEFAULT_WORKFLOW_CONFIG, DEFAULT_SANDBOX_CONSTRAINTS }
@@ -139,14 +135,13 @@ export type { WorkflowStatus, WorkflowRun, WorkflowStep, JournalEvent, RunEntry,
 | `src/index.ts` (70 L) | Plugin entry point: default export with `id` + `server()`, creates WorkflowRuntime, sets singleton ref, wires observability listeners, registers `config` (orphan recovery) and `tool` (workflow) hooks, re-exports all public API |
 | `src/runtime.ts` (985 L) | **Largest file** — WorkflowRuntime class: `start()` creates InternalRunEntry + launches sandbox; `status()`/`wait()`/`cancel()`/`resume()`/`list()` public API; `spawnAgent()` with lifecycle/token/step/abort/depth checks, journal dedup, semaphore gating, LLM call; `runParallel()`/`runPipeline()` (host-side stubs, guest PRELUDE handles actual); `spawnChildWorkflow()` recursive launch; `setPhase()`/`appendLog()` journal + emit; `callLLM()` via OpenCode `ctx.client.session.message()`; `recoverOrphanedWorkflows()` marks stale runs crashed; flush scheduling (250ms debounce); Promise-based semaphore and named lock |
 | `src/sandbox.ts` (342 L) | quickjs-emscripten sandbox engine: `runSandboxed()` creates QuickJS runtime+context, injects host functions via `injectHooks()`, applies determinism hardening (delete Date, mulberry32 PRNG, delete WeakRef/FinalizationRegistry), eval's PRELUDE (parallel/pipeline/URL), injects `args`, eval's user script wrapped in async IIFE, runs adaptive concurrent pump (1-50ms), imposes 12h deadline via Promise.race, returns `ctx.dump()` value or `null` on any error (never-throw contract). Arena + deferred disposal in `finally` prevents QuickJS process abort from live GC objects. `marshalIn()` copies host values into guest by JSON. Guest-side PRELUDE (~30 LOC string) defines `parallel`, `pipeline`, and a minimal `URL` class |
-| `src/tool.ts` (146 L) | workflowTool definition: `description` (5 operations), `parameters` (JSON Schema with operation/name/script/args/workspace/run_id/timeout_ms/agent_timeout_ms), `execute()` dispatches to runtime via `getRuntime()`. No `name` field (OpenCode 1.17.x requires key from hook return, rejects tool objects with `name`). Discriminated union type `WorkflowToolArgs` for compile-time validation. Returns JSON-stringified results or error strings |
-| `src/persistence.ts` (360 L) | WorkflowPersistence static namespace: `generateRunID()` (base62, 19 random bytes, `wf_` prefix); `createRun()`/`loadRun()`/`updateRunStatus()`/`listRuns()` for `workflow_runs` table; `writeScript()`/`readScript()` for per-run `.js` files; `appendJournalSync()`/`appendJournal()`/`loadJournal()`/`clearJournal()` for JSONL journal; `checkpointStep()` for `workflow_steps` (BEGIN EXCLUSIVE/COMMIT); `computeScriptSha()` (SHA-256 of source); `journalKeyBase()`/`journalKey()` (canonical JSON → SHA-256 + occurrence); lazy singleton DB via `getDB()` with `applySchema()` on first open; `dataDir()` resolves `$XDG_DATA_HOME/SFFMC/workflow` or `~/.local/share/SFFMC/workflow`; `safeRunID()` validates `RUN_ID_REGEX` |
+| `src/tool.ts` (146 L) | `createWorkflowTool(runtime)` factory: returns a tool object whose `execute()` calls `runtime.start(input)` (or other ops). Runtime passed in as arg, no global ref.
+| `src/persistence.ts` (360 L) | `WorkflowPersistence` class. `dataDir` defaults to `process.env.XDG_DATA_HOME ?? ~/.local/share/SFFMC/workflow`. Tests use `new Database(':memory:')` via `db` opt. `generateRunID()` (base62, 19 random bytes, `wf_` prefix); `createRun()`/`loadRun()`/`updateRunStatus()`/`listRuns()` for `workflow_runs` table; `writeScript()`/`readScript()` for per-run `.js` files; `appendJournalSync()`/`appendJournal()`/`loadJournal()`/`clearJournal()` for JSONL journal; `checkpointStep()` for `workflow_steps` (BEGIN EXCLUSIVE/COMMIT); `computeScriptSha()` (SHA-256 of source); `journalKeyBase()`/`journalKey()` (canonical JSON → SHA-256 + occurrence); `close()` method; `safeRunID()` validates `RUN_ID_REGEX` |
 | `src/resolve.ts` (91 L) | `resolveWorkflow(nameOrPath, workspace)`: detects inline scripts via `META_RE` regex; resolves absolute/relative file paths; walks up directory tree looking for `.sffmc/workflows/{name}.ts` and `.claude/workflows/{name}.ts`; validates safe name (alphanumeric + `._-`); returns `ResolvedWorkflow { source, meta, kind }`. `isInlineScript()` checks for `export const meta =` pattern |
-| `src/workspace.ts` (90 L) | Lexical jail: `setJail(workspacePath)` sets the root; `resolveInWorkspace(userPath)` checks `abs.startsWith(root+"/") || abs===root` and throws on escape; `readFile_()` returns null on ENOENT (never-throw for missing files); `writeFile_()` creates parent dirs; `exists()` checks via `access()`; `glob()` uses `fs.glob` with cwd, filters out `..` escapes and absolute paths |
-| `src/events.ts` (107 L) | EventBus: `on(name, fn)` returns key string; `off(key)` unsubscribes; `emit(name, payload)` copies listener array to allow mutation during iteration, silently catches listener errors; `clearAll()` wipes all listeners. 6 typed event payloads: `WorkflowStartedEvent`, `WorkflowAgentFailedEvent`, `WorkflowPhaseEvent`, `WorkflowLogEvent`, `WorkflowFinishedEvent`, `WorkflowStepCheckpointEvent` |
+| `src/workspace.ts` (90 L) | Lexical jail: `WorkspaceJail` constructor takes `root: string`; `resolveInWorkspace(userPath)` checks `abs.startsWith(root+"/") || abs===root` and throws on escape; `readFile_()` returns null on ENOENT (never-throw for missing files); `writeFile_()` creates parent dirs; `exists()` checks via `access()`; `glob()` uses `fs.glob` with cwd, filters out `..` escapes and absolute paths |
+| `src/events.ts` (107 L) | `createEventBus()` factory returns `{ on, off, emit, clearAll }`. No module-level exports. `on(name, fn)` returns key string; `off(key)` unsubscribes; `emit(name, payload)` copies listener array to allow mutation during iteration, silently catches listener errors; `clearAll()` wipes all listeners. 6 typed event payloads: `WorkflowStartedEvent`, `WorkflowAgentFailedEvent`, `WorkflowPhaseEvent`, `WorkflowLogEvent`, `WorkflowFinishedEvent`, `WorkflowStepCheckpointEvent` |
 | `src/meta.ts` (309 L) | Recursive-descent parser for `export const meta = { ... }` data literal. `parseMeta(script)`: matches `META_START_RE`, finds balanced `}` via `findBalancedClose()` (comment-aware, quote-aware), parses the object literal via `parseDataLiteral()` → recursive `readValue()`/`readObject()`/`readArray()`/`readString()`/`readNumber()`/`matchKeyword()`. Validates required `name` and `description` (non-empty strings). Returns `{ ok: true, meta, body }` with whitespace-preserving body transformation. No `eval`, `new Function`, or `vm` — pure string parsing |
 | `src/builtin-registry.ts` (75 L) | Lazy-loaded builtin registry: `REGISTRY` is null-prototype object; `registerBuiltin(name, loader)` stores a loader function; `loadBuiltin(name)` calls loader and returns `BuiltinEntry { name, description, whenToUse, phases, script }`. 4 lazy loaders: `loadDeepResearch()`, `loadPlan()`, `loadTdd()`, `loadRefactor()` — each does `import("../builtin/{name}.ts")` to avoid bundling all builtins eagerly |
-| `src/runtime-ref.ts` (31 L) | Late-bound singleton: `type WorkflowRuntime` (interface for `start`/`status`/`wait`/`cancel`/`resume`/`list`), `ref: { current?: WorkflowRuntime }`, `getRuntime()`/`setRuntime(runtime)`. Breaks circular import: `tool.ts` imports `getRuntime`, `index.ts` imports `setRuntime`, `runtime.ts` is never imported by either |
 | `src/schema.ts` (47 L) | SQL DDL: `workflow_runs` (19 columns: id, name, status, running, succeeded, failed, current_phase, parent_run_id, args, script_sha, agent_timeout_ms, max_steps, max_tokens, max_wall_clock_ms, per_step_timeout_ms, error, time_created, time_updated), `workflow_steps` (10 columns: run_id, step_index, kind, input_prompt, output_result, cost_tokens, duration_ms, error, timestamp, PRIMARY KEY (run_id, step_index), FOREIGN KEY CASCADE). 2 indexes: `idx_wf_steps_run`, `idx_wf_runs_status`. PRAGMA journal_mode=WAL on apply |
 | `src/api.ts` (24 L) | Public API type re-exports from `types.ts`: `AgentOptions`, `AgentResult`, `AgentFailureReason`, `WorkflowConfig`. Type interfaces for primitives: `AgentFn` (never-throw), `ParallelFn` (bubbles throws), `PipelineFn` (sequential, bubbles throws) |
 | `src/types.ts` (183 L) | All TypeScript types: `WorkflowStatus` (6 union), `WorkflowRun` (SQL row), `WorkflowStep` (SQL row), `JournalEvent` (3 discriminated by `t`), `RunEntry` (in-memory), `WorkflowConfig` (5 budget fields), `SandboxConstraints` (3 fields), `AgentOptions` (8 fields), `AgentResult` (null|string|object), `AgentFailureReason` (5 const values), `WorkflowStartInput` (5 fields), `WorkflowStatusOutput` (10 fields), `WorkflowOutcome` (7 fields), `WorkflowError` class. Exports `DEFAULT_WORKFLOW_CONFIG` and `DEFAULT_SANDBOX_CONSTRAINTS` |
