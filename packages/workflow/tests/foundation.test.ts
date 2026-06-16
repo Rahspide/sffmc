@@ -711,6 +711,85 @@ describe("builtin: lib-migrate", () => {
 // builtin: all new builtins — export shape
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// builtin-registry: makeLoader refactor
+// ---------------------------------------------------------------------------
+
+describe("builtin-registry: makeLoader refactor", () => {
+  const ORIGINAL_BUILTINS = [
+    "deep-research", "plan", "tdd", "refactor",
+    "security-audit", "doc-gen", "lib-migrate",
+  ] as const
+
+  test("listBuiltins returns all 7 built-in names", () => {
+    const builtins = listBuiltins()
+    for (const name of ORIGINAL_BUILTINS) {
+      expect(builtins).toContain(name)
+    }
+  })
+
+  test("each builtin's loader returns valid { source, meta } when called directly", async () => {
+    for (const name of ORIGINAL_BUILTINS) {
+      const loader = getBuiltin(name)
+      expect(loader).toBeDefined()
+      expect(typeof loader).toBe("function")
+      const raw = await loader!()
+      expect(raw).toHaveProperty("source")
+      expect(raw).toHaveProperty("meta")
+      expect(typeof raw.source).toBe("string")
+      expect(raw.source.length).toBeGreaterThan(100)
+      expect(raw.source).toContain("export const meta")
+      expect(raw.meta.name).toBe(name)
+    }
+  })
+
+  test("loadBuiltin returns same source as direct loader call", async () => {
+    for (const name of ORIGINAL_BUILTINS) {
+      const entry = await loadBuiltin(name)
+      const loader = getBuiltin(name)!
+      const raw = await loader()
+      expect(entry.script).toBe(raw.source)
+    }
+  })
+
+  test("each original builtin has all BuiltinEntry fields populated", async () => {
+    for (const name of ORIGINAL_BUILTINS) {
+      const entry = await loadBuiltin(name)
+      expect(entry.name).toBe(name)
+      expect(entry.description).toBeTruthy()
+      expect(typeof entry.description).toBe("string")
+      expect(entry.whenToUse).toBeTruthy()
+      expect(typeof entry.whenToUse).toBe("string")
+      expect(Array.isArray(entry.phases)).toBe(true)
+      expect(entry.phases!.length).toBeGreaterThan(0)
+      expect(typeof entry.script).toBe("string")
+      expect(entry.script).toContain("agent(")  // all builtins use agent()
+    }
+  })
+
+  test("registry uses null-prototype — no Object.prototype pollution", () => {
+    expect(getBuiltin("constructor")).toBeUndefined()
+    expect(getBuiltin("toString")).toBeUndefined()
+    expect(getBuiltin("hasOwnProperty")).toBeUndefined()
+    expect(getBuiltin("__proto__")).toBeUndefined()
+    expect(listBuiltins()).not.toContain("constructor")
+    expect(listBuiltins()).not.toContain("toString")
+  })
+
+  test("loadBuiltin throws descriptive error for unknown name", async () => {
+    await expect(loadBuiltin("nonexistent-builtin-xyz")).rejects.toThrow("Unknown built-in workflow")
+  })
+
+  test("makeLoader creates distinct function references per builtin", () => {
+    const loaders = new Set<Function>()
+    for (const name of ORIGINAL_BUILTINS) {
+      loaders.add(getBuiltin(name)!)
+    }
+    // Each builtin should have its own loader function (7 distinct functions)
+    expect(loaders.size).toBe(ORIGINAL_BUILTINS.length)
+  })
+})
+
 describe("builtin: new builtins export shape", () => {
   test("security-audit exports meta and source", async () => {
     const mod = await import("../builtin/security-audit.ts")
