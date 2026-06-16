@@ -339,9 +339,9 @@ async function runDream(
       const cluster: MemoryRow[] = [row];
       assigned.add(row.id);
 
-      // Expand cluster
+      // Expand cluster (capped at 5 iterations to bound worst-case O(n³))
       let changed = true;
-      while (changed) {
+      for (let iter = 0; iter < 5 && changed; iter++) {
         changed = false;
         for (const other of remainingRows) {
           if (assigned.has(other.id)) continue;

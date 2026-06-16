@@ -912,6 +912,10 @@ export class WorkflowRuntime {
   // ── Private: completion ────────────────────────────────────────────────
 
   private completeRun(entry: InternalRunEntry, result?: unknown): void {
+    // Guard: if cancel()/failRun() already settled the entry, do not overwrite.
+    // Without this, a still-pending sandbox .then() races a cancel() call and
+    // overwrites entry.status / DB row from "cancelled" → "completed".
+    if (entry.status !== "running") return
     entry.status = "completed"
     entry.resolveOutcome({
       runID: entry.runID,

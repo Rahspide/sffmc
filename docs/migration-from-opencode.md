@@ -160,17 +160,20 @@ Based on research of OpenCode community issues (5+ per day as of June 2026).
 
 **Problem**: Some local models (Ollama, vLLM, oMLX) emit end-of-sequence tokens mid-stream — `</s>`, `<|endoftext|>`, `<|im_end|>`, etc. When the agent sees these tokens, it interprets them as "conversation finished" and exits the loop after a single tool call. Your 1-hour task dies in 3 seconds.
 
-**What SFFMC does** (W2): EOS stripper plugin sits on `experimental.chat.messages.transform` and strips 7 known EOS token patterns from model output before the agent loop sees them. PR #603 from MiMo-Code provides the regex patterns.
+**What SFFMC does** (W2): EOS stripper plugin sits on `experimental.text.complete` and strips 10 known EOS token patterns from the end of model output before the agent loop sees them. See `packages/eos-stripper/src/patterns.ts:DEFAULT_EOS_PATTERNS` for the canonical list.
 
 ```
-# EOS tokens we strip:
-/<\|im_end\|>/g
-/<\|endoftext\|>/g
-/<\/s>/g
-/<\|assistant\|>/g
-/<\|user\|>/g
-/<\|system\|>/g
-/<eos>/g
+# EOS tokens we strip (matches DEFAULT_EOS_PATTERNS):
+</s>
+<|endoftext|>
+<|im_end|>
+<|eot_id|>
+<|end|>
+<|end_of_turn|>
+<|endofmessage|>
+<|return|>
+[/INST]
+<end_of_utterance>
 ```
 
 ### 2. Debounce Tool Calls
@@ -287,7 +290,7 @@ sqlite3 ~/.local/share/SFFMC/memory/index.sqlite "SELECT count(*) FROM memory_en
 
 cd ~/.opencode-staging/SFFMC
 bun test
-# Should show: 19 tests, 0 failures
+# Should show: 486 tests, 0 failures (24 files)
 ```
 
 ## References

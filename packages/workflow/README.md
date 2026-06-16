@@ -53,11 +53,9 @@ workflow({ op: "resume", runID: "..." })
 bun test packages/workflow/
 ```
 
-73 tests across 4 files:
+78 tests across 3 files:
 
-- `src/index.test.ts` — 15 integration tests (agent never-throw, parallel/pipeline propagation, lifecycle, events, phases)
-- `src/sandbox.test.ts` — 20 sandbox isolation tests
-- `tests/foundation.test.ts` — 50 type/persistence/resolve tests
+- `tests/foundation.test.ts` — 69 type/persistence/resolve tests
 - `tests/integration.test.ts` — 4 multi-step end-to-end
 - `tests/e2e-200-steps.test.ts` — 5 long-horizon tests (200 sequential agents, lifecycle cap trip, token cap trip, parallel correctness, pipeline correctness)
 
