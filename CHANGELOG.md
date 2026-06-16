@@ -1,5 +1,36 @@
 # SFFMC Changelog
 
+## v0.9.1 — Post-release cleanup + bug fixes (2026-06-16)
+
+### Bug fixes (from council round 2 audit)
+
+- **`@sffmc/workflow`**: cancel/fail race in `completeRun` (DB row + `entry.status` would be overwritten to "completed" if a still-pending sandbox `.then()` raced a `cancel()` call). Added guard mirroring `failRun`. The existing cancel test passed by accident because it only checked the resolved outcome, not the DB row.
+- **`@sffmc/workflow`**: `events.ts off(key)` was broken for any event name containing `_` (all workflow events do). Fixed to look up the listener by full key across all event names.
+- **`@sffmc/rules`**: `gate.ts isInside()` returned `true` for any relative path like `../etc/passwd`, bypassing the `path_outside` safety gate. Fixed to resolve relative paths against project root before checking.
+
+### Documentation fixes
+
+- `docs/getting-started.md`, `docs/migration-from-opencode.md`: "9 plugins / 15 skills" → "14 packages / 18 skills"; added composite-package explanation.
+- `packages/workflow/README.md`: "73 tests across 4 files" → "78 tests across 3 files" (matches actual: foundation 69 + integration 4 + e2e-200-steps 5). Removed references to nonexistent `src/index.test.ts` and `src/sandbox.test.ts`.
+- `docs/migration-from-opencode.md`: EOS stripper hook name corrected (`experimental.text.complete`, not `messages.transform`); 7 patterns → 10 patterns (matches `DEFAULT_EOS_PATTERNS`); "19 tests" → "486 tests".
+- `docs/w5-6-dynamic-workflow.md`: removed internal `9Router` references; replaced with generic "your LLM-backed search endpoint".
+- `docs/load-order-audit.md`: removed references to internal plugins (`oh-my-opencode-slim`, `dcp-upstream`, etc.); replaced with generic SFFMC-only table.
+- `CHANGELOG.md`, `packages/safety/skills/diagnose-tool-failure.md`, `packages/safety/skills/manage-auto-max.md`: replaced `claude-sonnet-4-20250514` model examples with `your-model-id`; `.slim/` paths with `.sffmc/`.
+
+### Performance
+
+- `@sffmc/extra` (dream): cluster-expansion loop capped at 5 iterations to bound worst-case O(n³) on 1000+ row memory DBs.
+
+### Infrastructure
+
+- `scripts/audit-public-content.sh` (added in v0.9.0 round 1): now runs as part of precommit gate and as a Drone CI step. Detects internal-infrastructure terms, hallucinated model names, stale counts.
+
+### Verification
+
+- 486/486 tests pass (24 files, 1289 expect() calls), stable across 3 runs.
+- Precommit green: `bun test` + `bun run typecheck` + `audit-load-order.py` + `sffmc_health` + `audit-public-content.sh` all pass.
+- 0 internal-infrastructure leaks detected in docs/READMEs (audit clean).
+
 ## v0.9.0 — 3-MSP restructure: safety, memory, agentic (2026-06-15)
 
 ### What's new in v0.9.0
@@ -240,7 +271,7 @@ All features disabled by default — toggle per feature via config flags.
 - LLM judge scoring 2-8 candidate outputs
 - Multi-criteria rubric: correctness, completeness, conciseness (0-10 each)
 - Returns `{ scores, winner, reasoning, model, latencyMs }`
-- Configurable model (default `claude-sonnet-4-20250514`) + rubric
+- Configurable model (default `your-model-id`) + rubric
 - `judge_auto` flag: hook `experimental.chat.messages.transform` to auto-judge
   candidates marked with `<!-- EXTRA_JUDGE_CANDIDATES: [...] -->`
 - LLM call at temperature 0.2 for determinism
@@ -285,7 +316,7 @@ dream: true           # F8 background memory cleaner
 checkpoint_dir: ""    # default ~/.local/share/sffmc/extra/checkpoints/
 dream_threshold: 50   # count > N triggers dream
 dream_interval_hours: 24
-judge_model: "claude-sonnet-4-20250514"
+judge_model: "your-model-id"
 judge_auto: false     # auto-judge markers in messages
 ```
 ## Known gaps (documented, not blocking)
@@ -322,7 +353,7 @@ Generated via Codemap skill. 11 parallel fixer agents + orchestrator umbrella + 
 - 10 × `packages/<plugin>/src/codemap.md` — file-by-file breakdown per plugin
 - 2 × `shared/codemap.md` + `shared/src/codemap.md` — SDK architecture
 - `AGENTS.md` — auto-load entry with Repository Map section
-- `.slim/codemap.json` — change-detection state (56 files tracked)
+- `.sffmc/codemap.json` — change-detection state (56 files tracked)
 
 **Total: ~11000 words across 24 codemap.md files**
 
@@ -398,7 +429,7 @@ Added `@sffmc/health` to the development sandbox config. Restart verified: 10/10
 
 ### Gitignore
 
-Added `.sffmc/` (per-project workflow runtime artifacts, like `.slim/deepwork/`).
+Added `.sffmc/` (per-project workflow runtime artifacts, like `.sffmc/deepwork/`).
 
 ### Tests
 - 272 → 292 (added 20 in @sffmc/health in v0.7.2)

@@ -80,11 +80,17 @@ export function on(name: EventName, fn: Listener): string {
 
 /** Unsubscribe a listener by key. */
 export function off(key: string): void {
-  const name = key.split("_")[0] as EventName
-  const list = listeners.get(name)
-  if (!list) return
-  const idx = list.findIndex((l) => l.key === key)
-  if (idx >= 0) list.splice(idx, 1)
+  // The key format is `${name}_${id}` (e.g. "workflow:agent_failed_5").
+  // We must find the listener by its full key, not by name — splitting on "_"
+  // would misclassify "workflow:agent_failed_5" as name "workflow:agent".
+  for (const [name, list] of listeners) {
+    const idx = list.findIndex((l) => l.key === key)
+    if (idx >= 0) {
+      list.splice(idx, 1)
+      if (list.length === 0) listeners.delete(name)
+      return
+    }
+  }
 }
 
 /** Emit an event to all registered listeners for that event name. */

@@ -17,7 +17,7 @@ Watchdog triggers a recovery verdict after **3 failures within 10 calls** (rolli
 | Verdict | Meaning |
 |---|---|
 | `retry` | Transient — same params, just try again. |
-| `promote` | Switch to `promote_model` (default `claude-sonnet-4-20250514`). |
+| `promote` | Switch to `promote_model` (default `your-model-id`). |
 | `escalate` | Recommend user invoke `/max` for parallel attempts. |
 | `surface` | Give up — tell the user what failed and why. |
 

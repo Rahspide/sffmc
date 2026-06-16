@@ -70,21 +70,23 @@ All multi-registrations are intentional. OpenCode runs them in plugin load order
 
 ## External plugin overlap check
 
-| Hook | External registrants | Conflict? |
+This section documents how SFFMC plugins interact with the standard OpenCode plugin ecosystem. Specific third-party plugin names are out of scope for public docs; consult the maintainer runbook for details.
+
+| Hook | SFFMC-only? | Conflict? |
 |---|---|---|
-| `config` | rtk, workspace-folder, icm, fix-max-listeners, db-optimizer, all wrappers, oh-my-opencode-slim, dcp-upstream, dcp-strip-malformed, strip-disabled-agents, strip-sandbox-extras | ✓ expected — all do independent init |
-| `event` | icm, oh-my-opencode-slim | ✓ expected |
-| `tool.execute.before` | icm, ref-tools, slim | (no functional conflict — different roles) |
-| `tool.execute.after` | rtk, slim, dcp | (output transforms — order matters, currently external first) |
-| `experimental.chat.system.transform` | slim, dcp | (additive with SFFMC) |
-| `experimental.text.complete` | dcp-strip-malformed | ⚠ runs AFTER eos-stripper+log-whitelist — risk: DCP strips more after our filters. Not a bug today. |
+| `config` | yes | ✓ all init is independent |
+| `event` | yes | ✓ expected |
+| `tool.execute.before` | yes | (no functional conflict — different roles) |
+| `tool.execute.after` | yes | (output transforms — order matters) |
+| `experimental.chat.system.transform` | yes | (additive with SFFMC) |
+| `experimental.text.complete` | yes | ⚠ order-sensitive — eos-stripper+log-whitelist must run before any output-pruning transforms. Not a bug today. |
 
 ## Cross-stack load order
 
-External plugins load FIRST (slots 1-12 + 22), then SFFMC (13-21). This means:
-- Slim, DCP, rtk, icm, wrappers all initialize before SFFMC plugins
-- SFFMC plugins can rely on slim's agent system, DCP's pruning, rtk's output processing being available
-- No "race condition" where SFFMC plugin runs before a dependency
+SFFMC plugins load in a deterministic order (composites first, then sub-features). This means:
+- Composite packages (`@sffmc/safety`, `@sffmc/memory`, `@sffmc/agentic`) register their composed hooks before any individual sub-feature re-registers.
+- Sub-features can rely on shared SDK (config loading, event bus) being available.
+- No "race condition" where a SFFMC plugin runs before a dependency.
 
 ## Findings: zero blocking issues
 

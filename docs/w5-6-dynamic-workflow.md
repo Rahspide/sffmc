@@ -288,9 +288,9 @@ Workflow does NOT have direct access to MCP servers. Instead,
 use `agent()` with `tools` specified:
 
 ```ts
-// Search via 9router (works inside agent)
+// Search via your LLM-backed search tool (works inside agent)
 const hits = await agent("search: Rust web frameworks", {
-  tools: ["bash"],  // agent can call bash, and bash — curl to 9router
+  tools: ["bash"],  // agent can call bash, and bash — curl to your search endpoint
 })
 
 // Or directly via external tool if registered
@@ -421,7 +421,7 @@ What we changed and why:
    After restarting OpenCode, `resume` must be called explicitly. No
    automatic resume (W7).
 2. **No direct MCP** — agent() cannot directly call MCP servers.
-   Only via `tools: ["bash"]` and curl to 9router (W7).
+   Only via `tools: ["bash"]` and curl to your search endpoint (W7).
 3. **No streaming** — workflow result is only visible after completion.
    Cannot observe progress in real time (W7).
 4. **QuickJS performance** — JSON marshalling between host and guest costs
