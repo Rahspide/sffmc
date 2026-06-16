@@ -9,7 +9,7 @@ import { dirname, resolve } from "node:path";
 import { homedir } from "node:os"
 import { createLogger } from "@sffmc/shared";
 
-const log = createLogger("extra");;
+const log = createLogger("extra-dream");
 
 // ---------------------------------------------------------------------------
 // Types

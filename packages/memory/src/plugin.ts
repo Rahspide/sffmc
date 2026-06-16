@@ -11,7 +11,7 @@
 import { init, topByImportance, type MemoryDB } from "./memory"
 import { buildRecon, parseAgentsMd, tailFromMessages } from "./recon"
 import { startWatcher } from "./watcher"
-import { loadConfig, type PluginContext } from "@sffmc/shared"
+import { loadConfig, type PluginContext } from "@sffmc/shared";
 import { readFileSync, existsSync, mkdirSync } from "fs"
 import { resolve, dirname } from "path"
 import { homedir } from "node:os"

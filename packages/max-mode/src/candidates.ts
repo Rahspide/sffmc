@@ -1,4 +1,4 @@
-import { type RichPluginContext } from "@sffmc/shared"
+import { type RichPluginContext } from "@sffmc/shared";
 import { type SchemaOnlyTool } from "./types"
 
 export interface ToolCall {

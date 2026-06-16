@@ -35,7 +35,7 @@ import {
 } from "./types.ts"
 import { getBuiltin, loadBuiltin } from "./builtin-registry.ts"
 import { cpus } from "node:os"
-import { type RichPluginContext, createLogger } from "@sffmc/shared"
+import { type RichPluginContext, createLogger } from "@sffmc/shared";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -533,70 +533,81 @@ export class WorkflowRuntime {
       entry.agentCountTotal++
       this.scheduleFlush(entry)
 
-      let reason: AgentFailureReason = AFR.ActorError
-      try {
-        const result = await this.callLLM(entry, promptStr, o)
+      return this.executeAgentCall(entry, promptStr, o, key)
+    })
+  }
 
-        // Track tokens
-        const tokens = result.info?.tokens
-        const totalTokens = (tokens?.input ?? 0) + (tokens?.output ?? 0)
-        entry.tokensUsed += totalTokens
+  /** Internal: call LLM and process the result (extracted from spawnAgent to
+   *  keep the semaphore/cap-check flow and the LLM execution as separate concerns). */
+  private async executeAgentCall(
+    entry: InternalRunEntry,
+    promptStr: string,
+    o: AgentOptions,
+    key: string,
+  ): Promise<AgentResult | null> {
+    let reason: AgentFailureReason = AFR.ActorError
+    try {
+      const result = await this.callLLM(entry, promptStr, o)
 
-        // Check token cap
-        if (entry.tokensUsed >= entry.cfg.maxTokens) {
-          this.events.emit("workflow:step_checkpoint", {
-            runID: entry.runID,
-            stepIndex: entry.succeeded + entry.failed,
-            costTokens: totalTokens,
-          })
-          this.events.emit("workflow:finished", {
-            runID: entry.runID,
-            status: "budget_exceeded",
-            error: `Token cap ${entry.cfg.maxTokens} exceeded`,
-          })
-          this.publishAgentFailed(entry.runID, key, AFR.OverCap)
-          entry.running--
-          entry.failed++
-          this.scheduleFlush(entry)
-          return null
-        }
+      // Track tokens
+      const tokens = result.info?.tokens
+      const totalTokens = (tokens?.input ?? 0) + (tokens?.output ?? 0)
+      entry.tokensUsed += totalTokens
 
-        // Extract deliverable
-        const deliverable = o.schema
-          ? (result.structured ?? null)
-          : (result.structured ?? result.finalText ?? null)
-
-        if (deliverable === null) {
-          reason = AFR.NoDeliverable
-          entry.running--
-          entry.failed++
-          this.publishAgentFailed(entry.runID, key, reason)
-          this.scheduleFlush(entry)
-          return null
-        }
-
-        entry.running--
-        entry.succeeded++
-        this.scheduleFlush(entry)
-
-        // Journal successful result
-        this.persistence.appendJournalSync(entry.runID, {
-          t: "agent",
-          key,
-          result: deliverable,
-          pass: entry.journalPass,
+      // Check token cap
+      if (entry.tokensUsed >= entry.cfg.maxTokens) {
+        this.events.emit("workflow:step_checkpoint", {
+          runID: entry.runID,
+          stepIndex: entry.succeeded + entry.failed,
+          costTokens: totalTokens,
         })
+        this.events.emit("workflow:finished", {
+          runID: entry.runID,
+          status: "budget_exceeded",
+          error: `Token cap ${entry.cfg.maxTokens} exceeded`,
+        })
+        this.publishAgentFailed(entry.runID, key, AFR.OverCap)
+        entry.running--
+        entry.failed++
+        this.scheduleFlush(entry)
+        return null
+      }
 
-        return deliverable as AgentResult
-      } catch (e) {
-        reason = AFR.SpawnReject
+      // Extract deliverable
+      const deliverable = o.schema
+        ? (result.structured ?? null)
+        : (result.structured ?? result.finalText ?? null)
+
+      if (deliverable === null) {
+        reason = AFR.NoDeliverable
         entry.running--
         entry.failed++
         this.publishAgentFailed(entry.runID, key, reason)
         this.scheduleFlush(entry)
         return null
       }
-    })
+
+      entry.running--
+      entry.succeeded++
+      this.scheduleFlush(entry)
+
+      // Journal successful result
+      this.persistence.appendJournalSync(entry.runID, {
+        t: "agent",
+        key,
+        result: deliverable,
+        pass: entry.journalPass,
+      })
+
+      return deliverable as AgentResult
+    } catch (e) {
+      reason = AFR.SpawnReject
+      entry.running--
+      entry.failed++
+      this.publishAgentFailed(entry.runID, key, reason)
+      this.scheduleFlush(entry)
+      return null
+    }
   }
 
   /** parallel(thunks) — Promise.all wrapper. Handled by sandbox PRELUDE, but

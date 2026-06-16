@@ -2,7 +2,7 @@
 // @sffmc/workflow — see ../../LICENSE
 
 import type { AgentFailureReason, WorkflowStatus } from "./types.ts"
-import { createLogger } from "@sffmc/shared"
+import { createLogger } from "@sffmc/shared";
 
 const log = createLogger("workflow")
 

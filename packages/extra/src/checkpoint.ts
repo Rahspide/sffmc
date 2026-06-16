@@ -335,6 +335,136 @@ function reconstructMessages(
 const RESTORE_MARKER = /<!--\s*EXTRA_RESTORE:\s*(\S+)\s*-->/;
 
 // ---------------------------------------------------------------------------
+// Action handlers extracted from createCheckpointTool for readability
+// ---------------------------------------------------------------------------
+
+/** Execute the "restore" action — pure logic, no side effects beyond disk I/O. */
+function _executeRestoreAction(sessionID: string | undefined, dir: string): unknown {
+  if (!sessionID) {
+    return { ok: false, error: "sessionID is required for restore" };
+  }
+
+  const header = readHeader(sessionID, dir);
+  if (!header) {
+    return { ok: false, error: "checkpoint not found" };
+  }
+
+  if (header.version > CURRENT_VERSION) {
+    return {
+      ok: false,
+      error: `unknown checkpoint version: ${header.version} (current: ${CURRENT_VERSION})`,
+    };
+  }
+
+  if (header.version < CURRENT_VERSION) {
+    // Older schema — apply migrations (currently no-op since v1 == current)
+    console.log(
+      `[extra] checkpoint: migrating v${header.version} → v${CURRENT_VERSION}`,
+    );
+    // Migration runs but does not mutate the on-disk file —
+    // the file is rewritten on next flush via writeHeader.
+  }
+
+  const calls = readToolCalls(sessionID, dir);
+  const messages = reconstructMessages(calls);
+
+  return {
+    ok: true,
+    sessionID: header.sessionID,
+    version: header.version,
+    toolCallCount: calls.length,
+    messages,
+  };
+}
+
+/** Create the tool.execute.after hook that buffers tool calls. */
+function _createToolExecuteAfterHook(
+  state: CheckpointBufferState,
+): (
+  toolCtx: { tool: string; sessionID: string; callID: string },
+  result: { output?: unknown; title?: string; metadata?: unknown },
+) => Promise<void> {
+  return async (toolCtx, result) => {
+    const call: ToolCall = {
+      tool: toolCtx.tool,
+      args: (result.metadata as Record<string, unknown>)?.args ?? {},
+      result: result.output,
+      timestamp: Date.now(),
+      callID: toolCtx.callID,
+    };
+
+    const buf = _getOrCreateBuffer(state, toolCtx.sessionID);
+    buf.push(call);
+
+    if (buf.length >= FLUSH_THRESHOLD) {
+      _flushSession(state, toolCtx.sessionID);
+    }
+  };
+}
+
+/** Create the experimental.chat.messages.transform hook for auto-restore. */
+function _createAutoRestoreHook(
+  dir: string,
+): (
+  _input: unknown,
+  data: {
+    messages: Array<{ role: string; content: string; [key: string]: unknown }>;
+  },
+) => Promise<void> {
+  return async (_input, data) => {
+    for (let i = 0; i < data.messages.length; i++) {
+      const msg = data.messages[i];
+      if (typeof msg.content !== "string") continue;
+
+      const match = msg.content.match(RESTORE_MARKER);
+      if (match) {
+        const sessionID = match[1];
+        console.log(
+          `[extra] checkpoint auto-restore: loading session ${sessionID}`,
+        );
+
+        const header = readHeader(sessionID, dir);
+        if (!header) {
+          console.warn(
+            `[extra] checkpoint auto-restore: session ${sessionID} not found`,
+          );
+          msg.content = msg.content.replace(RESTORE_MARKER, "").trim();
+          continue;
+        }
+
+        if (header.version > CURRENT_VERSION) {
+          console.warn(
+            `[extra] checkpoint auto-restore: session ${sessionID} has future version ${header.version} (current: ${CURRENT_VERSION})`,
+          );
+          msg.content = msg.content.replace(RESTORE_MARKER, "").trim();
+          continue;
+        }
+
+        if (header.version < CURRENT_VERSION) {
+          console.log(
+            `[extra] checkpoint auto-restore: migrating v${header.version} → v${CURRENT_VERSION}`,
+          );
+        }
+
+        const calls = readToolCalls(sessionID, dir);
+        const restored = reconstructMessages(calls);
+
+        msg.content = msg.content.replace(RESTORE_MARKER, "").trim();
+
+        if (msg.content === "") {
+          data.messages.splice(i, 1, ...restored);
+        } else {
+          data.messages.splice(i + 1, 0, ...restored);
+        }
+
+        break;
+      }
+    }
+    return data;
+  };
+}
+
+// ---------------------------------------------------------------------------
 // createCheckpointTool — returns { tool, hooks }
 // ---------------------------------------------------------------------------
 
@@ -410,41 +540,7 @@ Auto-restore: inject <!-- EXTRA_RESTORE: <sessionID> --> in a message to auto-lo
         }
 
         case "restore": {
-          if (!sessionID) {
-            return { ok: false, error: "sessionID is required for restore" };
-          }
-
-          const header = readHeader(sessionID, dir);
-          if (!header) {
-            return { ok: false, error: "checkpoint not found" };
-          }
-
-          if (header.version > CURRENT_VERSION) {
-            return {
-              ok: false,
-              error: `unknown checkpoint version: ${header.version} (current: ${CURRENT_VERSION})`,
-            };
-          }
-
-          if (header.version < CURRENT_VERSION) {
-            // Older schema — apply migrations (currently no-op since v1 == current)
-            console.log(
-              `[extra] checkpoint: migrating v${header.version} → v${CURRENT_VERSION}`,
-            );
-            // Migration runs but does not mutate the on-disk file —
-            // the file is rewritten on next flush via writeHeader.
-          }
-
-          const calls = readToolCalls(sessionID, dir);
-          const messages = reconstructMessages(calls);
-
-          return {
-            ok: true,
-            sessionID: header.sessionID,
-            version: header.version,
-            toolCallCount: calls.length,
-            messages,
-          };
+          return _executeRestoreAction(sessionID, dir);
         }
 
         default:
@@ -458,82 +554,9 @@ Auto-restore: inject <!-- EXTRA_RESTORE: <sessionID> --> in a message to auto-lo
   const hooks: CheckpointHooks = {};
 
   if (config.enabled) {
-    hooks["tool.execute.after"] = async (
-      toolCtx: { tool: string; sessionID: string; callID: string },
-      result: { output?: unknown; title?: string; metadata?: unknown },
-    ) => {
-      const call: ToolCall = {
-        tool: toolCtx.tool,
-        args: (result.metadata as Record<string, unknown>)?.args ?? {},
-        result: result.output,
-        timestamp: Date.now(),
-        callID: toolCtx.callID,
-      };
+    hooks["tool.execute.after"] = _createToolExecuteAfterHook(state);
 
-      const buf = _getOrCreateBuffer(state, toolCtx.sessionID);
-      buf.push(call);
-
-      if (buf.length >= FLUSH_THRESHOLD) {
-        _flushSession(state, toolCtx.sessionID);
-      }
-    };
-
-    hooks["experimental.chat.messages.transform"] = async (
-      _input: unknown,
-      data: {
-        messages: Array<{ role: string; content: string; [key: string]: unknown }>;
-      },
-    ) => {
-      for (let i = 0; i < data.messages.length; i++) {
-        const msg = data.messages[i];
-        if (typeof msg.content !== "string") continue;
-
-        const match = msg.content.match(RESTORE_MARKER);
-        if (match) {
-          const sessionID = match[1];
-          console.log(
-            `[extra] checkpoint auto-restore: loading session ${sessionID}`,
-          );
-
-          const header = readHeader(sessionID, dir);
-          if (!header) {
-            console.warn(
-              `[extra] checkpoint auto-restore: session ${sessionID} not found`,
-            );
-            msg.content = msg.content.replace(RESTORE_MARKER, "").trim();
-            continue;
-          }
-
-          if (header.version > CURRENT_VERSION) {
-            console.warn(
-              `[extra] checkpoint auto-restore: session ${sessionID} has future version ${header.version} (current: ${CURRENT_VERSION})`,
-            );
-            msg.content = msg.content.replace(RESTORE_MARKER, "").trim();
-            continue;
-          }
-
-          if (header.version < CURRENT_VERSION) {
-            console.log(
-              `[extra] checkpoint auto-restore: migrating v${header.version} → v${CURRENT_VERSION}`,
-            );
-          }
-
-          const calls = readToolCalls(sessionID, dir);
-          const restored = reconstructMessages(calls);
-
-          msg.content = msg.content.replace(RESTORE_MARKER, "").trim();
-
-          if (msg.content === "") {
-            data.messages.splice(i, 1, ...restored);
-          } else {
-            data.messages.splice(i + 1, 0, ...restored);
-          }
-
-          break;
-        }
-      }
-      return data;
-    };
+    hooks["experimental.chat.messages.transform"] = _createAutoRestoreHook(dir);
 
     _startFlushTimer(state);
   }

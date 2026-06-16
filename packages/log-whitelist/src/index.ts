@@ -1,7 +1,7 @@
 import { filterLines } from "./filter";
-import { loadConfig, type PluginContext, createLogger } from "@sffmc/shared"
+import { loadConfig, type PluginContext, createLogger } from "@sffmc/shared";
 
-const log = createLogger("log-whitelist");;
+const log = createLogger("log-whitelist");
 
 interface LogWhitelistConfig {
   whitelist: string[];

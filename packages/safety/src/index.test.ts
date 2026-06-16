@@ -3,7 +3,7 @@
 
 import { describe, test, expect } from "bun:test"
 import safety, { id, server } from "./index.ts"
-import type { PluginContext } from "@sffmc/shared"
+import type { PluginContext } from "@sffmc/shared";
 
 describe("@sffmc/safety", () => {
   const ctx = {} as PluginContext

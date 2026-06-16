@@ -6,7 +6,7 @@
 
 import { server as memoryServer } from "./plugin.ts"
 import { checkpointServer, judgeServer, dreamServer } from "../../extra/src/index.ts"
-import { mergeHooks, type PluginContext, type PluginServer } from "@sffmc/shared"
+import { mergeHooks, type PluginContext, type PluginServer } from "@sffmc/shared";
 
 export const id = "@sffmc/memory"
 

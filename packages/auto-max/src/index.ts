@@ -7,9 +7,9 @@ import {
   resetSession,
   type AutoMaxConfig,
 } from "./coordinator";
-import { extractErrorType, isToolError, MAX_COMMAND, MAX_SUBCOMMANDS, MAX_PATTERN, loadConfig, type PluginContext, createLogger } from "@sffmc/shared"
+import { extractErrorType, isToolError, MAX_COMMAND, MAX_PATTERN, loadConfig, type PluginContext, createLogger } from "@sffmc/shared";
 
-const log = createLogger("auto-max");;
+const log = createLogger("auto-max");
 
 const defaultConfig: AutoMaxConfig = {
   enabled: true,
@@ -133,10 +133,8 @@ export const server = async (_ctx: PluginContext) => {
         });
 
         log.warn(
-          `TRIGGERED: ${tool}:${errorType} failed ${config.watchdog_threshold}x in session ${sessionID}`,
-        );
-        log.warn(
-          `Activating Max Mode — generating ${config.max_mode_config.n} candidates`,
+          `TRIGGERED: ${tool}:${errorType} failed ${config.watchdog_threshold}x in session ${sessionID}\n` +
+          `→ Activating Max Mode, generating ${config.max_mode_config.n} candidates`,
         );
 
         // Store trigger info in ctx for max-mode to pick up

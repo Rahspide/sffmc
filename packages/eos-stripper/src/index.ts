@@ -1,7 +1,7 @@
 import { stripEos, looksLikeEosOnly, DEFAULT_EOS_PATTERNS } from "./patterns";
-import { loadConfig, type PluginContext, createLogger } from "@sffmc/shared"
+import { loadConfig, type PluginContext, createLogger } from "@sffmc/shared";
 
-const log = createLogger("eos-stripper");;
+const log = createLogger("eos-stripper");
 
 interface EosConfig {
   patterns: string[];

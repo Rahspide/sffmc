@@ -1,9 +1,9 @@
 import { FailureCounter } from "./counter";
 import { buildPromotionFragment } from "./promote";
 import { buildRecoveryVerdict } from "./verdict";
-import { extractErrorType, isToolError, MAX_COMMAND, MAX_SUBCOMMANDS, MAX_PATTERN, loadConfig, type PluginContext, createLogger } from "@sffmc/shared"
+import { extractErrorType, isToolError, MAX_COMMAND, MAX_PATTERN, loadConfig, type PluginContext, createLogger } from "@sffmc/shared";
 
-const log = createLogger("watchdog");;
+const log = createLogger("watchdog");
 
 interface WatchdogConfig {
   threshold: number;
