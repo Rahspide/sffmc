@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/workflow — see ../../LICENSE
 
-import { describe, test, expect, beforeAll, afterAll } from "bun:test"
+import { describe, test, expect, afterAll } from "bun:test"
 import { WorkflowRuntime } from "../src/runtime"
 import type { PluginContext } from "../src/types"
-import { setJail } from "../src/workspace"
 import { tmpdir } from "node:os"
 import { mkdtempSync, rmSync } from "node:fs"
 import path from "node:path"
@@ -34,10 +33,6 @@ const mockCtx: PluginContext = {
     },
   },
 }
-
-beforeAll(() => {
-  setJail(tmpDir)
-})
 
 afterAll(() => {
   rmSync(tmpDir, { recursive: true, force: true })

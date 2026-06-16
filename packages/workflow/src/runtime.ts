@@ -15,7 +15,7 @@ import {
   resolveWorkflow,
   isInlineScript,
 } from "./resolve.ts"
-import { setJail, resolveInWorkspace, readFile_ as wsReadFile, writeFile_ as wsWriteFile, exists as wsExists, glob as wsGlob } from "./workspace.ts"
+import { WorkspaceJail } from "./workspace.ts"
 import { runSandboxed, type SandboxPrimitives } from "./sandbox"
 import type {
   AgentOptions,
@@ -230,7 +230,7 @@ export class WorkflowRuntime {
 
     // Resolve workspace
     const workspace = input.workspace ?? process.cwd()
-    setJail(workspace)
+    const jail = new WorkspaceJail(workspace)
 
     // Create deferred outcome
     let resolveOutcome!: (outcome: WorkflowOutcome) => void
@@ -264,7 +264,7 @@ export class WorkflowRuntime {
     this.runs.set(runID, entry)
 
     // Launch async — sandbox never throws, but defensively handle rejections
-    this.launchScript(entry, script, parsed.meta.name, input.args).then((result) => {
+    this.launchScript(entry, script, parsed.meta.name, input.args, jail).then((result) => {
       if (result === null) {
         this.failRun(entry, "Sandbox execution failed")
       } else {
@@ -452,7 +452,7 @@ export class WorkflowRuntime {
 
       this.events.emit("workflow:started", { runID: input.runID, name })
 
-      this.launchScript(entry, script, name, row.args).then((result) => {
+      this.launchScript(entry, script, name, row.args, new WorkspaceJail(process.cwd())).then((result) => {
         if (result === null) {
           this.failRun(entry, "Sandbox execution failed")
         } else {
@@ -466,6 +466,28 @@ export class WorkflowRuntime {
     } finally {
       lock.release()
     }
+  }
+
+  /** Shut down the runtime: cancel all running workflows, clear listeners,
+   *  flush timers, and close the persistence database. Safe to call multiple
+   *  times. */
+  close(): void {
+    // Cancel all running workflows
+    for (const [, entry] of this.runs) {
+      if (entry.status === "running") {
+        entry.controller.abort()
+        entry.status = "cancelled"
+      }
+    }
+    // Clear event listeners
+    this.events.clearAll()
+    // Clear flush timers
+    for (const [, t] of this.flushTimers) {
+      clearTimeout(t)
+    }
+    this.flushTimers.clear()
+    // Close persistence (DB connection)
+    this.persistence.close()
   }
 
   /** Recover orphaned workflows on startup. */
@@ -509,7 +531,7 @@ export class WorkflowRuntime {
 
   // ── Private: launch ────────────────────────────────────────────────────
 
-  private async launchScript(entry: InternalRunEntry, script: string, name: string, args: unknown): Promise<unknown> {
+  private async launchScript(entry: InternalRunEntry, script: string, name: string, args: unknown, jail: WorkspaceJail): Promise<unknown> {
     const parsed = parseMeta(script)
     const body = parsed.ok ? parsed.body : script
 
@@ -517,7 +539,7 @@ export class WorkflowRuntime {
     const occ = new Map<string, number>()
     const workflowOcc = new Map<string, number>()
 
-    // Build primitives — each closure captures `entry` and counters
+    // Build primitives — each closure captures `entry`, counters, and the jail
     const primitives: SandboxPrimitives = {
       agent: (task: string, agentOpts?: Record<string, unknown>) =>
         this.spawnAgent(entry, task, agentOpts as AgentOptions | undefined, occ),
@@ -528,10 +550,10 @@ export class WorkflowRuntime {
         this.spawnChildWorkflow(entry, nameOrScript, childArgs, workflowOcc),
       phase: (title: string) => this.setPhase(entry, title),
       log: (msg: string) => this.appendLog(entry, msg),
-      readFile: (path: string) => this.workspaceReadFile(path),
-      writeFile: (path: string, content: string) => this.workspaceWriteFile(path, content),
-      glob: (pattern: string) => this.workspaceGlob(pattern),
-      exists: (path: string) => this.workspaceExists(path),
+      readFile: (path: string) => jail.readFile(path),
+      writeFile: (path: string, content: string) => jail.writeFile(path, content),
+      glob: (pattern: string) => jail.glob(pattern),
+      exists: (path: string) => jail.exists(path),
       args,
     }
 
@@ -809,26 +831,6 @@ export class WorkflowRuntime {
     this.events.emit("workflow:log", { runID: entry.runID, message: msg })
   }
 
-  /** readFile(path) — read from the jailed workspace. */
-  private async workspaceReadFile(path: string): Promise<string | null> {
-    return wsReadFile(path)
-  }
-
-  /** writeFile(path, content) — write into the jailed workspace. */
-  private async workspaceWriteFile(path: string, content: string): Promise<void> {
-    return wsWriteFile(path, content)
-  }
-
-  /** glob(pattern) — glob inside the jailed workspace. */
-  private async workspaceGlob(pattern: string): Promise<string[]> {
-    return wsGlob(pattern)
-  }
-
-  /** exists(path) — check existence inside the jailed workspace. */
-  private async workspaceExists(path: string): Promise<boolean> {
-    return wsExists(path)
-  }
-
   // ── Private: LLM call ──────────────────────────────────────────────────
 
   private async callLLM(
@@ -909,7 +911,7 @@ export class WorkflowRuntime {
 
     this.events.emit("workflow:started", { runID, name })
 
-    this.launchScript(entry, script, name, args).then((result) => {
+    this.launchScript(entry, script, name, args, new WorkspaceJail(process.cwd())).then((result) => {
       if (result === null) {
         this.failRun(entry, "Sandbox execution failed")
       } else {

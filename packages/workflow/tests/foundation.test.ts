@@ -26,12 +26,7 @@ import {
 } from "../src/persistence.ts"
 
 import {
-  setJail,
-  resolveInWorkspace,
-  readFile_,
-  writeFile_,
-  exists,
-  glob,
+  WorkspaceJail,
 } from "../src/workspace.ts"
 
 import {
@@ -248,9 +243,9 @@ describe("persistence.ts", () => {
 
 describe("workspace.ts", () => {
   const ws = mkdtempSync(path.join(tmpdir(), "ws-"))
+  const jail = new WorkspaceJail(ws)
 
   beforeAll(() => {
-    setJail(ws)
     writeFileSync(path.join(ws, "readme.md"), "# Hello")
     mkdirSync(path.join(ws, "subdir"), { recursive: true })
     writeFileSync(path.join(ws, "subdir", "nested.txt"), "nested")
@@ -261,55 +256,48 @@ describe("workspace.ts", () => {
   })
 
   test("readFile returns content", async () => {
-    const content = await readFile_("readme.md")
+    const content = await jail.readFile("readme.md")
     expect(content).toBe("# Hello")
   })
 
   test("readFile returns null for missing file", async () => {
-    const content = await readFile_("no-such-file.txt")
+    const content = await jail.readFile("no-such-file.txt")
     expect(content).toBeNull()
   })
 
   test("writeFile creates file and parent dirs", async () => {
-    await writeFile_("newdir/out.txt", "created")
-    const content = await readFile_("newdir/out.txt")
+    await jail.writeFile("newdir/out.txt", "created")
+    const content = await jail.readFile("newdir/out.txt")
     expect(content).toBe("created")
   })
 
   test("exists returns true for existing path", async () => {
-    expect(await exists("readme.md")).toBe(true)
+    expect(await jail.exists("readme.md")).toBe(true)
   })
 
   test("exists returns false for missing path", async () => {
-    expect(await exists("ghost.md")).toBe(false)
+    expect(await jail.exists("ghost.md")).toBe(false)
   })
 
   test("glob returns sorted matches", async () => {
-    const files = await glob("*.md")
+    const files = await jail.glob("*.md")
     expect(files).toContain("readme.md")
     expect(files[0] <= files[files.length - 1]).toBe(true) // sorted
   })
 
   test("glob filters escapes", async () => {
-    const files = await glob("../*.ts")
+    const files = await jail.glob("../*.ts")
     expect(files.length).toBe(0)
   })
 
   test("resolveInWorkspace throws on jail escape", () => {
-    expect(() => resolveInWorkspace("../outside")).toThrow("Jail escape")
-    expect(() => resolveInWorkspace("/etc/passwd")).toThrow("Jail escape")
+    expect(() => jail.resolveInWorkspace("../outside")).toThrow("Jail escape")
+    expect(() => jail.resolveInWorkspace("/etc/passwd")).toThrow("Jail escape")
   })
 
   test("resolveInWorkspace allows valid paths", () => {
-    const resolved = resolveInWorkspace("readme.md")
+    const resolved = jail.resolveInWorkspace("readme.md")
     expect(resolved).toBe(path.resolve(ws, "readme.md"))
-  })
-
-  test("setJail without call throws on resolve", () => {
-    // Note: we already called setJail in beforeAll, so this tests with jail set.
-    // To test unset, we'd need a separate describe block.
-    // Skip — jail is set from beforeAll.
-    expect(true).toBe(true) // placeholder
   })
 })
 
@@ -482,10 +470,6 @@ describe("meta.ts", () => {
 
 describe("resolve.ts", () => {
   const ws2 = mkdtempSync(path.join(tmpdir(), "ws-resolve-"))
-
-  beforeAll(() => {
-    setJail(ws2)
-  })
 
   afterAll(() => {
     rmSync(ws2, { recursive: true, force: true })
