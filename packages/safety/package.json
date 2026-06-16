@@ -1,6 +1,6 @@
 {
   "name": "@sffmc/safety",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "type": "module",
   "main": "src/index.ts",
   "dependencies": {

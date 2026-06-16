@@ -1,5 +1,39 @@
 # SFFMC Changelog
 
+## v0.10.1 (2026-06-16)
+
+Post-v0.10.0 cleanup: simplify refactor (6 runtime.ts + 1 builtin-registry) + 27 new unit tests for the refactored helpers. **No API changes** — all simplify work preserves v0.10.0 BREAKING interface.
+
+### Refactor
+
+- **builtin-registry**: Collapse 7 repeated loader functions into a single `makeLoader<T>()` helper. Use `Record<string, Loader>` + `Object.create(null)` + `Object.entries` map iteration. Net: 90→67 lines.
+- **workflow runtime** (6 simplifications, reviewed by council):
+  - `resolveConfig(perStepTimeoutMsOverride?: number)` — DRY start() and resume() config block. **Modified per council**: resume() passes `input.agentTimeoutMs ?? row.agentTimeoutMs ?? undefined` (2 intermediate sources) while start() passes `undefined`.
+  - `settleEntry` — DRY 3 byte-identical `.then().catch()` blocks (was `launchAndSettle` per council name correction).
+  - **Dead code removal #1**: `writeFile(_script.js)` block in start() (no consumer) + `mkdir` import → only `readFile` remains.
+  - **Dead code removal #2**: vestigial `if (deliverable !== null)` in spawnAgent. **Council note**: do NOT generalize to `spawnChildWorkflow` (line 801) — `childOutcome.result ?? null` is legitimately null.
+  - `makeEntry(opts)` — DRY triplicated 20-field `InternalRunEntry` construction (start, resume, startChildWorkflow). **Side benefit**: `Date.now()` called once instead of twice (1-2ms drift fix).
+  - `outcomeFor(entry, status, extras?)` — DRY triplicated 6-field `WorkflowOutcome` construction (cancel, completeRun, failRun).
+
+### Tests
+
+- **27 new unit tests** for the 5 refactor helpers in `packages/workflow/tests/`:
+  - `makeEntry` (6 tests) — counter initialization, field population, Date.now() single-call
+  - `outcomeFor` (4 tests) — status mapping, result/error extras, edge cases
+  - `resolveConfig` (6 tests) — DEFAULT precedence, start() vs resume() override paths
+  - `settleEntry` (4 tests) — settlement timing, error propagation
+  - `makeLoader` (7 tests) — loader creation, registry iteration, Object.create(null) prototype
+- **Bug fix**: `PluginContext` import path in `integration.test.ts` (`../src/types` → `../src/runtime`).
+- **Test helpers added**: `makeSlowMockCtx()` (slow-start agents) + `makeCountingMockCtx()` (call-counter).
+
+### Stats
+
+- 5 commits since v0.10.0 (`8745434` → `032c3b0`): `2bd41a1` (atlas) + `74d3273` (codemap cleanup) + `f3c3399` (builtin-reg) + `3b027ce` (runtime) + `032c3b0` (tests)
+- 2 files refactored, +98/-192 = **−94 LOC net**
+- Workflow tests: 91/91 → **102/102 (+27)**, 286 → 454 expect() calls (+197)
+- Full suite: 483/483 → **510/510** pass
+- A2 (33× makeMockCtx+new WorkflowRuntime test refactor) **deferred** — apply as follow-up
+
 ## v0.10.0 (2026-06-16)
 
 ### Refactor (BREAKING)
