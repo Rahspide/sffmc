@@ -1,5 +1,27 @@
 # SFFMC Changelog
 
+## v0.11.1 (2026-06-17)
+
+Post-v0.11.0 cleanup: 4 deferred refactors from council v0.11.0 backlog. **No API changes.**
+
+### Refactor
+
+- **A2 — test utilities** (workflow): NEW `packages/workflow/tests/test-utils.ts` with `makeMockCtx`, `makeSlowMockCtx`, `makeCountingMockCtx`, `makeRuntimeWithMockCtx`. Refactored 24 call sites in `integration.test.ts`. **−73 LOC** in test code.
+- **R2 — path canonicalization** (SFFMC → sffmc): NEW `shared/src/paths.ts` with `SFFMC_DATA_HOME`, `SFFMC_CONFIG_HOME` constants and `migrateLegacyDataPaths()` auto-rename on first `loadConfig()`. 11 files updated (7 source + 4 docs/README).
+- **R6 — shared logger**: NEW `shared/src/logger.ts` with `Logger` interface + `createLogger(prefix)`. Replaced **40+ `console.warn`/`console.log`** calls in 8 packages (auto-max, eos-stripper, extra, log-whitelist, max-mode, safety/test, watchdog, workflow).
+- **R10 — composite workspace imports**: safety/agentic/memory composites use `@sffmc/<name>` instead of `../../<pkg>/src/index.ts` relative paths. 10 imports changed, 3 `workspace:*` deps added to composite package.jsons.
+
+### Stats
+
+- 18 files modified + 3 new (logger.ts, paths.ts, test-utils.ts)
+- 18 files changed, +142/-70
+- Pre-commit 4/4 gates pass, 534/534 tests pass
+- DLC progress: composites now use Bun workspace resolution (not relative paths)
+- Path migration: auto-renames `~/.local/share/SFFMC` → `~/.local/share/sffmc` and `~/.config/SFFMC` → `~/.config/sffmc` on next plugin load (one-shot, idempotent)
+
+### Note
+3-way conflict on `shared/src/index.ts` during parallel fixers (fix-7 paths, fix-8 logger, fix-9 logger) — resolved manually by adding both export blocks after reconciliation.
+
 ## v0.11.0 (2026-06-16)
 
 DLC lattice completion: max-mode + workflow onboarded into `@sffmc/shared`, 5 module-level singletons eliminated, ESM-only imports, plus 2 correctness bug fixes. **No API changes** for the public `@sffmc/workflow` surface (v0.10.0 BREAKING interface preserved).
