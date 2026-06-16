@@ -15,7 +15,7 @@ For hard problems, generates N candidate responses in parallel at high temperatu
 This plugin is loaded by the SFFMC monorepo's sandbox config. To use standalone:
 
 ```ts
-// ~/.config/opencode-sandbox/opencode.json
+// ~/.config/opencode/opencode.json
 {
   "plugin": [
     "file:///data/projects/SFFMC/packages/max-mode/src/index.ts"

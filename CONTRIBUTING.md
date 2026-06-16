@@ -80,30 +80,21 @@ python3 scripts/audit-load-order.py
 
 ### Pre-commit hook
 
-`.git/hooks/pre-commit` runs automatically before every commit:
+Install: `cp scripts/pre-commit-hook.sh .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit`
+
+The hook runs automatically before every commit:
 1. `bun test` (must pass)
 2. `bun run typecheck` (must pass)
 3. `python3 scripts/audit-load-order.py` (must show 0 conflicts)
 
 Bypass with `git commit --no-verify` (use sparingly — CI will catch it later if remote is set up).
 
-## Sandbox workflow
+## Testing plugin changes locally
 
-SFFMC is developed on the `opencode-sandbox` instance (port `:4200`) so you can restart freely without killing your prod session.
-
-```bash
-# Edit a plugin
-$EDITOR packages/memory/src/index.ts
-
-# Restart sandbox to pick up changes
-sudo systemctl restart opencode-sandbox.service
-
-# Tail the opencode log
-tail -f /home/opencode/.opencode-staging/opencode-bundle-patch-sandbox/logs/opencode-*.log
-
-# Verify the plugin loaded (no errors in journal)
-journalctl -u opencode-sandbox.service --no-pager --since "1 minute ago" | grep -iE "error|fail|warn"
-```
+1. Edit your plugin files under `packages/<plugin>/src/`
+2. Run `bun test` to verify your changes don't break anything
+3. Restart your OpenCode instance to pick up the new plugin code
+4. Check the OpenCode status/logs for any load errors
 
 ## Committing
 

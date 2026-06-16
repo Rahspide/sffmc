@@ -1,151 +1,280 @@
-# SFFMC — Some Features From MiMo Code
+<div align="center">
 
-OpenCode plugin suite porting killer features from Xiaomi's MiMo-Code fork.
-MIT licensed. Monorepo. **v0.9.0** (3-MSP restructure of v0.8.x).
+# SFFMC
 
-## What is this
+**OpenCode plugin suite — 3 composite packages, 10 sub-features, MIT licensed.**
 
-3 Multi-Plugin Packages (MSPs), 14 sub-feature packages, 480 tests passing.
-Killer features from MiMo-Code v8.0 ported as OpenCode plugins plus SFFMC
-team additions. Each MSP composes its sub-features via `mergeHooks()` from
-`@sffmc/shared`.
+[![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+[![Bun >= 1.0](https://img.shields.io/badge/Bun-%E2%89%A51.0-f9f1e1?logo=bun)](https://bun.sh)
+[![Version 0.9.0](https://img.shields.io/badge/version-0.9.0-success)](https://github.com/Rahspide/sffmc/releases)
+[![Tests](https://img.shields.io/badge/tests-486%20passing-brightgreen)](./packages/health)
 
-### The 3 MSPs
+[**Packages**](./packages) &nbsp;·&nbsp; [**Getting started**](./docs/getting-started.md) &nbsp;·&nbsp; [**Contributing**](./CONTRIBUTING.md) &nbsp;·&nbsp; [**Changelog**](./CHANGELOG.md)
 
-| MSP | Sub-features | Hooks | Tools | Skills |
-|---|---|---|---|---|
-| **`@sffmc/safety`** | 5 (watchdog, rules, auto-max, eos-stripper, log-whitelist) | 9 keys | 0 | 3 |
-| **`@sffmc/memory`** | 4 (memory-core, checkpoint, judge, dream) | 5 keys | 3 (`extra_checkpoint`, `extra_judge`, `extra_dream`) | 4 |
-| **`@sffmc/agentic`** | 4 (max-mode, workflow, compose, health) | 5 keys | 3 (`workflow`, `compose_skill`, `sffmc_health`) | 5 |
+</div>
 
-Total: 14 sub-features (11 standalone + 3 inner of extra), 12 new skills, 6 tools.
+---
 
-## What's from MiMo-Code vs what's ours
+## What is SFFMC?
 
-### Ported from MiMo-Code v8.0 (9 features)
+SFFMC is a Bun-workspace monorepo of OpenCode plugins that port the productivity
+wins from Xiaomi's MiMo-Code fork into vanilla OpenCode — no fork required.
+Install 3 `file://` lines in `opencode.json` and you get tool-failure recovery,
+destructive-op safety gates, cross-session memory recall, parallel reasoning
+with judge selection, a sandboxed JavaScript workflow engine, and 18 markdown
+compose skills.
 
-| MiMo feature | SFFMC package | MSP | Description |
-|---|---|---|---|
-| F1 Watchdog | `@sffmc/watchdog` | safety | 3-failure rolling counter + recovery verdict |
-| F2 Rules | `@sffmc/rules` | safety | YAML gate-based allow/deny for destructive commands |
-| F4' Memory + Recon 8K | `@sffmc/memory` | memory | FTS5 SQLite + context recon at session start |
-| F5' Checkpoint | `@sffmc/extra.checkpoint` | memory | 200K resume with schema migration story |
-| F6' Judge | `@sffmc/extra.judge` | memory | Multi-criteria verdict with streaming mode |
-| F7 Max Mode | `@sffmc/max-mode` | agentic | Parallel drafts + judge (10-20% SWE-Bench gain) |
-| F8 Dream | `@sffmc/extra.dream` | memory | LLM cluster naming + memory cleaning |
-| W5-6 Dynamic Workflow | `@sffmc/workflow` | agentic | Sandboxed JS (quickjs-emscripten WASM) + 7 builtins |
-| W4 Compose | `@sffmc/compose` | agentic | 18 markdown skills (plan, tdd, verify, subagent, etc.) |
+The repo ships as 14 npm packages under the `@sffmc/*` scope. Three of them are
+**composite packages** — `@sffmc/safety`, `@sffmc/memory`, and `@sffmc/agentic` —
+each of which is a thin wrapper that composes several sub-features into one
+default export using `mergeHooks()` from `@sffmc/shared`. The remaining 10
+packages are the individual sub-features; they still work standalone for
+backward compatibility.
 
-### SFFMC team additions (5 packages)
+Every plugin is a **DLC** (Drop-in Lattice Component): it reads any hook payload
+freely but writes only to its own slot. No module-level globals, no shared
+mutable state, no cross-plugin coupling. Load any combination — all three
+composite packages, individual sub-features, or a mix — and they compose cleanly.
 
-| Package | MSP | Rationale |
-|---|---|---|
-| `@sffmc/auto-max` | safety | Watchdog/rules-driven auto-escalation to max-mode |
-| `@sffmc/eos-stripper` | safety | Local model survival: strip `<\|im_end\|>` etc. from Ollama/vLLM/oMLX outputs |
-| `@sffmc/log-whitelist` | safety | Prevents 12GB permission-log spam from 30-day daemon runs |
-| `@sffmc/health` | agentic | F3+ plugin diagnostic: 12-check tool with JSON output |
-| `@sffmc/shared` | — | SDK: `loadConfig`, `PluginContext`, `EventBus`, `mergeHooks` |
+## Why use it?
+
+- **Composable.** Load one composite package or all three, or pick individual
+  sub-features. `mergeHooks()` handles hook collision for you.
+- **Zero shared state.** Every plugin is DLC. No side effects from load order.
+- **Drop-in.** Three `file://` lines in `opencode.json`. No build step, no npm
+  install, no configuration required to start.
+- **Battle-tested.** 486 tests passing across 14 packages. Long-form agent test:
+  96% pass rate on 50-task benchmark.
+- **MIT licensed.** Ported from MiMo-Code (Xiaomi) plus SFFMC team originals.
+  Use freely in commercial and private projects.
 
 ## Quick start
 
-### Option A: Load the 3 MSPs (recommended)
+Add three lines to your `~/.config/opencode/opencode.json`:
 
-Add to your `~/.config/opencode/opencode.json` `plugin` array:
-
-```json
-"file:///path/to/SFFMC/packages/safety/src/index.ts",
-"file:///path/to/SFFMC/packages/memory/src/index.ts",
-"file:///path/to/SFFMC/packages/agentic/src/index.ts"
+```jsonc
+{
+  "plugin": [
+    "file:///path/to/SFFMC/packages/safety/src/index.ts",
+    "file:///path/to/SFFMC/packages/memory/src/index.ts",
+    "file:///path/to/SFFMC/packages/agentic/src/index.ts"
+  ]
+}
 ```
 
-### Option B: Load individual sub-features (legacy)
+Replace `/path/to/SFFMC` with the repo location on your machine. Restart
+OpenCode, then verify with the `sffmc_health` tool in any chat session.
 
-All 11 standalone packages still work individually for backward compat:
+<details>
+<summary>Want individual sub-features instead?</summary>
 
-```json
-"file:///path/to/SFFMC/packages/watchdog/src/index.ts",
-"file:///path/to/SFFMC/packages/rules/src/index.ts",
-"file:///path/to/SFFMC/packages/memory/src/index.ts",
-// etc.
+All 10 sub-feature packages still work standalone for backward compatibility:
+
+| Sub-feature | Standalone path |
+|---|---|
+| watchdog | `file:///path/to/SFFMC/packages/watchdog/src/index.ts` |
+| rules | `file:///path/to/SFFMC/packages/rules/src/index.ts` |
+| auto-max | `file:///path/to/SFFMC/packages/auto-max/src/index.ts` |
+| eos-stripper | `file:///path/to/SFFMC/packages/eos-stripper/src/index.ts` |
+| log-whitelist | `file:///path/to/SFFMC/packages/log-whitelist/src/index.ts` |
+| extra | `file:///path/to/SFFMC/packages/extra/src/index.ts` |
+| max-mode | `file:///path/to/SFFMC/packages/max-mode/src/index.ts` |
+| workflow | `file:///path/to/SFFMC/packages/workflow/src/index.ts` |
+| compose | `file:///path/to/SFFMC/packages/compose/src/index.ts` |
+| health | `file:///path/to/SFFMC/packages/health/src/index.ts` |
+
+</details>
+
+## Contents
+
+- [What is SFFMC?](#what-is-sffmc)
+- [Why use it?](#why-use-it)
+- [Quick start](#quick-start)
+- [Architecture](#architecture)
+- [Packages](#packages)
+- [Hook example](#hook-example)
+- [Configuration](#configuration)
+- [Documentation](#documentation)
+- [Contributing](#contributing)
+- [Credits](#credits)
+- [License](#license)
+
+## Architecture
+
+Each composite package is a thin wrapper that imports its sub-features and
+passes them to `mergeHooks()` from `@sffmc/shared`. The merger categorizes
+hooks into TRANSFORM, GATE, SIDE_EFFECT, and tool — so output-mutation hooks
+chain, permission gates aggregate, and side-effects run independently with no
+collision. The result is a single default export that behaves exactly like
+loading all sub-features individually, but with guaranteed hook ordering.
+
+```
+opencode.json (3 file:// entries)
+         |
+    +----+----+
+    |         |
+[safety]  [memory]  [agentic]        <- composite packages (thin wrappers)
+    |         |         |
+    |    +----+----+    |
+    |    |    |    |    |
+    v    v    v    v    v
+ +--+--+ +--+--+ +--+--+ +--+--+ +--+--+
+ |watch| |rules| |auto| |eos- | |log- |
+ |dog  | |     | |max | |strip| |white|
+ +-----+ +-----+ +----+ +-----+ +-----+
+   safety sub-features (5)
+
+ +--+--+ +--+--+ +--+--+ +--+--+
+ |mem- | |extra| |max- | |work-|
+ |core | |     | |mode | |flow |
+ +-----+ +-----+ +-----+ +-----+
+   memory sub-features (2)       agentic sub-features (4)
+
+                   +--+--+ +--+--+
+                   |comp-| |heal-|
+                   |ose  | |th   |
+                   +-----+ +-----+
+
+ +---------------------------------------------------+
+ |                @sffmc/shared (SDK)                 |
+ |  loadConfig  |  PluginContext  |  mergeHooks  |  EventBus  |
+ +---------------------------------------------------+
 ```
 
-Verify with `bun run /data/projects/SFFMC/packages/health/src/index.ts` (12 checks).
+Sub-features are DLC: each registers its own hooks and writes only to its own
+namespace. The shared SDK provides type-safe config loading from
+`~/.config/SFFMC/<name>.yaml`, a minimal plugin context type, a typed event
+bus, and the `mergeHooks` composer.
 
-## What's in v0.9.0
+## Packages
 
-- **3-MSP structure** — safety, memory, agentic compose 14 sub-features via `mergeHooks()`, replacing 11 standalone plugins as the recommended install path
-- **mergeHooks** in `@sffmc/shared` — categorizes hooks into TRANSFORM, GATE, SIDE_EFFECT, and tool for collision-free composition
-- **12 new skills** — 3 safety, 4 memory, 5 agentic for LLM-facing guidance
-- **TRANSFORM hook audit** — 7 handlers across 5 files fixed to return data (chain compat)
-- **extra refactor** — 3 named server exports for clean `mergeHooks()` composition
-- **memory extracted** — `plugin.ts` (id="memory-core") is the sub-feature; `index.ts` is the MSP wrapper
+| Package | Composite | Role | Status |
+|---|---|---|---|
+| [`@sffmc/safety`](./packages/safety/README.md) | safety | Tool-failure recovery + destructive-op gates + log hygiene | stable |
+| [`@sffmc/memory`](./packages/memory/README.md) | memory | Cross-session FTS5 recall + opt-in checkpoint/judge/dream | stable |
+| [`@sffmc/agentic`](./packages/agentic/README.md) | agentic | Parallel reasoning + sandboxed workflow + compose skills + health | stable |
+| [`@sffmc/watchdog`](./packages/watchdog/README.md) | safety | 3-failure rolling counter + auto-recovery | stable |
+| [`@sffmc/rules`](./packages/rules/README.md) | safety | YAML gate-based allow/deny for destructive commands | stable |
+| [`@sffmc/auto-max`](./packages/auto-max/README.md) | safety | Watchdog-driven auto-escalation to max-mode | stable |
+| [`@sffmc/eos-stripper`](./packages/eos-stripper/README.md) | safety | Strip EOS tokens from local model outputs | stable |
+| [`@sffmc/log-whitelist`](./packages/log-whitelist/README.md) | safety | Prevent permission-log spam on long daemon runs | stable |
+| [`@sffmc/extra`](./packages/extra/README.md) | memory | Opt-in bundle: checkpoint, judge, dream | stable |
+| [`@sffmc/max-mode`](./packages/max-mode/README.md) | agentic | Parallel drafts + judge selection | stable |
+| [`@sffmc/workflow`](./packages/workflow/README.md) | agentic | Sandboxed JS orchestrator (quickjs-emscripten WASM) | stable |
+| [`@sffmc/compose`](./packages/compose/README.md) | agentic | 18 markdown skills (plan, tdd, verify, subagent, etc.) | stable |
+| [`@sffmc/health`](./packages/health/README.md) | agentic | Plugin diagnostic with JSON output | stable |
+| [`@sffmc/shared`](./shared/README.md) | — | SDK: loadConfig, PluginContext, EventBus, mergeHooks | stable |
 
-For the full list, see `CHANGELOG.md`.
+## Hook example
 
-## Backward compat
+A minimal OpenCode plugin that strips EOS tokens from local model output.
+Import `@sffmc/shared`, declare a config interface with defaults, register
+on the `experimental.text.complete` hook, and mutate the output.
 
-All 11 sub-feature packages still work as standalone plugins. v0.8.2 configs
-continue to work without changes. v1.0.0 will deprecate standalone loading
-(announced in CHANGELOG when released).
+```ts
+import { loadConfig, type PluginContext } from "@sffmc/shared"
 
-## Repo layout
+interface EosConfig { markers: string[] }
+const defaults: EosConfig = { markers: ["<|im_end|>", "<|endoftext|>"] }
 
+export default {
+  id: "@sffmc/my-plugin",
+  server: async (ctx: PluginContext) => {
+    const config = await loadConfig<EosConfig>("my-plugin", defaults)
+    return {
+      "experimental.text.complete": async (_ctx, text: string) => {
+        for (const m of config.markers) text = text.replaceAll(m, "")
+        return text
+      },
+    }
+  },
+}
 ```
-SFFMC/
-├── packages/
-│   ├── safety/         # NEW in v0.9.0 — MSP: 5 sub-features via mergeHooks
-│   ├── memory/         # MSP since v0.9.0 — 4 sub-features (was 1 in v0.8.x)
-│   ├── agentic/        # NEW in v0.9.0 — MSP: 4 sub-features via mergeHooks
-│   ├── watchdog/       # sub-feature of safety (F1, mimo-port)
-│   ├── rules/          # sub-feature of safety (F2, mimo-port)
-│   ├── auto-max/       # sub-feature of safety (sffmc-original)
-│   ├── eos-stripper/   # sub-feature of safety (sffmc-original)
-│   ├── log-whitelist/  # sub-feature of safety (sffmc-original)
-│   ├── extra/          # sub-feature of memory (3 inner: checkpoint, judge, dream)
-│   ├── max-mode/       # sub-feature of agentic (F7, mimo-port)
-│   ├── workflow/       # sub-feature of agentic (W5-6, mimo-port)
-│   ├── compose/        # sub-feature of agentic (W4, mimo-port)
-│   ├── health/         # sub-feature of agentic (sffmc-original)
-│   └── codemap.md      # per-package code map
-├── shared/             # @sffmc/shared — loadConfig, PluginContext, EventBus, mergeHooks
-├── CHANGELOG.md
-├── CONTRIBUTING.md
-└── RELEASE.md
+
+Register it in `~/.config/opencode/opencode.json`:
+
+```jsonc
+{
+  "plugin": [
+    "file:///path/to/SFFMC/packages/safety/src/index.ts",
+    "file:///path/to/SFFMC/packages/memory/src/index.ts",
+    "file:///path/to/SFFMC/packages/agentic/src/index.ts"
+  ]
+}
 ```
 
-## Test
+Restart OpenCode. The plugin loads, reads its YAML config (falling back to
+defaults if the file is missing), and strips EOS markers from every model
+response. Compose with other plugins by adding more `file://` entries — each
+one writes to its own slot.
 
-```bash
-cd /data/projects/SFFMC
-bun test                              # 480 tests across 24 files
-cd packages/safety && bun test        # 3 tests (MSP smoke)
-cd packages/memory && bun test        # 20 tests (3 MSP + 17 DB-layer)
-cd packages/agentic && bun test       # 3 tests (MSP smoke)
+## Configuration
+
+All plugins read YAML config from `~/.config/SFFMC/`. Create the files you
+need; missing files fall back to safe defaults.
+
+**`~/.config/SFFMC/watchdog.yaml`** — failure thresholds and recovery behavior:
+
+```yaml
+max_failures: 3
+recovery_prompt: "The last 3 tool calls failed. Pause and diagnose the root cause before continuing."
+auto_promote_model: true
+promote_model: "ocg/deepseek-v4-flash"
 ```
+
+**`~/.config/SFFMC/extra.yaml`** — opt-in advanced memory features (all disabled by default):
+
+```yaml
+checkpoint:
+  enabled: false
+  max_snapshots: 5
+judge:
+  enabled: false
+  criteria: [completeness, correctness, conciseness]
+dream:
+  enabled: false
+```
+
+See each package's README for its full config reference and defaults.
+
+## Documentation
+
+- **[Getting started](./docs/getting-started.md)** — install, first workflow, debugging
+- **[Import from MiMo](./docs/import-from-mimo.md)** — migration guide for MiMo-Code users
+- **[Load order audit](./docs/load-order-audit.md)** — hook registration order and rationale
+- **[Workflow reference](./docs/w5-6-dynamic-workflow.md)** — sandbox internals, budgets, error model
+- **[Workflow examples](./docs/workflow-examples.md)** — five ready-to-copy workflows
+- **[Long agent test report](./docs/long-agent-test-v090-report.md)** — v0.9.0 benchmark results
+- **[v8 decision](./docs/v8-decision.md)** — why v0.9.0 restructured into composite packages
 
 ## Contributing
 
-See `CONTRIBUTING.md`. Each sub-feature is a standalone TypeScript module.
-MSP packages are thin wrappers that compose sub-features via `mergeHooks()`.
+Pull requests welcome. Each sub-feature is a standalone TypeScript module in
+`packages/<name>/src/`. Composite packages are thin wrappers in
+`packages/<name>/src/index.ts` that compose sub-features via `mergeHooks()`.
+Read [CONTRIBUTING.md](./CONTRIBUTING.md) for the full workflow: branch naming,
+test requirements, code style, and PR checklist.
 
-## Publishing
+## Credits
 
-See `RELEASE.md` for the per-package publish checklist (local-only as of v0.9.0).
+SFFMC ports features from [XiaomiMiMo/MiMo-Code](https://github.com/XiaomiMiMo/MiMo-Code).
+All ported features retain their original upstream attribution in source-file
+headers. The SFFMC team contributed the composite-package composition layer
+(`mergeHooks`), the `@sffmc/shared` SDK, and four original sub-features:
+auto-max, eos-stripper, log-whitelist, and health.
 
-## Migration from v0.8.x
-
-v0.8.2 configs work without changes. To migrate to MSPs (recommended for new
-configs):
-
-```diff
-- "plugin": [ ..., "memory", "watchdog", "rules", ..., "max-mode", "compose" ]
-+ "plugin": [ ..., "safety", "memory", "agentic" ]
-```
-
-The 3 MSPs compose all 11 sub-features via `mergeHooks()` and have no
-user-visible behavior change — same hooks, same tools, same configs.
-Standalone loading will be deprecated in v1.0.0, not removed.
+| MiMo feature | SFFMC package | Description |
+|---|---|---|
+| F1 Watchdog | `@sffmc/watchdog` | 3-failure rolling counter + recovery verdict |
+| F2 Rules | `@sffmc/rules` | YAML gate-based allow/deny for destructive commands |
+| F4' Memory + Recon 8K | `@sffmc/memory` | FTS5 SQLite + context recon at session start |
+| F5' Checkpoint | `@sffmc/extra` | 200K resume with schema migration |
+| F6' Judge | `@sffmc/extra` | Multi-criteria verdict with streaming mode |
+| F7 Max Mode | `@sffmc/max-mode` | Parallel drafts + judge selection |
+| F8 Dream | `@sffmc/extra` | LLM cluster naming + memory cleaning |
+| W4 Compose | `@sffmc/compose` | 18 markdown skills |
+| W5-6 Dynamic Workflow | `@sffmc/workflow` | Sandboxed JS orchestrator |
 
 ## License
 
-MIT. See `LICENSE`.
+[MIT](./LICENSE) — see [LICENSE](./LICENSE) for full text.

@@ -21,7 +21,7 @@ By default, **all 3 features are DISABLED**. Set flags in `~/.config/SFFMC/extra
 This plugin is part of the SFFMC monorepo. To use standalone:
 
 ```ts
-// ~/.config/opencode-sandbox/opencode.json
+// ~/.config/opencode/opencode.json
 {
   "plugin": [
     "file:///data/projects/SFFMC/packages/extra/src/index.ts"

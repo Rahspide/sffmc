@@ -15,7 +15,7 @@ Local models (Ollama, llama.cpp, vLLM) commonly emit EOS tokens such as `</s>`, 
 This plugin is loaded by the SFFMC monorepo's sandbox config. To use standalone:
 
 ```ts
-// ~/.config/opencode-sandbox/opencode.json
+// ~/.config/opencode/opencode.json
 {
   "plugin": [
     "file:///data/projects/SFFMC/packages/eos-stripper/src/index.ts"

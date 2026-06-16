@@ -86,7 +86,7 @@ MiMo-Code routes through its own API gateway (typically at a MiMo-hosted
 endpoint). SFFMC uses **9Router** as the AI gateway, running locally:
 
 ```bash
-# 9Router is at 127.0.0.1:20128 (or 192.168.1.134:20128 on LAN)
+# 9Router is at 127.0.0.1:20128 (or your-LAN-IP:20128 on LAN)
 # Provider endpoints:
 #   ocg → 127.0.0.1:20130/v1 (DeepSeek, GLM, Kimi, Qwen, MiniMax via prefix-proxy)
 #   minimax → 127.0.0.1:20129/v1 (MiniMax native)
@@ -96,9 +96,7 @@ endpoint). SFFMC uses **9Router** as the AI gateway, running locally:
 
 **Action:** Check your `~/.config/opencode/opencode.json` (or equivalent
 OpenCode config). If you have MiMo-specific provider URLs (e.g., `https://api.mimo.xxx/...`),
-replace them with the 9Router endpoints above. The sandbox config at
-`/home/opencode/.config/opencode-sandbox/opencode/opencode.json` has a
-working reference.
+replace them with the 9Router endpoints above. See 9Router's docs for setup: https://github.com/9router/9router
 
 ```json
 {
@@ -107,7 +105,7 @@ working reference.
       "name": "ocg",
       "npm": "@ai-sdk/openai-compatible",
       "options": { "baseURL": "http://127.0.0.1:20130/v1" },
-      "apiKey": "sk-6b99ddb4183dcb1b-qqv6s5-30baf6e4"
+      "apiKey": "<YOUR_9ROUTER_API_KEY>"
     }
   }
 }
@@ -200,7 +198,7 @@ for p in sffmc:
 ### 3. Check journal for errors
 
 ```bash
-journalctl -u opencode-sandbox --no-pager -n 20 | grep -i error
+journalctl -u opencode-root --no-pager -n 20 | grep -i error
 # Expected: no output (or only pre-existing non-plugin errors)
 ```
 
@@ -228,12 +226,11 @@ The compose skills are **not auto-loaded**. The agent must explicitly call
 `compose_skill({ name: "tdd" })` to load a skill. This is by design — token
 cost is zero until a skill is needed.
 
-### "The sandbox has fewer plugins than prod"
+### "Not all plugins are loaded"
 
-The SFFMC sandbox runs on `:4200` with a dedicated `opencode-sandbox.service`.
-The production service at `:4100` has a different config. SFFMC plugins are
-currently sandbox-only (`/home/opencode/.config/opencode-sandbox/opencode/opencode.json`).
-Do NOT modify the production config (`/home/opencode/.config/opencode/opencode.json`).
+SFFMC plugins are loaded via the OpenCode plugin system. Add them to your
+`~/opencode.json` (or `~/.config/opencode/opencode.json`) under the `plugin[]`
+array. Each package README includes the exact path and config snippet needed.
 
 ### "Plugin failed to load — file not found"
 
@@ -271,7 +268,7 @@ Stay on MiMo-Code instead of migrating to SFFMC if:
 
 5. **You're not running OpenCode 1.17.6 on Linux** — SFFMC is developed and
    tested on CachyOS (Arch-based) with systemd. While the plugins themselves
-   are portable TypeScript, the service management (`opencode-sandbox.service`)
+    are portable TypeScript, the service management (e.g., `opencode-root.service`)
    assumes systemd.
 
 ## Reference

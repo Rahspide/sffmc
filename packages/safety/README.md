@@ -53,7 +53,7 @@ Prevents runaway failure cascades, blocks destructive commands via YAML gates, a
 This plugin is loaded by the SFFMC monorepo's sandbox config. To use standalone:
 
 ```ts
-// ~/.config/opencode-sandbox/opencode.json
+// ~/.config/opencode/opencode.json
 {
   "plugin": [
     "file:///data/projects/SFFMC/packages/safety/src/index.ts"

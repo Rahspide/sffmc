@@ -15,7 +15,7 @@ Filters verbose tool output and chat text to keep only lines matching a configur
 This plugin is loaded by the SFFMC monorepo's sandbox config. To use standalone:
 
 ```ts
-// ~/.config/opencode-sandbox/opencode.json
+// ~/.config/opencode/opencode.json
 {
   "plugin": [
     "file:///data/projects/SFFMC/packages/log-whitelist/src/index.ts"

@@ -13,7 +13,7 @@ Detects when the agent is stuck in a tool-failure loop. Tracks consecutive failu
 This plugin is loaded by the SFFMC monorepo's sandbox config. To use standalone:
 
 ```ts
-// ~/.config/opencode-sandbox/opencode.json
+// ~/.config/opencode/opencode.json
 {
   "plugin": [
     "file:///data/projects/SFFMC/packages/watchdog/src/index.ts"

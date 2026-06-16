@@ -13,7 +13,7 @@ Loads Compose Mode skills on demand via the `compose_skill` tool. Each skill is 
 This plugin is loaded by the SFFMC monorepo's sandbox config. To use standalone:
 
 ```ts
-// ~/.config/opencode-sandbox/opencode.json
+// ~/.config/opencode/opencode.json
 {
   "plugin": [
     "file:///data/projects/SFFMC/packages/compose/src/index.ts"

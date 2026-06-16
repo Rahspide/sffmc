@@ -106,7 +106,7 @@ Pre-release checklist (do these once, before first `bun publish`):
 
 2. **Push local repo to GitHub**
    ```bash
-   cd /data/projects/SFFMC
+   cd /path/to/sffmc
    git remote add origin https://github.com/Rahspide/sffmc.git
    git push -u origin main
    git push origin v0.9.0  # if tag not already pushed
@@ -127,7 +127,7 @@ Pre-release checklist (do these once, before first `bun publish`):
 
 5. **Verify all packages ready**
    ```bash
-   cd /data/projects/SFFMC
+   cd /path/to/sffmc
    bun run version:list       # all 14 should show 0.9.0
    bash scripts/release.sh --dry-run   # should pass preconditions
    ```
@@ -161,7 +161,7 @@ Pre-release checklist (do these once, before first `bun publish`):
 
 Once packages are on npm, set up Drone:
 
-1. **Install Drone server** (one-time, on nipogi or another host)
+1. **Install Drone server** (one-time, on your CI server or another host)
 2. **Add repo to Drone**
    ```bash
    drone repo add Rahspide/sffmc

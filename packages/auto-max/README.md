@@ -15,7 +15,7 @@ Sits next to `@sffmc/watchdog` and counts consecutive failures per tool per sess
 This plugin is loaded by the SFFMC monorepo's sandbox config. To use standalone:
 
 ```ts
-// ~/.config/opencode-sandbox/opencode.json
+// ~/.config/opencode/opencode.json
 {
   "plugin": [
     "file:///data/projects/SFFMC/packages/auto-max/src/index.ts"

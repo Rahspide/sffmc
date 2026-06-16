@@ -2,7 +2,33 @@
 
 > **This is the memory MSP.** It composes 4 sub-features: `memory-core` (F4' SQLite + recon), `checkpoint` (F5' opt-in), `judge` (F6' opt-in), and `dream` (F8 opt-in). All opt-in sub-features are disabled by default — flip flags in `~/.config/SFFMC/extra.yaml` per feature. The standalone `memory` package now exports the MSP that wires the 4 sub-features via `mergeHooks()`.
 
-F4' Memory — FTS5 full-text search + ICM extraction (W1).
+## Sub-features
+
+Memory bundles 1 external sub-feature:
+
+| Sub-feature | Description |
+|---|---|
+| [`@sffmc/extra`](../extra/README.md) | 3 named tools: `extra_checkpoint`, `extra_judge`, `extra_dream` for cross-turn state, verdict scoring, and dream summaries |
+| `memory-core` | (internal) mergeHooks orchestrator at `packages/memory/src/plugin.ts` |
+
+## Opt-in configuration
+
+To enable @sffmc/extra features:
+
+```yaml
+# opencode.json
+{
+  "plugins": {
+    "@sffmc/memory": {
+      "extra": {
+        "checkpoint": true,   // cross-turn state snapshot
+        "judge": true,        // /max verdict scoring
+        "dream": true         // periodic state summary
+      }
+    }
+  }
+}
+```
 
 ## What it does
 
@@ -13,7 +39,7 @@ Gives your agent persistent memory across sessions. Indexes project docs (`memor
 This plugin is loaded by the SFFMC monorepo's sandbox config. To use standalone:
 
 ```ts
-// ~/.config/opencode-sandbox/opencode.json
+// ~/.config/opencode/opencode.json
 {
   "plugin": [
     "file:///data/projects/SFFMC/packages/memory/src/index.ts"

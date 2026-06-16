@@ -1,3 +1,5 @@
+<!-- This file is AI agent instructions for working on this repo. See CONTRIBUTING.md for human-facing docs. -->
+
 # SFFMC — Agent Instructions
 
 A Bun-workspace monorepo of 11 OpenCode plugins porting killer features from Xiaomi's [MiMo-Code](https://github.com/XiaomiMiMo/MiMo-Code). MIT licensed. v0.8.0 shipped.
@@ -50,17 +52,11 @@ git commit -m "..."   # runs bun test + typecheck + audit + sffmc_health
 - The `tool` hook's **key** is the tool's name, NOT a `name` field inside the tool definition. Adding `name: "foo"` inside the object silently rejects the tool.
 - See [CONTRIBUTING.md](CONTRIBUTING.md) for full hook reference and the SDL pattern.
 
-## Sandbox Workflow
+## Local Development
 
-SFFMC is developed on the `opencode-sandbox` instance (port `:4200`) so you can restart freely without killing your prod session. The sandbox service is `opencode-sandbox.service` (separate from `opencode-root.service` at `:4100`).
+After editing a plugin, restart your OpenCode instance to pick up changes. Run `bun test` first to verify nothing is broken.
 
-After editing a plugin in `/data/projects/SFFMC/packages/<plugin>/src/`:
-```bash
-sudo systemctl restart opencode-sandbox.service
-tail -f /home/opencode/.opencode-staging/opencode-bundle-patch-sandbox/logs/opencode-*.log
-```
-
-**Do NOT** restart `opencode-root` from inside an opencode web session — it self-kills the active session. Use a separate SSH terminal for prod restarts.
+If you have two OpenCode instances (development + production), you can restart the development instance freely without affecting production work.
 
 ## See Also
 
