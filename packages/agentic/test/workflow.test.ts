@@ -1,11 +1,8 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/workflow — see ../../LICENSE
 
-import { test, expect, describe, beforeAll, afterAll } from "bun:test"
+import { test, expect, describe } from "bun:test"
 import { WorkflowRuntime } from "../../workflow/src/runtime.ts"
-import { setRuntime, getRuntime } from "../../workflow/src/runtime-ref.ts"
-import { clearAll, emit, on } from "../../workflow/src/events.ts"
-import { WorkflowPersistence } from "../../workflow/src/persistence.ts"
 import type { PluginContext } from "../../workflow/src/runtime.ts"
 import type { WorkflowOutcome, WorkflowStatusOutput } from "../../workflow/src/types.ts"
 
@@ -63,25 +60,12 @@ function makeMockCtx(callCounts?: { count: number }): PluginContext {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Setup / teardown
-// ---------------------------------------------------------------------------
-
-beforeAll(() => {
-  clearAll()
-})
-
-afterAll(() => {
-  clearAll()
-})
-
 // ── agent() behavior ─────────────────────────────────────────────────────
 
 describe("agent() never-throw contract", () => {
   test("agent() resolves to a string for normal prompts", async () => {
     const ctx = makeMockCtx()
     const runtime = new WorkflowRuntime(ctx)
-    setRuntime(runtime)
 
     const { runID } = await runtime.start({
       script: `export const meta = { name: "test", description: "test", phases: [] }\n
@@ -102,7 +86,6 @@ describe("agent() never-throw contract", () => {
   test("agent() returns null on over-cap (lifecycle cap)", async () => {
     const ctx = makeMockCtx()
     const runtime = new WorkflowRuntime(ctx)
-    setRuntime(runtime)
 
     // Start a workflow that calls agent() 3 times
     const { runID } = await runtime.start({
@@ -128,7 +111,6 @@ describe("agent() never-throw contract", () => {
   test("agent() does not throw on LLM failure — returns null", async () => {
     const ctx = makeMockCtx()
     const runtime = new WorkflowRuntime(ctx)
-    setRuntime(runtime)
 
     const { runID } = await runtime.start({
       script: `export const meta = { name: "test-throw", description: "test", phases: [] }\n
@@ -150,7 +132,6 @@ describe("agent() never-throw contract", () => {
   test("agent() returns null for no-deliverable (LLM returns empty)", async () => {
     const ctx = makeMockCtx()
     const runtime = new WorkflowRuntime(ctx)
-    setRuntime(runtime)
 
     const { runID } = await runtime.start({
       script: `export const meta = { name: "test-empty", description: "test", phases: [] }\n
@@ -175,7 +156,6 @@ describe("parallel() and pipeline()", () => {
   test("parallel() propagates throws (does NOT catch)", async () => {
     const ctx = makeMockCtx()
     const runtime = new WorkflowRuntime(ctx)
-    setRuntime(runtime)
 
     const { runID } = await runtime.start({
       script: `export const meta = { name: "test-parallel-throw", description: "test", phases: [] }\n
@@ -203,7 +183,6 @@ describe("parallel() and pipeline()", () => {
   test("pipeline() does NOT catch throws", async () => {
     const ctx = makeMockCtx()
     const runtime = new WorkflowRuntime(ctx)
-    setRuntime(runtime)
 
     const { runID } = await runtime.start({
       script: `export const meta = { name: "test-pipeline-throw", description: "test", phases: [] }\n
@@ -238,7 +217,6 @@ describe("WorkflowRuntime lifecycle", () => {
   test("start() returns runID", async () => {
     const ctx = makeMockCtx()
     const runtime = new WorkflowRuntime(ctx)
-    setRuntime(runtime)
 
     const result = await runtime.start({
       script: `export const meta = { name: "lifecycle-test", description: "test", phases: [] }\n
@@ -255,7 +233,6 @@ describe("WorkflowRuntime lifecycle", () => {
   test("status() returns progress", async () => {
     const ctx = makeMockCtx()
     const runtime = new WorkflowRuntime(ctx)
-    setRuntime(runtime)
 
     const { runID } = await runtime.start({
       script: `export const meta = { name: "status-test", description: "test", phases: [] }\n
@@ -284,7 +261,6 @@ describe("WorkflowRuntime lifecycle", () => {
   test("cancel() stops a running workflow", async () => {
     const ctx = makeMockCtx()
     const runtime = new WorkflowRuntime(ctx)
-    setRuntime(runtime)
 
     const { runID } = await runtime.start({
       script: `export const meta = { name: "cancel-test", description: "test", phases: [] }\n
@@ -310,7 +286,6 @@ describe("WorkflowRuntime lifecycle", () => {
   test("list() returns all runs", async () => {
     const ctx = makeMockCtx()
     const runtime = new WorkflowRuntime(ctx)
-    setRuntime(runtime)
 
     const { runID } = await runtime.start({
       script: `export const meta = { name: "list-test", description: "test", phases: [] }\n
@@ -327,7 +302,6 @@ describe("WorkflowRuntime lifecycle", () => {
   test("resume() returns resumed:false for live runs", async () => {
     const ctx = makeMockCtx()
     const runtime = new WorkflowRuntime(ctx)
-    setRuntime(runtime)
 
     const { runID } = await runtime.start({
       script: `export const meta = { name: "resume-live-test", description: "test", phases: [] }\n
@@ -353,14 +327,13 @@ describe("WorkflowRuntime lifecycle", () => {
 
 describe("Event bus", () => {
   test("workflow:started fires on start", async () => {
-    const events: string[] = []
-    const key = on("workflow:started", (e) => {
-      events.push(e.runID)
-    })
-
     const ctx = makeMockCtx()
     const runtime = new WorkflowRuntime(ctx)
-    setRuntime(runtime)
+
+    const events: string[] = []
+    runtime.events.on("workflow:started", (e) => {
+      events.push(e.runID)
+    })
 
     const { runID } = await runtime.start({
       script: `export const meta = { name: "event-test", description: "test", phases: [] }\n
@@ -375,15 +348,14 @@ describe("Event bus", () => {
   }, 15000)
 
   test("workflow:finished fires on completion", async () => {
+    const ctx = makeMockCtx()
+    const runtime = new WorkflowRuntime(ctx)
+
     const statuses: string[] = []
-    on("workflow:finished", (e) => {
+    runtime.events.on("workflow:finished", (e) => {
       const ev = e as import("../../workflow/src/events.ts").WorkflowFinishedEvent
       statuses.push(ev.status)
     })
-
-    const ctx = makeMockCtx()
-    const runtime = new WorkflowRuntime(ctx)
-    setRuntime(runtime)
 
     const { runID } = await runtime.start({
       script: `export const meta = { name: "finish-event-test", description: "test", phases: [] }\n
@@ -398,15 +370,14 @@ describe("Event bus", () => {
   }, 15000)
 
   test("workflow:agent_failed fires on LLM failure", async () => {
+    const ctx = makeMockCtx()
+    const runtime = new WorkflowRuntime(ctx)
+
     const failures: Array<{ agentKey: string; reason: string }> = []
-    on("workflow:agent_failed", (e) => {
+    runtime.events.on("workflow:agent_failed", (e) => {
       const ev = e as import("../../workflow/src/events.ts").WorkflowAgentFailedEvent
       failures.push({ agentKey: ev.agentKey, reason: ev.reason })
     })
-
-    const ctx = makeMockCtx()
-    const runtime = new WorkflowRuntime(ctx)
-    setRuntime(runtime)
 
     const { runID } = await runtime.start({
       script: `export const meta = { name: "fail-event-test", description: "test", phases: [] }\n
@@ -429,15 +400,14 @@ describe("Event bus", () => {
 
 describe("phase() and log() side-channels", () => {
   test("phase() emits workflow:phase events", async () => {
+    const ctx = makeMockCtx()
+    const runtime = new WorkflowRuntime(ctx)
+
     const phases: string[] = []
-    on("workflow:phase", (e) => {
+    runtime.events.on("workflow:phase", (e) => {
       const ev = e as import("../../workflow/src/events.ts").WorkflowPhaseEvent
       phases.push(ev.title)
     })
-
-    const ctx = makeMockCtx()
-    const runtime = new WorkflowRuntime(ctx)
-    setRuntime(runtime)
 
     const { runID } = await runtime.start({
       script: `export const meta = { name: "phase-test", description: "test", phases: [] }\n
@@ -458,15 +428,14 @@ describe("phase() and log() side-channels", () => {
   }, 15000)
 
   test("log() emits workflow:log events", async () => {
+    const ctx = makeMockCtx()
+    const runtime = new WorkflowRuntime(ctx)
+
     const logs: string[] = []
-    on("workflow:log", (e) => {
+    runtime.events.on("workflow:log", (e) => {
       const ev = e as import("../../workflow/src/events.ts").WorkflowLogEvent
       logs.push(ev.message)
     })
-
-    const ctx = makeMockCtx()
-    const runtime = new WorkflowRuntime(ctx)
-    setRuntime(runtime)
 
     const { runID } = await runtime.start({
       script: `export const meta = { name: "log-test", description: "test", phases: [] }\n
