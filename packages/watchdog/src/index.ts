@@ -1,7 +1,7 @@
 import { FailureCounter } from "./counter";
 import { buildPromotionFragment } from "./promote";
 import { buildRecoveryVerdict } from "./verdict";
-import { extractErrorType, isToolError, MAX_COMMAND, MAX_PATTERN, loadConfig, type PluginContext, createLogger } from "@sffmc/shared";
+import { extractErrorType, isToolError, hasMetadataError, MAX_COMMAND, MAX_PATTERN, loadConfig, type PluginContext, createLogger } from "@sffmc/shared";
 
 const log = createLogger("watchdog");
 
@@ -32,6 +32,10 @@ interface PluginState {
 
 function isFiltered(errorType: string, filter: string[]): boolean {
   return filter.some((f) => errorType.toLowerCase().includes(f.toLowerCase()));
+}
+
+function recoveryKey(sessionID: string, tool: string): string {
+  return `${sessionID}::${tool}`;
 }
 
 let loadedLogged = false;
@@ -76,26 +80,12 @@ export const server = async (ctx: PluginContext) => {
       const { tool, sessionID } = toolCtx;
       const output = result.output ?? result.metadata ?? "";
 
-      // Detect failures via output content or metadata error flag
       const meta = result.metadata as Record<string, unknown> | undefined;
       const isError = isToolError(output);
-
-      const hasErrorFlag =
-        meta?.error !== undefined && meta?.error !== null && meta?.error !== false;
+      const hasErrorFlag = hasMetadataError(meta);
 
       if (!isError && !hasErrorFlag) {
-        // Success — reset counter, inject recovery verdict
-        const recoveryKey = `${sessionID}::${tool}`;
-        const recovery = state.recoveringTools.get(recoveryKey);
-        if (recovery) {
-          const verdict = buildRecoveryVerdict(tool, recovery.errorType, recovery.attempts);
-          // Inject into output
-          if (typeof result.output === "string") {
-            result.output = `${verdict}\n${result.output}`;
-          }
-          state.recoveringTools.delete(recoveryKey);
-        }
-        state.counter.recordSuccess(tool, sessionID);
+        handleSuccess(sessionID, tool, result, state.counter, state.recoveringTools);
         return;
       }
 
@@ -105,19 +95,16 @@ export const server = async (ctx: PluginContext) => {
         return;
       }
 
-      state.counter.recordFailure(tool, errorType, sessionID);
-
-      if (config.log_failures) {
-        log.warn(`failure: ${tool}:${errorType} (session ${sessionID})`);
-      }
-
-      if (state.counter.shouldPromote(tool, errorType, sessionID)) {
-        state.promotedSessions.add(sessionID);
-        state.recoveringTools.set(`${sessionID}::${tool}`, {
-          errorType,
-          attempts: config.threshold,
-        });
-      }
+      handlePromotion(
+        sessionID,
+        tool,
+        errorType,
+        state.counter,
+        state.promotedSessions,
+        state.recoveringTools,
+        config.threshold,
+        config.log_failures,
+      );
     },
 
     "experimental.chat.system.transform": async (
@@ -168,5 +155,43 @@ export const server = async (ctx: PluginContext) => {
     },
   };
 };
+
+function handleSuccess(
+  sessionID: string,
+  tool: string,
+  result: { output?: unknown },
+  counter: FailureCounter,
+  recoveringTools: Map<string, { errorType: string; attempts: number }>,
+): void {
+  const recovery = recoveringTools.get(recoveryKey(sessionID, tool));
+  if (recovery) {
+    const verdict = buildRecoveryVerdict(tool, recovery.errorType, recovery.attempts);
+    if (typeof result.output === "string") {
+      result.output = `${verdict}\n${result.output}`;
+    }
+    recoveringTools.delete(recoveryKey(sessionID, tool));
+  }
+  counter.recordSuccess(tool, sessionID);
+}
+
+function handlePromotion(
+  sessionID: string,
+  tool: string,
+  errorType: string,
+  counter: FailureCounter,
+  promotedSessions: Set<string>,
+  recoveringTools: Map<string, { errorType: string; attempts: number }>,
+  threshold: number,
+  logFailures: boolean,
+): void {
+  counter.recordFailure(tool, errorType, sessionID);
+  if (logFailures) {
+    log.warn(`failure: ${tool}:${errorType} (session ${sessionID})`);
+  }
+  if (counter.shouldPromote(tool, errorType, sessionID)) {
+    promotedSessions.add(sessionID);
+    recoveringTools.set(recoveryKey(sessionID, tool), { errorType, attempts: threshold });
+  }
+}
 
 export default { id, server }
