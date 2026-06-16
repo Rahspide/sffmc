@@ -98,11 +98,11 @@ export function emit(name: EventName, payload: WorkflowEventPayload): void {
   const list = listeners.get(name)
   if (!list) return
   // Copy list — listeners may call off() during iteration
-  for (const { fn } of [...list]) {
+  for (const { fn, key } of [...list]) {
     try {
       fn(payload)
-    } catch {
-      // silently ignore listener errors
+    } catch (e) {
+      console.error(`[workflow] error in listener ${key} for event ${name}:`, e)
     }
   }
 }
