@@ -15,7 +15,7 @@ const defaultConfig: AutoMaxConfig = {
   watchdog_threshold: 3,
   max_mode_config: {
     n: 3,
-    judge_model: "claude-sonnet-4-20250514",
+    judge_model: "",
   },
   cost_cap_per_session: 1,
 };

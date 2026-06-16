@@ -48,7 +48,7 @@ export interface DreamConfig {
   storagePath?: string;
   /** Plugin context for LLM-based summarization. When absent, falls back to concatenation. */
   ctx?: RichPluginContext;
-  /** Model for LLM summarization. Defaults to "claude-sonnet-4-20250514". */
+  /** Model for LLM summarization. Defaults to "". */
   summaryModel?: string;
 }
 
@@ -370,7 +370,7 @@ async function runDream(
             clusterName = await nameClusterViaLLM(
               cluster,
               ctx,
-              summaryModel ?? "claude-sonnet-4-20250514",
+              summaryModel ?? "",
             );
           } catch (err) {
             errors.push(
@@ -382,7 +382,7 @@ async function runDream(
             summaryContent = await summarizeViaLLM(
               cluster,
               ctx,
-              summaryModel ?? "claude-sonnet-4-20250514",
+              summaryModel ?? "",
             );
           } catch (err) {
             errors.push(

@@ -87,7 +87,7 @@ export async function generateCandidates(
     throw new Error("[max-mode] SDK client.session.message() not available");
   }
 
-  const model = config.models[0] || String(ctx.config?.model || "claude-sonnet-4-20250514");
+  const model = config.models[0] || String(ctx.config?.model || "");
   const candidates: Candidate[] = [];
 
   const messages = buildCandidatePrompt(prompt, 0, config.n);

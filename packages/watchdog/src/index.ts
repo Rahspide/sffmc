@@ -56,7 +56,7 @@ export const server = async (ctx: PluginContext) => {
     recoveringTools: new Map(),
   };
 
-  const model = config.promote_model || String(ctx.config?.model || "claude-sonnet-4-20250514");
+  const model = config.promote_model || String(ctx.config?.model || "");
 
   if (config.log_failures && !loadedLogged) {
     loadedLogged = true;
