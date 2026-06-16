@@ -932,9 +932,16 @@ Returns JSON with ok (boolean), checks[] (per-check status), and summary (string
 Use this before releases or after plugin changes to catch regressions early.`,
         parameters: {
           type: "object",
-          properties: {},
+          properties: {
+            paths: {
+              type: "array",
+              items: { type: "string" },
+              description: "Optional project roots (informational; the tool uses the plugin context's projectRoot for the actual scan)",
+            },
+          },
+          required: [],
         },
-        execute: async () => {
+        execute: async (_args?: { paths?: string[] }) => {
           const root = repoRoot;
           const result = await runAllChecks(root);
           return JSON.stringify(result, null, 2);
