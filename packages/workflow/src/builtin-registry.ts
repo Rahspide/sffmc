@@ -20,33 +20,8 @@ export interface BuiltinEntry {
 
 type Loader = () => Promise<{ source: string; meta: Meta }>
 
-function loadDeepResearch(): Promise<{ source: string; meta: Meta }> {
-  return Promise.resolve({ source: deepResearchMod.source, meta: deepResearchMod.meta })
-}
-
-function loadPlan(): Promise<{ source: string; meta: Meta }> {
-  return Promise.resolve({ source: planMod.source, meta: planMod.meta })
-}
-
-function loadTdd(): Promise<{ source: string; meta: Meta }> {
-  return Promise.resolve({ source: tddMod.source, meta: tddMod.meta })
-}
-
-function loadRefactor(): Promise<{ source: string; meta: Meta }> {
-  return Promise.resolve({ source: refactorMod.source, meta: refactorMod.meta })
-}
-
-function loadSecurityAudit(): Promise<{ source: string; meta: Meta }> {
-  return Promise.resolve({ source: securityAuditMod.source, meta: securityAuditMod.meta })
-}
-
-function loadDocGen(): Promise<{ source: string; meta: Meta }> {
-  return Promise.resolve({ source: docGenMod.source, meta: docGenMod.meta })
-}
-
-function loadLibMigrate(): Promise<{ source: string; meta: Meta }> {
-  return Promise.resolve({ source: libMigrateMod.source, meta: libMigrateMod.meta })
-}
+const makeLoader = (mod: typeof deepResearchMod): Loader =>
+  () => Promise.resolve({ source: mod.source, meta: mod.meta })
 
 /**
  * Registry of built-in workflows. Lookups use null-prototype to avoid inherited
@@ -81,10 +56,12 @@ export async function loadBuiltin(name: string): Promise<BuiltinEntry> {
 
 // ── Register builtins ──────────────────────────────────────────────────────
 
-registerBuiltin("deep-research", loadDeepResearch)
-registerBuiltin("plan", loadPlan)
-registerBuiltin("tdd", loadTdd)
-registerBuiltin("refactor", loadRefactor)
-registerBuiltin("security-audit", loadSecurityAudit)
-registerBuiltin("doc-gen", loadDocGen)
-registerBuiltin("lib-migrate", loadLibMigrate)
+for (const [name, mod] of Object.entries({
+  "deep-research": deepResearchMod,
+  "plan": planMod,
+  "tdd": tddMod,
+  "refactor": refactorMod,
+  "security-audit": securityAuditMod,
+  "doc-gen": docGenMod,
+  "lib-migrate": libMigrateMod,
+} as const)) REGISTRY[name] = makeLoader(mod)
