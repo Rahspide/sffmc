@@ -5,7 +5,7 @@
   "main": "src/index.ts",
   "dependencies": {
     "@sffmc/shared": "workspace:*",
-    "chokidar": "^4.0.0",
+    "chokidar": "^5.0.0",
     "yaml": "^2.0.0"
   },
   "scripts": {
