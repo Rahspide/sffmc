@@ -30,9 +30,9 @@ import type {
 } from "./types.ts"
 import {
   DEFAULT_WORKFLOW_CONFIG,
-  DEFAULT_SANDBOX_CONSTRAINTS,
   AgentFailureReason as AFR,
 } from "./types.ts"
+import { SCRIPT_DEADLINE_MS, DEFAULT_SANDBOX_CONSTRAINTS } from "./constants.ts"
 import { getBuiltin, loadBuiltin } from "./builtin-registry.ts"
 import { cpus } from "node:os"
 import { type RichPluginContext, createLogger } from "@sffmc/shared";
@@ -41,7 +41,6 @@ import { type RichPluginContext, createLogger } from "@sffmc/shared";
 // Constants
 // ---------------------------------------------------------------------------
 
-export const SCRIPT_DEADLINE_MS = 12 * 60 * 60 * 1000 // 12h
 const MAX_LIFECYCLE_AGENTS = 1000
 const log = createLogger("workflow")
 const DEFAULT_MAX_CONCURRENT = Math.min(16, 2 * Math.max(1, cpus().length))

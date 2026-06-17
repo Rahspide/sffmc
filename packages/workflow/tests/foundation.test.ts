@@ -13,9 +13,9 @@ process.env.XDG_DATA_HOME = tmpDir
 import {
   WorkflowError,
   DEFAULT_WORKFLOW_CONFIG,
-  DEFAULT_SANDBOX_CONSTRAINTS,
   AgentFailureReason,
 } from "../src/types.ts"
+import { DEFAULT_SANDBOX_CONSTRAINTS } from "../src/constants.ts"
 
 import {
   generateRunID,

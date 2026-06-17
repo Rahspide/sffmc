@@ -27,7 +27,8 @@ export type {
   WorkflowError,
 } from "./types.ts"
 
-export { DEFAULT_WORKFLOW_CONFIG, DEFAULT_SANDBOX_CONSTRAINTS } from "./types.ts"
+export { DEFAULT_WORKFLOW_CONFIG } from "./types.ts"
+export { DEFAULT_SANDBOX_CONSTRAINTS } from "./constants.ts"
 export { WorkflowPersistence } from "./persistence.ts"
 export { parseMeta } from "./meta.ts"
 export { resolveWorkflow, isInlineScript } from "./resolve.ts"

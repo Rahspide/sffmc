@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/workflow — see ../../LICENSE
 
-import { SCRIPT_DEADLINE_MS } from "./runtime.ts"
+import { SCRIPT_DEADLINE_MS } from "./constants.ts"
 
 /** Status of a workflow run. */
 export type WorkflowStatus =
@@ -96,11 +96,7 @@ export interface SandboxConstraints {
   seed?: number
 }
 
-export const DEFAULT_SANDBOX_CONSTRAINTS: SandboxConstraints = {
-  memoryMB: 64,
-  maxInstructions: 5_000_000,
-  deadlineMs: SCRIPT_DEADLINE_MS, // 12 hours
-}
+// DEFAULT_SANDBOX_CONSTRAINTS moved to ./constants.ts (breaks types<->runtime cycle)
 
 /** Options passed to agent() inside a workflow script. */
 export interface AgentOptions {
