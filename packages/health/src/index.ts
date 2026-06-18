@@ -235,8 +235,7 @@ export const checkTypeCheck = createCheck("type_check", async (repoRoot) => {
   const failures: string[] = [];
 
   for (const pkg of pkgs) {
-    const pkgDir = pkg === "shared" ? join(repoRoot, "shared") : join(repoRoot, "packages", pkg);
-    const indexPath = join(pkgDir, "src", "index.ts");
+    const indexPath = join(pkgDir(pkg, repoRoot), "src", "index.ts");
     if (!(await fileExists(indexPath))) {
       failures.push(`${pkg} (no src/index.ts)`);
       continue;
@@ -245,7 +244,7 @@ export const checkTypeCheck = createCheck("type_check", async (repoRoot) => {
     try {
       const proc = Bun.spawn(
         ["bun", "build", "--target=bun", "--no-bundle", "src/index.ts"],
-        { cwd: pkgDir, stdout: "pipe", stderr: "pipe" },
+        { cwd: pkgDir(pkg, repoRoot), stdout: "pipe", stderr: "pipe" },
       );
       const stderr = await new Response(proc.stderr).text();
       const exitCode = await proc.exited;
