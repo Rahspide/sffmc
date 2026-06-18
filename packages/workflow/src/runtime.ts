@@ -71,6 +71,7 @@ function makeSemaphore(max: number) {
   const queue: Array<() => void> = []
   const release = () => {
     active--
+    if (queue.length === 0) return
     const next = queue.shift()
     if (next) next()
   }

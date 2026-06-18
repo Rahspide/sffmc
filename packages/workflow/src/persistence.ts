@@ -389,11 +389,16 @@ export class WorkflowPersistence {
     return { results, pass: maxPass + 1 }
   }
 
-  /** Clear the journal (truncate to empty). Used on sha-mismatch resume. */
+  /** Clear the journal (truncate to v1 header). Used on sha-mismatch resume.
+   *  Writes `{"v":1}\n` instead of "" so that a concurrent appendJournalSync
+   *  within the 50ms fsync coalesce window does not land a raw event as the
+   *  first line of the file (which loadJournal would treat as a torn header
+   *  and silently skip). See R3 in audit b27. */
   async clearJournal(runID: string): Promise<void> {
     safeRunID(runID)
     await mkdir(this.dir, { recursive: true })
-    await writeFile(this.journalPath(runID), "", "utf-8")
+    const jpath = this.journalPath(runID)
+    await writeFile(jpath, JSON.stringify({ v: 1 }) + "\n", "utf-8")
   }
 
   // ── Step checkpoint IO (atomic BEGIN EXCLUSIVE/COMMIT) ─────────────────
