@@ -33,10 +33,11 @@ Flags:
 Publish order: shared/ first, then packages/ alphabetically.
 
 Precondition checks (fail-fast before any publish):
-  1. Working tree clean (git status --porcelain)
-  2. npm login (npm whoami)
-  3. npm org sffmc exists (npm org ls sffmc)
-  4. git tag v0.9.0 exists (warns if missing)
+  1. Version consistency: root and all packages/* at the same version
+  2. Working tree clean (git status --porcelain)
+  3. npm login (npm whoami)
+  4. npm org sffmc exists (npm org ls sffmc)
+  5. git tag v0.9.0 exists (warns if missing)
 
 Exit codes:
   0  success
@@ -74,6 +75,23 @@ error() { echo -e "[ERROR] ${RED}$*${NC}" >&2; }
 ok()    { echo -e "${GREEN}OK${NC}"; }
 
 # -- precondition checks -----------------------------------------------
+check_version_consistency() {
+  info "Checking version consistency (root + packages/*)..."
+  local root_version
+  root_version=$(jq -r .version package.json)
+  local pkg_versions
+  pkg_versions=$(jq -r .version packages/*/package.json | sort -u)
+  local pkg_versions_csv
+  pkg_versions_csv=$(echo "$pkg_versions" | paste -sd, -)
+
+  if [[ "$(echo "$pkg_versions" | wc -l)" -gt 1 ]] || [[ "$root_version" != "0.12.0" ]]; then
+    error "version mismatch: root=$root_version, packages=$pkg_versions_csv"
+    error "All packages and root package.json must be at the same version."
+    exit 2
+  fi
+  echo -e "  ${GREEN}root and packages all at $root_version${NC}"
+}
+
 check_git_clean() {
   info "Checking git working tree is clean..."
   if [[ -n "$(git -C "$REPO_ROOT" status --porcelain)" ]]; then
@@ -184,6 +202,7 @@ main() {
   echo ""
 
   # -- precondition checks (fail-fast) --
+  check_version_consistency
   check_bun
   check_git_clean
   check_npm_login
