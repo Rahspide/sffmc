@@ -6,10 +6,12 @@ import {
   type Rules,
 } from "./rules";
 import { evaluate } from "./gate";
-import { type PluginContext } from "@sffmc/shared";
+import { type PluginContext, createLogger } from "@sffmc/shared";
 import { existsSync } from "fs";
 import { resolve } from "path";
 import { homedir } from "os";
+
+const log = createLogger("rules");
 
 const DEFAULT_RULES_YAML = `version: 1
 rules:
@@ -98,7 +100,7 @@ export const server = async (ctx: PluginContext) => {
       }
 
       if (result.action === "ask") {
-        console.warn(
+        log.warn(
           `[F2 Rules] WARNING: ${result.reason} — user confirmation needed`,
         );
       }
