@@ -123,7 +123,9 @@ export const server = async (ctx: RichPluginContext) => {
       state.maxUsedThisSession = true;
 
       // Extract prompt from context (the user message that triggered /max)
-      const prompt = (cmdCtx as Record<string, unknown>).prompt as string
+      // cmdCtx is typed with [key: string]: unknown index signature, so
+      // .prompt is already typed as unknown — no cast needed.
+      const prompt = (typeof cmdCtx.prompt === "string" ? cmdCtx.prompt : "")
         || "Solve the current problem with maximum quality.";
 
       if (isDryRun || config.dry_run) {
