@@ -1,9 +1,47 @@
-# Drone CI pipeline for SFFMC — bun-based monorepo (14 packages + shared)
+# Drone CI pipeline for SFFMC — bun-based monorepo (13 packages + shared)
 #
-# HMAC signature placeholder below will be replaced when running:
-#   drone repo add Rahspide/sffmc
-# The `drone` CLI signs the YAML and inserts the real HMAC.
-# Do NOT manually edit the signature block — it will be regenerated.
+# ─── PIPELINE OVERVIEW ──────────────────────────────────────────
+#
+#   On push / pull_request (branch = main):
+#     install → typecheck, test, verify-load, audit-public (parallel)
+#
+#   On tag push (refs/tags/v*.*.*):
+#     same as above + tag-gates (re-run critical checks on the tag commit)
+#                    + publish (uses npm_token to publish 14 packages to npm)
+#                    + notify  (optional Slack/Discord webhook on outcome)
+#
+# ─── REQUIRED DRONE SECRETS ────────────────────────────────────
+#
+#   Set via `drone secret add --repository Rahspide/sffmc <name> <value>`.
+#   All secrets are exposed as env vars in steps that declare them.
+#
+#     npm_token        npmjs.com granular token, publish scope for @sffmc.
+#                      Source: ~/.npmrc ([REDACTED-NPM], bypass-2FA).
+#                      Required by: publish step.
+#
+#     github_token     GitHub PAT with `repo` scope. Available as $GITHUB_TOKEN
+#                      for post-publish status comments / release notes.
+#                      Required by: publish step.
+#
+#     slack_webhook    (OPTIONAL) Slack/Discord incoming-webhook URL. Available
+#                      as $SLACK_WEBHOOK. If unset, the notify step logs to
+#                      drone stdout and exits 0 (no failure).
+#                      Required by: notify step (optional).
+#
+# ─── MANUAL OVERRIDE / RETRY ───────────────────────────────────
+#
+#   Retry a failed publish without re-running the gates:
+#     drone build promote Rahspide/sffmc <build-number> <target>
+#
+#   Re-trigger a build from a specific tag (after fixing the issue):
+#     drone build start Rahspide/sffmc --branch=refs/tags/v0.12.0
+#
+# ─── HMAC SIGNATURE ────────────────────────────────────────────
+#
+#   The signature block at the bottom is a placeholder. When you run
+#   `drone repo add Rahspide/sffmc`, the drone CLI signs this YAML and
+#   replaces the placeholder with the real HMAC. Do NOT edit the
+#   signature block manually — it will be regenerated.
 
 ---
 kind: pipeline
@@ -22,15 +60,17 @@ trigger:
 # ── Steps ───────────────────────────────────────────────────────
 steps:
   - name: install
-    image: oven/bun:1
+    image: oven/bun:1.3.14
     commands:
       - bun install --frozen-lockfile
     volumes:
+      - name: node_modules
+        path: /drone/src/node_modules
       - name: bun-cache
         path: /root/.bun/install/cache
 
   - name: typecheck
-    image: oven/bun:1
+    image: oven/bun:1.3.14
     depends_on: [install]
     commands:
       - bun run typecheck
@@ -39,7 +79,7 @@ steps:
         path: /root/.bun/install/cache
 
   - name: test
-    image: oven/bun:1
+    image: oven/bun:1.3.14
     depends_on: [install]
     commands:
       - bun run test:all
@@ -48,7 +88,7 @@ steps:
         path: /root/.bun/install/cache
 
   - name: verify-load
-    image: oven/bun:1
+    image: oven/bun:1.3.14
     depends_on: [install]
     commands:
       - bun run scripts/e2e-load-composites.ts
@@ -57,7 +97,7 @@ steps:
         path: /root/.bun/install/cache
 
   - name: audit-public
-    image: oven/bun:1
+    image: oven/bun:1.3.14
     depends_on: [install]
     commands:
       - bun run audit:public
@@ -65,20 +105,66 @@ steps:
       - name: bun-cache
         path: /root/.bun/install/cache
 
-  - name: publish
-    image: oven/bun:1
-    depends_on: [test, typecheck, verify-load, audit-public]
+  # ── Pre-publish gates (tag-only, belt-and-suspenders) ─────────
+  # The steps above validate every push/PR. On a tag push, we re-run
+  # the critical checks on the actual tag commit (the one that ships)
+  # before publishing. Any failure here blocks `publish`.
+  - name: tag-gate-typecheck
+    image: oven/bun:1.3.14
+    depends_on: [typecheck]
     when:
       event: tag
       ref: refs/tags/v*.*.*
-      # TODO(v0.10.0): npm publish is temporarily disabled.
-      # To re-enable, change to a real condition (e.g., `true`, or
-      # `CI_COMMIT_TAG == "v0.11.0"`) and ensure the @sffmc npm scope
-      # is owned by the account whose NPM_TOKEN is in the secret.
-      evaluate: 'false'
-    environment:
-      NPM_TOKEN:
-        from_secret: npm_token
+    commands:
+      - bun run typecheck
+    volumes:
+      - name: bun-cache
+        path: /root/.bun/install/cache
+
+  - name: tag-gate-test
+    image: oven/bun:1.3.14
+    depends_on: [test]
+    when:
+      event: tag
+      ref: refs/tags/v*.*.*
+    commands:
+      - bun run test:all
+    volumes:
+      - name: bun-cache
+        path: /root/.bun/install/cache
+
+  - name: tag-gate-audit
+    image: oven/bun:1.3.14
+    depends_on: [audit-public]
+    when:
+      event: tag
+      ref: refs/tags/v*.*.*
+    commands:
+      - bash scripts/audit-public-content.sh
+    volumes:
+      - name: bun-cache
+        path: /root/.bun/install/cache
+
+  - name: tag-gate-health
+    image: oven/bun:1.3.14
+    depends_on: [test]
+    when:
+      event: tag
+      ref: refs/tags/v*.*.*
+    commands:
+      - bun run scripts/run-health.ts
+    volumes:
+      - name: bun-cache
+        path: /root/.bun/install/cache
+
+  # ── Publish (tag-only, gated on all 4 tag-gates green) ───────
+  - name: publish
+    image: oven/bun:1.3.14
+    depends_on: [tag-gate-typecheck, tag-gate-test, tag-gate-audit, tag-gate-health]
+    when:
+      event: tag
+      ref: refs/tags/v*.*.*
+    secrets: [npm_token, github_token]
     commands:
       - echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > ~/.npmrc
       - bun run scripts/release.sh --actual
@@ -86,11 +172,42 @@ steps:
       - name: bun-cache
         path: /root/.bun/install/cache
 
+  # ── Notify (tag-only, runs regardless of publish status) ─────
+  # status: [success, failure] makes this step run even if publish
+  # failed, so the team always gets a notification on tag builds.
+  - name: notify
+    image: oven/bun:1.3.14
+    depends_on: [publish]
+    when:
+      event: tag
+      ref: refs/tags/v*.*.*
+      status: [success, failure]
+    secrets: [slack_webhook]
+    commands:
+      - |
+        if [[ -n "${SLACK_WEBHOOK:-}" ]]; then
+          STATUS=$DRONE_BUILD_STATUS
+          TAG=$DRONE_TAG
+          curl -fsS -X POST -H 'Content-type: application/json' \
+            --data "{\"text\":\"📦 SFFMC ${TAG} — publish ${STATUS} (build #${DRONE_BUILD_NUMBER})\"}" \
+            "$SLACK_WEBHOOK" || echo "[WARN] slack webhook POST failed"
+        else
+          echo "[INFO] no SLACK_WEBHOOK secret set; skipping notification"
+          echo "[INFO] build #${DRONE_BUILD_NUMBER} status=${DRONE_BUILD_STATUS} tag=${DRONE_TAG}"
+        fi
+
 # ── Volumes ─────────────────────────────────────────────────────
+# `node_modules` and `bun-cache` are host-persistent volumes shared
+# across builds to avoid re-resolving dependencies. The host paths
+# /var/lib/drone/sffmc-* must exist and be writable by the drone
+# runner user. They are safe to delete between major version bumps.
 volumes:
+  - name: node_modules
+    host:
+      path: /var/lib/drone/sffmc-node_modules
   - name: bun-cache
     host:
-      path: /var/lib/drone/bun-cache
+      path: /var/lib/drone/sffmc-bun-cache
 
 ---
 kind: signature
