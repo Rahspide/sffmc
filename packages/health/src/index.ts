@@ -5,30 +5,22 @@ import { type PluginContext } from "@sffmc/shared";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import {
+  type CheckOutcome,
+  type CheckFn,
+  type HealthResult,
+  createCheck,
+} from "./check-factory.ts";
+
+// Re-export the public schema so consumers (scripts, tests, agentic composite)
+// can `import { CheckResult, HealthResult, CheckFn } from "@sffmc/health"`.
+export type { CheckResult, HealthResult, CheckFn } from "./check-factory.ts";
 
 // homedir() may cache at module load in Bun; use process.env.HOME first so
 // tests can override it.
 function userHome(): string {
   return process.env.HOME || homedir();
 }
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-export interface CheckResult {
-  name: string;
-  status: "ok" | "warn" | "fail";
-  detail: string;
-}
-
-export interface HealthResult {
-  ok: boolean;
-  checks: CheckResult[];
-  summary: string;
-}
-
-export type CheckFn = (repoRoot: string) => Promise<CheckResult>;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -60,15 +52,16 @@ function pkgDir(pkg: string, repoRoot: string): string {
  * Run a per-package presence check across all packages (including shared).
  * Returns ok if every package passes the test, fail otherwise.
  *
+ * Returns a `CheckOutcome` (no name) — the calling factory supplies the name.
+ *
  * @param noun - human-readable noun for the thing being checked (e.g. "tests", "README.md")
  * @param test - returns true if the package HAS the thing
  */
 async function checkPerPackage(
   repoRoot: string,
-  name: string,
   noun: string,
   test: (pkgDir: string) => Promise<boolean>,
-): Promise<CheckResult> {
+): Promise<CheckOutcome> {
   const pkgs = await packageNames(repoRoot);
   const missing: string[] = [];
   for (const pkg of pkgs) {
@@ -78,13 +71,11 @@ async function checkPerPackage(
   }
   if (missing.length === 0) {
     return {
-      name,
       status: "ok",
       detail: `${pkgs.length}/${pkgs.length} packages have ${noun}`,
     };
   }
   return {
-    name,
     status: "fail",
     detail: `${missing.length} package(s) missing ${noun}: ${missing.join(", ")}`,
   };
@@ -99,17 +90,13 @@ async function fileExists(path: string): Promise<boolean> {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Check 1: Hook conflict audit
-// ---------------------------------------------------------------------------
-
-export async function checkHookConflicts(repoRoot: string): Promise<CheckResult> {
+export const checkHookConflicts = createCheck("hook_conflicts", async (repoRoot) => {
   const scriptPath = join(repoRoot, "scripts", "audit-load-order.py");
   const jsonPath = join(repoRoot, ".sffmc", "load-order-audit.json");
   const exists = await fileExists(scriptPath);
   if (!exists) {
     return {
-      name: "hook_conflicts",
       status: "fail",
       detail: `Audit script not found: ${scriptPath}`,
     };
@@ -131,7 +118,6 @@ export async function checkHookConflicts(repoRoot: string): Promise<CheckResult>
       report = JSON.parse(jsonText);
     } catch {
       return {
-        name: "hook_conflicts",
         status: "warn",
         detail: "Audit script ran but JSON report not found or unparseable",
       };
@@ -171,31 +157,25 @@ export async function checkHookConflicts(repoRoot: string): Promise<CheckResult>
 
     if (realConflicts.length === 0) {
       return {
-        name: "hook_conflicts",
         status: "ok",
         detail: `${pluginCount}/${pluginCount} plugins, 0 real conflicts (${Object.keys(allHooks).length} hooks total, structural overlaps in safe-multi hooks are normal)`,
       };
     }
 
     return {
-      name: "hook_conflicts",
       status: "fail",
       detail: `${realConflicts.length} real hook conflict(s): ${realConflicts.join("; ")}`,
     };
   } catch (e) {
     return {
-      name: "hook_conflicts",
       status: "fail",
       detail: `Failed: ${e instanceof Error ? e.message : String(e)}`,
     };
   }
-}
+});
 
-// ---------------------------------------------------------------------------
 // Check 2: Test presence
-// ---------------------------------------------------------------------------
-
-export async function checkTestPresence(repoRoot: string): Promise<CheckResult> {
+export const checkTestPresence = createCheck("test_presence", async (repoRoot) => {
   // After Phase 4 (v0.9.0), sub-feature packages are "code-only" — their
   // tests live in the owning composite's test/ dir. Only check packages that
   // are themselves test owners: composites (have role) and shared (infra).
@@ -234,33 +214,23 @@ export async function checkTestPresence(repoRoot: string): Promise<CheckResult> 
 
   if (missing.length === 0) {
     return {
-      name: "test_presence",
       status: "ok",
       detail: `${testOwners.length}/${testOwners.length} test owners have tests (3 MSPs + shared)`,
     };
   }
   return {
-    name: "test_presence",
     status: "fail",
     detail: `${missing.length} test owner(s) missing tests: ${missing.join(", ")}`,
   };
-}
+});
 
-// ---------------------------------------------------------------------------
 // Check 3: README presence
-// ---------------------------------------------------------------------------
+export const checkReadmePresence = createCheck("readme_presence", (repoRoot) =>
+  checkPerPackage(repoRoot, "README.md", (dir) => fileExists(join(dir, "README.md"))),
+);
 
-export async function checkReadmePresence(repoRoot: string): Promise<CheckResult> {
-  return checkPerPackage(repoRoot, "readme_presence", "README.md", (dir) =>
-    fileExists(join(dir, "README.md")),
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Check 4: Type check
-// ---------------------------------------------------------------------------
-
-export async function checkTypeCheck(repoRoot: string): Promise<CheckResult> {
+export const checkTypeCheck = createCheck("type_check", async (repoRoot) => {
   const pkgs = await packageNames(repoRoot);
   const failures: string[] = [];
 
@@ -296,23 +266,18 @@ export async function checkTypeCheck(repoRoot: string): Promise<CheckResult> {
 
   if (failures.length === 0) {
     return {
-      name: "type_check",
       status: "ok",
       detail: `${pkgs.length}/${pkgs.length} packages typecheck clean`,
     };
   }
 
   return {
-    name: "type_check",
     status: "fail",
     detail: `${failures.length} package(s) failed: ${failures.join("; ")}`,
   };
-}
+});
 
-// ---------------------------------------------------------------------------
 // Check 5: Tool registration sanity (fix-17 regression guard)
-// ---------------------------------------------------------------------------
-
 const TOOL_FILES = [
   "packages/compose/src/index.ts",       // compose_skill
   "packages/workflow/src/tool.ts",       // workflow
@@ -322,7 +287,7 @@ const TOOL_FILES = [
   "packages/extra/src/dream.ts",         // extra_dream
 ];
 
-export async function checkToolRegistration(repoRoot: string): Promise<CheckResult> {
+export const checkToolRegistration = createCheck("tool_registration", async (repoRoot) => {
   const bugs: string[] = [];
 
   for (const relPath of TOOL_FILES) {
@@ -398,24 +363,19 @@ export async function checkToolRegistration(repoRoot: string): Promise<CheckResu
 
   if (bugs.length === 0) {
     return {
-      name: "tool_registration",
       status: "ok",
       detail: `0 'name' field bugs across ${TOOL_FILES.length} tool-bearing files`,
     };
   }
 
   return {
-    name: "tool_registration",
     status: "fail",
     detail: bugs.join("; "),
   };
-}
+});
 
-// ---------------------------------------------------------------------------
 // Check 6: Version consistency
-// ---------------------------------------------------------------------------
-
-export async function checkVersionConsistency(repoRoot: string): Promise<CheckResult> {
+export const checkVersionConsistency = createCheck("version_consistency", async (repoRoot) => {
   // Read root version
   let rootVersion: string;
   try {
@@ -423,7 +383,6 @@ export async function checkVersionConsistency(repoRoot: string): Promise<CheckRe
     rootVersion = rootPkg.version || "unknown";
   } catch {
     return {
-      name: "version_consistency",
       status: "fail",
       detail: "Could not read root package.json",
     };
@@ -446,24 +405,19 @@ export async function checkVersionConsistency(repoRoot: string): Promise<CheckRe
 
   if (mismatches.length === 0) {
     return {
-      name: "version_consistency",
       status: "ok",
       detail: `All ${pkgs.length} packages match root version ${rootVersion}`,
     };
   }
 
   return {
-    name: "version_consistency",
     status: "warn",
     detail: `Root ${rootVersion}, ${mismatches.length} mismatches: ${mismatches.join(", ")}`,
   };
-}
+});
 
-// ---------------------------------------------------------------------------
 // Check 7: License file
-// ---------------------------------------------------------------------------
-
-export async function checkLicense(repoRoot: string): Promise<CheckResult> {
+export const checkLicense = createCheck("license", async (repoRoot) => {
   const licenseExists = await fileExists(join(repoRoot, "LICENSE"));
   const missingRefs: string[] = [];
 
@@ -487,7 +441,6 @@ export async function checkLicense(repoRoot: string): Promise<CheckResult> {
 
   if (!licenseExists) {
     return {
-      name: "license",
       status: "fail",
       detail: "No LICENSE file in repo root",
     };
@@ -495,26 +448,21 @@ export async function checkLicense(repoRoot: string): Promise<CheckResult> {
 
   if (missingRefs.length === 0) {
     return {
-      name: "license",
       status: "ok",
       detail: `LICENSE present, all ${pkgs.length} READMEs reference it`,
     };
   }
 
   return {
-    name: "license",
     status: "warn",
     detail: `LICENSE present, ${missingRefs.length} README(s) missing reference: ${missingRefs.join(", ")}`,
   };
-}
+});
 
-// ---------------------------------------------------------------------------
 // Check 8: SDK compliance (shared import)
-// ---------------------------------------------------------------------------
-
 const KNOWN_SDK_EXCEPTIONS = new Set(["max-mode", "workflow"]);
 
-export async function checkSdkCompliance(repoRoot: string): Promise<CheckResult> {
+export const checkSdkCompliance = createCheck("sdk_compliance", async (repoRoot) => {
   const pkgs = (await packageNames(repoRoot)).filter((p) => p !== "shared");
   const missingImport: string[] = [];
   const missingDir: string[] = [];
@@ -538,7 +486,6 @@ export async function checkSdkCompliance(repoRoot: string): Promise<CheckResult>
 
   if (missingDir.length > 0) {
     return {
-      name: "sdk_compliance",
       status: "fail",
       detail: `${missingDir.length} package(s) missing src/index.ts: ${missingDir.join(", ")}`,
     };
@@ -546,24 +493,19 @@ export async function checkSdkCompliance(repoRoot: string): Promise<CheckResult>
 
   if (missingImport.length === 0) {
     return {
-      name: "sdk_compliance",
       status: "ok",
       detail: `${pkgs.length - KNOWN_SDK_EXCEPTIONS.size}/${pkgs.length} packages import @sffmc/shared (2 known exceptions: ${[...KNOWN_SDK_EXCEPTIONS].join(", ")})`,
     };
   }
 
   return {
-    name: "sdk_compliance",
     status: "warn",
     detail: `${missingImport.length} package(s) missing @sffmc/shared import: ${missingImport.join(", ")}`,
   };
-}
+});
 
-// ---------------------------------------------------------------------------
 // Check 9: tsconfig.json presence
-// ---------------------------------------------------------------------------
-
-export async function checkTsConfigPresence(repoRoot: string): Promise<CheckResult> {
+export const checkTsConfigPresence = createCheck("tsconfig_presence", async (repoRoot) => {
   const pkgs = await packageNames(repoRoot);
   const missing: string[] = [];
   const invalidJson: string[] = [];
@@ -584,7 +526,6 @@ export async function checkTsConfigPresence(repoRoot: string): Promise<CheckResu
 
   if (invalidJson.length > 0) {
     return {
-      name: "tsconfig_presence",
       status: "fail",
       detail: `${invalidJson.length} package(s) have invalid tsconfig.json: ${invalidJson.join(", ")}`,
     };
@@ -592,24 +533,19 @@ export async function checkTsConfigPresence(repoRoot: string): Promise<CheckResu
 
   if (missing.length === 0) {
     return {
-      name: "tsconfig_presence",
       status: "ok",
       detail: `${pkgs.length}/${pkgs.length} packages have tsconfig.json`,
     };
   }
 
   return {
-    name: "tsconfig_presence",
     status: "warn",
     detail: `${missing.length} package(s) missing tsconfig.json: ${missing.join(", ")}`,
   };
-}
+});
 
-// ---------------------------------------------------------------------------
 // Check 10: CHANGELOG currency
-// ---------------------------------------------------------------------------
-
-export async function checkChangelogCurrency(repoRoot: string): Promise<CheckResult> {
+export const checkChangelogCurrency = createCheck("changelog_currency", async (repoRoot) => {
   // Read root version
   let rootVersion: string;
   try {
@@ -617,7 +553,6 @@ export async function checkChangelogCurrency(repoRoot: string): Promise<CheckRes
     rootVersion = rootPkg.version || "unknown";
   } catch {
     return {
-      name: "changelog_currency",
       status: "fail",
       detail: "Could not read root package.json",
     };
@@ -630,7 +565,6 @@ export async function checkChangelogCurrency(repoRoot: string): Promise<CheckRes
     changelogText = await readFile(changelogPath, "utf-8");
   } catch {
     return {
-      name: "changelog_currency",
       status: "fail",
       detail: "CHANGELOG.md not found",
     };
@@ -640,7 +574,6 @@ export async function checkChangelogCurrency(repoRoot: string): Promise<CheckRes
   const versionMatch = changelogText.match(/^##\s+v(\d+\.\d+\.\d+)/m);
   if (!versionMatch) {
     return {
-      name: "changelog_currency",
       status: "fail",
       detail: "CHANGELOG.md has no recognizable version section",
     };
@@ -650,28 +583,22 @@ export async function checkChangelogCurrency(repoRoot: string): Promise<CheckRes
 
   if (changelogVersion === rootVersion) {
     return {
-      name: "changelog_currency",
       status: "ok",
       detail: `CHANGELOG v${changelogVersion} matches root package.json (${rootVersion})`,
     };
   }
 
   return {
-    name: "changelog_currency",
     status: "warn",
     detail: `CHANGELOG v${changelogVersion} does not match root package.json (${rootVersion})`,
   };
-}
+});
 
-// ---------------------------------------------------------------------------
 // Check 11: @sffmc/extra opt-in status (informational only)
-// ---------------------------------------------------------------------------
-
-export async function checkExtraOptIn(repoRoot: string): Promise<CheckResult> {
+export const checkExtraOptIn = createCheck("extra_opt_in", async (repoRoot) => {
   const extraDir = join(repoRoot, "packages", "extra");
   if (!(await fileExists(extraDir))) {
     return {
-      name: "extra_opt_in",
       status: "ok",
       detail: "@sffmc/extra not installed (packages/extra/ not found)",
     };
@@ -680,7 +607,6 @@ export async function checkExtraOptIn(repoRoot: string): Promise<CheckResult> {
   const configPath = join(userHome(), ".config", "SFFMC", "extra.yaml");
   if (!(await fileExists(configPath))) {
     return {
-      name: "extra_opt_in",
       status: "ok",
       detail: "@sffmc/extra installed, config not found — all features off (default)",
     };
@@ -696,31 +622,25 @@ export async function checkExtraOptIn(repoRoot: string): Promise<CheckResult> {
 
     if (enabled.length === 0) {
       return {
-        name: "extra_opt_in",
         status: "ok",
         detail: "@sffmc/extra installed, config present, all features off",
       };
     }
 
     return {
-      name: "extra_opt_in",
       status: "ok",
       detail: `@sffmc/extra: ${enabled.length}/3 features enabled (${enabled.join(", ")})`,
     };
   } catch {
     return {
-      name: "extra_opt_in",
       status: "warn",
       detail: "Could not read extra config file",
     };
   }
-}
+});
 
-// ---------------------------------------------------------------------------
 // Check 12: Category split (MiMo ports vs SFFMC originals)
-// ---------------------------------------------------------------------------
-
-export async function checkCategorySplit(repoRoot: string): Promise<CheckResult> {
+export const checkCategorySplit = createCheck("category_split", async (repoRoot) => {
   const counts: Record<string, { count: number; features: string[] }> = {
     "msp": { count: 0, features: [] },
     "mimo-port": { count: 0, features: [] },
@@ -750,26 +670,21 @@ export async function checkCategorySplit(repoRoot: string): Promise<CheckResult>
 
   if (uncatCount > 0) {
     return {
-      name: "category_split",
       status: "warn",
       detail: `${portCount} mimo-port, ${origCount} sffmc-original, ${uncatCount} uncategorized`,
     };
   }
 
   return {
-    name: "category_split",
     status: "ok",
     detail: `3 MSP categories: ${mspCount} msp (3-MSP bundles: safety/memory/agentic), ${portCount} mimo-port (MiMo-Code v8.0 features), ${origCount} sffmc-original (SFFMC team additions)`,
   };
-}
+});
 
-// ---------------------------------------------------------------------------
 // Check 13: Composite structure (v0.9.0)
-// ---------------------------------------------------------------------------
-
 const EXPECTED_COMPOSITES = ["safety", "memory", "agentic"] as const;
 
-export async function checkCompositeStructure(repoRoot: string): Promise<CheckResult> {
+export const checkCompositeStructure = createCheck("composite_structure", async (repoRoot) => {
   const errors: string[] = [];
   const warnings: string[] = [];
 
@@ -842,7 +757,6 @@ export async function checkCompositeStructure(repoRoot: string): Promise<CheckRe
 
   if (errors.length > 0) {
     return {
-      name: "composite_structure",
       status: "fail",
       detail: `${errors.length} composite structure error(s): ${errors.join("; ")}`,
     };
@@ -850,18 +764,16 @@ export async function checkCompositeStructure(repoRoot: string): Promise<CheckRe
 
   if (warnings.length > 0) {
     return {
-      name: "composite_structure",
       status: "warn",
       detail: `3 composites valid (safety/memory/agentic), ${warnings.length} warning(s): ${warnings.join("; ")}`,
     };
   }
 
   return {
-    name: "composite_structure",
     status: "ok",
     detail: `3 composites valid: safety (5 features), memory (4 features), agentic (4 features)`,
   };
-}
+});
 
 // ---------------------------------------------------------------------------
 // Orchestrator
