@@ -153,34 +153,42 @@ function readHeader(sessionID: string, dir?: string): CheckpointHeader | null {
 
 export function readToolCalls(sessionID: string, dir?: string): ToolCall[] {
   const fp = filePath(sessionID, dir);
-  if (!existsSync(fp)) return [];
 
+  // Single read into a buffer — no upfront existsSync/stat call.
+  // ENOENT (missing file) and other read errors are handled by the catch.
+  let fileBuf: Buffer;
   try {
-    const raw = readFileSync(fp, "utf-8");
-    const lines = raw.trim().split("\n");
-    const calls: ToolCall[] = [];
-
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-      try {
-        const obj = JSON.parse(trimmed) as Record<string, unknown>;
-        if (obj.__type === "header") continue;
-        if (
-          typeof obj.tool === "string" &&
-          typeof obj.timestamp === "number" &&
-          typeof obj.callID === "string"
-        ) {
-          calls.push(obj as unknown as ToolCall);
-        }
-      } catch {
-        // Skip malformed lines
-      }
-    }
-    return calls;
+    fileBuf = readFileSync(fp);
   } catch {
     return [];
   }
+
+  // buf.length is the file size — cheap early-exit on empty files
+  // (equivalent to what a stat() pre-check would have given us).
+  if (fileBuf.length === 0) return [];
+
+  const raw = fileBuf.toString("utf-8");
+  const lines = raw.trim().split("\n");
+  const calls: ToolCall[] = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    try {
+      const obj = JSON.parse(trimmed) as Record<string, unknown>;
+      if (obj.__type === "header") continue;
+      if (
+        typeof obj.tool === "string" &&
+        typeof obj.timestamp === "number" &&
+        typeof obj.callID === "string"
+      ) {
+        calls.push(obj as unknown as ToolCall);
+      }
+    } catch {
+      // Skip malformed lines
+    }
+  }
+  return calls;
 }
 
 export function listSessions(dir?: string): string[] {
