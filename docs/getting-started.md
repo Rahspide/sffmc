@@ -19,25 +19,29 @@ SFFMC is developed and tested on Linux (CachyOS / Arch-based, systemd). The plug
 
 ## 3. Install
 
-Add the SFFMC plugin paths to your `~/.config/opencode/opencode.json` under the `plugin` key. All 9 plugins live inside the monorepo at `packages/<name>/src/index.ts`:
+Add the SFFMC plugin paths to your `~/.config/opencode/opencode.json` under the `plugin` key. v0.9.0+ ships as **3 composite packages** — `@sffmc/safety`, `@sffmc/memory`, `@sffmc/agentic` — each of which composes several sub-features into one default export via `mergeHooks()`. The 10 sub-features (`watchdog`, `rules`, `auto-max`, `eos-stripper`, `log-whitelist`, `extra`, `max-mode`, `workflow`, `compose`, `health`) are also individually available for backward compatibility. The recommended way to install is via the `sffmc` CLI, which adds the 3 composites by default and supports `--all` for the full 13-package set:
+
+```bash
+# macOS / Linux
+curl -fsSL https://raw.githubusercontent.com/Rahspide/sffmc/main/install.sh | sh
+
+# Windows PowerShell
+irm https://raw.githubusercontent.com/Rahspide/sffmc/main/install.ps1 | iex
+```
+
+Under the hood `install.sh` clones the repo to `~/.sffmc/plugins/sffmc` and runs `sffmc init` (or `sffmc init --all` for the full 13-package set). To edit your plugin list manually, point each entry at a composite `src/index.ts` inside the monorepo:
 
 ```jsonc
 {
   "plugin": [
+    "file:///path/to/SFFMC/packages/safety/src/index.ts",
     "file:///path/to/SFFMC/packages/memory/src/index.ts",
-    "file:///path/to/SFFMC/packages/rules/src/index.ts",
-    "file:///path/to/SFFMC/packages/watchdog/src/index.ts",
-    "file:///path/to/SFFMC/packages/eos-stripper/src/index.ts",
-    "file:///path/to/SFFMC/packages/log-whitelist/src/index.ts",
-    "file:///path/to/SFFMC/packages/max-mode/src/index.ts",
-    "file:///path/to/SFFMC/packages/auto-max/src/index.ts",
-    "file:///path/to/SFFMC/packages/compose/src/index.ts",
-    "file:///path/to/SFFMC/packages/workflow/src/index.ts"
+    "file:///path/to/SFFMC/packages/agentic/src/index.ts"
   ]
 }
 ```
 
-Restart OpenCode. The plugins load in the order listed; that order is intentional and verified — see [load-order-audit.md](load-order-audit.md) for the full hook list and the reasoning behind each slot.
+Or pick individual sub-features (`packages/<name>/src/index.ts` for any of the 10 sub-packages) for finer-grained control. Restart OpenCode after editing. The composites load in the order listed; that order is intentional and verified — see [load-order-audit.md](load-order-audit.md) for the full hook list and the reasoning behind each slot.
 
 To verify they loaded, open an OpenCode session and call any tool. If `@sffmc/workflow` is active, you'll see `workflow` in the tool list.
 
@@ -146,10 +150,10 @@ Every run writes a JSONL journal, an SQLite row per step, and a copy of the scri
 
 ```bash
 # Per-run journal (one JSON event per line — agent start/finish, phase changes, logs)
-ls ~/.local/share/SFFMC/workflow/*.jsonl
+ls ~/.local/share/sffmc/workflow/*.jsonl
 
 # Database (run metadata, step counts, costs)
-sqlite3 ~/.local/share/SFFMC/workflow/state.sqlite \
+sqlite3 ~/.local/share/sffmc/workflow/state.sqlite \
   "SELECT run_id, name, status, succeeded, failed, current_phase, tokens_used FROM workflow_runs ORDER BY started_at DESC LIMIT 10"
 ```
 
@@ -157,7 +161,7 @@ To find why a specific run failed, grep its journal for errors and the last few 
 
 ```bash
 RUN_ID="wf_8c3a91b2"
-grep -E '"kind":"(agent_failed|error|phase)"' ~/.local/share/SFFMC/workflow/${RUN_ID}.jsonl | tail -20
+grep -E '"kind":"(agent_failed|error|phase)"' ~/.local/share/sffmc/workflow/${RUN_ID}.jsonl | tail -20
 ```
 
 If the process died mid-run (status: `crashed`), every successful `agent()` call is already cached in the journal, so you can resume from the last checkpoint instead of redoing the work:

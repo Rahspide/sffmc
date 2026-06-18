@@ -72,7 +72,7 @@
 
 - **p95 = 35ms** — well under 500ms budget
 - **No slow turns** (>2s) — async sandbox failures don't count
-- **Memory**: SQLite + JSONL files created in `~/.local/share/SFFMC/`
+- **Memory**: SQLite + JSONL files created in `~/.local/share/sffmc/`
 - **Total wall-clock**: ~3 seconds for 121 turns
 
 ## Recommendations for v1.0.0

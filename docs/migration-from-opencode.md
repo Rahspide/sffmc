@@ -1,6 +1,6 @@
 # Migration Between OpenCode, MiMo-Code, and SFFMC
 
-SFFMC v0.9.0 is a plugin suite for OpenCode that ports the killer features from Xiaomi's MiMo-Code fork. If you use any of these three, here's how to move between them.
+SFFMC is a plugin suite for OpenCode that ports the killer features from Xiaomi's MiMo-Code fork. If you use any of these three, here's how to move between them.
 
 ## What's the Same
 
@@ -96,11 +96,11 @@ bun install
 
 # 2. (Optional) Remove config files
 
-rm -rf ~/.config/SFFMC/
+rm -rf ~/.config/sffmc/
 
 # 3. (Optional) Remove memory database
 
-rm -f ~/.local/share/SFFMC/memory/index.sqlite*
+rm -f ~/.local/share/sffmc/memory/index.sqlite*
 
 # 4. Restart OpenCode
 ```
@@ -259,7 +259,7 @@ After migrating, verify everything works:
 ```
 # 1. Memory plugin: check DB was created
 
-ls -la ~/.local/share/SFFMC/memory/index.sqlite
+ls -la ~/.local/share/sffmc/memory/index.sqlite
 # Should exist with non-zero size
 
 # 2. Memory plugin: check watcher is indexing
@@ -267,12 +267,12 @@ ls -la ~/.local/share/SFFMC/memory/index.sqlite
 # Create a test file in your project
 echo "# Test" >> memory-bank/test.md
 # Wait 1 second, then check DB
-sqlite3 ~/.local/share/SFFMC/memory/index.sqlite "SELECT count(*) FROM memory_entries"
+sqlite3 ~/.local/share/sffmc/memory/index.sqlite "SELECT count(*) FROM memory_entries"
 # Should be > 0
 
 # 3. Rules plugin: check default rules loaded
 
-# The plugin should load defaults if ~/.config/SFFMC/rules.yaml doesn't exist.
+# The plugin should load defaults if ~/.config/sffmc/rules.yaml doesn't exist.
 # Verify by running a dangerous command — it should be blocked:
 # "rm -rf /" → DENIED
 # "DROP TABLE users" → DENIED
@@ -293,7 +293,7 @@ sqlite3 ~/.local/share/SFFMC/memory/index.sqlite "SELECT count(*) FROM memory_en
 
 cd ~/.sffmc/plugins/sffmc
 bun test
-# Should show: 486 tests, 0 failures (24 files)
+# Should show: 578 tests, 0 failures (30 files)
 ```
 
 ## References

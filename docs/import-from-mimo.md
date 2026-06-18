@@ -1,4 +1,4 @@
-# Import from MiMo-Code to SFFMC v0.9.0
+# Import from MiMo-Code to SFFMC
 
 If you are coming from Xiaomi's [MiMo-Code](https://github.com/XiaomiMiMo/MiMo-Code),
 here is what you need to know to move to [SFFMC](https://github.com/Rahspide/sffmc).
