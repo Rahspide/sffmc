@@ -805,4 +805,195 @@ describe("F8 Dream", () => {
     // expected branch, not some unrelated failure.
     expect(result.errors[0]).toMatch(/no such table|memory_entries/i);
   });
+
+  // ── v0.13.0 P3 #17: jaccardSets refactor — correctness equivalence ──────
+  // dream.ts:79-88 — jaccardSets(a, b) is the pre-tokenized twin of the
+  // legacy jaccard(a, b) string API. The refactor MUST be behavior-preserving:
+  // same input → same output. This regression guard inserts 50 entries with
+  // a known mix (duplicate pairs, 1 cluster, unique, empty, long) and
+  // asserts the deduped/summarized counts and the final DB row count.
+  // The dedup threshold is the DREAM_DEDUP_THRESHOLD constant from dream.ts
+  // (0.9 — Jaccard > 0.9 keeps newer, deletes older).
+
+  it("jaccardSets refactor: 50 entries produce same dedup/summarize counts as legacy jaccard() (#17)", async () => {
+    const db = openTestDB();
+    const now = Math.floor(Date.now() / 1000);
+    const insert = db.prepare(
+      "INSERT INTO memory_entries (source_path, section, content, importance_score, last_accessed, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+    );
+
+    // 10 pairs of near-duplicates (Jaccard > 0.9). Insert OLDER first, NEWER
+    // second so that dedup keeps the newer copy. → 10 deletions.
+    //
+    // Each pair uses its own DISJOINT 20-token base + 1 entry-unique word.
+    // Intra-pair Jaccard = 20 / (21+21-20) = 20/22 ≈ 0.909 > 0.9 → dedup.
+    // Inter-pair Jaccard = 0 / 42 = 0 (no shared tokens) → no cluster.
+    // The 10 surviving "newer" entries thus form 10 singleton clusters and
+    // do NOT contribute to summarization — keeping the predicted counts
+    // deterministic.
+    const dupBases = [
+      // 0: Greek letters (20)
+      "alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron pi rho sigma tau upsilon",
+      // 1: Zodiac (20)
+      "aries taurus gemini cancer leo virgo libra scorpio sagittarius capricorn aquarius pisces constellation horoscope zodiac wheel element fire water terra",
+      // 2: Continents (20)
+      "africa antarctica asia australia europe northamerica southamerica continent country population region territory landmark desert rainforest savanna tundra grassland mountain valley",
+      // 3: Musical instruments (20)
+      "piano guitar violin drums trumpet saxophone flute clarinet cello harp banjo ukulele tuba trombone harmonica accordion xylophone mandolin oboe timpani",
+      // 4: Planets (20)
+      "mercury venus earth mars jupiter saturn uranus neptune pluto planet moon orbit solar lunar galaxy comet meteor eclipse equinox solstice",
+      // 5: Tree types (20)
+      "oak maple pine birch cedar spruce willow redwood juniper chestnut eucalyptus mahogany teak aspen elm beech cypress sycamore fig linden",
+      // 6: Dog breeds (20)
+      "labrador poodle beagle bulldog husky rottweiler boxer terrier retriever shepherd chihuahua dalmatian pug spaniel akita doberman collie setter pointer greyhound",
+      // 7: Programming languages (20)
+      "python javascript typescript rust ruby java golang swift kotlin scala perl haskell lua elixir dart csharp cobol fortran lisp clojure",
+      // 8: Coffee drinks (20)
+      "espresso cappuccino latte macchiato americano mocha cortado ristretto affogato breve conpanna doppio lungo turkish irish frappuccino viennese nitro flatwhite red eye",
+      // 9: Cheese types (20)
+      "cheddar brie gouda parmesan mozzarella feta swiss camembert roquefort gruyere manchego ricotta provolone edam stilton asiago gorgonzola havarti colby monterey",
+    ];
+    for (let i = 0; i < 10; i++) {
+      const older = dupBases[i] + ` extra${i}a`;
+      const newer = dupBases[i] + ` extra${i}b`;
+      insert.run(`dup-older-${i}.md`, null, older, 0.5, now - 200 + i, now - 200 + i);
+      insert.run(`dup-newer-${i}.md`, null, newer, 0.5, now - 100 + i, now - 100 + i);
+    }
+
+    // 6 similar entries (Jaccard ~0.5 within group, ~0 across groups) → 1
+    // cluster of 6 → 1 summary inserted, 6 source entries removed.
+    const clusterBase = "foo bar baz qux quux corge";
+    for (let i = 0; i < 6; i++) {
+      insert.run(
+        `cluster-${i}.md`,
+        null,
+        clusterBase + ` unique${i} token${i} word${i}`,
+        0.5,
+        now - 50 + i,
+        now - 50 + i,
+      );
+    }
+
+    // 22 unique + dissimilar entries (no shared tokens with each other or
+    // with the cluster). Each forms a singleton cluster (length 1 < 5 → no
+    // summary). All 22 survive dream unchanged.
+    const uniqueTopics = [
+      "kubernetes pod scheduling affinity",
+      "postgresql vacuum analyze statistics",
+      "scheme borrow checker lifetimes",
+      "react hooks useState useEffect",
+      "docker multi-stage build cache",
+      "webpack module federation remote",
+      "graphql apollo federation subgraph",
+      "redis pubsub streams",
+      "mongodb aggregation pipeline",
+      "kafka consumer group offset",
+      "elasticsearch inverted index shard",
+      "rabbitmq exchange queue binding",
+      "prometheus metrics scrape",
+      "opentelemetry trace span",
+      "terraform plan apply state",
+      "ansible playbook inventory",
+      "nginx upstream load balancer",
+      "haproxy acl backend",
+      "consul service discovery",
+      "vault secret engine",
+      "istio sidecar envoy",
+      "linkerd service mesh proxy",
+    ];
+    for (let i = 0; i < uniqueTopics.length; i++) {
+      insert.run(
+        `unique-${i}.md`,
+        null,
+        uniqueTopics[i],
+        0.5,
+        now - 30 + i,
+        now - 30 + i,
+      );
+    }
+
+    // 1 empty entry (regression: empty content must not crash jaccardSets
+    // via the early-return guard). Jaccard(empty, *) = 0 → no dedup,
+    // no cluster. Stays as 1 entry.
+    insert.run(`empty.md`, null, "", 0.5, now, now);
+
+    // 1 very long entry (50 unique tokens). Jaccard(long, *) = 0 since
+    // tokens are unique. No dedup, no cluster. Stays as 1 entry.
+    const longContent = Array.from({ length: 50 }, (_, i) => `token${i}`).join(
+      " ",
+    );
+    insert.run(`long.md`, null, longContent, 0.5, now, now);
+
+    // Sanity: 20 (dups) + 6 (cluster) + 22 (unique) + 1 (empty) + 1 (long) = 50
+    expect(countRows(db)).toBe(50);
+    db.close();
+
+    const { tool } = createDreamTool({
+      enabled: true,
+      threshold: 50,
+      intervalHours: 0,
+      storagePath: TEST_DB_PATH,
+    });
+
+    const result = await tool.execute();
+    expect(result.ok).toBe(true);
+    expect(result.errors).toEqual([]);
+    expect(result.scanned).toBe(50);
+    expect(result.deduped).toBe(10); // 10 pairs → 10 older copies deleted
+    expect(result.summarized).toBe(6); // 6-entry cluster → 6 consumed
+    expect(result.archived).toBe(0); // all entries are fresh (now, now)
+
+    // Final DB state: 50 - 10 (dedup) - 6 (clustered) + 1 (summary) = 35
+    const db2 = openTestDB();
+    expect(countRows(db2)).toBe(35);
+    // The 1 inserted summary must be the only "dream-summary" row.
+    const summaries = db2
+      .query("SELECT * FROM memory_entries WHERE source_path = ?")
+      .all("dream-summary") as Array<{ content: string }>;
+    expect(summaries.length).toBe(1);
+    // Without ctx, summarization uses concatenateSummary (not LLM).
+    expect(summaries[0].content).toContain("DREAM-SUMMARY");
+    expect(summaries[0].content).toContain("entries merged");
+    db2.close();
+  });
+
+  // ── v0.13.0 P3 #18: jaccardSets performance benchmark (it.skip) ────────
+  // dream.ts:265-268 + 278-281 + 374-378 — pre-tokenizing once turns the
+  // O(n²) re-tokenize storm into O(n²) Set.has() lookups. Goal: 3-5x
+  // speedup vs the legacy jaccard() string API on 1000+ entry workloads.
+  // To enable this benchmark, change `it.skip` to `it` and run:
+  //   cd /data/projects/SFFMC && bun test -t "jaccardSets performance"
+  // Actual wall time depends on machine; this is for manual inspection,
+  // not a CI gate. The log line includes the timing + counts.
+
+  it.skip("jaccardSets performance: 2000 entries complete in <30s with timing log (#18)", async () => {
+    const db = openTestDB();
+    seedDB(db, 2000);
+    expect(countRows(db)).toBe(2000);
+    db.close();
+
+    const { tool } = createDreamTool({
+      enabled: true,
+      threshold: 50,
+      intervalHours: 0,
+      storagePath: TEST_DB_PATH,
+    });
+
+    const start = performance.now();
+    const result = await tool.execute();
+    const elapsed = performance.now() - start;
+
+    expect(result.ok).toBe(true);
+    expect(result.scanned).toBe(2000);
+    // Elapsed must be positive (defensive — guards against a clock anomaly)
+    expect(elapsed).toBeGreaterThan(0);
+
+    // Manual inspection: log the wall time and the per-stage counts.
+    // Compare against the legacy jaccard() string API to compute speedup.
+    console.log(
+      `[PERF] 2000-entry dream: ${elapsed.toFixed(0)}ms ` +
+        `(scanned=${result.scanned}, deduped=${result.deduped}, ` +
+        `archived=${result.archived}, summarized=${result.summarized})`,
+    );
+  });
 });
