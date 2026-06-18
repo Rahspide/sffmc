@@ -18,15 +18,7 @@ import { homedir } from "node:os"
 
 interface MemoryConfig {
   storagePath: string
-  reconBudgets: {
-    memory: number
-    checkpoint: number
-    taskTree: number
-    tail: number
-    agents: number
-  }
-  memoryPaths: string[]
-  defaultImportance: number
+  tailChars: number
 }
 
 const defaultConfig: MemoryConfig = {
@@ -34,15 +26,7 @@ const defaultConfig: MemoryConfig = {
     homedir(),
     ".local/share/SFFMC/memory/index.sqlite",
   ),
-  reconBudgets: {
-    memory: 6144,
-    checkpoint: 6144,
-    taskTree: 4096,
-    tail: 8192,
-    agents: 8192,
-  },
-  memoryPaths: ["memory-bank/", "AGENTS.md", "*.md"],
-  defaultImportance: 0.5,
+  tailChars: 8192,
 }
 
 interface PluginState {
@@ -125,7 +109,7 @@ export const server = async (ctx: PluginContext) => {
 
         const tail = tailFromMessages(
           data.messages.slice(-20),
-          state.config.reconBudgets.tail,
+          state.config.tailChars,
         )
 
         const recon = buildRecon(

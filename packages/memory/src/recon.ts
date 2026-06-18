@@ -4,7 +4,6 @@ export const RECON_BUDGETS = {
   memory: 6144,
   checkpoint: 6144,
   taskTree: 4096,
-  tail: 8192,
   agents: 8192,
 } as const;
 
@@ -38,9 +37,7 @@ export function buildRecon(
     `## Task Tree (${RECON_BUDGETS.taskTree} chars)\n${truncate(taskTreeText, RECON_BUDGETS.taskTree)}`,
   );
 
-  sections.push(
-    `## Recent Context (${RECON_BUDGETS.tail} chars)\n${truncate(tail, RECON_BUDGETS.tail)}`,
-  );
+  sections.push(`## Recent Context (${tail.length} chars)\n${tail}`);
 
   sections.push(
     `## AGENTS.md (${RECON_BUDGETS.agents} chars)\n${truncate(agents, RECON_BUDGETS.agents)}`,
