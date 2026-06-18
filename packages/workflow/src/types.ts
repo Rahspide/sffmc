@@ -10,6 +10,7 @@ export type WorkflowStatus =
   | "failed"
   | "cancelled"
   | "crashed"
+  | "paused" // recoverable state — has journal to replay, distinct from crashed
   | "budget_exceeded"
 
 /** Row in the workflow_runs SQLite table. */

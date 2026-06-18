@@ -3,8 +3,8 @@
 
 import { Database } from "bun:sqlite"
 import { randomBytes, createHash } from "node:crypto"
-import { mkdirSync, appendFileSync, createReadStream, openSync, fsyncSync, closeSync } from "node:fs"
-import { readFile, writeFile, appendFile, mkdir } from "node:fs/promises"
+import { mkdirSync, appendFileSync, createReadStream, openSync, fsyncSync, closeSync, existsSync } from "node:fs"
+import { readFile, writeFile, appendFile, mkdir, stat } from "node:fs/promises"
 import path from "node:path"
 import { homedir } from "node:os"
 import { createInterface } from "node:readline"
@@ -275,6 +275,16 @@ export class WorkflowPersistence {
     return rows.map(rowToRun)
   }
 
+  /** Return only runs with status='running'. Used by recoverOrphanedWorkflows()
+   *  on startup to find orphaned workflows that need to be marked as
+   *  'paused' (journal replay possible) or 'crashed' (no journal). */
+  listRunningRuns(): WorkflowRun[] {
+    const rows = this.db
+      .query("SELECT * FROM workflow_runs WHERE status = 'running' ORDER BY time_created DESC")
+      .all() as Record<string, unknown>[]
+    return rows.map(rowToRun)
+  }
+
   // ── Script file IO ─────────────────────────────────────────────────────
 
   private scriptPath(runID: string): string {
@@ -304,13 +314,32 @@ export class WorkflowPersistence {
     return path.join(this.dir, `${runID}.jsonl`)
   }
 
+  /** Cheap pre-check: does the journal file exist and have at least one byte?
+   *  Used by recoverOrphanedWorkflows() to decide 'paused' vs 'crashed'. */
+  async hasJournalEvents(runID: string): Promise<boolean> {
+    safeRunID(runID)
+    try {
+      const s = await stat(this.journalPath(runID))
+      return s.size > 0
+    } catch {
+      return false // file doesn't exist
+    }
+  }
+
   /** Synchronous journal append — durable before the sandbox pump can be starved.
    *  fsync is coalesced via a 50ms timer; call flushJournalSync() for explicit
-   *  durability at workflow lifecycle boundaries. */
+   *  durability at workflow lifecycle boundaries.
+   *  Writes a v1 header (`{"v":1}`) on the first append to a new journal
+   *  file. v0 journals (no header) remain backward-compatible — loadJournal
+   *  distinguishes header lines by the absence of a `t` field. */
   appendJournalSync(runID: string, event: JournalEvent): void {
     safeRunID(runID)
     mkdirSync(this.dir, { recursive: true })
     const jpath = this.journalPath(runID)
+    if (!existsSync(jpath)) {
+      // First append: write v1 header so future readers can detect format
+      appendFileSync(jpath, JSON.stringify({ v: 1 }) + "\n")
+    }
     appendFileSync(jpath, JSON.stringify(event) + "\n")
     if (fsyncPendingPaths === null) fsyncPendingPaths = new Set()
     fsyncPendingPaths.add(jpath)
@@ -330,23 +359,32 @@ export class WorkflowPersistence {
     safeRunID(runID)
     const results = new Map<string, unknown>()
     let maxPass = 0
+    let headerSeen = false
     try {
       const stream = createReadStream(this.journalPath(runID), { encoding: "utf-8" })
       const rl = createInterface({ input: stream, crlfDelay: Infinity })
       for await (const line of rl) {
         if (!line) continue
-        let ev: JournalEvent
+        let ev: Record<string, unknown>
         try {
-          ev = JSON.parse(line) as JournalEvent
+          ev = JSON.parse(line) as Record<string, unknown>
         } catch {
           continue // skip torn lines from crash mid-append
         }
-        if (typeof ev.pass === "number" && ev.pass > maxPass) maxPass = ev.pass
-        if (ev.t === "agent") results.set(ev.key, ev.result)
+        // Skip v1 header line (has `v` but no `t` event-type field)
+        if (typeof ev.v === "number" && !("t" in ev)) {
+          headerSeen = true
+          continue
+        }
+        // v0 legacy events (no v field): accepted as-is
+        const je = ev as unknown as JournalEvent
+        if (typeof je.pass === "number" && je.pass > maxPass) maxPass = je.pass
+        if (je.t === "agent") results.set(je.key, je.result)
       }
     } catch {
       // file doesn't exist — empty results
     }
+    void headerSeen // reserved for future v0→v1 migration diagnostics
     return { results, pass: maxPass + 1 }
   }
 

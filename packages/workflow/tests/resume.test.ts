@@ -1,0 +1,330 @@
+// SPDX-License-Identifier: MIT
+// @sffmc/workflow — see ../../LICENSE
+
+import { describe, test, expect, afterAll } from "bun:test"
+import { tmpdir } from "node:os"
+import { mkdtempSync, rmSync, writeFileSync, readFileSync } from "node:fs"
+import path from "node:path"
+
+// ── Setup ──────────────────────────────────────────────────────────────────
+// One shared tmpDir + persistence for the whole file. Each test gets a fresh
+// runID but shares the DB/journal directory. Runtimes are created per-test
+// but use the shared persistence, so we MUST NOT call runtime.close() —
+// that would close the shared DB and break subsequent tests.
+
+const tmpDir = mkdtempSync(path.join(tmpdir(), "sffmc-workflow-resume-"))
+process.env.XDG_DATA_HOME = tmpDir
+
+import { WorkflowRuntime } from "../src/runtime"
+import type { PluginContext } from "../src/runtime"
+import {
+  WorkflowPersistence,
+  computeScriptSha,
+  flushJournalSync,
+} from "../src/persistence.ts"
+
+const mockCtx: PluginContext = {
+  config: {},
+  client: {
+    session: {
+      message: async () => ({
+        info: { tokens: { input: 100, output: 50 } },
+        content: [{ type: "text", text: "mock LLM response" }],
+      }),
+    },
+  },
+}
+
+const p = new WorkflowPersistence({ dataDir: tmpDir })
+
+afterAll(() => {
+  rmSync(tmpDir, { recursive: true, force: true })
+})
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+function makeRun(label: string, withJournal = false): string {
+  const sha = computeScriptSha(label)
+  const runID = p.createRun(`${label}.ts`, label, sha)
+  if (withJournal) {
+    p.appendJournalSync(runID, { t: "agent", key: "k", result: "v", pass: 1 })
+    flushJournalSync()
+  }
+  return runID
+}
+
+function readRawJournal(runID: string): string {
+  return readFileSync(path.join(tmpDir, `${runID}.jsonl`), "utf-8")
+}
+
+function readRawJournalLines(runID: string): string[] {
+  return readRawJournal(runID).split("\n").filter((l) => l.length > 0)
+}
+
+// ── §1b: listRunningRuns ────────────────────────────────────────────────────
+
+describe("persistence.listRunningRuns", () => {
+  test("returns only running runs (#1)", () => {
+    const r1 = makeRun("lr-1")
+    const r2 = makeRun("lr-2")
+    p.updateRunStatus(r2, "completed")
+    const running = p.listRunningRuns()
+    const ids = running.map((r) => r.runID)
+    expect(ids).toContain(r1)
+    expect(ids).not.toContain(r2)
+    expect(running.every((r) => r.status === "running")).toBe(true)
+  })
+
+  test("excludes completed/crashed/failed/cancelled/paused (#2)", () => {
+    const c = makeRun("lr-c")
+    const f = makeRun("lr-f")
+    const ca = makeRun("lr-ca")
+    const pa = makeRun("lr-pa")
+    p.updateRunStatus(c, "crashed")
+    p.updateRunStatus(f, "failed")
+    p.updateRunStatus(ca, "cancelled")
+    p.updateRunStatus(pa, "paused")
+
+    const running = p.listRunningRuns()
+    const ids = new Set(running.map((r) => r.runID))
+    expect(ids.has(c)).toBe(false)
+    expect(ids.has(f)).toBe(false)
+    expect(ids.has(ca)).toBe(false)
+    expect(ids.has(pa)).toBe(false)
+  })
+})
+
+// ── §1b: hasJournalEvents ──────────────────────────────────────────────────
+
+describe("persistence.hasJournalEvents", () => {
+  test("returns false when file missing (#3)", async () => {
+    const runID = makeRun("hj-missing")
+    const result = await p.hasJournalEvents(runID)
+    expect(result).toBe(false)
+  })
+
+  test("returns false when file empty (#4)", async () => {
+    const runID = makeRun("hj-empty")
+    writeFileSync(path.join(tmpDir, `${runID}.jsonl`), "", "utf-8")
+    const result = await p.hasJournalEvents(runID)
+    expect(result).toBe(false)
+  })
+
+  test("returns true after first appendJournalSync (#5)", async () => {
+    const runID = makeRun("hj-present")
+    p.appendJournalSync(runID, { t: "agent", key: "k", result: "v", pass: 1 })
+    flushJournalSync()
+    const result = await p.hasJournalEvents(runID)
+    expect(result).toBe(true)
+  })
+})
+
+// ── §1b: appendJournalSync v1 header ───────────────────────────────────────
+
+describe("persistence.appendJournalSync v1 header", () => {
+  test("writes v1 header on first append (#6)", () => {
+    const runID = makeRun("hdr-first")
+    p.appendJournalSync(runID, { t: "log", msg: "first", pass: 1 })
+    flushJournalSync()
+    const lines = readRawJournalLines(runID)
+    expect(lines.length).toBe(2) // header + 1 event
+    expect(JSON.parse(lines[0])).toEqual({ v: 1 })
+    expect(JSON.parse(lines[1])).toEqual({ t: "log", msg: "first", pass: 1 })
+  })
+
+  test("does NOT duplicate v1 header on subsequent appends (#7)", () => {
+    const runID = makeRun("hdr-once")
+    p.appendJournalSync(runID, { t: "log", msg: "a", pass: 1 })
+    p.appendJournalSync(runID, { t: "log", msg: "b", pass: 2 })
+    p.appendJournalSync(runID, { t: "log", msg: "c", pass: 3 })
+    flushJournalSync()
+    const lines = readRawJournalLines(runID)
+    expect(lines.length).toBe(4) // header + 3 events
+    const headerCount = lines.filter((l) => {
+      try {
+        const j = JSON.parse(l)
+        return typeof j.v === "number" && !("t" in j)
+      } catch {
+        return false
+      }
+    }).length
+    expect(headerCount).toBe(1)
+  })
+})
+
+// ── §1b: loadJournal format compat ─────────────────────────────────────────
+
+describe("persistence.loadJournal format compat", () => {
+  test("parses v0 journal (no header) correctly (#8)", async () => {
+    const runID = makeRun("ld-v0")
+    const lines = [
+      JSON.stringify({ t: "agent", key: "k1", result: "r1", pass: 1 }),
+      JSON.stringify({ t: "log", msg: "l", pass: 1 }),
+      JSON.stringify({ t: "agent", key: "k2", result: { x: 1 }, pass: 2 }),
+    ]
+    writeFileSync(path.join(tmpDir, `${runID}.jsonl`), lines.join("\n") + "\n", "utf-8")
+    const { results, pass } = await p.loadJournal(runID)
+    expect(pass).toBe(3) // maxPass(2) + 1
+    expect(results.get("k1")).toBe("r1")
+    expect(results.get("k2")).toEqual({ x: 1 })
+  })
+
+  test("parses v1 journal (with header) correctly (#9)", async () => {
+    const runID = makeRun("ld-v1")
+    p.appendJournalSync(runID, { t: "agent", key: "k1", result: "v1r", pass: 1 })
+    p.appendJournalSync(runID, { t: "agent", key: "k2", result: "v2r", pass: 2 })
+    flushJournalSync()
+    const { results, pass } = await p.loadJournal(runID)
+    expect(pass).toBe(3) // maxPass(2) + 1
+    expect(results.get("k1")).toBe("v1r")
+    expect(results.get("k2")).toBe("v2r")
+    expect(results.has("v")).toBe(false) // header didn't pollute
+  })
+
+  test("skips v1 header and uses real event pass values (#10)", async () => {
+    const runID = makeRun("ld-hdr")
+    p.appendJournalSync(runID, { t: "agent", key: "k1", result: "r1", pass: 5 })
+    p.appendJournalSync(runID, { t: "agent", key: "k2", result: "r2", pass: 10 })
+    flushJournalSync()
+    const { results, pass } = await p.loadJournal(runID)
+    expect(pass).toBe(11) // maxPass(10) + 1
+    expect(results.size).toBe(2)
+    expect(results.get("k1")).toBe("r1")
+    expect(results.get("k2")).toBe("r2")
+  })
+
+  test("handles torn last line (truncated journal) (#11)", async () => {
+    const runID = makeRun("ld-torn")
+    const lines = [
+      JSON.stringify({ t: "agent", key: "k1", result: "ok", pass: 1 }),
+      JSON.stringify({ t: "log", msg: "l", pass: 1 }),
+      '{"t":"agent","key":"k2","result":"par', // torn last line
+    ]
+    writeFileSync(path.join(tmpDir, `${runID}.jsonl`), lines.join("\n") + "\n", "utf-8")
+    const { results, pass } = await p.loadJournal(runID)
+    expect(pass).toBe(2) // maxPass(1) + 1
+    expect(results.get("k1")).toBe("ok")
+    expect(results.has("k2")).toBe(false) // torn entry skipped
+  })
+})
+
+// ── §1c: recoverOrphanedWorkflows ──────────────────────────────────────────
+
+describe("runtime.recoverOrphanedWorkflows", () => {
+  test("marks running + no-journal as 'crashed' (#12)", async () => {
+    const runID = makeRun("rec-crashed", false) // no journal
+    const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
+    await runtime.recoverOrphanedWorkflows()
+    const row = p.loadRun(runID)
+    expect(row?.status).toBe("crashed")
+    expect(row?.error).toContain("no journal to recover")
+  })
+
+  test("marks running + journal as 'paused' (#13)", async () => {
+    const runID = makeRun("rec-paused", true) // has journal
+    const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
+    await runtime.recoverOrphanedWorkflows()
+    const row = p.loadRun(runID)
+    expect(row?.status).toBe("paused")
+    expect(row?.error).toContain("resumable from journal")
+  })
+
+  test("does not touch in-memory live runs (#14)", async () => {
+    const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
+    // Start a real run — this populates this.runs in the runtime
+    const { runID } = await runtime.start({
+      script: `export const meta = { name: "live-rec", description: "t", phases: [] }
+        async function main() { return "live"; }`,
+      workspace: tmpDir,
+    })
+    // Recover — should NOT mark the live run as crashed/paused because it's in this.runs
+    await runtime.recoverOrphanedWorkflows()
+    const row = p.loadRun(runID)
+    expect(row?.status).toBe("running")
+  })
+
+  test("does not touch completed/failed/crashed runs (#15)", async () => {
+    const cID = makeRun("rec-done")
+    const fID = makeRun("rec-fail")
+    const crID = makeRun("rec-crash")
+    p.updateRunStatus(cID, "completed")
+    p.updateRunStatus(fID, "failed")
+    p.updateRunStatus(crID, "crashed")
+
+    const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
+    await runtime.recoverOrphanedWorkflows()
+    expect(p.loadRun(cID)?.status).toBe("completed")
+    expect(p.loadRun(fID)?.status).toBe("failed")
+    expect(p.loadRun(crID)?.status).toBe("crashed")
+  })
+})
+
+// ── §1d: resume() 'paused' path + emit ─────────────────────────────────────
+
+describe("runtime.resume 'paused' path", () => {
+  test("resume on 'paused' workflow returns {resumed:true} and emits workflow:resumed (#16)", async () => {
+    const runID = makeRun("rs-paused")
+    await p.writeScript(runID, `export const meta = { name: "rs-paused", description: "t", phases: [] }
+      async function main() { return "resumed"; }`)
+    // Pre-populate journal so loadJournal has content
+    p.appendJournalSync(runID, { t: "log", msg: "before", pass: 1 })
+    flushJournalSync()
+    p.updateRunStatus(runID, "paused", "resumable from journal")
+
+    const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
+    let eventFired = false
+    let capturedWasStatus: string | undefined
+    runtime.events.on("workflow:resumed", (e: { wasStatus: string }) => {
+      eventFired = true
+      capturedWasStatus = e.wasStatus
+    })
+
+    const result = await runtime.resume({ runID })
+    expect(result.resumed).toBe(true)
+    expect(result.runID).toBe(runID)
+    expect(eventFired).toBe(true)
+    expect(capturedWasStatus).toBe("paused")
+
+    const outcome = await runtime.wait({ runID, timeoutMs: 5000 })
+    expect(outcome.status).toBe("completed")
+  })
+
+  test("resume on 'crashed' workflow returns {resumed:true} (backward compat) (#17)", async () => {
+    const runID = makeRun("rs-crashed")
+    await p.writeScript(runID, `export const meta = { name: "rs-crashed", description: "t", phases: [] }
+      async function main() { return "ok"; }`)
+    p.updateRunStatus(runID, "crashed", "legacy")
+
+    const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
+    let capturedWasStatus: string | undefined
+    runtime.events.on("workflow:resumed", (e: { wasStatus: string }) => {
+      capturedWasStatus = e.wasStatus
+    })
+
+    const result = await runtime.resume({ runID })
+    expect(result.resumed).toBe(true)
+    expect(capturedWasStatus).toBe("crashed") // emits legacy status
+
+    const outcome = await runtime.wait({ runID, timeoutMs: 5000 })
+    expect(outcome.status).toBe("completed")
+  })
+
+  test("concurrent resume() calls are serialized by per-run lock (#18)", async () => {
+    const runID = makeRun("rs-concurrent")
+    await p.writeScript(runID, `export const meta = { name: "rs-concurrent", description: "t", phases: [] }
+      async function main() { return "once"; }`)
+    p.updateRunStatus(runID, "paused")
+
+    const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
+    // Fire two resume() in parallel; the per-run lock serializes them,
+    // and the live-run guard makes the second one see resumed:false.
+    const [r1, r2] = await Promise.all([
+      runtime.resume({ runID }),
+      runtime.resume({ runID }),
+    ])
+    const trueCount = [r1, r2].filter((r) => r.resumed).length
+    expect(trueCount).toBe(1)
+    expect(r1.runID).toBe(runID)
+    expect(r2.runID).toBe(runID)
+  })
+})

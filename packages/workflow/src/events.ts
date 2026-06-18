@@ -15,6 +15,14 @@ export interface WorkflowStartedEvent {
   name: string
 }
 
+export interface WorkflowResumedEvent {
+  runID: string
+  name: string
+  /** Status of the run immediately before resume() transitioned it to 'running'.
+   *  Typically 'paused' (new) or 'crashed' (legacy backward-compat). */
+  wasStatus: WorkflowStatus
+}
+
 export interface WorkflowAgentFailedEvent {
   runID: string
   agentKey: string
@@ -45,6 +53,7 @@ export interface WorkflowStepCheckpointEvent {
 
 export type WorkflowEventPayload =
   | WorkflowStartedEvent
+  | WorkflowResumedEvent
   | WorkflowAgentFailedEvent
   | WorkflowPhaseEvent
   | WorkflowLogEvent
@@ -53,6 +62,7 @@ export type WorkflowEventPayload =
 
 export type EventName =
   | "workflow:started"
+  | "workflow:resumed"
   | "workflow:agent_failed"
   | "workflow:phase"
   | "workflow:log"

@@ -348,7 +348,11 @@ export class WorkflowRuntime {
       this.runs.set(input.runID, entry)
       this.persistence.updateRunStatus(input.runID, "running")
 
-      this.events.emit("workflow:started", { runID: input.runID, name })
+      // TODO(workspace-bug): new WorkspaceJail(process.cwd()) ignores the
+      // original input.workspace passed to start(). Resume currently always
+      // runs in cwd. Tracked as follow-up — would require schema migration
+      // to add a workspace column to workflow_runs.
+      this.events.emit("workflow:resumed", { runID: input.runID, name, wasStatus: row.status })
 
       this.settleEntry(entry, script, name, row.args, new WorkspaceJail(process.cwd()))
 
@@ -380,12 +384,30 @@ export class WorkflowRuntime {
     this.persistence.close()
   }
 
-  /** Recover orphaned workflows on startup. */
+  /** Recover orphaned workflows on startup.
+   *  Any run left in 'running' status after a process restart is orphaned.
+   *  Lock recovery is N/A — lockMap at runtime.ts:100 is in-process only;
+   *  there is no on-disk lock. After this method returns, all orphaned
+   *  runs are either marked 'paused' (journal present, resumable) or
+   *  'crashed' (no journal). */
   async recoverOrphanedWorkflows(): Promise<void> {
-    const rows = this.persistence.listRuns()
+    const rows = this.persistence.listRunningRuns()
     for (const row of rows) {
-      if (row.status === "running" && !this.runs.has(row.runID)) {
-        this.persistence.updateRunStatus(row.runID, "crashed", "Process restarted — workflow orphaned")
+      // Belt-and-suspenders: in-memory live runs can't be orphaned.
+      if (this.runs.has(row.runID)) continue
+      const hasJournal = await this.persistence.hasJournalEvents(row.runID)
+      if (hasJournal) {
+        this.persistence.updateRunStatus(
+          row.runID,
+          "paused",
+          "Process restarted — resumable from journal",
+        )
+      } else {
+        this.persistence.updateRunStatus(
+          row.runID,
+          "crashed",
+          "Process restarted — no journal to recover",
+        )
       }
     }
     flushJournalSync()
