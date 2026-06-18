@@ -3,10 +3,11 @@
 
 import { Database } from "bun:sqlite"
 import { randomBytes, createHash } from "node:crypto"
-import { mkdirSync, appendFileSync } from "node:fs"
+import { mkdirSync, appendFileSync, createReadStream } from "node:fs"
 import { readFile, writeFile, appendFile, mkdir } from "node:fs/promises"
 import path from "node:path"
 import { homedir } from "node:os"
+import { createInterface } from "node:readline"
 import type { WorkflowRun, WorkflowStep, JournalEvent, WorkflowStatus } from "./types.ts"
 import { applySchema } from "./schema.ts"
 
@@ -273,8 +274,9 @@ export class WorkflowPersistence {
     const results = new Map<string, unknown>()
     let maxPass = 0
     try {
-      const text = await readFile(this.journalPath(runID), "utf-8")
-      for (const line of text.split("\n")) {
+      const stream = createReadStream(this.journalPath(runID), { encoding: "utf-8" })
+      const rl = createInterface({ input: stream, crlfDelay: Infinity })
+      for await (const line of rl) {
         if (!line) continue
         let ev: JournalEvent
         try {
