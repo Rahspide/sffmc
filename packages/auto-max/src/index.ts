@@ -7,7 +7,7 @@ import {
   resetSession,
   type AutoMaxConfig,
 } from "./coordinator";
-import { extractErrorType, isToolError, MAX_COMMAND, MAX_PATTERN, loadConfig, type PluginContext, createLogger, hasMetadataError } from "@sffmc/shared";
+import { extractErrorType, isToolError, MAX_PATTERN, loadConfig, type PluginContext, createLogger, hasMetadataError } from "@sffmc/shared";
 
 const log = createLogger("auto-max");
 
@@ -25,12 +25,6 @@ const defaultConfig: AutoMaxConfig = {
 interface PluginState {
   config: AutoMaxConfig;
   sessions: Map<string, ReturnType<typeof createSessionState>>;
-  triggeredLog: Array<{
-    sessionID: string;
-    tool: string;
-    errorType: string;
-    timestamp: number;
-  }>;
 }
 
 
@@ -52,7 +46,6 @@ export const server = async (_ctx: PluginContext) => {
   const state: PluginState = {
     config,
     sessions: new Map(),
-    triggeredLog: [],
   };
 
   if (!loadedLogged) {
@@ -192,13 +185,6 @@ function handleTrigger(
     }
 
     markTriggered(session);
-
-    state.triggeredLog.push({
-      sessionID,
-      tool,
-      errorType,
-      timestamp: Date.now(),
-    });
 
     log.warn(
       `TRIGGERED: ${tool}:${errorType} failed ${config.watchdog_threshold}x in session ${sessionID}\n` +
