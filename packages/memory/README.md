@@ -1,6 +1,6 @@
 # @sffmc/memory
 
-> **This is the memory MSP.** It composes 4 sub-features: `memory-core` (F4' SQLite + recon), `checkpoint` (F5' opt-in), `judge` (F6' opt-in), and `dream` (F8 opt-in). All opt-in sub-features are disabled by default — flip flags in `~/.config/SFFMC/extra.yaml` per feature. The standalone `memory` package now exports the MSP that wires the 4 sub-features via `mergeHooks()`.
+> **This is the memory composite.** It composes 4 sub-features: `memory-core` (F4' SQLite + recon), `checkpoint` (F5' opt-in), `judge` (F6' opt-in), and `dream` (F8 opt-in). All opt-in sub-features are disabled by default — flip flags in `~/.config/SFFMC/extra.yaml` per feature. The standalone `memory` package now exports the composite that wires the 4 sub-features via `mergeHooks()`.
 
 ## Sub-features
 

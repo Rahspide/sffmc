@@ -43,5 +43,5 @@
   "category": "mimo-port",
   "portSource": "MiMo-Code v8.0",
   "portFeature": "rules",
-  "description": "F2 Rules — YAML gate-based allow/deny/ask for destructive tool calls"
+  "description": "Rules — YAML gate-based allow/deny/ask for destructive tool calls"
 }

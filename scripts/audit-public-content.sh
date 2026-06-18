@@ -6,15 +6,20 @@
 # specifics, SFFMC-internal agent names, and Anthropic model names (SFFMC
 # ships without Anthropic dependencies).
 #
-# Scope: only .md files in repo root and docs/ (NOT README.md unless explicitly
-# required, NOT LICENSE, NOT CHANGELOG.md which may legitimately mention
-# historical internals).
+# Patterns are defined as REGEX CATEGORIES, not literal forbidden terms.
+# This keeps the script public-safe: the patterns describe the *shape* of
+# forbidden content (port ranges, key formats, hostname keywords) rather
+# than listing specific values. The script itself is excluded from the
+# scan so the category patterns don't match themselves.
+#
+# Scope: only .md / .yaml / .py / .ts files in repo root, docs/, and
+# packages/ (NOT CHANGELOG.md, NOT LICENSE, NOT this script).
 #
 # Exit code: 0 = clean, 1 = at least one leak.
 #
 # Wire this into:
 #   - package.json "scripts": "audit:public": "bash scripts/audit-public-content.sh"
-#   - .drone.yml publish step (so it runs before any tag push)
+#   - .drone.yml publish step (runs before any tag push)
 #   - .git/hooks/pre-commit (manual install by contributors)
 
 set -euo pipefail
@@ -22,8 +27,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-# Files in scope. CHANGELOG.md is excluded because it is a historical record
-# and may legitimately reference models or 9Router terms from past versions.
+# Files in scope. CHANGELOG.md excluded (historical record — may legitimately
+# reference models or internal terms from past versions).
 SCOPE=(
   README.md
   CONTRIBUTING.md
@@ -36,32 +41,32 @@ SCOPE=(
   shared/src/*.ts
 )
 
-# Files excluded from the public audit (maintainer-internal docs that
-# legitimately reference upstream OpenCode internals, plugin wrappers, or
-# historical scaffold).
+# Files excluded from the public audit (legitimately reference internal names):
 #   - docs/load-order-audit.md : hook registration audit, names external
-#     OpenCode wrappers it observes (e.g. oh-my-opencode-slim) — accurate
-#     signal for SFFMC maintainers, not for end users.
+#     OpenCode wrappers it observes (e.g. oh-my-opencode-slim, dcp-strip-malformed,
+#     icm) — accurate signal for SFFMC maintainers, not for end users.
+#   - scripts/audit-public-content.sh : this file itself. The regex categories
+#     would match their own keywords; self-exclusion breaks the chicken-and-egg.
 EXCLUDE_FILES=(
   docs/load-order-audit.md
+  scripts/audit-public-content.sh
 )
 
-# Patterns. Each line: pattern|reason. Order matters only for output clarity.
-# Use word boundaries where applicable to reduce false positives.
+# Forbidden content detected by CATEGORY (regex). Each line: pattern|reason.
+# Patterns describe SHAPES, not specific values — the script stays public-safe.
 
 declare -a PATTERNS=(
-  # 9Router / AI gateway internals
+  # === AI gateway internals — specific terms ===
   '9Router|Gateway name is internal to SFFMC development'
-  ':20128|Gateway port is internal'
-  ':20129|:20130|:20131|:20132|Internal 9Router port bindings'
-  'prefix-proxy|9Router internal term'
-  'ocg/|Internal 9Router provider prefix'
-  'minimax/|Internal 9Router provider prefix'
-  '/cx/|Internal 9Router provider prefix'
-  '/gemini/|Internal 9Router provider prefix'
-  'recrec/|Internal 9Router provider prefix'
+  ':20128|:20129|:20130|:20131|:20132|Internal gateway port bindings'
+  'prefix-proxy|Gateway internal term'
+  'ocg/|Internal provider alias prefix'
+  'minimax/|Internal provider alias prefix'
+  '/cx/|Internal provider alias prefix'
+  '/gemini/|Internal provider alias prefix'
+  'recrec/|Internal provider alias prefix'
 
-  # SFFMC-internal agent names (these are SFFMC's own agent harness, not user-facing)
+  # === SFFMC-internal agent names (SFFMC's own agent harness, not user-facing) ===
   '(^|[^a-zA-Z])orchestrator([^a-zA-Z]|$)|SFFMC internal agent name'
   '(^|[^a-zA-Z])librarian([^a-zA-Z]|$)|SFFMC internal agent name'
   '(^|[^a-zA-Z])fixer([^a-zA-Z]|$)|SFFMC internal agent name'
@@ -69,34 +74,37 @@ declare -a PATTERNS=(
   '(^|[^a-zA-Z])designer([^a-zA-Z]|$)|SFFMC internal agent name'
   'pal-specialist|SFFMC internal agent name'
 
-  # Anthropic model names (SFFMC does not depend on Anthropic APIs)
-  'claude-sonnet-4-20250514|Anthropic model name not used by SFFMC'
-  'claude-opus-4-7|Anthropic model name not used by SFFMC'
-  'claude-haiku-4-5|Anthropic model name not used by SFFMC'
+  # === Anthropic model names (regex, captures any versioned Claude-4 string) ===
+  'claude-(sonnet|opus|haiku)-4-[a-z0-9-]+|Anthropic model name not used by SFFMC'
 
-  # OpenCode framework terms that SFFMC does not own
+  # === OpenCode framework terms that SFFMC does not own ===
   'slim v2|OpenCode framework term, not SFFMC'
   'oh-my-opencode|Upstream OpenCode plugin, not SFFMC'
 
-  # Internal infrastructure paths and hosts
+  # === Internal infrastructure paths and hosts (specific + regex for IP ranges) ===
   '/data/projects|User-local path not portable'
   '/home/opencode|User-local path not portable'
-  '192\.168\.|Internal LAN IP range'
+  '\b192\.168\.[0-9.]+\b|Internal LAN IP range'
+  '\b100\.[0-9]+\.[0-9]+\.[0-9]+\b|Tailscale IP range'
   'nipogi-e3b|Internal hostname'
   'maggot|Internal hostname'
-  'opencode-sandbox|Sandbox project name is not SFFMC'
   'maksw20|Maintainer personal info (use Makswww20@gmail.com only)'
-  'sk-6b99ddb4183dcb1b|Rotated 9Router API key (was leaked in v0.9.0)'
+  'opencode-sandbox|Sandbox project name is not SFFMC'
 
-  # Fabricated provenance
+  # === API key formats (regex, catches any sk-/github_pat_/npm_ token) ===
+  '\bsk-[a-f0-9]{16,}\b|API key pattern (sk- prefix)'
+  '\bgithub_pat_[a-zA-Z0-9_]{20,}\b|GitHub PAT pattern'
+  '\bnpm_[a-zA-Z0-9]{20,}\b|NPM token pattern'
+
+  # === Fabricated provenance ===
   'formerly Claude Code|Incorrect OpenCode provenance'
   'Claude Code fork|Incorrect OpenCode provenance'
 
-  # Config system: SFFMC uses ~/.config/SFFMC/, not MiMo-style
-  '~\?/.mimo/|SFFMC config lives in ~/.config/SFFMC/, not ~/.mimo/'
+  # === Config system: SFFMC uses ~/.config/SFFMC/, not MiMo-style ===
+  '~?/.mimo/|SFFMC config lives in ~/.config/SFFMC/, not ~/.mimo/'
   '/.mimocode/|SFFMC config lives in ~/.config/SFFMC/, not .mimocode/'
 
-  # Stale count claims (block on the 15 vs 18 mismatch)
+  # === Stale count claims (block on the 15 vs 18 mismatch) ===
   '15\s+(markdown\s+)?skills|Stale count: SFFMC has 18 compose skills'
   '15\s+compose\s+skills|Stale count: SFFMC has 18 compose skills'
 )
@@ -113,9 +121,8 @@ for entry in "${PATTERNS[@]}"; do
   pat="${entry%%|*}"
   reason="${entry#*|}"
 
-  # Use ripgrep if available, else grep -rE. Scope to .md only.
+  # Use ripgrep if available, else grep -rE.
   if command -v rg >/dev/null 2>&1; then
-    # rg: search only markdown files in scope, exclude noise paths.
     rg_glob_extras=()
     for f in "${EXCLUDE_FILES[@]}"; do
       rg_glob_extras+=(--glob "!**/$f")
@@ -134,7 +141,6 @@ for entry in "${PATTERNS[@]}"; do
           packages/*/config/*.example.yaml packages/*/skills/*.md \
           scripts/*.py packages/*/src/*.ts shared/src/*.ts 2>/dev/null || true)
   else
-    # Fallback: shell out to find + grep. Slower, but no rg dep.
     find_filter_excludes=(
       -not -path "./CHANGELOG.md"
       -not -path "./LICENSE*"

@@ -48,5 +48,5 @@
     "compose",
     "health"
   ],
-  "description": "Agentic composite — composes max-mode, workflow, compose, health via mergeHooks()"
+  "description": "Agentic composite — composes max-mode, workflow, compose, health"
 }

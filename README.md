@@ -31,8 +31,8 @@ default export using `mergeHooks()` from `@sffmc/shared`. The remaining 10
 packages are the individual sub-features; they still work standalone for
 backward compatibility.
 
-Every plugin is a **DLC** (Drop-in Lattice Component): it reads any hook payload
-freely but writes only to its own slot. No module-level globals, no shared
+Every plugin is a **composite** (Drop-in Lattice Component): it reads any hook payload
+freely but writes only to its own slot. No module-level exports, no shared
 mutable state, no cross-plugin coupling. Load any combination — all three
 composite packages, individual sub-features, or a mix — and they compose cleanly.
 
@@ -40,7 +40,7 @@ composite packages, individual sub-features, or a mix — and they compose clean
 
 - **Composable.** Load one composite package or all three, or pick individual
   sub-features. `mergeHooks()` handles hook collision for you.
-- **Zero shared state.** Every plugin is DLC. No side effects from load order.
+- **Zero shared state.** Every plugin is composite. No side effects from load order.
 - **Drop-in.** `curl ... | sh` then restart OpenCode. No build step, no npm
   install, no configuration required to start.
 - **Battle-tested.** 486 unit tests across 24 files. Long-form agent test:
@@ -160,7 +160,7 @@ opencode.json (3 file:// entries)
  +---------------------------------------------------+
 ```
 
-Sub-features are DLC: each registers its own hooks and writes only to its own
+Sub-features are composite: each registers its own hooks and writes only to its own
 namespace. The shared SDK provides type-safe config loading from
 `~/.config/SFFMC/<name>.yaml`, a minimal plugin context type, a typed event
 bus, and the `mergeHooks` composer.
@@ -284,17 +284,17 @@ headers. The SFFMC team contributed the composite-package composition layer
 (`mergeHooks`), the `@sffmc/shared` SDK, and four original sub-features:
 auto-max, eos-stripper, log-whitelist, and health.
 
-| MiMo feature | SFFMC package | Description |
+| Capability | SFFMC package | Description |
 |---|---|---|
-| F1 Watchdog | `@sffmc/watchdog` | 3-failure rolling counter + recovery verdict |
-| F2 Rules | `@sffmc/rules` | YAML gate-based allow/deny for destructive commands |
-| F4' Memory + Recon 8K | `@sffmc/memory` | FTS5 SQLite + context recon at session start |
-| F5' Checkpoint | `@sffmc/extra` | 200K resume with schema migration |
-| F6' Judge | `@sffmc/extra` | Multi-criteria verdict with streaming mode |
-| F7 Max Mode | `@sffmc/max-mode` | Parallel drafts + judge selection |
-| F8 Dream | `@sffmc/extra` | LLM cluster naming + memory cleaning |
-| W4 Compose | `@sffmc/compose` | 18 markdown skills |
-| W5-6 Dynamic Workflow | `@sffmc/workflow` | Sandboxed JS orchestrator |
+| Watchdog | `@sffmc/watchdog` | 3-failure rolling counter + recovery verdict |
+| Rules | `@sffmc/rules` | YAML gate-based allow/deny for destructive commands |
+| Memory | `@sffmc/memory` | FTS5 SQLite + context recon at session start |
+| Checkpoint | `@sffmc/extra` | 200K resume with schema migration |
+| Judge | `@sffmc/extra` | Multi-criteria verdict with streaming mode |
+| Max Mode | `@sffmc/max-mode` | Parallel drafts + judge selection |
+| Dream | `@sffmc/extra` | LLM cluster naming + memory cleaning |
+| Compose | `@sffmc/compose` | 18 markdown skills |
+| Dynamic Workflow | `@sffmc/workflow` | Sandboxed JS orchestrator |
 
 ## License
 

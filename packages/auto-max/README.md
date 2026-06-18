@@ -1,6 +1,6 @@
 # @sffmc/auto-max
 
-> **Part of `@sffmc/safety` MSP.** This package is a sub-feature of the safety bundle. Load via `@sffmc/safety` for the full set (auto-max + watchdog + rules + eos-stripper + log-whitelist), or standalone if you only need auto-max.
+> **Part of `@sffmc/safety` composite.** This package is a sub-feature of the safety bundle. Load via `@sffmc/safety` for the full set (auto-max + watchdog + rules + eos-stripper + log-whitelist), or standalone if you only need auto-max.
 
 
 
@@ -64,7 +64,7 @@ cost_cap_per_session: 1
 bun test packages/auto-max/
 ```
 
-20 tests in `src/index.test.ts`.
+(Tests live in the root `bun test` suite — see root README.)
 
 ## License
 

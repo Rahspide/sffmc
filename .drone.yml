@@ -51,7 +51,7 @@ steps:
     image: oven/bun:1
     depends_on: [install]
     commands:
-      - bun run scripts/e2e-load-msps.ts
+      - bun run scripts/e2e-load-composites.ts
     volumes:
       - name: bun-cache
         path: /root/.bun/install/cache

@@ -20,16 +20,16 @@ If you know one, you know all three. The differences are in what gets injected i
 
 | Feature | vanilla OpenCode | MiMo-Code (fork) | SFFMC (plugin suite) |
 |---|---|---|---|
-| **F4' Memory** | No | Built-in (hardcoded) | Plugin (`@sffmc/memory`) |
-| **F2 Rules** | No | Built-in (hardcoded) | Plugin (`@sffmc/rules`) |
-| **F1 Watchdog** | No | Built-in (hardcoded) | Plugin (W2) |
-| **F7 Max Mode** | No | Built-in (hardcoded) | Plugin (W3) |
-| **Auto-Max triggers** | No | Built-in (hardcoded) | Plugin (W3) |
-| **Dynamic Workflow** | No | Built-in (hardcoded) | Plugin (W5-6) |
-| **Verify skill** | No | Built-in (hardcoded) | Plugin (W4) |
-| **Compose pack** | No | Built-in (hardcoded) | Plugin (W4) |
-| **EOS token stripping** | No | PR #603 (pending) | Plugin (W2) |
-| **Log whitelist** | No | PR #604 (pending) | Plugin (W2) |
+| **Memory** | No | Built-in (hardcoded) | Plugin (`@sffmc/memory`) |
+| **Rules** | No | Built-in (hardcoded) | Plugin (`@sffmc/rules`) |
+| **Watchdog** | No | Built-in (hardcoded) | Plugin (`@sffmc/safety`) |
+| **Max Mode** | No | Built-in (hardcoded) | Plugin (`@sffmc/max-mode`) |
+| **Auto-Max triggers** | No | Built-in (hardcoded) | Plugin (`@sffmc/auto-max`) |
+| **Dynamic Workflow** | No | Built-in (hardcoded) | Plugin (`@sffmc/workflow`) |
+| **Verify skill** | No | Built-in (hardcoded) | Plugin (`@sffmc/compose`) |
+| **Compose pack** | No | Built-in (hardcoded) | Plugin (`@sffmc/compose`) |
+| **EOS token stripping** | No | PR #603 (pending) | Plugin (`@sffmc/safety`) |
+| **Log whitelist** | No | PR #604 (pending) | Plugin (`@sffmc/safety`) |
 
 MiMo-Code built these features directly into the fork — they're always on, always consuming resources. SFFMC ships them as **plugins** — you enable only what you need.
 
@@ -48,8 +48,8 @@ curl -fsSL https://bun.sh/install | bash
 
 # 2. Clone SFFMC
 
-git clone https://github.com/YOUR_USER/SFFMC.git ~/.opencode-staging/SFFMC
-cd ~/.opencode-staging/SFFMC
+git clone https://github.com/YOUR_USER/SFFMC.git ~/.sffmc/plugins/sffmc
+cd ~/.sffmc/plugins/sffmc
 
 # 3. Install dependencies
 
@@ -60,26 +60,29 @@ bun install
 # Edit ~/.config/opencode/opencode.json, add to plugin[]:
 
 # {
-#   "file": "~/.opencode-staging/SFFMC/packages/memory/src/index.ts",
+#   "file": "~/.sffmc/plugins/sffmc/packages/memory/src/index.ts",
 #   "enabled": true
 # },
 # {
-#   "file": "~/.opencode-staging/SFFMC/packages/rules/src/index.ts",
+#   "file": "~/.sffmc/plugins/sffmc/packages/rules/src/index.ts",
 #   "enabled": true
 # }
 
 # 5. Restart OpenCode
 
-# DO NOT restart from the OpenCode web UI — use SSH:
-# sudo systemctl restart opencode
+# DO NOT restart from the OpenCode web UI — restart via SSH or your service manager:
+#   Linux/systemd:    sudo systemctl restart opencode
+#   Linux/manual:     pkill -f opencode && /usr/local/bin/opencode serve &
+#   macOS/launchd:    launchctl kickstart -k gui/$(id -u)/com.opencode
+#   Or stop the opencode process from your process manager and start it again.
 ```
 
 **What you get immediately**:
-- F4' Memory starts watching `memory-bank/` and `AGENTS.md`, building a searchable index
-- F2 Rules blocks `rm -rf /`, `DROP TABLE`, `chmod 777`, and writes outside project root by default
+- Memory starts watching `memory-bank/` and `AGENTS.md`, building a searchable index
+- Rules blocks `rm -rf /`, `DROP TABLE`, `chmod 777`, and writes outside project root by default
 - Both plugins auto-load, no config files needed
 
-**What you don't get yet** (ships in W2-W6):
+**What you don't get yet** (in later releases):
 - Watchdog, Max Mode, Dynamic Workflow, Compose pack, Verify skill
 
 ### 2. SFFMC → OpenCode
@@ -124,7 +127,7 @@ cp ~/.local/share/opencode/opencode.db ~/opencode.db.bak-opencode-$(date +%Y%m%d
 # Check Xiaomi's migration docs.
 ```
 
-**Risks**: MiMo-Code is a full fork — it may diverge from upstream OpenCode. Your plugins that worked on OpenCode may break on MiMo-Code if the hook API changes. 533 open issues as of June 2026.
+**Risks**: MiMo-Code is a full fork — it may diverge from upstream OpenCode. Your plugins that worked on OpenCode may break on MiMo-Code if the hook API changes. Check the upstream issue tracker for current bug count before migrating.
 
 ### 4. MiMo-Code → SFFMC
 
@@ -288,7 +291,7 @@ sqlite3 ~/.local/share/SFFMC/memory/index.sqlite "SELECT count(*) FROM memory_en
 
 # 6. Run the test suite
 
-cd ~/.opencode-staging/SFFMC
+cd ~/.sffmc/plugins/sffmc
 bun test
 # Should show: 486 tests, 0 failures (24 files)
 ```

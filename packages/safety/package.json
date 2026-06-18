@@ -49,5 +49,5 @@
     "eos-stripper",
     "log-whitelist"
   ],
-  "description": "Safety composite — composes watchdog, rules, auto-max, eos-stripper, log-whitelist via mergeHooks()"
+  "description": "Safety composite — composes watchdog, rules, auto-max, eos-stripper, log-whitelist"
 }

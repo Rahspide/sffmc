@@ -2,7 +2,7 @@
 // @sffmc/agentic — see ../../LICENSE
 //
 // SFFMC agentic MSP — composes max-mode, workflow, compose, health.
-// Phase 2: wires all 4 sub-features via mergeHooks().
+// Phase 2: wires all 4 sub-features via runtime hook().
 
 import { server as maxModeServer } from "../../max-mode/src/index.ts"
 import { server as workflowServer } from "../../workflow/src/index.ts"

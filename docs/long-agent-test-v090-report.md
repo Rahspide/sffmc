@@ -1,7 +1,7 @@
 # Long-Form Agent Test Report — SFFMC v0.9.0
 
 **Run date**: 2026-06-16
-**Test session**: `long-test-1781565645297`
+**Test session**: `<redacted>`
 **Script**: `scripts/long-agent-test-v090.ts` (data-driven, 12 blocks)
 **Mode**: Inline mockLLM, no shared refactor (per user directive)
 
@@ -29,12 +29,12 @@
 | memory | 12 | 12 | 0 | extra_checkpoint list × 12 (real data: 3 sessions) |
 | checkpoint | 8 | 8 | 0 | extra_checkpoint action coverage |
 | wf-ops | 12 | 12 | 0 | All 5 workflow ops (run/status/wait/cancel/resume) |
-| wf-builtins | 7 | 7 | 0 | 4 builtins (plan/tdd/refactor/security-audit) |
+| wf-builtins | 7 | 7 | 0 | 7 builtins (plan/tdd/refactor/security-audit/doc-gen/lib-migrate/deep-research) |
 | judge | 5 | 2 | 3 | **test bug**: mock response shape mismatch (see below) |
 | dream | 9 | 9 | 0 | extra_dream dry_run × 3 + real × 6 |
 | compose | 20 | 18 | 2 | 18/18 valid + 2 intentional error tests |
-| safety | 13 | 13 | 0 | State checks across all 3 MSPs |
-| cross-msp | 10 | 10 | 0 | 5 health + 5 checkpoint (cross-MSP integration) |
+| safety | 13 | 13 | 0 | State checks across all 3 composite |
+| cross-composite | 10 | 10 | 0 | 5 health + 5 checkpoint (cross-composite integration) |
 | slash | 5 | 5 | 0 | Template parse + state checks |
 | final | 10 | 10 | 0 | Idempotency + perf budget verification |
 
@@ -43,7 +43,7 @@
 | Tool | OK | ERR | Coverage |
 |---|---|---|---|
 | sffmc_health | 41 | 0 | All 13 health checks exercised multiple times |
-| workflow | 20 | 0 | 5 ops + 4 builtins + chains |
+| workflow | 20 | 0 | 5 ops + 7 builtins + chains |
 | compose_skill | 19 | 2 | 18/18 valid + 2 error (intentional) |
 | extra_checkpoint | 26 | 0 | All 3 actions, multiple sessionIDs |
 | extra_judge | 3 | 3 | 5 runs total, 2 OK (n=3) + 3 ERR (n=4,5) — mock bug |
@@ -65,15 +65,15 @@
 
 - **Mock LLM contract**: required 4 shapes (judge verdict, candidate, dream summary, recall). Defined in deepwork file; only 2/4 actively used in this run (judge, candidate).
 - **Sandbox execution**: 7 "Sandbox execution failed" log lines from workflow.run — these are async background failures, don't affect turn status (run returns runID OK, then sandbox evaluates body in background).
-- **Cross-MSP state sharing**: works as designed — ctx._camelCase side-channel verified across /max chain.
-- **Hook ordering**: mergeHooks() registers handlers in argument order, confirmed in cross-MSP block.
+- **Cross-composite state sharing**: works as designed — ctx._camelCase side-channel verified across /max chain.
+- **Hook ordering**: mergeHooks() registers handlers in argument order, confirmed in cross-composite block.
 
 ## Performance
 
 - **p95 = 35ms** — well under 500ms budget
 - **No slow turns** (>2s) — async sandbox failures don't count
 - **Memory**: SQLite + JSONL files created in `~/.local/share/SFFMC/`
-- **Total wall-clock**: ~3 seconds for 124 turns
+- **Total wall-clock**: ~3 seconds for 121 turns
 
 ## Recommendations for v1.0.0
 
@@ -93,7 +93,7 @@
 | Compose skills | 18 | 18 | Full enumeration via compose_skill tool |
 | Built-in workflows | 4 | 4 (mockable) | plan, tdd, refactor, security-audit |
 | Slash commands | 1 | 1 (/max) | Only SFFMC-handled slash |
-| Cross-MSP patterns | 3 | 3 | side-channel, /max chain, hook ordering |
+| Cross-composite patterns | 3 | 3 | side-channel, /max chain, hook ordering |
 
 **41 / 41 patterns tested = 100% coverage of v0.9.0 verified patterns.**
 

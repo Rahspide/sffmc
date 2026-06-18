@@ -52,7 +52,7 @@ info "Git         : ${git_ver}"
 if [ ! -t 0 ] && [ -z "${SFFMC_GITHUB_TOKEN:-${GITHUB_TOKEN:-}}" ] && ! command -v ssh >/dev/null 2>&1; then
   err "Running non-interactively (curl | sh). You need either:"
   err "  1. SSH key set up with GitHub (https://docs.github.com/en/authentication/connecting-to-github-with-ssh)"
-  err "  2. GITHUB_TOKEN set: curl -fsSL ... | SFFMC_GITHUB_TOKEN=ghp_xxx sh"
+  err "  2. GITHUB_TOKEN set: curl -fsSL ... | SFFMC_GITHUB_TOKEN=<your-token> sh"
   exit 1
 fi
 
@@ -81,7 +81,7 @@ else
     else
       err "SSH authentication failed and no SFFMC_GITHUB_TOKEN / GITHUB_TOKEN set."
       err "  Set up SSH: https://docs.github.com/en/authentication/connecting-to-github-with-ssh"
-      err "  Or set token: export SFFMC_GITHUB_TOKEN=ghp_xxx"
+      err "  Or set token: export SFFMC_GITHUB_TOKEN=<your-token>"
       exit 1
     fi
   fi

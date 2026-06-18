@@ -42,5 +42,5 @@
   "category": "mimo-port",
   "portSource": "MiMo-Code v8.0",
   "portFeature": "watchdog",
-  "description": "F1 Watchdog — 3-failure rolling counter with auto-recovery and model promotion"
+  "description": "Watchdog — 3-failure rolling counter with auto-recovery and model promotion"
 }

@@ -42,5 +42,5 @@
   "category": "mimo-port",
   "portSource": "MiMo-Code v8.0",
   "portFeature": "compose",
-  "description": "W4 Compose — 18 markdown skills loaded via compose_skill tool"
+  "description": "Compose — 18 markdown skills loaded via compose_skill tool"
 }

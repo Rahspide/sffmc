@@ -243,7 +243,7 @@ const items = res.items  // TypeError if res === null
 an exception — the whole batch crashes. An exception from the sandbox =
 `failed` status for the entire run.
 
-**Detect the failure reason** via the runtime's event bus (the module-level `on` export was removed in v0.10.0):
+**Detect the failure reason** via the runtime's event bus:
 
 ```ts
 import { createEventBus, WorkflowRuntime } from "@sffmc/workflow"

@@ -1,8 +1,8 @@
 # @sffmc/agentic
 
-> **Agentic MSP.** Bundles 4 sub-features for parallel reasoning, sandboxed multi-step execution, on-demand skill composition, and plugin health diagnostics. Replaces the need to load each sub-feature individually.
+> **Agentic composite.** Bundles 4 sub-features for parallel reasoning, sandboxed multi-step execution, on-demand skill composition, and plugin health diagnostics. Replaces the need to load each sub-feature individually.
 
-agentic MSP — composes max-mode (F7), workflow (W5-6), compose (W4), and health (F3+) via `mergeHooks()`.
+agentic composite — composes max-mode (F7), workflow (W5-6), compose (W4), and health (F3+) via `mergeHooks()`.
 
 ## What it does
 

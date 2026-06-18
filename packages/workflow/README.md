@@ -1,6 +1,6 @@
 # @sffmc/workflow
 
-> **Part of `@sffmc/agentic` MSP.** This package is a sub-feature of the agentic bundle. Load via `@sffmc/agentic` for the full set (workflow + max-mode + compose + health), or standalone if you only need the workflow tool.
+> **Part of `@sffmc/agentic` composite.** This package is a sub-feature of the agentic bundle. Load via `@sffmc/agentic` for the full set (workflow + max-mode + compose + health), or standalone if you only need the workflow tool.
 
 
 
@@ -53,10 +53,10 @@ workflow({ op: "resume", runID: "..." })
 bun test packages/workflow/
 ```
 
-78 tests across 3 files:
+102 tests across 3 files:
 
-- `tests/foundation.test.ts` — 69 type/persistence/resolve tests
-- `tests/integration.test.ts` — 4 multi-step end-to-end
+- `tests/foundation.test.ts` — 73 type/persistence/resolve tests
+- `tests/integration.test.ts` — 24 multi-step end-to-end
 - `tests/e2e-200-steps.test.ts` — 5 long-horizon tests (200 sequential agents, lifecycle cap trip, token cap trip, parallel correctness, pipeline correctness)
 
 ## Builtins

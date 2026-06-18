@@ -15,12 +15,12 @@ Before working on any task, read `codemap.md` to understand:
 
 For deep work on a specific folder, also read that folder's `codemap.md` (e.g. `packages/workflow/codemap.md` for the W5-6 workflow engine).
 
-## Architecture: DLC (Drop-in Lattice Components)
+## Architecture: composite (Drop-in Lattice Components)
 
-Every SFFMC plugin follows the **DLC** pattern:
+Every SFFMC plugin follows the **composite** pattern:
 - **Read** existing data freely (other plugins' state, OpenCode state)
 - **Write** only to its own slot (config namespace, SQLite table, event bus)
-- **No shared state** between plugins — no module-level singletons shared via re-export
+- **No shared state** between plugins — no module-level state shared via re-export
 - **Hot-pluggable** — adding/removing a plugin does not affect the others
 
 This means `rm -rf packages/foo && bun test` should still pass for the remaining 12.

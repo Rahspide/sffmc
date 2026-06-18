@@ -7,12 +7,12 @@ SFFMC is a monorepo of standalone OpenCode plugins. Each plugin:
 - Uses Bun as the runtime (Bun 1.3+, JavaScriptCore engine)
 - Targets OpenCode 1.17.x plugin SDK (and tracks upstream changes)
 
-## Architecture: DLC (Drop-in Lattice Components)
+## Architecture: composite (Drop-in Lattice Components)
 
-Every SFFMC plugin follows the **DLC** pattern:
+Every SFFMC plugin follows the **composite** pattern:
 - **Read** existing data freely (other plugins' state, OpenCode state)
 - **Write** only to its own slot (config namespace, SQLite table, event bus)
-- **No shared state** between plugins — no module-level singletons shared via re-export
+- **No shared state** between plugins — no module-level state shared via re-export
 - **Hot-pluggable** — adding/removing a plugin does not affect the others
 
 This means you can `rm -rf packages/foo && bun test` and nothing else should break.

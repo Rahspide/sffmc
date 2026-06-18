@@ -7,7 +7,7 @@
 // (standalone usage).
 //
 // Phase 2 (v0.9.0): factory pattern replaced with named server
-// exports so the memory MSP can compose them via mergeHooks().
+// exports so the memory MSP can compose them via runtime hook().
 
 import { loadConfig, mergeHooks, type PluginContext, createLogger, type PluginServer } from "@sffmc/shared";
 

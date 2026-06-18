@@ -102,11 +102,11 @@ describe("FailureCounter", () => {
 
 describe("buildPromotionFragment", () => {
   it("returns stuck detection instruction", () => {
-    const result = buildPromotionFragment("bash", "ENOENT", 3, "ocg/test-model");
+    const result = buildPromotionFragment("bash", "ENOENT", 3, "test-model");
     expect(result).toContain("STUCK DETECTED");
     expect(result).toContain("bash:ENOENT");
     expect(result).toContain("3 consecutive times");
-    expect(result).toContain("ocg/test-model");
+    expect(result).toContain("test-model");
     expect(result).toContain("DETAILED THINKING");
   });
 

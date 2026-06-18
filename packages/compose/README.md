@@ -1,6 +1,6 @@
 # @sffmc/compose
 
-> **Part of `@sffmc/agentic` MSP.** This package is a sub-feature of the agentic bundle. Load via `@sffmc/agentic` for the full set (compose + max-mode + workflow + health), or standalone if you only need the 18 compose skills.
+> **Part of `@sffmc/agentic` composite.** This package is a sub-feature of the agentic bundle. Load via `@sffmc/agentic` for the full set (compose + max-mode + workflow + health), or standalone if you only need the 18 compose skills.
 
 18 compose skills (W4) — ported from MiMo-Code.
 
@@ -45,7 +45,7 @@ compose_skill({
 bun test packages/compose/
 ```
 
-6 tests in `src/index.test.ts`.
+(Tests live in the root `bun test` suite — see root README.)
 
 ## License
 

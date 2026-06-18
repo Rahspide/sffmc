@@ -6,7 +6,7 @@
 // recent chat tail) at the start of every new session via
 // experimental.chat.messages.transform.
 //
-// Extracted from index.ts (Phase 2) so the MSP can compose it via mergeHooks().
+// Extracted from index.ts (Phase 2) so the MSP can compose it via runtime hook().
 
 import { init, topByImportance, type MemoryDB } from "./memory"
 import { buildRecon, parseAgentsMd, tailFromMessages } from "./recon"

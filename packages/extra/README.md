@@ -1,6 +1,6 @@
 # @sffmc/extra
 
-> **Part of `@sffmc/memory` MSP.** This package houses 3 opt-in sub-features (checkpoint, judge, dream) used by the memory MSP. Load via `@sffmc/memory` for the full set, or standalone if you only need the extra bundle. All 3 sub-features are disabled by default — flip flags in `~/.config/SFFMC/extra.yaml` per feature.
+> **Part of `@sffmc/memory` composite.** This package houses 3 opt-in sub-features (checkpoint, judge, dream) used by the memory composite. Load via `@sffmc/memory` for the full set, or standalone if you only need the extra bundle. All 3 sub-features are disabled by default — flip flags in `~/.config/SFFMC/extra.yaml` per feature.
 
 
 

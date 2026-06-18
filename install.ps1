@@ -53,7 +53,7 @@ if (Test-Path (Join-Path $SFFMC_INSTALL_DIR ".git")) {
         } elseif ($fetchExit -ne 0) {
             Write-Err "SSH authentication failed and no SFFMC_GITHUB_TOKEN / GITHUB_TOKEN set."
             Write-Err "  Set up SSH: https://docs.github.com/en/authentication/connecting-to-github-with-ssh"
-            Write-Err "  Or set token: `$env:SFFMC_GITHUB_TOKEN = 'ghp_xxx'"
+            Write-Err "  Or set token: `$env:SFFMC_GITHUB_TOKEN = '<your-token>'"
             exit 1
         }
 
@@ -79,7 +79,7 @@ if (Test-Path (Join-Path $SFFMC_INSTALL_DIR ".git")) {
     } elseif ($cloneExit -ne 0) {
         Write-Err "SSH authentication failed and no SFFMC_GITHUB_TOKEN / GITHUB_TOKEN set."
         Write-Err "  Set up SSH: https://docs.github.com/en/authentication/connecting-to-github-with-ssh"
-        Write-Err "  Or set token: `$env:SFFMC_GITHUB_TOKEN = 'ghp_xxx'"
+        Write-Err "  Or set token: `$env:SFFMC_GITHUB_TOKEN = '<your-token>'"
         exit 1
     }
 

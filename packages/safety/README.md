@@ -1,8 +1,8 @@
 # @sffmc/safety
 
-> **Safety MSP.** Bundles 5 sub-features for tool-failure recovery, destructive-op safety nets, and log hygiene. Replaces the need to load each sub-feature individually.
+> **Safety composite.** Bundles 5 sub-features for tool-failure recovery, destructive-op safety nets, and log hygiene. Replaces the need to load each sub-feature individually.
 
-safety MSP — composes watchdog (F1), rules (F2), auto-max, eos-stripper, and log-whitelist via `mergeHooks()`.
+safety composite — composes watchdog (F1), rules (F2), auto-max, eos-stripper, and log-whitelist via `mergeHooks()`.
 
 ## What it does
 
@@ -63,7 +63,7 @@ This plugin is loaded by the SFFMC monorepo's sandbox config. To use standalone:
 
 ## Configuration
 
-Each sub-feature keeps its own YAML config at `~/.config/SFFMC/<name>.yaml`. The MSP itself has no top-level `safety.yaml` — per-feature config namespaces are preserved for backward compatibility.
+Each sub-feature keeps its own YAML config at `~/.config/SFFMC/<name>.yaml`. The composite itself has no top-level `safety.yaml` — per-feature config namespaces are preserved for backward compatibility.
 
 | Config file | Feature |
 |---|---|
