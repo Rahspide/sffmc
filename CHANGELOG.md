@@ -1,5 +1,39 @@
 # SFFMC Changelog
 
+## v0.12.0 (2026-06-18)
+
+Workflow Resume Passthrough + 6 P0 coverage tests + journal/checkpoint performance + per-session state isolation.
+
+### Added
+
+- **Workflow Resume Passthrough** — when OpenCode restarts mid-workflow, in-flight runs are now marked "paused" (recoverable from journal) instead of "crashed". Use `runtime.resume({ runID })` to continue.
+- **Health check factory** — 13 health checks consolidated behind a single factory pattern, removing duplicated boilerplate.
+- **Journal format v1** — journals now include a version header for forward compatibility. Existing v0 journals still parse correctly.
+- **`workflow:resumed` event** — emitted when a paused workflow is resumed via `runtime.resume({ runID })`.
+- **6 P0 coverage tests** — race conditions in lock acquisition, agent abort at semaphore, depth-limit enforcement, budget-exceeded detection, debounced counter flush, structural error propagation.
+
+### Changed
+
+- **Performance**: journal files now stream-parse on load (was full-read into memory). (workflow package)
+- **Performance**: `readToolCalls` reads the checkpoint file once instead of twice. (extra package)
+- **Performance**: `appendJournalSync` coalesces `fsync` calls in a 50ms window; explicit `flushJournalSync()` API for durability. (workflow package)
+
+### Fixed
+
+- **Cross-session state leak in `auto-max` and `max-mode`**: per-session state previously stashed on the shared `ctx` object could leak across sessions in long-running processes. Moved to per-instance `Map<sessionID, …>` in plugin state.
+- **Inconsistent logger usage**: 10 `console.*` calls in `extra/checkpoint.ts` and `extra/judge.ts` migrated to the shared `createLogger` helper.
+
+### Removed
+
+- 4 dead `MemoryConfig` fields (`reconBudgets.memory`, `.checkpoint`, `.taskTree`, `.agents`) — only `reconBudgets.tail` was actually read.
+- Unused `MAX_COMMAND` import and dead `triggeredLog` field in `auto-max`.
+- Duplicate `RichPluginContext` re-declarations in `extra/dream.ts` and `extra/judge.ts` (now imported from `@sffmc/shared`).
+
+### Hygiene
+
+- Pinned `@types/bun` and `bun-types` from `"latest"` to `"1.3.14"`. Purged orphaned `node_modules` (stale `better-sqlite3@11.10.0`).
+- **Test count**: 570 passing (was 546).
+
 ## v0.11.1 (2026-06-17)
 
 Post-v0.11.0 cleanup. No API changes.
