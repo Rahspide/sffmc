@@ -74,10 +74,6 @@ export const server = async (_ctx: PluginContext) => {
   }
 
   return {
-    config: async (_cfg: Record<string, unknown>) => {
-      // Config loaded on startup
-    },
-
     event: async (payload: { event: string; [key: string]: unknown }) => {
       if (payload.event === "session.created") {
         const sid = String(payload.sessionID || "");

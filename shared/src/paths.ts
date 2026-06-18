@@ -11,4 +11,3 @@ export async function migrateLegacyDataPaths(): Promise<void> {
   try { await rename(join(home, ".config", "SFFMC"), join(home, ".config", "sffmc")); } catch {}
   try { await rename(join(home, ".local", "share", "SFFMC"), join(home, ".local", "share", "sffmc")); } catch {}
 }
-export function __resetMigrationFlag(): void { _migrated = false; }

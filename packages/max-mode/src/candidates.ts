@@ -1,5 +1,4 @@
 import { type RichPluginContext } from "@sffmc/shared";
-import { type SchemaOnlyTool } from "./types"
 
 export interface ToolCall {
   name: string;
@@ -19,16 +18,6 @@ interface GenerateConfig {
   n: number;
   models: string[];
   temperature: number;
-}
-
-export function makeSchemaOnlyTools(tools: SchemaOnlyTool[]): SchemaOnlyTool[] {
-  const stripped: SchemaOnlyTool[] = [];
-  for (const tool of tools) {
-    stripped.push({
-      definition: { ...tool.definition },
-    });
-  }
-  return stripped;
 }
 
 export function buildCandidatePrompt(

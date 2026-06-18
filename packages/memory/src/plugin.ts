@@ -9,9 +9,9 @@
 // Extracted from index.ts (Phase 2) so the MSP can compose it via runtime hook().
 
 import { init, topByImportance, type MemoryDB } from "./memory"
-import { buildRecon, parseAgentsMd, tailFromMessages } from "./recon"
+import { buildRecon, tailFromMessages } from "./recon"
 import { startWatcher } from "./watcher"
-import { loadConfig, type PluginContext } from "@sffmc/shared";
+import { loadConfig, type PluginContext, createLogger } from "@sffmc/shared";
 import { readFileSync, existsSync, mkdirSync } from "fs"
 import { resolve, dirname } from "path"
 import { homedir } from "node:os"
@@ -20,6 +20,8 @@ interface MemoryConfig {
   storagePath: string
   tailChars: number
 }
+
+const log = createLogger("memory");
 
 const defaultConfig: MemoryConfig = {
   storagePath: resolve(
@@ -104,7 +106,7 @@ export const server = async (ctx: PluginContext) => {
         const agentsPath = resolve(ctx.projectRoot, "AGENTS.md")
         let agents = ""
         if (existsSync(agentsPath)) {
-          agents = parseAgentsMd(readFileSync(agentsPath, "utf-8"))
+          agents = readFileSync(agentsPath, "utf-8")
         }
 
         const tail = tailFromMessages(
@@ -127,8 +129,8 @@ export const server = async (ctx: PluginContext) => {
 
         state.reconInjectedThisSession = true
         state.reconNeededThisSession = false
-      } catch {
-        // recon is best-effort; silently skip on failure
+      } catch (err) {
+        log.warn("recon injection failed:", err);
       }
       return data
     },

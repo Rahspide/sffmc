@@ -40,11 +40,9 @@ log_failures: true               # write failures to plugin log
 
 | Hook | Purpose |
 |---|---|
-| `config` | Load config, log startup banner |
 | `event` | Reset per-session counter on `session.created` |
 | `tool.execute.after` | Record success/failure; on threshold, mark session promoted; on success after recovery, inject verdict |
 | `experimental.chat.system.transform` | Push promotion fragment for promoted sessions (one-shot) |
-| `experimental.chat.messages.transform` | Reserved for verdict injection (currently handled in `tool.execute.after`) |
 | `command.execute.before` | `/max` → reset all counters and clear promoted/recovering state |
 
 ## Tests

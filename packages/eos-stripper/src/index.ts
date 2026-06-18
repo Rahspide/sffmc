@@ -33,10 +33,6 @@ export const server = async (_ctx: PluginContext) => {
   };
 
   return {
-    config: async (_cfg: Record<string, unknown>) => {
-      // Config loaded on startup
-    },
-
     "experimental.text.complete": async (
       _msgCtx: { sessionID: string; messageID: string; partID: string },
       data: { text: string },

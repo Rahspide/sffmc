@@ -74,9 +74,7 @@ export interface MemoryEntry {
   created_at: number;
 }
 
-export class MemoryDB {
-  constructor(public db: any) {}
-}
+export type MemoryDB = { db: any };
 
 const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS memory_entries (
@@ -121,7 +119,7 @@ export async function init(dbPath: string): Promise<MemoryDB> {
   rawDb.exec("PRAGMA journal_mode=WAL;");
   rawDb.exec(SCHEMA_SQL);
   const adapted = createAdapter(rawDb, isBunSqlite);
-  return new MemoryDB(adapted);
+  return { db: adapted };
 }
 
 export function upsert(

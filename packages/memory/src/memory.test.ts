@@ -12,7 +12,7 @@ import {
   isBunSqlite,
   type MemoryDB,
 } from "./memory";
-import { buildRecon, tailFromMessages, parseAgentsMd } from "./recon";
+import { buildRecon, tailFromMessages } from "./recon";
 import { unlinkSync } from "fs";
 
 const TEST_DB = "/tmp/sffmc-memory-test.sqlite";
@@ -175,19 +175,6 @@ describe("tailFromMessages", () => {
     ];
     const tail = tailFromMessages(messages, 100);
     expect(tail).toContain("hello");
-  });
-});
-
-describe("parseAgentsMd", () => {
-  it("returns content truncated to budget", () => {
-    const long = "x".repeat(10000);
-    const result = parseAgentsMd(long);
-    expect(result.length).toBe(8192);
-  });
-
-  it("returns full content if under budget", () => {
-    const result = parseAgentsMd("short");
-    expect(result).toBe("short");
   });
 });
 

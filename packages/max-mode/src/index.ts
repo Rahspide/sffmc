@@ -1,6 +1,6 @@
 import { generateCandidates, type Candidate } from "./candidates";
 import { judgeCandidates, type Verdict } from "./judge";
-import { createRestoreState, stripToolExecutes, restoreToolExecutes, isSchemaOnly } from "./restore";
+import { createRestoreState, stripToolExecutes, restoreToolExecutes } from "./restore";
 import { loadConfig, MAX_COMMAND, type RichPluginContext, createLogger } from "@sffmc/shared";
 
 const log = createLogger("max-mode");
@@ -89,10 +89,6 @@ export const server = async (ctx: RichPluginContext) => {
   }
 
   return {
-    config: async (_cfg: Record<string, unknown>) => {
-      // Config loaded on startup
-    },
-
     "command.execute.before": async (
       cmdCtx: { command: string; sessionID: string; [key: string]: unknown },
     ) => {
@@ -194,7 +190,7 @@ export const server = async (ctx: RichPluginContext) => {
       _toolCtx: { tool: string },
       _args: { args: Record<string, unknown> },
     ) => {
-      if (isSchemaOnly(state.restore)) {
+      if (state.restore.stripped) {
         // Schema-only mode: don't execute, just return placeholder
         _args.args = { ..._args.args, _schemaOnly: true };
       }

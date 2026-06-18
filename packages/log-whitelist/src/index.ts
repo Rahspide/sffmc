@@ -83,10 +83,6 @@ export const server = async (_ctx: PluginContext) => {
   };
 
   return {
-    config: async (_cfg: Record<string, unknown>) => {
-      // Config loaded on startup
-    },
-
     "tool.execute.after": async (
       _toolCtx: { tool: string; sessionID: string; callID: string },
       result: { title?: string; output?: unknown; metadata?: unknown },

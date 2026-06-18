@@ -3,6 +3,8 @@ import { readFileSync, existsSync, statSync } from "fs";
 
 export type Action = "allow" | "deny" | "ask";
 
+const VALID_ACTIONS = new Set<Action>(["allow", "deny", "ask"]);
+
 export interface RuleMatch {
   tool: string;
   command_match?: string;
@@ -74,7 +76,7 @@ export function parseRules(yaml: string): Rules {
       if (!rule.match || typeof rule.match.tool !== "string") {
         throw new Error(`Invalid rule: missing match.tool`);
       }
-      if (!["allow", "deny", "ask"].includes(rule.action)) {
+      if (!VALID_ACTIONS.has(rule.action)) {
         throw new Error(
           `Invalid action "${rule.action}" in rule — must be allow, deny, or ask`,
         );

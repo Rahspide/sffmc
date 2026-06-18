@@ -56,10 +56,6 @@ function truncate(text: string, maxChars: number): string {
   return truncated + "\n[...truncated]";
 }
 
-export function parseAgentsMd(content: string): string {
-  return content.slice(0, RECON_BUDGETS.agents);
-}
-
 export function tailFromMessages(
   messages: Array<{ content?: string; role?: string; [key: string]: unknown }>,
   maxChars: number,

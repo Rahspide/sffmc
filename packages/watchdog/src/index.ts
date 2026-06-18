@@ -1,7 +1,7 @@
 import { FailureCounter } from "./counter";
 import { buildPromotionFragment } from "./promote";
 import { buildRecoveryVerdict } from "./verdict";
-import { extractErrorType, isToolError, hasMetadataError, MAX_COMMAND, MAX_PATTERN, loadConfig, type PluginContext, createLogger } from "@sffmc/shared";
+import { extractErrorType, isToolError, hasMetadataError, MAX_PATTERN, loadConfig, type PluginContext, createLogger } from "@sffmc/shared";
 
 const log = createLogger("watchdog");
 
@@ -60,10 +60,6 @@ export const server = async (ctx: PluginContext) => {
   }
 
   return {
-    config: async (_cfg: Record<string, unknown>) => {
-      // Config already loaded on startup; no-op
-    },
-
     event: async (payload: { event: string; [key: string]: unknown }) => {
       if (payload.event === "session.created") {
         const sid = String(payload.sessionID || "");
@@ -127,16 +123,6 @@ export const server = async (ctx: PluginContext) => {
       data.system.push(fragment);
 
       state.promotedSessions.delete(sid);
-      return data;
-    },
-
-    "experimental.chat.messages.transform": async (
-      _input: unknown,
-      data: {
-        messages: Array<{ role: string; content: string; [key: string]: unknown }>;
-      },
-    ) => {
-      // Recovery verdict injected in tool.execute.after, not here
       return data;
     },
 

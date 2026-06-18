@@ -22,7 +22,6 @@ describe("@sffmc/safety", () => {
     expect(typeof result["command.execute.before"]).toBe("function")
     expect(typeof result["permission.ask"]).toBe("function")
     expect(typeof result["experimental.chat.system.transform"]).toBe("function")
-    expect(typeof result["experimental.chat.messages.transform"]).toBe("function")
     expect(typeof result["experimental.text.complete"]).toBe("function")
   })
 

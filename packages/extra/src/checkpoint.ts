@@ -57,26 +57,6 @@ const FLUSH_THRESHOLD = 50;
 const FLUSH_INTERVAL_MS = 5_000;
 export const CURRENT_VERSION = 1;
 
-const MIGRATIONS: Record<number, (data: unknown) => unknown> = {
-  // Empty for now — populated when v2 is introduced
-  // Example: 2: (v1: unknown) => ({ ...v1 as CheckpointState, version: 2 }),
-};
-
-export function migrateCheckpoint(raw: unknown, fromVersion: number): CheckpointState {
-  if (fromVersion > CURRENT_VERSION) {
-    throw new Error(`no migration from v${fromVersion} to v${CURRENT_VERSION} (downgrade not supported)`);
-  }
-  let data = raw;
-  for (let v = fromVersion; v < CURRENT_VERSION; v++) {
-    const migrator = MIGRATIONS[v + 1];
-    if (!migrator) {
-      throw new Error(`no migration from v${v} to v${v + 1}`);
-    }
-    data = migrator(data);
-  }
-  return data as CheckpointState;
-}
-
 // ---------------------------------------------------------------------------
 // Storage path — overridable for tests
 // ---------------------------------------------------------------------------
@@ -319,15 +299,6 @@ function _executeRestoreAction(sessionID: string | undefined, dir: string): unkn
     };
   }
 
-  if (header.version < CURRENT_VERSION) {
-    // Older schema — apply migrations (currently no-op since v1 == current)
-    log.info(
-      `[extra] checkpoint: migrating v${header.version} → v${CURRENT_VERSION}`,
-    );
-    // Migration runs but does not mutate the on-disk file —
-    // the file is rewritten on next flush via writeHeader.
-  }
-
   const calls = readToolCalls(sessionID, dir);
   const messages = reconstructMessages(calls);
 
@@ -401,12 +372,6 @@ function _createAutoRestoreHook(
           );
           msg.content = msg.content.replace(RESTORE_MARKER, "").trim();
           continue;
-        }
-
-        if (header.version < CURRENT_VERSION) {
-          log.info(
-            `[extra] checkpoint auto-restore: migrating v${header.version} → v${CURRENT_VERSION}`,
-          );
         }
 
         const calls = readToolCalls(sessionID, dir);

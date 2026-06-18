@@ -240,7 +240,6 @@ describe("Plugin entry", () => {
       projectRoot: "/tmp/test-project",
       config: {},
     });
-    expect(typeof hooks.config).toBe("function");
     expect(typeof hooks["tool.execute.after"]).toBe("function");
     expect(typeof hooks["experimental.text.complete"]).toBe("function");
   });

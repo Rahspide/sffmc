@@ -45,7 +45,3 @@ export function restoreToolExecutes(
   state.tools.clear();
   state.stripped = false;
 }
-
-export function isSchemaOnly(state: RestoreState): boolean {
-  return state.stripped;
-}

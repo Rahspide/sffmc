@@ -1,7 +1,14 @@
 import { describe, it, expect } from "bun:test";
-import { generateCandidates, makeSchemaOnlyTools, buildCandidatePrompt, type Candidate } from "../../max-mode/src/candidates";
+import { generateCandidates, buildCandidatePrompt, type Candidate } from "../../max-mode/src/candidates";
 import { judgeCandidates, buildJudgePrompt, parseVerdict, type Verdict } from "../../max-mode/src/judge";
-import { createRestoreState, stripToolExecutes, restoreToolExecutes, isSchemaOnly } from "../../max-mode/src/restore";
+import { createRestoreState, stripToolExecutes, restoreToolExecutes } from "../../max-mode/src/restore";
+import type { SchemaOnlyTool } from "../../max-mode/src/types";
+
+// Local re-implementation of makeSchemaOnlyTools (only used in tests).
+// Production code now uses stripToolExecutes/restoreToolExecutes from restore.ts.
+function makeSchemaOnlyTools(tools: SchemaOnlyTool[]): SchemaOnlyTool[] {
+  return tools.map((tool) => ({ definition: { ...tool.definition } }));
+}
 
 describe("candidates", () => {
   it("makeSchemaOnlyTools strips execute from tools", () => {
@@ -287,7 +294,7 @@ describe("restore", () => {
     expect(result.length).toBe(2);
     expect((result[0] as { execute?: unknown }).execute).toBeUndefined();
     expect((result[1] as { execute?: unknown }).execute).toBeUndefined();
-    expect(isSchemaOnly(state)).toBe(true);
+    expect(state.stripped).toBe(true);
   });
 
   it("stripToolExecutes is idempotent", () => {
@@ -301,7 +308,7 @@ describe("restore", () => {
 
     stripToolExecutes(tools, state);
     const result2 = stripToolExecutes(tools, state);
-    expect(isSchemaOnly(state)).toBe(true);
+    expect(state.stripped).toBe(true);
   });
 
   it("restoreToolExecutes puts execute back", () => {
@@ -319,7 +326,7 @@ describe("restore", () => {
     restoreToolExecutes(tools, state);
     expect(tools[0].execute).toBeDefined();
     expect(tools[0].execute!).toBeInstanceOf(Function);
-    expect(isSchemaOnly(state)).toBe(false);
+    expect(state.stripped).toBe(false);
   });
 
   it("restoreToolExecutes is no-op when not stripped", () => {
@@ -344,7 +351,7 @@ describe("restore", () => {
     ];
 
     stripToolExecutes(tools, state);
-    expect(isSchemaOnly(state)).toBe(true);
+    expect(state.stripped).toBe(true);
     // Should not crash
     expect(tools[0].definition.name).toBe("read");
   });
@@ -364,7 +371,6 @@ describe("Plugin entry", () => {
       projectRoot: "/tmp/test-project",
       config: {},
     });
-    expect(typeof hooks.config).toBe("function");
     expect(typeof hooks["command.execute.before"]).toBe("function");
     expect(typeof hooks["experimental.chat.system.transform"]).toBe("function");
     expect(typeof hooks["tool.execute.before"]).toBe("function");

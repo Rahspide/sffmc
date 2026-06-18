@@ -6,7 +6,7 @@
 import { Database } from "bun:sqlite";
 import { mkdirSync, existsSync, appendFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { homedir } from "node:os"
+import { homedir } from "node:os";
 import { createLogger } from "@sffmc/shared";
 export type { RichPluginContext } from "@sffmc/shared";
 
@@ -445,7 +445,7 @@ let _activeDreamState: DreamInstanceState | null = null;
 
 /** Clear a previously-set cron timer (useful for tests). */
 export function clearCronTimer(): void {
-  if (_activeDreamState?.cronTimer !== null && _activeDreamState?.cronTimer !== undefined) {
+  if (_activeDreamState?.cronTimer != null) {
     clearInterval(_activeDreamState.cronTimer);
     _activeDreamState.cronTimer = null;
   }

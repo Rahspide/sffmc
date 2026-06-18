@@ -238,7 +238,7 @@ async function callJudge(
 }
 
 // ---------------------------------------------------------------------------
-// Streaming LLM judge call
+// Streaming LLM judge call — delegates to callJudge() and emits progress chunks
 // ---------------------------------------------------------------------------
 
 export async function callJudgeStream(
@@ -248,69 +248,25 @@ export async function callJudgeStream(
   ctx: RichPluginContext,
   onChunk: (chunk: JudgeStreamChunk) => void,
 ): Promise<JudgeResult> {
-  const session = ctx.client?.session;
-  if (!session?.message) {
-    const errMsg = "ctx.client.session.message() not available";
-    onChunk({ type: "error", error: errMsg });
-    throw new Error(errMsg);
-  }
-
-  const { system, user } = buildJudgePrompt(candidates, rubric);
-
-  const start = performance.now();
-
   try {
-    const response = await session.message({
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: user },
-      ],
-      model,
-      temperature: 0.2,
-    });
+    const { response, latencyMs } = await callJudge(candidates, rubric, model, ctx);
 
-    const latencyMs = Math.round(performance.now() - start);
-
-    const text = response.content
-      .filter((p): p is { type: "text"; text: string } => p.type === "text" && typeof p.text === "string")
-      .map((p) => p.text)
-      .join("\n");
-
-    const parsed = parseJudgeResponse(text, candidates.length);
-    if (!parsed) {
-      const errMsg = "judge parse failed";
-      onChunk({ type: "error", error: errMsg });
-      throw new Error(errMsg);
-    }
-
-    // Emit scores as first chunk
-    onChunk({ type: "scores", scores: parsed.scores });
-
-    // Emit winner chunk
-    onChunk({ type: "winner", winner: parsed.winner });
-
-    // Emit reasoning chunk
-    onChunk({ type: "reasoning", reasoning: parsed.reasoning });
-
-    // Emit complete chunk
+    onChunk({ type: "scores", scores: response.scores });
+    onChunk({ type: "winner", winner: response.winner });
+    onChunk({ type: "reasoning", reasoning: response.reasoning });
     onChunk({ type: "complete" });
 
     return {
       ok: true,
-      scores: parsed.scores,
-      winner: parsed.winner,
-      reasoning: parsed.reasoning,
+      scores: response.scores,
+      winner: response.winner,
+      reasoning: response.reasoning,
       model,
       latencyMs,
     };
   } catch (err) {
-    // Caller may have already emitted an error chunk for parse failures;
-    // for unexpected errors (network, etc.), emit here if not already emitted.
     const errMsg = err instanceof Error ? err.message : String(err);
-    // Avoid double-emitting if parse failure already sent one
-    if (!(err instanceof Error && err.message === "judge parse failed")) {
-      onChunk({ type: "error", error: errMsg });
-    }
+    onChunk({ type: "error", error: errMsg });
     throw err;
   }
 }

@@ -713,7 +713,7 @@ export const checkCompositeStructure = createCheck("composite_structure", async 
         errors.push(`${compositeName}: package.json missing composes`);
       } else {
         // 3. Each listed feature corresponds to a real package
-        for (const feature of parsed.composes ?? []) {
+        for (const feature of parsed.composes) {
           const featureDir = join(repoRoot, "packages", feature);
           if (!(await fileExists(featureDir))) {
             errors.push(`${compositeName} lists composes "${feature}" but packages/${feature}/ does not exist`);

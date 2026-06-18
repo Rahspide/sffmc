@@ -12,7 +12,6 @@ import {
   listSessions,
   filePath,
   __setCheckpointDir,
-  migrateCheckpoint,
   CURRENT_VERSION,
 } from "../../extra/src/checkpoint";
 
@@ -249,28 +248,10 @@ describe("checkpoint", () => {
   });
 
   // -----------------------------------------------------------------------
-  // Migration
+  // Schema version guard
   // -----------------------------------------------------------------------
 
-  describe("migration", () => {
-    it("migrateCheckpoint returns data unchanged for current version (no-op)", () => {
-      const v1Data: Record<string, unknown> = {
-        sessionID: "test",
-        toolCalls: [],
-        createdAt: 1000,
-        updatedAt: 2000,
-        version: 1,
-      };
-      const result = migrateCheckpoint(v1Data, 1);
-      expect(result).toEqual(v1Data);
-      expect(result.version).toBe(1);
-    });
-
-    it("migrateCheckpoint throws for version with no migration path", () => {
-      const data = { some: "data" };
-      expect(() => migrateCheckpoint(data, 999)).toThrow("no migration");
-    });
-
+  describe("schema version", () => {
     it("CURRENT_VERSION equals 1 (regression guard)", () => {
       expect(CURRENT_VERSION).toBe(1);
     });

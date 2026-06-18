@@ -10,13 +10,13 @@
 // exports so the memory MSP can compose them via runtime hook().
 
 import { loadConfig, mergeHooks, type PluginContext, createLogger, type PluginServer } from "@sffmc/shared";
-
-const log = createLogger("extra");
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { createCheckpointTool } from "./checkpoint";
 import { createJudgeTool } from "./judge";
 import { createDreamTool } from "./dream";
+
+const log = createLogger("extra");
 
 // ---------------------------------------------------------------------------
 // Config

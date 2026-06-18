@@ -13,7 +13,7 @@ import { createLogger } from "./logger.ts"
  *
  * - Reads `~/.config/SFFMC/<pluginName>.yaml` (or `opts.configHome/<pluginName>.yaml`)
  * - Missing file → returns `{ ...defaults }`
- * - Malformed YAML → returns `{ ...defaults }` (warns via console.warn, does NOT throw)
+ * - Malformed YAML → returns `{ ...defaults }` (logs warning via createLogger, does NOT throw)
  * - Valid YAML → returns `{ ...defaults, ...parsed }` (user values win)
  */
 export async function loadConfig<T extends object>(
