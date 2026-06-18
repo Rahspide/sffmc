@@ -82,10 +82,13 @@ python3 scripts/audit-load-order.py
 
 The pre-commit hook is already configured in `.git/hooks/pre-commit`.
 
-The hook runs automatically before every commit:
-1. `bun test` (must pass)
-2. `bun run typecheck` (must pass)
-3. `python3 scripts/audit-load-order.py` (must show 0 conflicts)
+The hook runs `bun run precommit` automatically before every commit.
+`bun run precommit` runs all 5 checks in sequence:
+1. `bun run typecheck` (must pass — no type errors across all packages)
+2. `bun run test` (must pass — all SFFMC-scoped tests via `bunfig.toml`)
+3. `python3 scripts/audit-load-order.py` (must show 0 hook conflicts)
+4. `bun run audit:public` (must pass — no public/sensitive content in diffs)
+5. `bun run scripts/run-health.ts` (must pass — `sffmc_health` plugin check)
 
 Bypass with `git commit --no-verify` (use sparingly — CI will catch it later if remote is set up).
 
