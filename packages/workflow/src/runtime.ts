@@ -8,6 +8,7 @@ import {
   generateRunID,
   computeScriptSha,
   journalKeyBase,
+  flushJournalSync,
 } from "./persistence.ts"
 import { createEventBus } from "./events.ts"
 import { parseMeta } from "./meta.ts"
@@ -291,6 +292,7 @@ export class WorkflowRuntime {
     entry.status = "cancelled"
     entry.resolveOutcome(this.outcomeFor(entry, "cancelled"))
     this.persistence.updateRunStatus(entry.runID, "cancelled")
+    flushJournalSync()
     this.events.emit("workflow:finished", { runID: entry.runID, status: "cancelled" })
   }
 
@@ -386,6 +388,7 @@ export class WorkflowRuntime {
         this.persistence.updateRunStatus(row.runID, "crashed", "Process restarted — workflow orphaned")
       }
     }
+    flushJournalSync()
   }
 
   // ── Private: script resolution ─────────────────────────────────────────
@@ -805,6 +808,7 @@ export class WorkflowRuntime {
     entry.status = "completed"
     entry.resolveOutcome(this.outcomeFor(entry, "completed", { result }))
     this.persistence.updateRunStatus(entry.runID, "completed")
+    flushJournalSync()
     this.events.emit("workflow:finished", { runID: entry.runID, status: "completed" })
   }
 
@@ -815,6 +819,7 @@ export class WorkflowRuntime {
       : "failed"
     entry.resolveOutcome(this.outcomeFor(entry, entry.status as "failed" | "budget_exceeded", { error }))
     this.persistence.updateRunStatus(entry.runID, entry.status, error)
+    flushJournalSync()
     this.events.emit("workflow:finished", { runID: entry.runID, status: entry.status, error })
   }
 

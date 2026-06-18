@@ -3,7 +3,7 @@
 
 import { Database } from "bun:sqlite"
 import { randomBytes, createHash } from "node:crypto"
-import { mkdirSync, appendFileSync, createReadStream } from "node:fs"
+import { mkdirSync, appendFileSync, createReadStream, openSync, fsyncSync, closeSync } from "node:fs"
 import { readFile, writeFile, appendFile, mkdir } from "node:fs/promises"
 import path from "node:path"
 import { homedir } from "node:os"
@@ -134,6 +134,57 @@ function rowToRun(row: Record<string, unknown>): WorkflowRun {
 }
 
 // ---------------------------------------------------------------------------
+// Journal fsync coalescing
+// ---------------------------------------------------------------------------
+// High-frequency appendJournalSync callers (e.g. 100+ events per workflow)
+// would otherwise fsync per append, costing O(n) syscalls. Coalesce fsync
+// calls within a small window: each append schedules a deferred fsync that
+// fires once per window across all tracked paths. Callers needing durability
+// before returning (workflow end, recovery) must call flushJournalSync()
+// explicitly.
+
+let fsyncPendingPaths: Set<string> | null = null
+let fsyncTimer: ReturnType<typeof setTimeout> | null = null
+const FSYNC_COALESCE_MS = 50
+
+function scheduleFsync(): void {
+  if (fsyncTimer !== null) return
+  fsyncTimer = setTimeout(flushFsync, FSYNC_COALESCE_MS)
+  fsyncTimer.unref?.()
+}
+
+function flushFsync(): void {
+  if (fsyncTimer !== null) {
+    clearTimeout(fsyncTimer)
+    fsyncTimer = null
+  }
+  if (!fsyncPendingPaths || fsyncPendingPaths.size === 0) return
+  const paths = fsyncPendingPaths
+  fsyncPendingPaths = null
+  for (const p of paths) {
+    let fd: number
+    try {
+      fd = openSync(p, "r")
+    } catch {
+      continue // best-effort: file may have been removed
+    }
+    try {
+      fsyncSync(fd)
+    } catch {
+      // best-effort: surface in debug only
+    } finally {
+      try { closeSync(fd) } catch { /* ignore */ }
+    }
+  }
+}
+
+/** Force fsync of all pending journal writes. Call before returning from a
+ *  workflow lifecycle event (end, cancel, recovery) to guarantee durability. */
+export function flushJournalSync(): void {
+  flushFsync()
+}
+
+// ---------------------------------------------------------------------------
 // WorkflowPersistence class
 // ---------------------------------------------------------------------------
 
@@ -253,11 +304,17 @@ export class WorkflowPersistence {
     return path.join(this.dir, `${runID}.jsonl`)
   }
 
-  /** Synchronous journal append — durable before the sandbox pump can be starved. */
+  /** Synchronous journal append — durable before the sandbox pump can be starved.
+   *  fsync is coalesced via a 50ms timer; call flushJournalSync() for explicit
+   *  durability at workflow lifecycle boundaries. */
   appendJournalSync(runID: string, event: JournalEvent): void {
     safeRunID(runID)
     mkdirSync(this.dir, { recursive: true })
-    appendFileSync(this.journalPath(runID), JSON.stringify(event) + "\n")
+    const jpath = this.journalPath(runID)
+    appendFileSync(jpath, JSON.stringify(event) + "\n")
+    if (fsyncPendingPaths === null) fsyncPendingPaths = new Set()
+    fsyncPendingPaths.add(jpath)
+    scheduleFsync()
   }
 
   /** Async journal append — for log/phase events. */
