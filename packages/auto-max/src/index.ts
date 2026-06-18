@@ -7,7 +7,7 @@ import {
   resetSession,
   type AutoMaxConfig,
 } from "./coordinator";
-import { extractErrorType, isToolError, MAX_PATTERN, loadConfig, type PluginContext, createLogger, hasMetadataError } from "@sffmc/shared";
+import { extractErrorType, MAX_PATTERN, loadConfig, type PluginContext, createLogger, hasMetadataError } from "@sffmc/shared";
 
 const log = createLogger("auto-max");
 
@@ -95,11 +95,15 @@ export const server = async (_ctx: PluginContext) => {
       const output = result.output ?? result.metadata ?? "";
       const meta = result.metadata as { error?: unknown } | null | undefined;
 
-      const errorType = determineErrorType(tool, meta, output);
-      if (!errorType) {
-        handleSuccess(state, sessionID, tool);
+      // Error path: extractErrorType covers o.code / o.name; hasMetadataError
+      // covers the explicit meta.error flag. isObjectError branch (extracted
+      // in determineErrorType before this commit) is now subsumed by
+      // extractErrorType's "if (o.code) / if (o.name)" checks.
+      if (!hasMetadataError(meta) && extractErrorType(output) === "UNKNOWN") {
+        recordSuccess(getOrCreateSession(state, sessionID), tool);
         return;
       }
+      const errorType = extractErrorType(output);
       handleTrigger(state, config, tool, errorType, sessionID);
       return;
     },
@@ -143,40 +147,6 @@ export const server = async (_ctx: PluginContext) => {
     },
   };
 };
-
-function determineErrorType(
-  tool: string,
-  meta: { error?: unknown } | null | undefined,
-  output: unknown,
-): string {
-  const isError = isToolError(output);
-  const hasErrorFlag = hasMetadataError(meta);
-
-  const isObjectError =
-    output !== null &&
-    typeof output === "object" &&
-    ((output as Record<string, unknown>).error !== undefined ||
-      (output as Record<string, unknown>).code !== undefined);
-
-  if (!isError && !hasErrorFlag && !isObjectError) {
-    return "";
-  }
-
-  if (isObjectError && !isError && !hasErrorFlag) {
-    const o = output as Record<string, unknown>;
-    return "object:" + String(o.code || o.error);
-  }
-  return extractErrorType(output);
-}
-
-function handleSuccess(
-  state: PluginState,
-  sessionID: string,
-  tool: string,
-): void {
-  const session = getOrCreateSession(state, sessionID);
-  recordSuccess(session, tool);
-}
 
 function handleTrigger(
   state: PluginState,

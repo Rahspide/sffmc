@@ -684,22 +684,24 @@ describe("Plugin entry", () => {
     const hooks = await mod.default.server(ctx);
 
     const sid = "obj-err-1";
-    // Object with error field, no metadata.error flag
+    // Object with .name field — extractErrorType (shared/errors.ts) handles
+    // o.code/o.name. .error-only objects are treated as success (see next
+    // test); the legacy "object:<msg>" prefix was YAGNI scaffolding.
     for (let i = 0; i < 3; i++) {
       await hooks["tool.execute.after"]!(
         { tool: "grep", sessionID: sid, callID: `c${i}` },
-        { output: { error: "something went wrong" } },
+        { output: { name: "something went wrong" } },
       );
     }
 
-    // Observable: errorType renders as "object:something went wrong" in the fragment
+    // Observable: errorType renders as "<name>" in the fragment
     const data = { system: [] as string[] };
     await hooks["experimental.chat.system.transform"]!({ sessionID: sid }, data);
     expect(data.system.length).toBe(1);
-    expect(data.system[0]).toContain("grep:object:something went wrong");
+    expect(data.system[0]).toContain("grep:something went wrong");
   });
 
-  it("detects object output with .code field and object: prefix", async () => {
+  it("detects object output with .code field (no object: prefix)", async () => {
     const mod = await import("../../auto-max/src/index");
     const ctx: Record<string, unknown> = {
       projectRoot: "/tmp/test-project",
@@ -708,7 +710,8 @@ describe("Plugin entry", () => {
     const hooks = await mod.default.server(ctx);
 
     const sid = "obj-err-2";
-    // Object with code field, no metadata.error flag
+    // Object with .code field, no metadata.error flag.
+    // extractErrorType reads o.code directly — no special "object:" prefix.
     for (let i = 0; i < 3; i++) {
       await hooks["tool.execute.after"]!(
         { tool: "glob", sessionID: sid, callID: `c${i}` },
@@ -716,11 +719,11 @@ describe("Plugin entry", () => {
       );
     }
 
-    // Observable: errorType renders as "object:ERR_TIMEOUT" in the fragment
+    // Observable: errorType renders as "ERR_TIMEOUT" (no prefix)
     const data = { system: [] as string[] };
     await hooks["experimental.chat.system.transform"]!({ sessionID: sid }, data);
     expect(data.system.length).toBe(1);
-    expect(data.system[0]).toContain("glob:object:ERR_TIMEOUT");
+    expect(data.system[0]).toContain("glob:ERR_TIMEOUT");
   });
 
   it("object output without error/code is treated as success", async () => {
