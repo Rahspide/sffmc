@@ -23,10 +23,21 @@ const defaultConfig: MaxModeConfig = {
   dry_run: false,
 };
 
+interface MaxModeResult {
+  winner: Candidate;
+  verdict: Verdict;
+  message: string;
+}
+
 interface PluginState {
   config: MaxModeConfig;
   restore: ReturnType<typeof createRestoreState>;
   maxUsedThisSession: boolean;
+  /** Pending one-shot verdict per session. Consumed (and deleted) by whichever
+   *  chat transform fires first (system or messages) for that session.
+   *  Per-instance — was previously stashed on ctx (`_maxModeResult`), which
+   *  leaked across sessions in long-running processes. */
+  _maxModeResult: Map<string, MaxModeResult>;
 }
 
 function estimateCost(candidates: Candidate[]): number {
@@ -70,6 +81,7 @@ export const server = async (ctx: RichPluginContext) => {
     config,
     restore: createRestoreState(),
     maxUsedThisSession: false,
+    _maxModeResult: new Map(),
   };
 
   if (config.dry_run) {
@@ -150,12 +162,12 @@ export const server = async (ctx: RichPluginContext) => {
 
         // Inject winner as system message via the command context
         // The actual injection depends on how the SDK exposes message manipulation
-        // For now, store in a side-channel that can be picked up by chat transforms
-        (ctx as Record<string, unknown>)._maxModeResult = {
+        // For now, store in a per-instance side-channel that can be picked up by chat transforms
+        state._maxModeResult.set(cmdCtx.sessionID, {
           winner,
           verdict,
           message,
-        };
+        });
       } catch (err) {
         log.warn(`Error: ${String(err)}`);
         state.maxUsedThisSession = false;
@@ -166,12 +178,12 @@ export const server = async (ctx: RichPluginContext) => {
       _input: { sessionID?: string },
       data: { system: string[] },
     ) => {
-      const result = (ctx as Record<string, unknown>)._maxModeResult as
-        | { message: string }
-        | undefined;
+      const sessionID = _input.sessionID;
+      if (!sessionID) return data;
+      const result = state._maxModeResult.get(sessionID);
       if (result) {
         data.system.push(result.message);
-        delete (ctx as Record<string, unknown>)._maxModeResult;
+        state._maxModeResult.delete(sessionID);
       }
       return data;
     },
@@ -192,15 +204,18 @@ export const server = async (ctx: RichPluginContext) => {
         messages: Array<{ role: string; content: string; [key: string]: unknown }>;
       },
     ) => {
-      const result = (ctx as Record<string, unknown>)._maxModeResult as
-        | { message: string }
-        | undefined;
+      const sessionID =
+        _input && typeof _input === "object"
+          ? ((_input as { sessionID?: string }).sessionID ?? "")
+          : "";
+      if (!sessionID) return data;
+      const result = state._maxModeResult.get(sessionID);
       if (result) {
         data.messages.push({
           role: "assistant",
           content: result.message,
         });
-        delete (ctx as Record<string, unknown>)._maxModeResult;
+        state._maxModeResult.delete(sessionID);
       }
       return data;
     },

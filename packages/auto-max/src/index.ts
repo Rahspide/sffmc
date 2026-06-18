@@ -22,9 +22,22 @@ const defaultConfig: AutoMaxConfig = {
   cost_cap_per_session: 1,
 };
 
+interface AutoMaxTrigger {
+  tool: string;
+  errorType: string;
+  failCount: number;
+  sessionID: string;
+  maxConfig: AutoMaxConfig["max_mode_config"];
+}
+
 interface PluginState {
   config: AutoMaxConfig;
   sessions: Map<string, ReturnType<typeof createSessionState>>;
+  /** Pending one-shot escalation fragment per session. Consumed (and deleted) by
+   *  experimental.chat.system.transform when it fires for that session.
+   *  Per-instance — was previously stashed on ctx (`_autoMaxTrigger`), which
+   *  leaked across sessions in long-running processes. */
+  _autoMaxTrigger: Map<string, AutoMaxTrigger>;
 }
 
 
@@ -46,6 +59,7 @@ export const server = async (_ctx: PluginContext) => {
   const state: PluginState = {
     config,
     sessions: new Map(),
+    _autoMaxTrigger: new Map(),
   };
 
   if (!loadedLogged) {
@@ -86,7 +100,7 @@ export const server = async (_ctx: PluginContext) => {
         handleSuccess(state, sessionID, tool);
         return;
       }
-      handleTrigger(state, config, tool, errorType, sessionID, _ctx);
+      handleTrigger(state, config, tool, errorType, sessionID);
       return;
     },
 
@@ -112,9 +126,9 @@ export const server = async (_ctx: PluginContext) => {
       _input: { sessionID?: string },
       data: { system: string[] },
     ) => {
-      const trigger = (_ctx as Record<string, unknown>)._autoMaxTrigger as
-        | { tool: string; errorType: string; failCount: number; sessionID: string }
-        | undefined;
+      const sessionID = _input.sessionID;
+      if (!sessionID) return data;
+      const trigger = state._autoMaxTrigger.get(sessionID);
 
       if (trigger) {
         data.system.push(
@@ -123,7 +137,7 @@ export const server = async (_ctx: PluginContext) => {
             `Max Mode will generate parallel candidate solutions to break the loop.`,
           ].join("\n"),
         );
-        delete (_ctx as Record<string, unknown>)._autoMaxTrigger;
+        state._autoMaxTrigger.delete(sessionID);
       }
       return data;
     },
@@ -170,7 +184,6 @@ function handleTrigger(
   tool: string,
   errorType: string,
   sessionID: string,
-  ctx: PluginContext,
 ): void {
   const session = getOrCreateSession(state, sessionID);
   recordFailure(session, tool, errorType);
@@ -191,13 +204,13 @@ function handleTrigger(
       `→ Activating Max Mode, generating ${config.max_mode_config.n} candidates`,
     );
 
-    (ctx as Record<string, unknown>)._autoMaxTrigger = {
+    state._autoMaxTrigger.set(sessionID, {
       tool,
       errorType,
       failCount: config.watchdog_threshold,
       sessionID,
       maxConfig: config.max_mode_config,
-    };
+    });
   }
 }
 

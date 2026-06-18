@@ -317,11 +317,17 @@ describe("Plugin entry", () => {
       { output: "ENOENT: no such file" },
     );
 
-    // Should have triggered
-    expect(ctx._autoMaxTrigger).toBeDefined();
-    const trigger = ctx._autoMaxTrigger as Record<string, unknown>;
-    expect(trigger.tool).toBe("bash");
-    expect(trigger.errorType).toBe("ENOENT");
+    // Trigger now lives in per-instance PluginState (Map<sessionID, AutoMaxTrigger>).
+    // Observable side-effect: system.transform injects the AUTO-MAX fragment
+    // and renders tool:errorType into the message.
+    const data = { system: ["existing"] };
+    await hooks["experimental.chat.system.transform"]!(
+      { sessionID: sid },
+      data,
+    );
+    expect(data.system.length).toBe(2);
+    expect(data.system[1]).toContain("AUTO-MAX TRIGGERED");
+    expect(data.system[1]).toContain("bash:ENOENT");
   });
 
   it("injects auto-max trigger message into system transform", async () => {
@@ -332,24 +338,34 @@ describe("Plugin entry", () => {
     };
     const hooks = await mod.default.server(ctx);
 
-    // Set up a trigger
-    ctx._autoMaxTrigger = {
-      tool: "bash",
-      errorType: "ENOENT",
-      failCount: 3,
-      sessionID: "s4",
-    };
+    // Drive 3 failures for session s4 to populate per-instance PluginState
+    // (formerly set via ctx._autoMaxTrigger side-channel — refactored to Map).
+    const sid = "s4";
+    for (let i = 0; i < 3; i++) {
+      await hooks["tool.execute.after"]!(
+        { tool: "bash", sessionID: sid, callID: `c${i}` },
+        { output: "ENOENT: no such file" },
+      );
+    }
 
     const data = { system: ["existing system prompt"] };
     await hooks["experimental.chat.system.transform"]!(
-      { sessionID: "s4" },
+      { sessionID: sid },
       data,
     );
 
     expect(data.system.length).toBe(2);
     expect(data.system[1]).toContain("AUTO-MAX TRIGGERED");
     expect(data.system[1]).toContain("bash:ENOENT");
-    expect(ctx._autoMaxTrigger).toBeUndefined(); // cleaned up
+
+    // Trigger is one-shot — second transform for same sessionID must NOT
+    // re-inject (state was deleted on first read).
+    const data2 = { system: ["existing 2"] };
+    await hooks["experimental.chat.system.transform"]!(
+      { sessionID: sid },
+      data2,
+    );
+    expect(data2.system.length).toBe(1);
   });
 
   it("system transform does nothing without trigger", async () => {
@@ -377,23 +393,24 @@ describe("Plugin entry", () => {
     };
     const hooks = await mod.default.server(ctx);
 
-    ctx._autoMaxTrigger = {
-      tool: "grep",
-      errorType: "ETIMEDOUT",
-      failCount: 3,
-      sessionID: "s6",
-    };
+    // Drive 3 failures with grep tool / ETIMEDOUT error
+    const sid = "s6";
+    for (let i = 0; i < 3; i++) {
+      await hooks["tool.execute.after"]!(
+        { tool: "grep", sessionID: sid, callID: `c${i}` },
+        { output: "ETIMEDOUT: connection timed out" },
+      );
+    }
 
     const data = { system: [] as string[] };
     await hooks["experimental.chat.system.transform"]!(
-      { sessionID: "s6" },
+      { sessionID: sid },
       data,
     );
 
     expect(data.system.length).toBe(1);
     expect(data.system[0]).toContain("grep:ETIMEDOUT");
     expect(data.system[0]).toContain("3 consecutive times");
-    expect(ctx._autoMaxTrigger).toBeUndefined();
   });
 
   it("trigger is cleaned up even on empty system array", async () => {
@@ -404,20 +421,29 @@ describe("Plugin entry", () => {
     };
     const hooks = await mod.default.server(ctx);
 
-    ctx._autoMaxTrigger = {
-      tool: "bash",
-      errorType: "ENOENT",
-      failCount: 3,
-      sessionID: "s7",
-    };
+    // Drive 3 failures for session s7 to populate per-instance PluginState
+    const sid = "s7";
+    for (let i = 0; i < 3; i++) {
+      await hooks["tool.execute.after"]!(
+        { tool: "bash", sessionID: sid, callID: `c${i}` },
+        { output: "ENOENT: no such file" },
+      );
+    }
 
     const data = { system: [] as string[] };
     await hooks["experimental.chat.system.transform"]!(
-      { sessionID: "s7" },
+      { sessionID: sid },
       data,
     );
 
-    expect(ctx._autoMaxTrigger).toBeUndefined();
+    // Trigger is consumed even if data.system was empty before — verify by
+    // calling transform again and confirming no second injection.
+    const data2 = { system: [] as string[] };
+    await hooks["experimental.chat.system.transform"]!(
+      { sessionID: sid },
+      data2,
+    );
+    expect(data2.system.length).toBe(0);
   });
 
   it("tool.execute.after detects errors in object metadata with error flag", async () => {
@@ -429,22 +455,27 @@ describe("Plugin entry", () => {
     const hooks = await mod.default.server(ctx);
 
     // Error via metadata.error flag should be detected
+    const sid = "s8";
     await hooks["tool.execute.after"]!(
-      { tool: "read", sessionID: "s8", callID: "c1" },
+      { tool: "read", sessionID: sid, callID: "c1" },
       { metadata: { error: true } },
     );
     await hooks["tool.execute.after"]!(
-      { tool: "read", sessionID: "s8", callID: "c2" },
+      { tool: "read", sessionID: sid, callID: "c2" },
       { metadata: { error: true } },
     );
     await hooks["tool.execute.after"]!(
-      { tool: "read", sessionID: "s8", callID: "c3" },
+      { tool: "read", sessionID: sid, callID: "c3" },
       { metadata: { error: true } },
     );
 
-    expect(ctx._autoMaxTrigger).toBeDefined();
-    const trigger = ctx._autoMaxTrigger as Record<string, unknown>;
-    expect(trigger.tool).toBe("read");
+    // Observable: system.transform renders the AUTO-MAX fragment with the
+    // tool that triggered it
+    const data = { system: [] as string[] };
+    await hooks["experimental.chat.system.transform"]!({ sessionID: sid }, data);
+    expect(data.system.length).toBe(1);
+    expect(data.system[0]).toContain("AUTO-MAX TRIGGERED");
+    expect(data.system[0]).toContain("read:");
   });
 
   it("tool.execute.after detects errors via output object code property", async () => {
@@ -457,23 +488,25 @@ describe("Plugin entry", () => {
 
     // Object output with metadata.error flag triggers error detection;
     // extractErrorType then reads the code property from the object
+    const sid = "s9";
     await hooks["tool.execute.after"]!(
-      { tool: "glob", sessionID: "s9", callID: "c1" },
+      { tool: "glob", sessionID: sid, callID: "c1" },
       { output: { code: "ENOENT", message: "not found" }, metadata: { error: true } },
     );
     await hooks["tool.execute.after"]!(
-      { tool: "glob", sessionID: "s9", callID: "c2" },
+      { tool: "glob", sessionID: sid, callID: "c2" },
       { output: { code: "ENOENT", message: "not found" }, metadata: { error: true } },
     );
     await hooks["tool.execute.after"]!(
-      { tool: "glob", sessionID: "s9", callID: "c3" },
+      { tool: "glob", sessionID: sid, callID: "c3" },
       { output: { code: "ENOENT", message: "not found" }, metadata: { error: true } },
     );
 
-    expect(ctx._autoMaxTrigger).toBeDefined();
-    const trigger = ctx._autoMaxTrigger as Record<string, unknown>;
-    expect(trigger.tool).toBe("glob");
-    expect(trigger.errorType).toBe("ENOENT");
+    // Observable: trigger rendered into AUTO-MAX fragment includes tool:errorType
+    const data = { system: [] as string[] };
+    await hooks["experimental.chat.system.transform"]!({ sessionID: sid }, data);
+    expect(data.system.length).toBe(1);
+    expect(data.system[0]).toContain("glob:ENOENT");
   });
 
   // ── dry_run mode ──────────────────────────────────────────
@@ -517,7 +550,14 @@ describe("Plugin entry", () => {
         );
       }
 
-      expect(ctx._autoMaxTrigger).toBeUndefined();
+      // Observable: dry_run must NOT populate the per-instance trigger
+      // (state._autoMaxTrigger stays empty → transform adds nothing)
+      const data = { system: ["existing"] };
+      await hooks["experimental.chat.system.transform"]!(
+        { sessionID: sid },
+        data,
+      );
+      expect(data.system.length).toBe(1);
     });
 
     it("dry_run=true logs 'would trigger' message", async () => {
@@ -566,8 +606,11 @@ describe("Plugin entry", () => {
         { output: "ENOENT: error" },
       );
     }
-    expect(ctx._autoMaxTrigger).toBeDefined();
-    delete ctx._autoMaxTrigger;
+    // Consume trigger via system.transform — observable proof of first trigger
+    const data1 = { system: [] as string[] };
+    await hooks["experimental.chat.system.transform"]!({ sessionID: sid }, data1);
+    expect(data1.system.length).toBe(1);
+    expect(data1.system[0]).toContain("AUTO-MAX TRIGGERED");
 
     // Reset via /max
     await hooks["command.execute.before"]!({
@@ -582,7 +625,11 @@ describe("Plugin entry", () => {
         { output: "ENOENT: error" },
       );
     }
-    expect(ctx._autoMaxTrigger).toBeDefined();
+    // Second trigger must also fire — proves the reset took effect
+    const data2 = { system: [] as string[] };
+    await hooks["experimental.chat.system.transform"]!({ sessionID: sid }, data2);
+    expect(data2.system.length).toBe(1);
+    expect(data2.system[0]).toContain("AUTO-MAX TRIGGERED");
   });
 
   it("/max reset clears counters for specified session", async () => {
@@ -602,8 +649,10 @@ describe("Plugin entry", () => {
         { output: "ENOENT: error" },
       );
     }
-    expect(ctx._autoMaxTrigger).toBeDefined();
-    delete ctx._autoMaxTrigger;
+    // Consume first trigger
+    const data1 = { system: [] as string[] };
+    await hooks["experimental.chat.system.transform"]!({ sessionID: sid }, data1);
+    expect(data1.system.length).toBe(1);
 
     // Reset via /max reset <sessionID>
     await hooks["command.execute.before"]!({
@@ -618,7 +667,10 @@ describe("Plugin entry", () => {
         { output: "ENOENT: error" },
       );
     }
-    expect(ctx._autoMaxTrigger).toBeDefined();
+    // Second trigger must fire — proves reset targeted the right session
+    const data2 = { system: [] as string[] };
+    await hooks["experimental.chat.system.transform"]!({ sessionID: sid }, data2);
+    expect(data2.system.length).toBe(1);
   });
 
   // ── object output error detection ─────────────────────────
@@ -640,10 +692,11 @@ describe("Plugin entry", () => {
       );
     }
 
-    expect(ctx._autoMaxTrigger).toBeDefined();
-    const trigger = ctx._autoMaxTrigger as Record<string, unknown>;
-    expect(trigger.tool).toBe("grep");
-    expect(trigger.errorType).toBe("object:something went wrong");
+    // Observable: errorType renders as "object:something went wrong" in the fragment
+    const data = { system: [] as string[] };
+    await hooks["experimental.chat.system.transform"]!({ sessionID: sid }, data);
+    expect(data.system.length).toBe(1);
+    expect(data.system[0]).toContain("grep:object:something went wrong");
   });
 
   it("detects object output with .code field and object: prefix", async () => {
@@ -663,10 +716,11 @@ describe("Plugin entry", () => {
       );
     }
 
-    expect(ctx._autoMaxTrigger).toBeDefined();
-    const trigger = ctx._autoMaxTrigger as Record<string, unknown>;
-    expect(trigger.tool).toBe("glob");
-    expect(trigger.errorType).toBe("object:ERR_TIMEOUT");
+    // Observable: errorType renders as "object:ERR_TIMEOUT" in the fragment
+    const data = { system: [] as string[] };
+    await hooks["experimental.chat.system.transform"]!({ sessionID: sid }, data);
+    expect(data.system.length).toBe(1);
+    expect(data.system[0]).toContain("glob:object:ERR_TIMEOUT");
   });
 
   it("object output without error/code is treated as success", async () => {
@@ -701,6 +755,12 @@ describe("Plugin entry", () => {
     }
 
     // Only 2 failures after reset — should not trigger yet
-    expect(ctx._autoMaxTrigger).toBeUndefined();
+    // (Observable: no AUTO-MAX fragment injected into system transform)
+    const data = { system: ["existing"] };
+    await hooks["experimental.chat.system.transform"]!(
+      { sessionID: sid },
+      data,
+    );
+    expect(data.system.length).toBe(1);
   });
 });
