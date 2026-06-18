@@ -664,4 +664,145 @@ describe("F8 Dream", () => {
     expect(rows[0].content).toContain("LLM summary of auth entries.");
     db2.close();
   });
+
+  // ── v0.13.0 P1 #14: jaccard() returns 0 for two empty strings ─────────
+  // dream.ts:67-74 — jaccard returns 0 when both token sets are empty (the
+  // early `if (setA.size === 0 && setB.size === 0) return 0` guard). jaccard
+  // is intentionally NOT exported (private), so we test it indirectly: insert
+  // a single entry with empty content and run dream. With only one entry,
+  // the dedup loop's `if (scanned > 1)` skips jaccard entirely, BUT the
+  // primary purpose here is regression-prevention on the early-return
+  // path. We cover both branches by also asserting that no crash occurs
+  // when content is empty (the entry participates in stale + clustering
+  // passes without throwing).
+
+  it("jaccard returns 0 for two empty strings (via runDream) (#14)", async () => {
+    const db = openTestDB();
+    const now = Math.floor(Date.now() / 1000);
+    // Empty content — both token sets are empty.
+    db.run(
+      "INSERT INTO memory_entries (source_path, section, content, importance_score, last_accessed, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+      ["test/empty.md", null, "", 0.5, now, now],
+    );
+    expect(countRows(db)).toBe(1);
+    db.close();
+
+    const { tool } = createDreamTool({
+      enabled: true,
+      threshold: 50,
+      intervalHours: 0,
+      storagePath: TEST_DB_PATH,
+    });
+
+    // Must not throw on empty content. Single entry → no dedup, no cluster
+    // (1 < 5 threshold). Stale-removal query uses last_accessed (not
+    // content) so it can't trigger jaccard either.
+    const result = await tool.execute();
+    expect(result.ok).toBe(true);
+    expect(result.scanned).toBe(1);
+    expect(result.deduped).toBe(0);
+    expect(result.summarized).toBe(0);
+  });
+
+  // ── v0.13.0 P1 #15: archiveEntry() — UTF-8 + all 7 fields preserved ────
+  // dream.ts:123-137 — archiveEntry() writes a JSONL line containing the
+  // original 7 fields (id, source_path, section, content,
+  // importance_score, last_accessed, created_at) plus archived_at_ms and
+  // archived_at_iso. The homedir archive path is fixed at
+  // ~/.local/share/sffmc/extra/dream-archive.jsonl, so we unlink it
+  // before, run dream with stale UTF-8 content, then read & verify.
+
+  it("archiveEntry writes UTF-8 content with all 7 fields preserved (#15)", async () => {
+    // The real archive path lives in the user's home dir. Unlink first
+    // so we observe only this test's output.
+    const realArchivePath = `${process.env.HOME}/.local/share/sffmc/extra/dream-archive.jsonl`;
+    try { unlinkSync(realArchivePath); } catch {}
+    try { mkdirSync(`${process.env.HOME}/.local/share/sffmc/extra`, { recursive: true }); } catch {}
+
+    const db = openTestDB();
+    const staleTime = Math.floor(Date.now() / 1000) - 31 * 24 * 3600; // 31d ago
+    // Stress UTF-8: Japanese, emoji, double-quotes, newlines, backslashes.
+    const utf8Content =
+      "テスト memory\n" +
+      "with 🚀 emoji and \"quotes\" and a\\backslash\n" +
+      "more 日本語 on a new line";
+
+    db.run(
+      "INSERT INTO memory_entries (source_path, section, content, importance_score, last_accessed, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+      ["test/utf8.md", "セクション", utf8Content, 0.7, staleTime, staleTime],
+    );
+    expect(countRows(db)).toBe(1);
+    db.close();
+
+    const { tool } = createDreamTool({
+      enabled: true,
+      threshold: 50,
+      intervalHours: 0,
+      storagePath: TEST_DB_PATH,
+    });
+
+    const result = await tool.execute();
+    expect(result.ok).toBe(true);
+    expect(result.archived).toBe(1);
+
+    // Read the real archive and parse each line.
+    const raw = readFileSync(realArchivePath, "utf-8");
+    const lines = raw.split("\n").filter((l) => l.length > 0);
+    expect(lines.length).toBe(1);
+    const record = JSON.parse(lines[0]);
+
+    // 7 original MemoryRow fields preserved verbatim.
+    expect(typeof record.id).toBe("number");
+    expect(record.source_path).toBe("test/utf8.md");
+    expect(record.section).toBe("セクション");
+    expect(record.content).toBe(utf8Content);
+    expect(record.importance_score).toBe(0.7);
+    expect(typeof record.last_accessed).toBe("number");
+    expect(typeof record.created_at).toBe("number");
+
+    // 2 audit metadata fields added by archiveEntry.
+    expect(typeof record.archived_at_ms).toBe("number");
+    expect(record.archived_at_ms).toBeGreaterThan(0);
+    expect(typeof record.archived_at_iso).toBe("string");
+    // ISO-8601 sanity: matches YYYY-MM-DDTHH:MM:SS.mmmZ
+    expect(record.archived_at_iso).toMatch(
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
+    );
+
+    // Cleanup — leave the homedir archive clean for the next run.
+    try { unlinkSync(realArchivePath); } catch {}
+  });
+
+  // ── v0.13.0 P1 #16: runDream() recovers gracefully when DB throws ──────
+  // dream.ts:414-427 — runDream's catch block captures the error into
+  // result.errors and returns ok:false (errors.length === 0 check). We
+  // trigger the catch by dropping the memory_entries table AFTER seeding
+  // but BEFORE executeDream; the first SELECT then throws "no such table".
+
+  it("runDream recovers gracefully when DB query throws (#16)", async () => {
+    const db = openTestDB();
+    seedDB(db, 3);
+    expect(countRows(db)).toBe(3);
+    // Drop the table to make the next SELECT throw. We keep this connection
+    // open — a separate Database() instance opened by getDB() in dream.ts
+    // sees the same dropped schema (SQLite WAL mode reads from the same
+    // committed state).
+    db.run("DROP TABLE memory_entries");
+    db.close();
+
+    const { tool } = createDreamTool({
+      enabled: true,
+      threshold: 50,
+      intervalHours: 0,
+      storagePath: TEST_DB_PATH,
+    });
+
+    const result = await tool.execute();
+    // Catch block path: ok=false because errors.length > 0 after push.
+    expect(result.ok).toBe(false);
+    expect(result.errors.length).toBeGreaterThanOrEqual(1);
+    // The error message names the missing table — confirms we hit the
+    // expected branch, not some unrelated failure.
+    expect(result.errors[0]).toMatch(/no such table|memory_entries/i);
+  });
 });

@@ -6,6 +6,8 @@ import { tmpdir } from "node:os"
 import { mkdtempSync, rmSync } from "node:fs"
 import path from "node:path"
 
+import { makeNoClientCtx, makeToolsSpyCtx } from "./test-utils.ts"
+
 // ── Setup ──────────────────────────────────────────────────────────────────
 // One shared tmpDir + persistence for the whole file. Each test gets a fresh
 // runID and a fresh WorkflowRuntime instance. Runtimes are NOT closed (would
@@ -293,5 +295,181 @@ describe("spawnChildWorkflow structural error propagation", () => {
     expect(result).toContain("caught:")
     expect(result).toContain("WorkflowStructuralError")
     expect(result).toContain(UNKNOWN)
+  })
+})
+
+// ── P1 #8: callLLM() fallback when no LLM client ──────────────────────────
+// runtime.ts:790-804 — when ctx.client?.session?.message is undefined,
+// callLLM returns the fallback text "workflow: no LLM client available"
+// instead of throwing. The deliverable extraction in executeAgentCall then
+// sees no .structured / .finalText and the agent call returns null. We
+// invoke callLLM directly via reflection so the test is independent of
+// executeAgentCall's deliverable logic.
+
+describe("callLLM fallback when no LLM client", () => {
+  test("callLLM returns fallback text when ctx.client.session.message is unavailable (#8)", async () => {
+    const ctxNoClient = makeNoClientCtx()
+    const runtime = new WorkflowRuntime(ctxNoClient, { persistence: p })
+    const callLLM = (
+      runtime as unknown as {
+        callLLM: (
+          entry: unknown,
+          prompt: string,
+          opts: unknown,
+        ) => Promise<{
+          content: Array<{ type: string; text?: string }>
+          info?: unknown
+          structured?: unknown
+          finalText?: string
+        }>
+      }
+    ).callLLM.bind(runtime)
+
+    // Minimal entry shape — callLLM does not touch entry state.
+    const fakeEntry = { runID: "wf_x", cfg: { maxTokens: 100 } }
+    const result = await callLLM(fakeEntry, "any prompt", {})
+    expect(Array.isArray(result.content)).toBe(true)
+    expect(result.content[0].type).toBe("text")
+    expect(result.content[0].text).toBe("workflow: no LLM client available")
+    // No tokens / structured / finalText on the fallback path.
+    expect(result.info).toBeUndefined()
+    expect(result.structured).toBeUndefined()
+    expect(result.finalText).toBeUndefined()
+  })
+})
+
+// ── P1 #9: executeAgentCall() structured extract on schema ────────────────
+// runtime.ts:612-614 — when opts.schema is set, deliverable is
+// result.structured (not result.finalText). We mock session.message to
+// return both .structured and .finalText and assert the structured value
+// wins. Invoked via reflection because executeAgentCall is private.
+
+describe("executeAgentCall schema-based structured extract", () => {
+  test("executeAgentCall returns result.structured when opts.schema is set (#9)", async () => {
+    const spyCtx: PluginContext = {
+      config: {},
+      client: {
+        session: {
+          message: async () => ({
+            // No info → tokens=0, no over-cap concern.
+            content: [],
+            structured: { ok: 1 },
+            finalText: "raw text",
+          }),
+        },
+      },
+    }
+    const runtime = new WorkflowRuntime(spyCtx, { persistence: p })
+    const executeAgentCall = (
+      runtime as unknown as {
+        executeAgentCall: (
+          entry: unknown,
+          prompt: string,
+          o: unknown,
+          key: string,
+        ) => Promise<unknown>
+      }
+    ).executeAgentCall.bind(runtime)
+
+    // Fake entry mirroring the InternalRunEntry fields executeAgentCall reads.
+    // runID MUST match RUN_ID_REGEX (^wf_[0-9A-Za-z]{26}$) — executeAgentCall
+    // calls appendJournalSync on success, and persistence throws on bad IDs.
+    const sha = computeScriptSha("schema-extract-test")
+    const runID = p.createRun("s.ts", "schema-extract", sha)
+    const fakeEntry = {
+      runID,
+      tokensUsed: 0,
+      succeeded: 0,
+      running: 1,
+      journalPass: 1,
+      cfg: { maxTokens: 2_000_000 },
+    }
+
+    const result = await executeAgentCall(
+      fakeEntry,
+      "schema prompt",
+      { schema: { type: "object" } },
+      "k1",
+    )
+    // schema branch returns result.structured verbatim.
+    expect(result).toEqual({ ok: 1 })
+    // Succeed counter ticked; running decremented.
+    expect(fakeEntry.succeeded).toBe(1)
+    expect(fakeEntry.running).toBe(0)
+  })
+})
+
+// ── P1 #13a/b: callLLM() tools field forwarding ───────────────────────────
+// runtime.ts:794 — `tools: opts.tools ? [...opts.tools] as string[] : "INHERIT"`.
+// Two cases: undefined → literal string "INHERIT"; defined array → shallow
+// copy as string[]. Tested via reflection on callLLM + a spy ctx.
+
+describe("callLLM tools forwarding", () => {
+  test("callLLM inherits tools when opts.tools is undefined (#13a)", async () => {
+    const spy = makeToolsSpyCtx()
+    const runtime = new WorkflowRuntime(spy, { persistence: p })
+    const callLLM = (
+      runtime as unknown as {
+        callLLM: (
+          entry: unknown,
+          prompt: string,
+          opts: unknown,
+        ) => Promise<unknown>
+      }
+    ).callLLM.bind(runtime)
+
+    const fakeEntry = { runID: "wf_x", cfg: { maxTokens: 100 } }
+    await callLLM(fakeEntry, "p", {})
+
+    expect(spy.calls.length).toBe(1)
+    // Sentinel preserved exactly — downstream uses === "INHERIT" check.
+    expect(spy.calls[0].tools).toBe("INHERIT")
+  })
+
+  test("callLLM passes tools array to session.message (#13b)", async () => {
+    const spy = makeToolsSpyCtx()
+    const runtime = new WorkflowRuntime(spy, { persistence: p })
+    const callLLM = (
+      runtime as unknown as {
+        callLLM: (
+          entry: unknown,
+          prompt: string,
+          opts: unknown,
+        ) => Promise<unknown>
+      }
+    ).callLLM.bind(runtime)
+
+    const fakeEntry = { runID: "wf_x", cfg: { maxTokens: 100 } }
+    const wanted = ["read_file", "glob"]
+    await callLLM(fakeEntry, "p", { tools: wanted })
+
+    expect(spy.calls.length).toBe(1)
+    // Forwarded as a NEW array (spread) — runtime never mutates caller's array.
+    expect(spy.calls[0].tools).toEqual(wanted)
+    expect(spy.calls[0].tools).not.toBe(wanted) // identity check: spread copies
+  })
+})
+
+// ── P1 #17: completeRun() — undefined main() return ────────────────────────
+// runtime.ts:840-850, settleEntry() — when main() returns nothing the
+// outcome carries `result: undefined` (not the string "undefined"). Status
+// still flips to "completed". Drives the full pipeline through start().
+
+describe("completeRun undefined result", () => {
+  test("script returning undefined produces outcome.result undefined (#17)", async () => {
+    const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
+    const { runID } = await runtime.start({
+      // async function main with NO return → main() resolves to undefined.
+      script: `export const meta = { name: "no-return", description: "t", phases: [] }
+        async function main() { /* no return */ }`,
+      workspace: tmpDir,
+    })
+    const outcome = await runtime.wait({ runID, timeoutMs: 5000 })
+    expect(outcome.status).toBe("completed")
+    // outcomeFor() spreads `extras?.result` (undefined) — not the literal
+    // string "undefined", not null. Use hasOwnProperty check to assert the
+    // key exists but the value is undefined.
+    expect("result" in outcome).toBe(true)
+    expect(outcome.result).toBeUndefined()
   })
 })
