@@ -1,6 +1,6 @@
 import type { MemoryEntry } from "./memory";
 
-export const RECON_BUDGETS = {
+const RECON_BUDGETS = {
   memory: 6144,
   checkpoint: 6144,
   taskTree: 4096,
