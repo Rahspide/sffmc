@@ -2,17 +2,11 @@
 // @sffmc/shared — see ../../LICENSE
 
 import { describe, it, expect } from "bun:test"
-import { MAX_COMMAND, MAX_SUBCOMMANDS, MAX_PATTERN } from "./max-command.ts"
+import { MAX_COMMAND, MAX_PATTERN } from "./max-command.ts"
 
 describe("MAX_COMMAND", () => {
   it("equals '/max'", () => {
     expect(MAX_COMMAND).toBe("/max")
-  })
-})
-
-describe("MAX_SUBCOMMANDS", () => {
-  it("includes execute, reset, clear", () => {
-    expect(MAX_SUBCOMMANDS).toEqual(["execute", "reset", "clear"])
   })
 })
 

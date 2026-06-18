@@ -3,8 +3,6 @@
 import { rename } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-export const SFFMC_DATA_HOME = "sffmc";
-export const SFFMC_CONFIG_HOME = "sffmc";
 let _migrated = false;
 export async function migrateLegacyDataPaths(): Promise<void> {
   if (_migrated) return;

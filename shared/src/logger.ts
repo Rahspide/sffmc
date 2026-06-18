@@ -10,9 +10,9 @@ export interface Logger {
 
 export function createLogger(prefix: string): Logger {
   return {
-    info: (...args: any[]) => console.log(`[${prefix}]`, ...args),
-    warn: (...args: any[]) => console.warn(`[${prefix}]`, ...args),
-    error: (...args: any[]) => console.error(`[${prefix}]`, ...args),
-    debug: (...args: any[]) => console.debug(`[${prefix}]`, ...args),
+    info: (...args: unknown[]) => console.log(`[${prefix}]`, ...args),
+    warn: (...args: unknown[]) => console.warn(`[${prefix}]`, ...args),
+    error: (...args: unknown[]) => console.error(`[${prefix}]`, ...args),
+    debug: (...args: unknown[]) => console.debug(`[${prefix}]`, ...args),
   }
 }
