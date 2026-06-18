@@ -2,6 +2,7 @@
 // @sffmc/workflow — see ../../LICENSE
 
 import { readFile, writeFile, mkdir, access } from "node:fs/promises"
+import { realpathSync } from "node:fs"
 import { resolve, relative, isAbsolute, dirname } from "node:path"
 import { glob as globFs } from "node:fs/promises"
 
@@ -20,8 +21,22 @@ export class WorkspaceJail {
 
   /**
    * Resolve a user-supplied path against the workspace root.
-   * Throws if the resolved path escapes the root (lexical check only — does NOT
-   * resolve symlinks).
+   *
+   * Two-stage check:
+   *   1. Lexical — the resolved path must start with `this.root` (or equal it).
+   *   2. Symlink-aware — `realpathSync` follows every symlink in the path and
+   *      the final target must still be within `this.root`.
+   *
+   * For paths that don't exist yet (e.g. `writeFile` to a new file, or
+   * `exists()` on a missing file), we walk up to the nearest existing
+   * ancestor and verify that ancestor's real path stays in root; we then
+   * return the real path built from that ancestor plus the remaining
+   * unresolvable tail. This lets writes create new files without false
+   * positives while still rejecting symlink escapes for write targets.
+   *
+   * Throws on:
+   *   - Lexical escape ("Jail escape: ...")
+   *   - Symlink escape ("Jail escape via symlink: ...")
    */
   resolveInWorkspace(userPath: string): string {
     const abs = resolve(this.root, userPath)
@@ -30,7 +45,49 @@ export class WorkspaceJail {
     if (!abs.startsWith(this.root + "/") && abs !== this.root) {
       throw new Error(`Jail escape: ${JSON.stringify(userPath)}`)
     }
-    return abs
+    // Root itself is always safe; no symlinks to follow on the jail anchor.
+    if (abs === this.root) {
+      return abs
+    }
+    // Walk from `abs` toward root, realpath-resolving the first component
+    // that actually exists. If it escapes, throw. Otherwise reconstruct
+    // the full real path.
+    let current: string = abs
+    while (true) {
+      let real: string
+      try {
+        real = realpathSync(current)
+      } catch (e: unknown) {
+        if ((e as NodeJS.ErrnoException).code !== "ENOENT") {
+          throw e
+        }
+        const parent = dirname(current)
+        if (parent === current) {
+          // Reached filesystem root without finding any existing component.
+          // The lexical check should have caught a path outside this.root,
+          // so this is a degenerate case (e.g. this.root doesn't exist).
+          throw new Error(
+            `Cannot resolve path: ${JSON.stringify(userPath)}`,
+          )
+        }
+        current = parent
+        continue
+      }
+      // Resolved — verify it stays within the jail.
+      if (!real.startsWith(this.root + "/") && real !== this.root) {
+        throw new Error(
+          `Jail escape via symlink: ${JSON.stringify(userPath)}`,
+        )
+      }
+      // If we resolved `abs` itself, return its real path.
+      // Otherwise we resolved an ancestor — build the full real path by
+      // appending the remaining tail from abs.
+      if (current === abs) {
+        return real
+      }
+      const tail = relative(current, abs)
+      return resolve(real, tail)
+    }
   }
 
   // ── File primitives ────────────────────────────────────────────────────
@@ -66,11 +123,26 @@ export class WorkspaceJail {
     const matches: string[] = []
     for await (const entry of globFs(pattern, { cwd: this.root })) {
       // globFs returns paths relative to cwd (like "foo/bar" or "../outside")
-      // Filter out escapes: any path starting with ".." or being absolute
+      // Filter out escapes: any path starting with ".." or being absolute.
       if (typeof entry === "string") {
         if (isAbsolute(entry)) continue
         if (entry.startsWith("..")) continue
         if (entry === "") continue
+        // Symlink-aware filter: realpath-resolve and verify it stays in root.
+        // Broken symlinks / unreadable paths are dropped (cannot verify).
+        const abs = resolve(this.root, entry)
+        let real: string
+        try {
+          real = realpathSync(abs)
+        } catch {
+          continue
+        }
+        if (
+          !real.startsWith(this.root + "/") &&
+          real !== this.root
+        ) {
+          continue
+        }
         matches.push(entry)
       }
     }
