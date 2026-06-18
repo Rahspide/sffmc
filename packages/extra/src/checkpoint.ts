@@ -5,6 +5,9 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
+import { createLogger } from "@sffmc/shared";
+
+const log = createLogger("extra-checkpoint");
 
 export interface ToolCall {
   tool: string;
@@ -358,7 +361,7 @@ function _executeRestoreAction(sessionID: string | undefined, dir: string): unkn
 
   if (header.version < CURRENT_VERSION) {
     // Older schema — apply migrations (currently no-op since v1 == current)
-    console.log(
+    log.info(
       `[extra] checkpoint: migrating v${header.version} → v${CURRENT_VERSION}`,
     );
     // Migration runs but does not mutate the on-disk file —
@@ -419,13 +422,13 @@ function _createAutoRestoreHook(
       const match = msg.content.match(RESTORE_MARKER);
       if (match) {
         const sessionID = match[1];
-        console.log(
+        log.info(
           `[extra] checkpoint auto-restore: loading session ${sessionID}`,
         );
 
         const header = readHeader(sessionID, dir);
         if (!header) {
-          console.warn(
+          log.warn(
             `[extra] checkpoint auto-restore: session ${sessionID} not found`,
           );
           msg.content = msg.content.replace(RESTORE_MARKER, "").trim();
@@ -433,7 +436,7 @@ function _createAutoRestoreHook(
         }
 
         if (header.version > CURRENT_VERSION) {
-          console.warn(
+          log.warn(
             `[extra] checkpoint auto-restore: session ${sessionID} has future version ${header.version} (current: ${CURRENT_VERSION})`,
           );
           msg.content = msg.content.replace(RESTORE_MARKER, "").trim();
@@ -441,7 +444,7 @@ function _createAutoRestoreHook(
         }
 
         if (header.version < CURRENT_VERSION) {
-          console.log(
+          log.info(
             `[extra] checkpoint auto-restore: migrating v${header.version} → v${CURRENT_VERSION}`,
           );
         }

@@ -2,6 +2,10 @@
 // @sffmc/extra — F6' Judge
 // Real LLM-judge implementation: scores 3+ candidates on 3 criteria, picks winner.
 
+import { createLogger } from "@sffmc/shared";
+
+const log = createLogger("extra-judge");
+
 export interface JudgeInput {
   candidates: string[];
   rubric?: string;
@@ -390,7 +394,7 @@ Set stream: true to receive partial results as they become available (useful for
 
     execute: async (input?: JudgeInput): Promise<JudgeExecuteResult> => {
       if (!config.enabled) {
-        console.log("[extra] judge: disabled, skipping");
+        log.info("[extra] judge: disabled, skipping");
         return { ok: true, skipped: true, reason: "feature disabled" };
       }
 
@@ -420,7 +424,7 @@ Set stream: true to receive partial results as they become available (useful for
               config.model,
               config.ctx,
               (chunk) => {
-                console.log(`[extra] judge stream: ${chunk.type}`, chunk);
+                log.info(`[extra] judge stream: ${chunk.type}`, chunk);
               },
             );
           }
@@ -440,13 +444,13 @@ Set stream: true to receive partial results as they become available (useful for
             latencyMs,
           };
         } catch (err) {
-          console.warn(`[extra] judge: LLM call failed: ${String(err)}`);
+          log.warn(`[extra] judge: LLM call failed: ${String(err)}`);
           return { ok: false, error: `judge call failed: ${String(err)}` };
         }
       }
 
       // No client available — fallback heuristic
-      console.warn("[extra] judge: no LLM client available, using fallback heuristic");
+      log.warn("[extra] judge: no LLM client available, using fallback heuristic");
       const scores: JudgeScore[] = candidates.map((c) => ({
         correctness: Math.min(10, Math.round(c.length / 100)),
         completeness: Math.min(10, Math.round(c.length / 150)),
@@ -504,7 +508,7 @@ Set stream: true to receive partial results as they become available (useful for
           content: verdictMsg,
         });
       } catch (err) {
-        console.warn(`[extra] judge auto-hook: ${String(err)}`);
+        log.warn(`[extra] judge auto-hook: ${String(err)}`);
       }
       return data;
     };
