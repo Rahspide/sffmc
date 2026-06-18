@@ -8,6 +8,7 @@ import { mkdirSync, existsSync, appendFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { homedir } from "node:os"
 import { createLogger } from "@sffmc/shared";
+export type { RichPluginContext } from "@sffmc/shared";
 
 const log = createLogger("extra-dream");
 
@@ -26,21 +27,6 @@ export interface DreamResult {
   skipped?: boolean;
   reason?: string;
   dry_run?: boolean;
-}
-
-export interface RichPluginContext {
-  client?: {
-    session?: {
-      message?(params: {
-        messages: Array<{ role: string; content: string }>;
-        model: string;
-        temperature: number;
-      }): Promise<{
-        content: Array<{ type: string; text?: string }>;
-        usage?: { totalTokens?: number };
-      }>;
-    };
-  };
 }
 
 export interface DreamConfig {

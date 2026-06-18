@@ -2,7 +2,7 @@
 // @sffmc/extra — F6' Judge
 // Real LLM-judge implementation: scores 3+ candidates on 3 criteria, picks winner.
 
-import { createLogger } from "@sffmc/shared";
+import { createLogger, type RichPluginContext } from "@sffmc/shared";
 
 const log = createLogger("extra-judge");
 
@@ -85,25 +85,6 @@ interface JudgeResponse {
   scores: JudgeScore[];
   winner: number;
   reasoning: string;
-}
-
-// ---------------------------------------------------------------------------
-// Rich PluginContext (mirrors what OpenCode SDK provides at runtime)
-// ---------------------------------------------------------------------------
-
-interface RichPluginContext {
-  client?: {
-    session?: {
-      message?(params: {
-        messages: Array<{ role: string; content: string }>;
-        model: string;
-        temperature: number;
-      }): Promise<{
-        content: Array<{ type: string; text?: string }>;
-        usage?: { totalTokens?: number };
-      }>;
-    };
-  };
 }
 
 // ---------------------------------------------------------------------------
