@@ -227,11 +227,6 @@ interface CheckpointBufferState {
   dir: string;
 }
 
-/** Reference to the most recently created factory instance's state.
- *  Module-level wrapper functions (flushSession, flushAll, __cleanup)
- *  delegate to this for backward compatibility with tests. */
-let _activeState: CheckpointBufferState | null = null;
-
 function _flushSession(state: CheckpointBufferState, sessionID: string): void {
   const buf = state.sessionBuffers.get(sessionID);
   if (!buf || buf.length === 0) return;
@@ -279,49 +274,6 @@ function _getOrCreateBuffer(state: CheckpointBufferState, sessionID: string): To
     state.sessionBuffers.set(sessionID, buf);
   }
   return buf;
-}
-
-/** Flush a single session's buffer to disk.
- *  Delegates to the most recently created factory instance. */
-export function flushSession(sessionID: string, dir?: string): void {
-  if (!_activeState) return;
-  // If a custom dir is passed, treat as an override (tests use this for
-  // custom-dir scenarios).  Otherwise use the factory's own dir.
-  if (dir !== undefined && dir !== _activeState.dir) {
-    // Custom dir — use factory state but write to the custom dir
-    const buf = _activeState.sessionBuffers.get(sessionID);
-    if (!buf || buf.length === 0) return;
-
-    ensureDir(dir);
-
-    // Write header to custom dir if not already tracked for that dir
-    if (!_activeState.headersWritten.has(sessionID)) {
-      writeHeader(sessionID, dir);
-      // Don't add to headersWritten — custom dir is a one-off
-    }
-
-    const fp = filePath(sessionID, dir);
-    for (const tc of buf) {
-      appendFileSync(fp, JSON.stringify(tc) + "\n");
-    }
-
-    buf.length = 0;
-    return;
-  }
-  _flushSession(_activeState, sessionID);
-}
-
-/** Flush all buffered sessions to disk.
- *  Delegates to the most recently created factory instance. */
-export function flushAll(dir?: string): void {
-  if (!_activeState) return;
-  if (dir !== undefined && dir !== _activeState.dir) {
-    for (const sid of _activeState.sessionBuffers.keys()) {
-      flushSession(sid, dir);
-    }
-    return;
-  }
-  _flushAll(_activeState);
 }
 
 // ---------------------------------------------------------------------------
@@ -498,7 +450,6 @@ export function createCheckpointTool(config: { enabled: boolean; dir?: string })
     flushTimer: null,
     dir,
   };
-  _activeState = state;
 
   const tool: CheckpointTool = {
     description: `F5' Checkpoint — session snapshot and resumability.
@@ -584,18 +535,4 @@ Auto-restore: inject <!-- EXTRA_RESTORE: <sessionID> --> in a message to auto-lo
       state.headersWritten.clear();
     },
   };
-}
-
-// ---------------------------------------------------------------------------
-// Cleanup — for tests and graceful shutdown
-// ---------------------------------------------------------------------------
-
-export function __cleanup(): void {
-  if (_activeState) {
-    _flushAll(_activeState);
-    _stopFlushTimer(_activeState);
-    _activeState.sessionBuffers.clear();
-    _activeState.headersWritten.clear();
-    _activeState = null;
-  }
 }

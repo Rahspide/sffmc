@@ -8,13 +8,10 @@ import { tmpdir } from "node:os";
 
 import {
   createCheckpointTool,
-  flushSession,
-  flushAll,
   readToolCalls,
   listSessions,
   filePath,
   __setCheckpointDir,
-  __cleanup,
   migrateCheckpoint,
   CURRENT_VERSION,
 } from "../../extra/src/checkpoint";
@@ -44,6 +41,9 @@ function makeResult(overrides: Partial<{ output: unknown; metadata: unknown }> =
 
 describe("checkpoint", () => {
   let tmpDir: string;
+  // Track the most-recent factory instance so beforeEach/afterAll can call
+  // its per-instance cleanup() (replaces the old module-level __cleanup).
+  let lastFactory: ReturnType<typeof createCheckpointTool> | null = null;
 
   beforeAll(() => {
     tmpDir = mkdtempSync(join(tmpdir(), "sffmc-checkpoint-test-"));
@@ -51,12 +51,13 @@ describe("checkpoint", () => {
   });
 
   afterAll(() => {
-    __cleanup();
+    lastFactory?.cleanup();
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
   beforeEach(() => {
-    __cleanup();
+    lastFactory?.cleanup();
+    lastFactory = null;
     // Remove all files in tmp dir
     try {
       for (const f of readdirSync(tmpDir)) {
@@ -67,16 +68,25 @@ describe("checkpoint", () => {
     }
   });
 
+  /** Helper: build a factory and remember it so beforeEach/afterAll can clean up.
+   *  Returns the factory verbatim — tests use cp.flushSession() / cp.flushAll()
+   *  for per-instance flushing (replaces the old module-level functions). */
+  function makeFactory(config: { enabled: boolean; dir?: string }) {
+    const cp = createCheckpointTool(config);
+    lastFactory = cp;
+    return cp;
+  }
+
   // -----------------------------------------------------------------------
   // Capture: buffer + flush
   // -----------------------------------------------------------------------
 
   describe("capture", () => {
     it("buffers tool.execute.after calls in memory", async () => {
-      const { hooks } = createCheckpointTool({ enabled: true });
+      const cp = makeFactory({ enabled: true });
 
-      await hooks["tool.execute.after"]!(makeToolCtx(), makeResult());
-      await hooks["tool.execute.after"]!(
+      await cp.hooks["tool.execute.after"]!(makeToolCtx(), makeResult());
+      await cp.hooks["tool.execute.after"]!(
         makeToolCtx({ callID: "call-002" }),
         makeResult({ metadata: { args: { file: "test.txt" } } }),
       );
@@ -86,15 +96,15 @@ describe("checkpoint", () => {
     });
 
     it("flushes buffer to disk as JSONL when flushSession called", async () => {
-      const { hooks } = createCheckpointTool({ enabled: true });
+      const cp = makeFactory({ enabled: true });
 
-      await hooks["tool.execute.after"]!(makeToolCtx(), makeResult());
-      await hooks["tool.execute.after"]!(
+      await cp.hooks["tool.execute.after"]!(makeToolCtx(), makeResult());
+      await cp.hooks["tool.execute.after"]!(
         makeToolCtx({ callID: "call-002" }),
         makeResult({ output: "result2", metadata: { args: { path: "/tmp" } } }),
       );
 
-      flushSession("test-session-1");
+      cp.flushSession("test-session-1");
 
       const fp = filePath("test-session-1");
       expect(existsSync(fp)).toBe(true);
@@ -114,10 +124,10 @@ describe("checkpoint", () => {
     });
 
     it("writes header with version 1 on first flush", async () => {
-      const { hooks } = createCheckpointTool({ enabled: true });
+      const cp = makeFactory({ enabled: true });
 
-      await hooks["tool.execute.after"]!(makeToolCtx(), makeResult());
-      flushSession("test-session-1");
+      await cp.hooks["tool.execute.after"]!(makeToolCtx(), makeResult());
+      cp.flushSession("test-session-1");
 
       const raw = readFileSync(filePath("test-session-1"), "utf-8");
       const lines = raw.trim().split("\n");
@@ -129,13 +139,13 @@ describe("checkpoint", () => {
     });
 
     it("appends on subsequent flushes without duplicating header", async () => {
-      const { hooks } = createCheckpointTool({ enabled: true });
+      const cp = makeFactory({ enabled: true });
 
-      await hooks["tool.execute.after"]!(makeToolCtx({ callID: "c1" }), makeResult());
-      flushSession("test-session-1");
+      await cp.hooks["tool.execute.after"]!(makeToolCtx({ callID: "c1" }), makeResult());
+      cp.flushSession("test-session-1");
 
-      await hooks["tool.execute.after"]!(makeToolCtx({ callID: "c2" }), makeResult());
-      flushSession("test-session-1");
+      await cp.hooks["tool.execute.after"]!(makeToolCtx({ callID: "c2" }), makeResult());
+      cp.flushSession("test-session-1");
 
       const raw = readFileSync(filePath("test-session-1"), "utf-8");
       const lines = raw.trim().split("\n").filter(Boolean);
@@ -147,18 +157,18 @@ describe("checkpoint", () => {
     });
 
     it("flushAll flushes all sessions", async () => {
-      const { hooks } = createCheckpointTool({ enabled: true });
+      const cp = makeFactory({ enabled: true });
 
-      await hooks["tool.execute.after"]!(
+      await cp.hooks["tool.execute.after"]!(
         makeToolCtx({ sessionID: "s1", callID: "c1" }),
         makeResult(),
       );
-      await hooks["tool.execute.after"]!(
+      await cp.hooks["tool.execute.after"]!(
         makeToolCtx({ sessionID: "s2", callID: "c2" }),
         makeResult({ output: "s2-out" }),
       );
 
-      flushAll();
+      cp.flushAll();
 
       expect(existsSync(filePath("s1"))).toBe(true);
       expect(existsSync(filePath("s2"))).toBe(true);
@@ -173,19 +183,19 @@ describe("checkpoint", () => {
 
   describe("restore", () => {
     it("reconstructs messages from checkpoint file", async () => {
-      const { hooks, tool } = createCheckpointTool({ enabled: true });
+      const cp = makeFactory({ enabled: true });
 
-      await hooks["tool.execute.after"]!(
+      await cp.hooks["tool.execute.after"]!(
         makeToolCtx({ callID: "r1" }),
         makeResult({ output: "result-a", metadata: { args: { a: 1 } } }),
       );
-      await hooks["tool.execute.after"]!(
+      await cp.hooks["tool.execute.after"]!(
         makeToolCtx({ tool: "glob", callID: "r2" }),
         makeResult({ output: ["f1.ts"], metadata: { args: { pattern: "*.ts" } } }),
       );
-      flushSession("test-session-1");
+      cp.flushSession("test-session-1");
 
-      const result = (await tool.execute({ action: "restore", sessionID: "test-session-1" })) as {
+      const result = (await cp.tool.execute({ action: "restore", sessionID: "test-session-1" })) as {
         ok: boolean;
         messages: Array<{ role: string; content: string }>;
         toolCallCount: number;
@@ -202,7 +212,7 @@ describe("checkpoint", () => {
     });
 
     it("returns error for future version (> CURRENT_VERSION)", async () => {
-      const { tool } = createCheckpointTool({ enabled: true });
+      const cp = makeFactory({ enabled: true });
 
       // Manually write a file with version 99 (well beyond CURRENT_VERSION)
       const fp = filePath("future-version");
@@ -215,7 +225,7 @@ describe("checkpoint", () => {
       }) + "\n";
       writeFileSync(fp, header, "utf-8");
 
-      const result = (await tool.execute({ action: "restore", sessionID: "future-version" })) as {
+      const result = (await cp.tool.execute({ action: "restore", sessionID: "future-version" })) as {
         ok: boolean;
         error: string;
       };
@@ -226,9 +236,9 @@ describe("checkpoint", () => {
     });
 
     it("returns error when checkpoint not found", async () => {
-      const { tool } = createCheckpointTool({ enabled: true });
+      const cp = makeFactory({ enabled: true });
 
-      const result = (await tool.execute({ action: "restore", sessionID: "nonexistent" })) as {
+      const result = (await cp.tool.execute({ action: "restore", sessionID: "nonexistent" })) as {
         ok: boolean;
         error: string;
       };
@@ -266,7 +276,7 @@ describe("checkpoint", () => {
     });
 
     it("restore of checkpoint with version > CURRENT_VERSION returns future-version error", async () => {
-      const { tool } = createCheckpointTool({ enabled: true });
+      const cp = makeFactory({ enabled: true });
 
       const fp = filePath("future-v99");
       const header = JSON.stringify({
@@ -278,7 +288,7 @@ describe("checkpoint", () => {
       }) + "\n";
       writeFileSync(fp, header, "utf-8");
 
-      const result = (await tool.execute({ action: "restore", sessionID: "future-v99" })) as {
+      const result = (await cp.tool.execute({ action: "restore", sessionID: "future-v99" })) as {
         ok: boolean;
         error: string;
       };
@@ -294,28 +304,28 @@ describe("checkpoint", () => {
 
   describe("list", () => {
     it("returns session IDs with checkpoint files", async () => {
-      const { hooks, tool } = createCheckpointTool({ enabled: true });
+      const cp = makeFactory({ enabled: true });
 
-      await hooks["tool.execute.after"]!(
+      await cp.hooks["tool.execute.after"]!(
         makeToolCtx({ sessionID: "ses-a", callID: "c1" }),
         makeResult(),
       );
-      await hooks["tool.execute.after"]!(
+      await cp.hooks["tool.execute.after"]!(
         makeToolCtx({ sessionID: "ses-b", callID: "c2" }),
         makeResult(),
       );
-      flushAll();
+      cp.flushAll();
 
-      const result = (await tool.execute({ action: "list" })) as { ok: boolean; sessions: string[] };
+      const result = (await cp.tool.execute({ action: "list" })) as { ok: boolean; sessions: string[] };
 
       expect(result.ok).toBe(true);
       expect(result.sessions.sort()).toEqual(["ses-a", "ses-b"]);
     });
 
     it("returns empty array when no checkpoints exist", async () => {
-      const { tool } = createCheckpointTool({ enabled: true });
+      const cp = makeFactory({ enabled: true });
 
-      const result = (await tool.execute({ action: "list" })) as { ok: boolean; sessions: string[] };
+      const result = (await cp.tool.execute({ action: "list" })) as { ok: boolean; sessions: string[] };
 
       expect(result.ok).toBe(true);
       expect(result.sessions).toEqual([]);
@@ -328,16 +338,16 @@ describe("checkpoint", () => {
 
   describe("delete", () => {
     it("removes checkpoint file and returns { deleted: true }", async () => {
-      const { hooks, tool } = createCheckpointTool({ enabled: true });
+      const cp = makeFactory({ enabled: true });
 
-      await hooks["tool.execute.after"]!(
+      await cp.hooks["tool.execute.after"]!(
         makeToolCtx({ sessionID: "to-delete", callID: "c1" }),
         makeResult(),
       );
-      flushSession("to-delete");
+      cp.flushSession("to-delete");
       expect(existsSync(filePath("to-delete"))).toBe(true);
 
-      const result = (await tool.execute({ action: "delete", sessionID: "to-delete" })) as {
+      const result = (await cp.tool.execute({ action: "delete", sessionID: "to-delete" })) as {
         ok: boolean;
         deleted: boolean;
       };
@@ -348,9 +358,9 @@ describe("checkpoint", () => {
     });
 
     it("returns { deleted: false } for nonexistent session", async () => {
-      const { tool } = createCheckpointTool({ enabled: true });
+      const cp = makeFactory({ enabled: true });
 
-      const result = (await tool.execute({ action: "delete", sessionID: "nope" })) as {
+      const result = (await cp.tool.execute({ action: "delete", sessionID: "nope" })) as {
         ok: boolean;
         deleted: boolean;
       };
@@ -366,14 +376,14 @@ describe("checkpoint", () => {
 
   describe("auto-restore", () => {
     it("injects reconstructed messages when marker found", async () => {
-      const { hooks } = createCheckpointTool({ enabled: true });
+      const cp = makeFactory({ enabled: true });
 
       // First create a checkpoint
-      await hooks["tool.execute.after"]!(
+      await cp.hooks["tool.execute.after"]!(
         makeToolCtx({ sessionID: "auto-ses", callID: "ar1" }),
         makeResult({ output: "auto-result", metadata: { args: { x: 42 } } }),
       );
-      flushSession("auto-ses");
+      cp.flushSession("auto-ses");
 
       // Now simulate messages with marker
       const messages: Array<{ role: string; content: string }> = [
@@ -382,7 +392,7 @@ describe("checkpoint", () => {
         { role: "user", content: "continue" },
       ];
 
-      await hooks["experimental.chat.messages.transform"]!({}, { messages });
+      await cp.hooks["experimental.chat.messages.transform"]!({}, { messages });
 
       // Marker message (sole content → empty after removal) is replaced with restored messages
       // Original: [user, system(marker), user] → after: [user, assistant(restored), user]
@@ -395,27 +405,27 @@ describe("checkpoint", () => {
     });
 
     it("removes marker but does not inject when checkpoint missing", async () => {
-      const { hooks } = createCheckpointTool({ enabled: true });
+      const cp = makeFactory({ enabled: true });
 
       const messages: Array<{ role: string; content: string }> = [
         { role: "user", content: "hello <!-- EXTRA_RESTORE: missing --> world" },
       ];
 
-      await hooks["experimental.chat.messages.transform"]!({}, { messages });
+      await cp.hooks["experimental.chat.messages.transform"]!({}, { messages });
 
       expect(messages.length).toBe(1);
       expect(messages[0].content).toBe("hello  world");
     });
 
     it("handles multiple messages, only acts on first marker", async () => {
-      const { hooks } = createCheckpointTool({ enabled: true });
+      const cp = makeFactory({ enabled: true });
 
       // Create checkpoint
-      await hooks["tool.execute.after"]!(
+      await cp.hooks["tool.execute.after"]!(
         makeToolCtx({ sessionID: "multi", callID: "m1" }),
         makeResult({ output: "m-out" }),
       );
-      flushSession("multi");
+      cp.flushSession("multi");
 
       const messages: Array<{ role: string; content: string }> = [
         { role: "user", content: "first" },
@@ -423,7 +433,7 @@ describe("checkpoint", () => {
         { role: "system", content: "<!-- EXTRA_RESTORE: multi -->" },
       ];
 
-      await hooks["experimental.chat.messages.transform"]!({}, { messages });
+      await cp.hooks["experimental.chat.messages.transform"]!({}, { messages });
 
       // Second marker should be untouched (only first processed)
       expect(messages.some((m) => m.content.includes("EXTRA_RESTORE"))).toBe(true);
@@ -431,19 +441,19 @@ describe("checkpoint", () => {
     });
 
     it("appends restored messages after content when marker is not sole content", async () => {
-      const { hooks } = createCheckpointTool({ enabled: true });
+      const cp = makeFactory({ enabled: true });
 
-      await hooks["tool.execute.after"]!(
+      await cp.hooks["tool.execute.after"]!(
         makeToolCtx({ sessionID: "not-sole", callID: "ns1" }),
         makeResult({ output: "partial" }),
       );
-      flushSession("not-sole");
+      cp.flushSession("not-sole");
 
       const messages: Array<{ role: string; content: string }> = [
         { role: "user", content: "prefix <!-- EXTRA_RESTORE: not-sole --> suffix" },
       ];
 
-      await hooks["experimental.chat.messages.transform"]!({}, { messages });
+      await cp.hooks["experimental.chat.messages.transform"]!({}, { messages });
 
       // Marker removed from content, restored messages inserted after
       expect(messages.length).toBe(2);
@@ -458,26 +468,26 @@ describe("checkpoint", () => {
 
   describe("disabled", () => {
     it("tool returns { skipped: true } when disabled", async () => {
-      const { tool } = createCheckpointTool({ enabled: false });
+      const cp = makeFactory({ enabled: false });
 
-      const result = (await tool.execute()) as { ok: boolean; skipped: boolean; reason: string };
+      const result = (await cp.tool.execute()) as { ok: boolean; skipped: boolean; reason: string };
       expect(result).toEqual({ ok: true, skipped: true, reason: "feature disabled" });
     });
 
     it("tool.execute.after hook is undefined when disabled", () => {
-      const { hooks } = createCheckpointTool({ enabled: false });
-      expect(hooks["tool.execute.after"]).toBeUndefined();
+      const cp = makeFactory({ enabled: false });
+      expect(cp.hooks["tool.execute.after"]).toBeUndefined();
     });
 
     it("messages.transform hook is undefined when disabled", () => {
-      const { hooks } = createCheckpointTool({ enabled: false });
-      expect(hooks["experimental.chat.messages.transform"]).toBeUndefined();
+      const cp = makeFactory({ enabled: false });
+      expect(cp.hooks["experimental.chat.messages.transform"]).toBeUndefined();
     });
 
     it("tool.execute with args still returns skipped when disabled", async () => {
-      const { tool } = createCheckpointTool({ enabled: false });
+      const cp = makeFactory({ enabled: false });
 
-      const result = (await tool.execute({ action: "list" })) as {
+      const result = (await cp.tool.execute({ action: "list" })) as {
         ok: boolean;
         skipped: boolean;
         reason: string;
@@ -492,9 +502,9 @@ describe("checkpoint", () => {
 
   describe("edge cases", () => {
     it("tool.execute rejects unknown action", async () => {
-      const { tool } = createCheckpointTool({ enabled: true });
+      const cp = makeFactory({ enabled: true });
 
-      const result = (await tool.execute({ action: "unknown" as "list" })) as {
+      const result = (await cp.tool.execute({ action: "unknown" as "list" })) as {
         ok: boolean;
         error: string;
       };
@@ -503,9 +513,9 @@ describe("checkpoint", () => {
     });
 
     it("tool.execute requires action", async () => {
-      const { tool } = createCheckpointTool({ enabled: true });
+      const cp = makeFactory({ enabled: true });
 
-      const result = (await tool.execute({} as { action: string })) as {
+      const result = (await cp.tool.execute({} as { action: string })) as {
         ok: boolean;
         error: string;
       };
@@ -514,9 +524,9 @@ describe("checkpoint", () => {
     });
 
     it("restore requires sessionID", async () => {
-      const { tool } = createCheckpointTool({ enabled: true });
+      const cp = makeFactory({ enabled: true });
 
-      const result = (await tool.execute({ action: "restore" })) as {
+      const result = (await cp.tool.execute({ action: "restore" })) as {
         ok: boolean;
         error: string;
       };
@@ -525,9 +535,9 @@ describe("checkpoint", () => {
     });
 
     it("delete requires sessionID", async () => {
-      const { tool } = createCheckpointTool({ enabled: true });
+      const cp = makeFactory({ enabled: true });
 
-      const result = (await tool.execute({ action: "delete" })) as {
+      const result = (await cp.tool.execute({ action: "delete" })) as {
         ok: boolean;
         error: string;
       };
@@ -536,20 +546,20 @@ describe("checkpoint", () => {
     });
 
     it("flushSession no-ops on empty buffer", () => {
-      const { hooks } = createCheckpointTool({ enabled: true });
+      const cp = makeFactory({ enabled: true });
       // No tool.execute.after calls — buffer is empty
-      flushSession("empty-ses");
+      cp.flushSession("empty-ses");
       expect(existsSync(filePath("empty-ses"))).toBe(false);
     });
 
     it("handles malformed lines in JSONL gracefully during read", async () => {
-      const { hooks } = createCheckpointTool({ enabled: true });
+      const cp = makeFactory({ enabled: true });
 
-      await hooks["tool.execute.after"]!(
+      await cp.hooks["tool.execute.after"]!(
         makeToolCtx({ sessionID: "malformed", callID: "g1" }),
         makeResult({ output: "good" }),
       );
-      flushSession("malformed");
+      cp.flushSession("malformed");
 
       // Append a malformed line manually
       const { appendFileSync } = await import("node:fs");
@@ -561,7 +571,7 @@ describe("checkpoint", () => {
     });
 
     it("lists only .jsonl files, ignores other extensions", async () => {
-      const { tool } = createCheckpointTool({ enabled: true });
+      const cp = makeFactory({ enabled: true });
       const { writeFileSync } = await import("node:fs");
 
       // Create a valid checkpoint
@@ -575,20 +585,20 @@ describe("checkpoint", () => {
       // Create a non-jsonl file in the same dir
       writeFileSync(join(tmpDir, "notes.txt"), "hello", "utf-8");
 
-      const result = (await tool.execute({ action: "list" })) as { ok: boolean; sessions: string[] };
+      const result = (await cp.tool.execute({ action: "list" })) as { ok: boolean; sessions: string[] };
       expect(result.ok).toBe(true);
       expect(result.sessions).toContain("valid-ses");
       expect(result.sessions).not.toContain("notes");
     });
 
     it("result.metadata.args is captured as tool call args", async () => {
-      const { hooks } = createCheckpointTool({ enabled: true });
+      const cp = makeFactory({ enabled: true });
 
-      await hooks["tool.execute.after"]!(
+      await cp.hooks["tool.execute.after"]!(
         makeToolCtx({ tool: "grep", sessionID: "grep-ses", callID: "grep-1" }),
         { output: "line1\nline2", metadata: { args: { pattern: "TODO", path: "./src" } } },
       );
-      flushSession("grep-ses");
+      cp.flushSession("grep-ses");
 
       const calls = readToolCalls("grep-ses");
       expect(calls.length).toBe(1);
@@ -597,13 +607,13 @@ describe("checkpoint", () => {
     });
 
     it("args default to {} when metadata is missing", async () => {
-      const { hooks } = createCheckpointTool({ enabled: true });
+      const cp = makeFactory({ enabled: true });
 
-      await hooks["tool.execute.after"]!(
+      await cp.hooks["tool.execute.after"]!(
         makeToolCtx({ sessionID: "no-meta-ses", callID: "no-meta" }),
         { output: "done" },
       );
-      flushSession("no-meta-ses");
+      cp.flushSession("no-meta-ses");
 
       const calls = readToolCalls("no-meta-ses");
       expect(calls.length).toBe(1);
@@ -611,7 +621,7 @@ describe("checkpoint", () => {
     });
 
     it("restore returns empty messages for empty checkpoint", async () => {
-      const { tool } = createCheckpointTool({ enabled: true });
+      const cp = makeFactory({ enabled: true });
 
       // Manually write header-only file (no tool calls)
       const fp = filePath("empty-cp");
@@ -627,7 +637,7 @@ describe("checkpoint", () => {
         "utf-8",
       );
 
-      const result = (await tool.execute({ action: "restore", sessionID: "empty-cp" })) as {
+      const result = (await cp.tool.execute({ action: "restore", sessionID: "empty-cp" })) as {
         ok: boolean;
         messages: unknown[];
         toolCallCount: number;
@@ -646,15 +656,15 @@ describe("checkpoint", () => {
   describe("custom dir", () => {
     it("uses custom dir when provided to createCheckpointTool", async () => {
       const customDir = mkdtempSync(join(tmpdir(), "sffmc-custom-cp-"));
-      const { hooks } = createCheckpointTool({ enabled: true, dir: customDir });
+      const cp = makeFactory({ enabled: true, dir: customDir });
 
-      await hooks["tool.execute.after"]!(
+      await cp.hooks["tool.execute.after"]!(
         makeToolCtx({ sessionID: "custom-ses", callID: "c1" }),
         makeResult(),
       );
-      // flushSession needs the same custom dir passed explicitly since the
-      // module-level function doesn't know about the factory's dir
-      flushSession("custom-ses", customDir);
+      // Factory already knows about customDir (passed in config), so its
+      // flushSession writes there — no override needed.
+      cp.flushSession("custom-ses");
 
       const fp = join(customDir, "custom-ses.jsonl");
       expect(existsSync(fp)).toBe(true);
@@ -674,7 +684,8 @@ describe("checkpoint", () => {
 
     it("falls back to getCheckpointDir when dir not provided to factory", () => {
       // No dir in config — uses getCheckpointDir() which is __setCheckpointDir → tmpDir
-      createCheckpointTool({ enabled: true });
+      const cp = makeFactory({ enabled: true });
+      cp.cleanup();
       const path = filePath("fallback-ses");
       const expected = join(tmpDir, "fallback-ses.jsonl");
       expect(path).toBe(expected);
@@ -687,12 +698,12 @@ describe("checkpoint", () => {
 
   describe("shape contract", () => {
     it("returns { tool, hooks } with expected keys", () => {
-      const result = createCheckpointTool({ enabled: false });
+      const result = makeFactory({ enabled: false });
       expect(result.tool).toBeDefined();
       expect(result.hooks).toBeDefined();
-      expect(result.tool.parameters.type).toBe("object");
-      expect(result.tool.parameters.properties.action).toBeDefined();
-      expect(result.tool.parameters.properties.sessionID).toBeDefined();
+      expect((result.tool as { parameters: { type: string } }).parameters.type).toBe("object");
+      expect((result.tool.parameters as { properties: Record<string, unknown> }).properties.action).toBeDefined();
+      expect((result.tool.parameters as { properties: Record<string, unknown> }).properties.sessionID).toBeDefined();
       expect(result.tool.parameters.required).toEqual(["action"]);
       // Regression: no `name` field
       expect((result.tool as Record<string, unknown>).name).toBeUndefined();

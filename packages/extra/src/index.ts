@@ -62,8 +62,13 @@ const DEFAULT_CHECKPOINT_DIR = join(
 
 export const id = "@sffmc/extra";
 
+// Cache the config once so the three sub-feature servers don't each re-parse
+// the same file. They share the same ExtraConfig and call factories with
+// overlapping fields — a single read is enough.
+let _sharedConfig: ExtraConfig | undefined;
+
 export const checkpointServer = async (ctx: PluginContext): Promise<PluginServer> => {
-  const config = await loadConfig<ExtraConfig>("extra", defaultConfig);
+  const config = await getConfig();
   const resolvedCheckpointDir = config.checkpoint_dir || DEFAULT_CHECKPOINT_DIR;
   log.info(
     `checkpoint: ${config.checkpoint ? "enabled" : "disabled"}`,
@@ -73,7 +78,7 @@ export const checkpointServer = async (ctx: PluginContext): Promise<PluginServer
 };
 
 export const judgeServer = async (ctx: PluginContext): Promise<PluginServer> => {
-  const config = await loadConfig<ExtraConfig>("extra", defaultConfig);
+  const config = await getConfig();
   log.info(
     `judge: ${config.judge ? "enabled" : "disabled"}`,
   );
@@ -88,7 +93,7 @@ export const judgeServer = async (ctx: PluginContext): Promise<PluginServer> => 
 };
 
 export const dreamServer = async (ctx: PluginContext): Promise<PluginServer> => {
-  const config = await loadConfig<ExtraConfig>("extra", defaultConfig);
+  const config = await getConfig();
   log.info(
     `dream: ${config.dream ? "enabled" : "disabled"}`,
   );
@@ -100,6 +105,11 @@ export const dreamServer = async (ctx: PluginContext): Promise<PluginServer> => 
   });
   return { id: "extra-dream", tool: { extra_dream: d.tool }, ...d.hooks };
 };
+
+async function getConfig(): Promise<ExtraConfig> {
+  if (!_sharedConfig) _sharedConfig = await loadConfig<ExtraConfig>("extra", defaultConfig);
+  return _sharedConfig;
+}
 
 // ---------------------------------------------------------------------------
 // Merged server for standalone use (backward compat)
