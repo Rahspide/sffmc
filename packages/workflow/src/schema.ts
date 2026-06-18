@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/workflow — see ../../LICENSE
 
+import { WORKFLOW_LIMITS } from "./constants.ts"
+
+// NOTE: SCHEMA_SQL column defaults are interpolated from WORKFLOW_LIMITS so
+// the SQLite defaults never drift from DEFAULT_WORKFLOW_CONFIG (the TS-side
+// cap used for new runs). Changing the constants in one place updates both.
 export const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS workflow_runs (
   id                TEXT PRIMARY KEY,
@@ -14,10 +19,10 @@ CREATE TABLE IF NOT EXISTS workflow_runs (
   args              TEXT,
   script_sha        TEXT,
   agent_timeout_ms  INTEGER,
-  max_steps         INTEGER NOT NULL DEFAULT 200,
-  max_tokens        INTEGER NOT NULL DEFAULT 2000000,
-  max_wall_clock_ms INTEGER NOT NULL DEFAULT 3600000,
-  per_step_timeout_ms INTEGER NOT NULL DEFAULT 120000,
+  max_steps         INTEGER NOT NULL DEFAULT ${WORKFLOW_LIMITS.maxSteps},
+  max_tokens        INTEGER NOT NULL DEFAULT ${WORKFLOW_LIMITS.maxTokens},
+  max_wall_clock_ms INTEGER NOT NULL DEFAULT ${WORKFLOW_LIMITS.maxWallClockMs},
+  per_step_timeout_ms INTEGER NOT NULL DEFAULT ${WORKFLOW_LIMITS.perStepTimeoutMs},
   error             TEXT,
   workspace         TEXT,
   time_created      INTEGER NOT NULL DEFAULT (unixepoch()),

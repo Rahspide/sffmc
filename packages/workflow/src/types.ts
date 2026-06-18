@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/workflow — see ../../LICENSE
 
-import { SCRIPT_DEADLINE_MS } from "./constants.ts"
+import { SCRIPT_DEADLINE_MS, WORKFLOW_LIMITS } from "./constants.ts"
 
 /** Status of a workflow run. */
 export type WorkflowStatus =
@@ -83,10 +83,7 @@ export interface WorkflowConfig {
 }
 
 export const DEFAULT_WORKFLOW_CONFIG: WorkflowConfig = {
-  maxSteps: 200,
-  maxTokens: 2_000_000,
-  maxWallClockMs: 3_600_000, // 1 hour
-  perStepTimeoutMs: 120_000, // 2 minutes
+  ...WORKFLOW_LIMITS,
 }
 
 /** Constraints for the sandbox execution environment. */

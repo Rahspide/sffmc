@@ -12,4 +12,4 @@ export { mergeHooks, TRANSFORM_HOOKS, GATE_HOOKS, SIDE_EFFECT_HOOKS } from "./me
 export type { PluginServer } from "./merge-hooks.ts"
 export { createLogger } from "./logger.ts"
 export type { Logger } from "./logger.ts"
-export { migrateLegacyDataPaths } from "./paths.ts"
+export { migrateLegacyDataPaths, DEFAULT_MEMORY_DB_PATH, MEMORY_DB_FILENAME } from "./paths.ts"

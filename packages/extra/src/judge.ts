@@ -105,7 +105,7 @@ export interface JudgeConfig {
 // Prompt building
 // ---------------------------------------------------------------------------
 
-const DEFAULT_RUBRIC =
+export const DEFAULT_RUBRIC =
   "Score each candidate 0-10 on correctness, completeness, and conciseness. Pick the winner with brief reasoning.";
 
 export function buildJudgePrompt(candidates: string[], rubric: string): { system: string; user: string } {

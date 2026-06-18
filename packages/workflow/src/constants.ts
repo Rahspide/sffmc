@@ -18,3 +18,15 @@ export const DEFAULT_SANDBOX_CONSTRAINTS: SandboxConstraints = {
   maxInstructions: 5_000_000,
   deadlineMs: SCRIPT_DEADLINE_MS,
 }
+
+/** Single source of truth for workflow budget defaults.
+ *  Used by BOTH `types.ts` (DEFAULT_WORKFLOW_CONFIG) and `schema.ts`
+ *  (SCHEMA_SQL column defaults). Drift between TS and SQL is a hardcode
+ *  hazard — changing one without the other silently changes effective
+ *  caps based on whether rows pre-existed. */
+export const WORKFLOW_LIMITS = {
+  maxSteps: 200,
+  maxTokens: 2_000_000,
+  maxWallClockMs: 3_600_000, // 1 hour
+  perStepTimeoutMs: 120_000, // 2 minutes
+} as const

@@ -35,7 +35,7 @@
     "test:all": "for p in packages/* shared; do (cd \"$p\" && bun test) || exit 1; done",
     "typecheck": "for p in packages/* shared; do (cd \"$p\" && bun build --target=bun --no-bundle src/index.ts 2>&1) | grep -v 'bun build' || true; done",
     "audit:public": "bash scripts/audit-public-content.sh",
-    "precommit": "bun run typecheck && bun run test && python3 scripts/audit-load-order.py && bun run audit:public",
+    "precommit": "bun run typecheck && bun run test && python3 scripts/audit-load-order.py && bun run audit:public && bun run scripts/run-health.ts",
     "publish:dry-run": "scripts/release.sh --dry-run",
     "publish:shared": "cd shared && bun publish --dry-run",
     "publish:packages": "for p in packages/*/package.json; do d=$(dirname \"$p\"); (cd \"$d\" && bun publish --dry-run) || exit 1; done",

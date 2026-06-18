@@ -46,7 +46,6 @@ const MAX_LIFECYCLE_AGENTS = 1000
 const log = createLogger("workflow")
 const DEFAULT_MAX_CONCURRENT = Math.min(16, 2 * Math.max(1, cpus().length))
 const MAX_DEPTH_DEFAULT = 8
-const MAX_TOKENS_DEFAULT = 2_000_000
 
 /** Marker on errors from STRUCTURAL workflow faults. */
 const WORKFLOW_STRUCTURAL_ERROR = "WorkflowStructuralError"
@@ -866,7 +865,7 @@ export class WorkflowRuntime {
   private resolveConfig(perStepTimeoutMsOverride?: number): Required<WorkflowConfig> & { maxDepth: number; maxLifecycleAgents: number } {
     return {
       maxSteps: this.ctx.config?.maxSteps ?? DEFAULT_WORKFLOW_CONFIG.maxSteps,
-      maxTokens: this.ctx.config?.maxTokens ?? MAX_TOKENS_DEFAULT,
+      maxTokens: this.ctx.config?.maxTokens ?? DEFAULT_WORKFLOW_CONFIG.maxTokens,
       maxWallClockMs: this.ctx.config?.maxWallClockMs ?? DEFAULT_WORKFLOW_CONFIG.maxWallClockMs,
       perStepTimeoutMs: perStepTimeoutMsOverride ?? this.ctx.config?.perStepTimeoutMs ?? DEFAULT_WORKFLOW_CONFIG.perStepTimeoutMs,
       maxDepth: MAX_DEPTH_DEFAULT,

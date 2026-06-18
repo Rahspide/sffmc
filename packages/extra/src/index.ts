@@ -13,7 +13,7 @@ import { loadConfig, mergeHooks, type PluginContext, createLogger, type PluginSe
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { createCheckpointTool } from "./checkpoint";
-import { createJudgeTool } from "./judge";
+import { createJudgeTool, DEFAULT_RUBRIC } from "./judge";
 import { createDreamTool } from "./dream";
 
 const log = createLogger("extra");
@@ -41,8 +41,7 @@ const defaultConfig: ExtraConfig = {
   dream_threshold: 50,
   dream_interval_hours: 24,
   judge_model: "",
-  judge_rubric:
-    "Score each candidate 0-10 on correctness, completeness, and conciseness. Pick the winner with brief reasoning.",
+  judge_rubric: DEFAULT_RUBRIC,
   judge_auto: false,
   checkpoint_dir: "", // resolved at server time if empty
 };

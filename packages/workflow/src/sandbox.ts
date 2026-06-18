@@ -10,12 +10,12 @@ import {
   type QuickJSWASMModule,
 } from "quickjs-emscripten"
 import type { SandboxConstraints } from "./types"
+import { SCRIPT_DEADLINE_MS } from "./constants.ts"
 
 // ---------------------------------------------------------------------------
 // Defaults
 // ---------------------------------------------------------------------------
 
-const DEFAULT_DEADLINE_MS = 12 * 60 * 60 * 1000   // 12h whole-script wall clock
 const DEFAULT_MEMORY = 64 * 1024 * 1024            // 64 MiB
 /** Fallback seed when no caller-supplied seed is set. Stable so existing
  *  single-shot tests stay deterministic. The runtime always passes
@@ -120,7 +120,7 @@ export async function runSandboxed(
   rt.setMemoryLimit(opts?.memoryMB ? opts.memoryMB * 1024 * 1024 : DEFAULT_MEMORY)
   rt.setMaxStackSize(1024 * 1024) // 1 MB stack
   rt.setInterruptHandler(
-    shouldInterruptAfterDeadline(Date.now() + (opts?.deadlineMs ?? DEFAULT_DEADLINE_MS)),
+    shouldInterruptAfterDeadline(Date.now() + (opts?.deadlineMs ?? SCRIPT_DEADLINE_MS)),
   )
   const ctx = rt.newContext()
 
@@ -231,7 +231,7 @@ export async function runSandboxed(
     const deadline = new Promise<never>((_, reject) => {
       deadlineTimer = setTimeout(
         () => reject(new Error("workflow script deadline exceeded")),
-        opts?.deadlineMs ?? DEFAULT_DEADLINE_MS,
+        opts?.deadlineMs ?? SCRIPT_DEADLINE_MS,
       )
     })
 

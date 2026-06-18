@@ -7,7 +7,7 @@ import { Database } from "bun:sqlite";
 import { mkdirSync, existsSync, appendFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { homedir } from "node:os";
-import { createLogger } from "@sffmc/shared";
+import { createLogger, DEFAULT_MEMORY_DB_PATH } from "@sffmc/shared";
 export type { RichPluginContext } from "@sffmc/shared";
 
 const log = createLogger("extra-dream");
@@ -77,10 +77,7 @@ function jaccard(a: string, b: string): number {
 // Constants
 // ---------------------------------------------------------------------------
 
-const DEFAULT_STORAGE_PATH = resolve(
-  homedir(),
-  ".local/share/SFFMC/memory/index.sqlite",
-);
+const DEFAULT_STORAGE_PATH = DEFAULT_MEMORY_DB_PATH();
 const ARCHIVE_PATH = resolve(
   homedir(),
   ".local/share/sffmc/extra/dream-archive.jsonl",

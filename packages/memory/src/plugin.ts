@@ -11,7 +11,7 @@
 import { init, topByImportance, type MemoryDB } from "./memory"
 import { buildRecon, tailFromMessages } from "./recon"
 import { startWatcher } from "./watcher"
-import { loadConfig, type PluginContext, createLogger } from "@sffmc/shared";
+import { loadConfig, type PluginContext, createLogger, DEFAULT_MEMORY_DB_PATH } from "@sffmc/shared";
 import { readFileSync, existsSync, mkdirSync } from "fs"
 import { resolve, dirname } from "path"
 import { homedir } from "node:os"
@@ -24,10 +24,7 @@ interface MemoryConfig {
 const log = createLogger("memory");
 
 const defaultConfig: MemoryConfig = {
-  storagePath: resolve(
-    homedir(),
-    ".local/share/SFFMC/memory/index.sqlite",
-  ),
+  storagePath: DEFAULT_MEMORY_DB_PATH(),
   tailChars: 8192,
 }
 
