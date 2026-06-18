@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS workflow_runs (
   max_wall_clock_ms INTEGER NOT NULL DEFAULT 3600000,
   per_step_timeout_ms INTEGER NOT NULL DEFAULT 120000,
   error             TEXT,
+  workspace         TEXT,
   time_created      INTEGER NOT NULL DEFAULT (unixepoch()),
   time_updated      INTEGER NOT NULL DEFAULT (unixepoch())
 );
@@ -44,4 +45,11 @@ CREATE INDEX IF NOT EXISTS idx_wf_runs_status ON workflow_runs(status);
 export function applySchema(db: import("bun:sqlite").Database): void {
   db.exec("PRAGMA journal_mode=WAL")
   db.exec(SCHEMA_SQL)
+  // v0.13.0 — additive migration: workspace column for resume() to restore
+  // the original lexical jail root across crashes. Idempotent guard via
+  // PRAGMA table_info so re-running applySchema() is a no-op.
+  const cols = db.query("PRAGMA table_info(workflow_runs)").all() as Array<{ name: string }>
+  if (!cols.some((c) => c.name === "workspace")) {
+    db.exec("ALTER TABLE workflow_runs ADD COLUMN workspace TEXT")
+  }
 }

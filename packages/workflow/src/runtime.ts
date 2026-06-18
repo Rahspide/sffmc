@@ -141,6 +141,9 @@ interface InternalRunEntry {
   journalPass: number
   // Config
   cfg: Required<WorkflowConfig> & { maxDepth: number; maxLifecycleAgents: number }
+  /** Lexical jail root — persisted to DB; restored on resume(). Child workflows
+   *  inherit from parent so the whole tree stays in the same directory. */
+  workspace?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -191,17 +194,18 @@ export class WorkflowRuntime {
 
     // Persist — createRun generates its own runID, use that as ours
     const scriptSha = computeScriptSha(script)
-    const runID = this.persistence.createRun(name, name, scriptSha)
+    // Resolve workspace first so it persists alongside the run row (v0.13.0).
+    // resume() restores from this column instead of falling back to cwd.
+    const workspace = input.workspace ?? process.cwd()
+    const runID = this.persistence.createRun(name, name, scriptSha, undefined, workspace)
     await this.persistence.writeScript(runID, script)
 
-    // Resolve workspace
-    const workspace = input.workspace ?? process.cwd()
     const jail = new WorkspaceJail(workspace)
 
     // Load journal (empty on fresh run)
     const journal = await this.persistence.loadJournal(runID)
 
-    const entry = this.makeEntry({ runID, name, cfg, journalResults: journal.results, journalPass: journal.pass })
+    const entry = this.makeEntry({ runID, name, cfg, journalResults: journal.results, journalPass: journal.pass, workspace })
 
     this.runs.set(runID, entry)
 
@@ -341,20 +345,27 @@ export class WorkflowRuntime {
 
       const cfg = this.resolveConfig(input.agentTimeoutMs ?? row.agentTimeoutMs ?? undefined)
 
+      // Restore the original lexical jail root from the DB (v0.13.0). Pre-v0.13.0
+      // rows have workspace=NULL — fall back to cwd with an info log so users
+      // notice the legacy behavior (any pre-resume file ops hit cwd, not the
+      // original workspace).
+      const resumeWorkspace = row.workspace ?? process.cwd()
+      if (!row.workspace) {
+        log.info(
+          `resume(${input.runID}): no workspace persisted (legacy row, pre-v0.13.0); falling back to cwd: ${process.cwd()}`,
+        )
+      }
+
       const journal = await this.persistence.loadJournal(input.runID)
 
-      const entry = this.makeEntry({ runID: input.runID, name, cfg, journalResults: journal.results, journalPass: journal.pass })
+      const entry = this.makeEntry({ runID: input.runID, name, cfg, journalResults: journal.results, journalPass: journal.pass, workspace: resumeWorkspace })
 
       this.runs.set(input.runID, entry)
       this.persistence.updateRunStatus(input.runID, "running")
 
-      // TODO(workspace-bug): new WorkspaceJail(process.cwd()) ignores the
-      // original input.workspace passed to start(). Resume currently always
-      // runs in cwd. Tracked as follow-up — would require schema migration
-      // to add a workspace column to workflow_runs.
       this.events.emit("workflow:resumed", { runID: input.runID, name, wasStatus: row.status })
 
-      this.settleEntry(entry, script, name, row.args, new WorkspaceJail(process.cwd()))
+      this.settleEntry(entry, script, name, row.args, new WorkspaceJail(resumeWorkspace))
 
       return { runID: input.runID, resumed: true }
     } finally {
@@ -806,16 +817,20 @@ export class WorkflowRuntime {
     const parsed = parseMeta(script)
 
     const scriptSha = computeScriptSha(script)
-    const runID = this.persistence.createRun(name, name, scriptSha)
+    // Child inherits parent's workspace (v0.13.0) so the whole workflow tree
+    // stays jailed to the same directory. Persisted so child resume also
+    // restores the same root.
+    const childWorkspace = parent.workspace
+    const runID = this.persistence.createRun(name, name, scriptSha, undefined, childWorkspace)
     await this.persistence.writeScript(runID, script)
 
-    const entry = this.makeEntry({ runID, name: parsed.ok ? parsed.meta.name : name, cfg: parent.cfg })
+    const entry = this.makeEntry({ runID, name: parsed.ok ? parsed.meta.name : name, cfg: parent.cfg, workspace: childWorkspace })
 
     this.runs.set(runID, entry)
 
     this.events.emit("workflow:started", { runID, name })
 
-    this.settleEntry(entry, script, name, args, new WorkspaceJail(process.cwd()))
+    this.settleEntry(entry, script, name, args, new WorkspaceJail(childWorkspace ?? process.cwd()))
 
     return entry
   }
@@ -877,6 +892,7 @@ export class WorkflowRuntime {
     cfg: Required<WorkflowConfig> & { maxDepth: number; maxLifecycleAgents: number }
     journalResults?: Map<string, unknown>
     journalPass?: number
+    workspace?: string
   }): InternalRunEntry {
     const startedMs = Date.now()
     let resolveOutcome!: (outcome: WorkflowOutcome) => void
@@ -901,6 +917,7 @@ export class WorkflowRuntime {
       journalResults: opts.journalResults ?? new Map(),
       journalPass: opts.journalPass ?? 0,
       cfg: opts.cfg,
+      workspace: opts.workspace,
     }
   }
 

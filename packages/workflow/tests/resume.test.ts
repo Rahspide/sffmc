@@ -328,3 +328,140 @@ describe("runtime.resume 'paused' path", () => {
     expect(r2.runID).toBe(runID)
   })
 })
+
+// ── v0.13.0 §1: persist workspace across resume() and child workflows ──────
+// schema.ts:22 + persistence.ts:createRun() now persist input.workspace to the
+// workflow_runs.workspace column. resume() restores from the column instead of
+// silently using process.cwd() (the pre-v0.13.0 bug). Child workflows inherit
+// the parent's workspace so the entire tree stays jailed to the same root.
+
+describe("v0.13.0 workspace persistence", () => {
+  test("start() persists workspace to workflow_runs (#19)", async () => {
+    const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
+    const { runID } = await runtime.start({
+      script: `export const meta = { name: "ws-persist", description: "t", phases: [] }
+        async function main() { return "ok"; }`,
+      workspace: tmpDir,
+    })
+    const row = p.loadRun(runID)
+    expect(row).not.toBeNull()
+    expect(row!.workspace).toBe(tmpDir)
+  })
+
+  test("start() falls back to process.cwd() when workspace omitted (#20)", async () => {
+    const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
+    const { runID } = await runtime.start({
+      script: `export const meta = { name: "ws-default", description: "t", phases: [] }
+        async function main() { return "ok"; }`,
+      // workspace omitted on purpose
+    })
+    const row = p.loadRun(runID)
+    expect(row).not.toBeNull()
+    expect(row!.workspace).toBe(process.cwd())
+  })
+
+  test("resume() reads workspace from DB, not cwd (#21)", async () => {
+    // Create a sibling dir that we will chdir into between start and resume.
+    // The known file lives ONLY in tmpDir, so if resume() jails to cwd the
+    // readFile call would return null and main() would fail.
+    const otherDir = mkdtempSync(path.join(tmpdir(), "sffmc-workflow-other-"))
+    writeFileSync(path.join(tmpDir, "marker.txt"), "from-tmpDir", "utf-8")
+
+    try {
+      const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
+      const { runID } = await runtime.start({
+        script: `export const meta = { name: "ws-resume", description: "t", phases: [] }
+          async function main() {
+            const content = await readFile("marker.txt");
+            return content ?? "MISSING";
+          }`,
+        workspace: tmpDir,
+      })
+      // Drain the live run before resuming.
+      await runtime.wait({ runID, timeoutMs: 5000 })
+      p.updateRunStatus(runID, "paused")
+
+      // chdir away — resume() MUST NOT use cwd.
+      const originalCwd = process.cwd()
+      process.chdir(otherDir)
+      try {
+        const result = await runtime.resume({ runID })
+        expect(result.resumed).toBe(true)
+        const outcome = await runtime.wait({ runID, timeoutMs: 5000 })
+        expect(outcome.status).toBe("completed")
+        // marker.txt only exists in tmpDir, so a successful read proves
+        // resume() restored the persisted workspace.
+        expect(outcome.result).toBe("from-tmpDir")
+      } finally {
+        process.chdir(originalCwd)
+      }
+    } finally {
+      rmSync(otherDir, { recursive: true, force: true })
+    }
+  })
+
+  test("resume() falls back to cwd + logs info on legacy row (workspace=NULL) (#22)", async () => {
+    // Build a legacy row: workspace column omitted (NULL) — simulates a
+    // pre-v0.13.0 run. We also need a valid script + status so resume()
+    // proceeds past the early guards.
+    const legacyDir = mkdtempSync(path.join(tmpdir(), "sffmc-workflow-legacy-"))
+    const originalLog = console.log
+    let captured: string[] = []
+    try {
+      const sha = computeScriptSha("legacy-resume-test")
+      const runID = p.createRun("legacy.ts", "legacy-ws", sha) // workspace omitted → NULL
+      await p.writeScript(
+        runID,
+        `export const meta = { name: "legacy-ws", description: "t", phases: [] }
+          async function main() { return "ok"; }`,
+      )
+      p.updateRunStatus(runID, "paused")
+
+      // Capture the workflow logger's console.log output.
+      captured = []
+      console.log = (...args: unknown[]) => {
+        captured.push(args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" "))
+      }
+      const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
+      const result = await runtime.resume({ runID })
+      expect(result.resumed).toBe(true)
+      // Logger uses createLogger("workflow") → console.log with "[workflow]"
+      // prefix followed by the message. Look for the fallback marker.
+      const found = captured.some((line) =>
+        line.includes("[workflow]") &&
+        line.includes(runID) &&
+        line.includes("falling back to cwd"),
+      )
+      expect(found).toBe(true)
+    } finally {
+      console.log = originalLog
+      rmSync(legacyDir, { recursive: true, force: true })
+    }
+  })
+
+  test("startChildWorkflow() inherits parent workspace (#23)", async () => {
+    // Create the marker in tmpDir (the parent's workspace) — NOT in cwd.
+    writeFileSync(path.join(tmpDir, "child-marker.txt"), "child-inherited", "utf-8")
+
+    const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
+    const { runID } = await runtime.start({
+      script: `export const meta = { name: "ws-inherit-parent", description: "t", phases: [] }
+        async function main() {
+          const childResult = await workflow(
+            \`export const meta = { name: "ws-inherit-child", description: "t", phases: [] }
+              async function main() {
+                const content = await readFile("child-marker.txt");
+                return content ?? "MISSING";
+              }\`
+          );
+          return childResult;
+        }`,
+      workspace: tmpDir,
+    })
+    const outcome = await runtime.wait({ runID, timeoutMs: 10000 })
+    expect(outcome.status).toBe("completed")
+    // The child must see tmpDir (parent's workspace), not cwd. If inheritance
+    // is broken the child reads from cwd and returns "MISSING".
+    expect(outcome.result).toBe("child-inherited")
+  })
+})

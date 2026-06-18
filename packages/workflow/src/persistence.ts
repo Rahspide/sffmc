@@ -128,6 +128,7 @@ function rowToRun(row: Record<string, unknown>): WorkflowRun {
     scriptSha: (row.script_sha as string) || undefined,
     agentTimeoutMs: (row.agent_timeout_ms as number) || undefined,
     error: (row.error as string) || undefined,
+    workspace: (row.workspace as string) || undefined,
     createdAt: row.time_created as number,
     updatedAt: row.time_updated as number,
   }
@@ -244,13 +245,13 @@ export class WorkflowPersistence {
 
   // ── Run CRUD ──────────────────────────────────────────────────────────
 
-  createRun(file: string, label: string, scriptSha: string, parentId?: string): string {
+  createRun(file: string, label: string, scriptSha: string, parentId?: string, workspace?: string): string {
     const runID = generateRunID()
     const now = Math.floor(Date.now() / 1000)
     this.db.run(
-      `INSERT INTO workflow_runs (id, name, status, running, succeeded, failed, script_sha, parent_run_id, time_created, time_updated)
-       VALUES (?, ?, 'running', 0, 0, 0, ?, ?, ?, ?)`,
-      [runID, label, scriptSha, parentId ?? null, now, now],
+      `INSERT INTO workflow_runs (id, name, status, running, succeeded, failed, script_sha, parent_run_id, workspace, time_created, time_updated)
+       VALUES (?, ?, 'running', 0, 0, 0, ?, ?, ?, ?, ?)`,
+      [runID, label, scriptSha, parentId ?? null, workspace ?? null, now, now],
     )
     return runID
   }

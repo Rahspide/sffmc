@@ -30,6 +30,9 @@ export interface WorkflowRun {
   /** Per-agent timeout for this run (ms). Persisted so resume picks same value. */
   agentTimeoutMs?: number
   error?: string
+  /** v0.13.0 — lexical jail root persisted across resume() so a crashed
+   *  workflow resumes in the same directory it was started in. */
+  workspace?: string
   createdAt: number
   updatedAt: number
 }
