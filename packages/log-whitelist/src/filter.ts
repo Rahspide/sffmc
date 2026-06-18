@@ -4,17 +4,6 @@ export interface FilterResult {
 }
 
 /**
- * Keep a line if it matches any whitelist pattern AND doesn't match any blacklist pattern.
- */
-export function shouldKeep(line: string, whitelist: RegExp[]): boolean {
-  return whitelist.some((re) => re.test(line));
-}
-
-export function shouldDrop(line: string, blacklist: RegExp[]): boolean {
-  return blacklist.some((re) => re.test(line));
-}
-
-/**
  * Apply suppress patterns to a line. Each matching pattern's match is
  * replaced with empty string (partial-match → substring removal;
  * full-line match → entire line becomes empty string).
@@ -47,8 +36,8 @@ export function filterLines(
 
   for (const line of lines) {
     const suppressed = pats.length > 0 ? suppressLine(line, pats) : line;
-    if (shouldDrop(suppressed, blacklist)) continue;
-    if (shouldKeep(suppressed, whitelist)) {
+    if (blacklist.some((re) => re.test(suppressed))) continue;
+    if (whitelist.some((re) => re.test(suppressed))) {
       if (kept.length >= maxKeptLines) {
         kept.push(truncateMarker.replace("N", String(lines.length - maxKeptLines)));
         break;
