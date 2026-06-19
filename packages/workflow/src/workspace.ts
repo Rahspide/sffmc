@@ -91,6 +91,12 @@ export class WorkspaceJail {
   }
 
   // ── File primitives ────────────────────────────────────────────────────
+  // SECURITY NOTE: There is an inherent TOCTOU window between
+  // resolveInWorkspace() (symlink check) and the actual I/O operation.
+  // An attacker with local filesystem access could swap a directory with
+  // a symlink between check and use. The window is sub-microsecond and
+  // requires root or same-user access to exploit. For high-security
+  // environments, avoid symlinks in the workspace root.
 
   async readFile(userPath: string): Promise<string | null> {
     const abs = this.resolveInWorkspace(userPath)
