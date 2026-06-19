@@ -37,7 +37,7 @@ import {
 import { SCRIPT_DEADLINE_MS, DEFAULT_GRACE_PERIOD_MS, DEFAULT_SANDBOX_CONSTRAINTS, MAX_GRACE_PERIOD_MS, getWorkflowConfigSync, getMaxConcurrentAgents, getSandboxMemoryMB } from "./constants.ts"
 import { getBuiltin, loadBuiltin } from "./builtin-registry.ts"
 import { cpus } from "node:os"
-import { type RichPluginContext, createLogger } from "@sffmc/shared";
+import { type RichPluginContext, createLogger, loadConfig } from "@sffmc/shared";
 import { resolveInheritedTools, McpBridge, DEFAULT_MAX_MCP_CALLS, discoverParentTools } from "./mcp.ts";
 
 // ---------------------------------------------------------------------------
@@ -177,6 +177,13 @@ export interface RuntimeOpts {
    *  over both the user YAML config and the default. Used by tests to
    *  inject a tighter window without round-tripping through the YAML. */
   gracePeriodMsOverride?: number
+  /** W14 — synchronous config override for tests. Skips the async YAML
+   *  load. When set, the runtime uses these values for maxSteps / maxTokens /
+   *  maxWallClockMs / perStepTimeoutMs in `resolveConfig()`. The SFFMC
+   *  extended config (maxDepth, maxLifecycleAgents, maxConcurrentAgents)
+   *  is unaffected — use `__setWorkflowConfig()` from constants.ts for
+   *  those. */
+  configOverride?: Partial<WorkflowConfig>
 }
 
 // ---------------------------------------------------------------------------
@@ -197,6 +204,15 @@ export class WorkflowRuntime {
    *  the runtime (not the plugin context) so `recoverOrphanedWorkflows()`
    *  can read it synchronously. */
   private gracePeriodMs: number = DEFAULT_GRACE_PERIOD_MS
+  /** W14 — SFFMC-loaded workflow config (maxSteps / maxTokens /
+   *  maxWallClockMs / perStepTimeoutMs). Populated lazily by
+   *  `loadWorkflowConfig()` on the first `start()` or `resume()` call.
+   *  Tests inject via `RuntimeOpts.configOverride` (sync, no YAML).
+   *  Resolved values: prefer this cache → ctx.config (OpenCode provider) →
+   *  DEFAULT_WORKFLOW_CONFIG. */
+  private workflowConfig: Required<WorkflowConfig> | null = null
+  /** W14 — flag to skip async YAML load when the test override is set. */
+  private workflowConfigInjected: boolean = false
 
   constructor(ctx: PluginContext, opts?: RuntimeOpts) {
     this.ctx = ctx
@@ -204,6 +220,9 @@ export class WorkflowRuntime {
     this.persistence = opts?.persistence ?? new WorkflowPersistence()
     if (opts?.gracePeriodMsOverride !== undefined) {
       this.setGracePeriodMs(opts.gracePeriodMsOverride)
+    }
+    if (opts?.configOverride) {
+      this.setConfig(opts.configOverride)
     }
   }
 
@@ -219,9 +238,55 @@ export class WorkflowRuntime {
     this.gracePeriodMs = ms
   }
 
+  /** W14 — synchronously inject a workflow config. Used by tests via
+   *  `RuntimeOpts.configOverride` to skip the async YAML load. Merges
+   *  onto `DEFAULT_WORKFLOW_CONFIG` so missing keys fall back to defaults.
+   *  When set, subsequent `loadWorkflowConfig()` calls are no-ops unless
+   *  `null` is passed (which re-enables the YAML load). */
+  setConfig(cfg: Partial<WorkflowConfig> | null): void {
+    if (cfg === null) {
+      this.workflowConfig = null
+      this.workflowConfigInjected = false
+      return
+    }
+    this.workflowConfig = {
+      maxSteps: cfg.maxSteps ?? DEFAULT_WORKFLOW_CONFIG.maxSteps,
+      maxTokens: cfg.maxTokens ?? DEFAULT_WORKFLOW_CONFIG.maxTokens,
+      maxWallClockMs: cfg.maxWallClockMs ?? DEFAULT_WORKFLOW_CONFIG.maxWallClockMs,
+      perStepTimeoutMs: cfg.perStepTimeoutMs ?? DEFAULT_WORKFLOW_CONFIG.perStepTimeoutMs,
+      gracePeriodMs: cfg.gracePeriodMs ?? DEFAULT_WORKFLOW_CONFIG.gracePeriodMs,
+    }
+    this.workflowConfigInjected = true
+  }
+
+  /** W14 — lazily load the SFFMC workflow config from `workflow.yaml`.
+   *  Idempotent — concurrent callers all await the same promise. No-op
+   *  when the config was already injected (test override path). Called
+   *  eagerly by `start()` / `resume()` before `resolveConfig()` runs. */
+  async loadWorkflowConfig(): Promise<void> {
+    if (this.workflowConfigInjected) return
+    if (this.workflowConfig) return
+    const loaded = await loadConfig<typeof DEFAULT_WORKFLOW_CONFIG>(
+      "workflow",
+      DEFAULT_WORKFLOW_CONFIG,
+    )
+    this.workflowConfig = {
+      maxSteps: loaded.maxSteps ?? DEFAULT_WORKFLOW_CONFIG.maxSteps,
+      maxTokens: loaded.maxTokens ?? DEFAULT_WORKFLOW_CONFIG.maxTokens,
+      maxWallClockMs: loaded.maxWallClockMs ?? DEFAULT_WORKFLOW_CONFIG.maxWallClockMs,
+      perStepTimeoutMs: loaded.perStepTimeoutMs ?? DEFAULT_WORKFLOW_CONFIG.perStepTimeoutMs,
+      gracePeriodMs: loaded.gracePeriodMs ?? DEFAULT_WORKFLOW_CONFIG.gracePeriodMs,
+    }
+  }
+
   // ── Public API ──────────────────────────────────────────────────────────
 
   async start(input: WorkflowStartInput & { sessionID?: string; name?: string }): Promise<{ runID: string }> {
+
+    // W14 — lazily load the SFFMC workflow config from `workflow.yaml`
+    // before `resolveConfig()` reads it. Idempotent; no-op for tests
+    // that injected a config via `RuntimeOpts.configOverride`.
+    await this.loadWorkflowConfig()
 
     // Resolve script
     const script = await this.resolveScript(input)
@@ -360,6 +425,9 @@ export class WorkflowRuntime {
   }
 
   async resume(input: { runID: string; agentTimeoutMs?: number }): Promise<{ runID: string; resumed: boolean }> {
+    // W14 — same lazy load as `start()` so resume() picks up the YAML
+    // config on first call.
+    await this.loadWorkflowConfig()
     const lock = await acquireLock("workflow-resume:" + input.runID)
     try {
       // In-process live guard
@@ -1017,11 +1085,17 @@ export class WorkflowRuntime {
     // MAX_LIFECYCLE_AGENTS constants previously shadowed the values in
     // constants.ts; those shadows are removed.
     const ext = getWorkflowConfigSync()
+    // W14 — read maxSteps / maxTokens / maxWallClockMs / perStepTimeoutMs
+    // from the SFFMC-loaded workflow config (this.workflowConfig), NOT from
+    // this.ctx.config which is the OpenCode provider's plugin config.
+    // The lookup order is: runtime-cached (YAML or test override) →
+    // ctx.config (legacy fallback) → defaults.
+    const src = this.workflowConfig ?? this.ctx.config ?? DEFAULT_WORKFLOW_CONFIG
     return {
-      maxSteps: this.ctx.config?.maxSteps ?? DEFAULT_WORKFLOW_CONFIG.maxSteps,
-      maxTokens: this.ctx.config?.maxTokens ?? DEFAULT_WORKFLOW_CONFIG.maxTokens,
-      maxWallClockMs: this.ctx.config?.maxWallClockMs ?? DEFAULT_WORKFLOW_CONFIG.maxWallClockMs,
-      perStepTimeoutMs: perStepTimeoutMsOverride ?? this.ctx.config?.perStepTimeoutMs ?? DEFAULT_WORKFLOW_CONFIG.perStepTimeoutMs,
+      maxSteps: src.maxSteps ?? DEFAULT_WORKFLOW_CONFIG.maxSteps,
+      maxTokens: src.maxTokens ?? DEFAULT_WORKFLOW_CONFIG.maxTokens,
+      maxWallClockMs: src.maxWallClockMs ?? DEFAULT_WORKFLOW_CONFIG.maxWallClockMs,
+      perStepTimeoutMs: perStepTimeoutMsOverride ?? src.perStepTimeoutMs ?? DEFAULT_WORKFLOW_CONFIG.perStepTimeoutMs,
       gracePeriodMs: this.gracePeriodMs,
       maxDepth: ext.maxDepth,
       maxLifecycleAgents: ext.maxLifecycleAgents,
