@@ -124,3 +124,49 @@ describe("resolveScript: rejects script with no meta block", () => {
     ).rejects.toThrow()
   })
 })
+
+// ── H2: input.file path traversal ────────────────────────────────────────────
+// runtime.ts:450-458 — when input.file is set, the resolved path must stay
+// within the workspace root. Paths like ../../etc/passwd or /etc/shadow are
+// rejected with an error.
+
+describe("resolveScript: rejects input.file path traversal", () => {
+  test("start() rejects ../../etc/passwd via input.file", async () => {
+    const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
+    await expect(
+      runtime.start({
+        file: "../../etc/passwd",
+        workspace: tmpDir,
+      }),
+    ).rejects.toThrow(/escapes workspace/i)
+  })
+
+  test("start() rejects absolute /etc/passwd via input.file", async () => {
+    const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
+    await expect(
+      runtime.start({
+        file: "/etc/passwd",
+        workspace: tmpDir,
+      }),
+    ).rejects.toThrow(/escapes workspace/i)
+  })
+
+  test("start() allows valid file path within workspace", async () => {
+    const innerDir = path.join(tmpDir, "wf-inner")
+    mkdirSync(innerDir, { recursive: true })
+    writeFileSync(
+      path.join(innerDir, "ok.ts"),
+      `export const meta = { name: "ok-wf", description: "valid file", phases: [] }
+        async function main() { return "ok"; }`,
+      "utf-8",
+    )
+    const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
+    const { runID } = await runtime.start({
+      file: "wf-inner/ok.ts",
+      workspace: tmpDir,
+    })
+    const outcome = await runtime.wait({ runID, timeoutMs: 5000 })
+    expect(outcome.status).toBe("completed")
+    expect(outcome.result).toBe("ok")
+  })
+})
