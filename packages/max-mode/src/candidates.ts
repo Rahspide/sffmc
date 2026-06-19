@@ -1,5 +1,10 @@
 import { type RichPluginContext } from "@sffmc/shared";
 
+/** Hard cap on the number of parallel LLM candidates. Prevents users
+ *  from setting n_candidates to very high values (e.g. 100) which would
+ *  fire that many simultaneous API calls, exhausting quotas and budget. */
+export const MAX_CANDIDATES = 10;
+
 export interface ToolCall {
   name: string;
   args: Record<string, unknown>;
@@ -54,11 +59,12 @@ export async function generateCandidates(
 
   const model = config.models[0] || String(ctx.config?.model || "");
   const candidates: Candidate[] = [];
+  const n = Math.min(config.n, MAX_CANDIDATES);
 
-  const messages = buildCandidatePrompt(prompt, 0, config.n);
-  const requests = Array.from({ length: config.n }, (_, i) =>
+  const messages = buildCandidatePrompt(prompt, 0, n);
+  const requests = Array.from({ length: n }, (_, i) =>
     session.message!({
-      messages: buildCandidatePrompt(prompt, i, config.n),
+      messages: buildCandidatePrompt(prompt, i, n),
       model,
       temperature: config.temperature,
     }),
