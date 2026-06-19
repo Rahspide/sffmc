@@ -212,8 +212,9 @@ function Invoke-Init {
 
     # Use jq to write back (preserve JSON formatting)
     $newPluginJson = $newPlugin | ConvertTo-Json -Compress
-    $cmd = "jq --argjson plugins '$newPluginJson' '.plugin = `$plugins' `"$config`" > `"$config.tmp`" && mv `"$config.tmp`" `"$config`""
-    Invoke-Expression $cmd
+    $tmpFile = "$config.tmp"
+    & jq --argjson plugins "$newPluginJson" '.plugin = $plugins' "$config" > $tmpFile
+    Move-Item -Force $tmpFile $config
 
     Write-Ok "Added $added new plugin(s) to $config"
     if ($skipped -gt 0) { Write-Info "Skipped $skipped already-present plugin(s)" }
@@ -277,9 +278,9 @@ function Invoke-Uninstall {
     Copy-Item $config $backup
     Write-Ok "Backed up to $(Split-Path $backup -Leaf)"
 
-    $prefixEscaped = $prefix -replace '/','\/'
-    $cmd = "jq --arg dir `"$prefix`" '.plugin = [.plugin[]? | select(startswith(`$dir) | not)]' `"$config`" > `"$config.tmp`" && mv `"$config.tmp`" `"$config`""
-    Invoke-Expression $cmd
+    $tmpFile = "$config.tmp"
+    & jq --arg dir "$prefix" '.plugin = [.plugin[]? | select(startswith($dir) | not)]' "$config" > $tmpFile
+    Move-Item -Force $tmpFile $config
 
     Write-Ok "Removed $count SFFMC plugin(s) from $config"
     Write-Info "Restart OpenCode for changes to take effect."

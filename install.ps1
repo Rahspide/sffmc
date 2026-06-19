@@ -60,6 +60,23 @@ if (Test-Path (Join-Path $SFFMC_INSTALL_DIR ".git")) {
         git pull --ff-only origin $SFFMC_VERSION 2>&1 | ForEach-Object { Write-Host "  $_" }
         $head = (git rev-parse --short HEAD 2>$null) -replace "`n|`r", ""
         Write-Ok "Updated to $head"
+
+        # Integrity: verify GPG signature if gpg is available
+        if (Get-Command gpg -ErrorAction SilentlyContinue) {
+            git verify-commit HEAD 2>$null | Out-Null
+            if ($LASTEXITCODE -eq 0) {
+                Write-Ok "GPG signature verified"
+            } else {
+                if ($env:SFFMC_STRICT_GPG -eq "1") {
+                    Write-Err "GPG signature verification failed — aborting (SFFMC_STRICT_GPG=1)"
+                    exit 1
+                }
+                Write-Warn "GPG signature verification failed or no signed commits — continue at your own risk"
+            }
+        } elseif ($env:SFFMC_STRICT_GPG -eq "1") {
+            Write-Err "gpg not found — cannot verify commit signatures (SFFMC_STRICT_GPG=1)"
+            exit 1
+        }
     } finally {
         Pop-Location
     }
@@ -85,6 +102,23 @@ if (Test-Path (Join-Path $SFFMC_INSTALL_DIR ".git")) {
     try {
         $head = (git rev-parse --short HEAD 2>$null) -replace "`n|`r", ""
         Write-Ok "Cloned to $head"
+
+        # Integrity: verify GPG signature if gpg is available
+        if (Get-Command gpg -ErrorAction SilentlyContinue) {
+            git verify-commit HEAD 2>$null | Out-Null
+            if ($LASTEXITCODE -eq 0) {
+                Write-Ok "GPG signature verified"
+            } else {
+                if ($env:SFFMC_STRICT_GPG -eq "1") {
+                    Write-Err "GPG signature verification failed — aborting (SFFMC_STRICT_GPG=1)"
+                    exit 1
+                }
+                Write-Warn "GPG signature verification failed or no signed commits — continue at your own risk"
+            }
+        } elseif ($env:SFFMC_STRICT_GPG -eq "1") {
+            Write-Err "gpg not found — cannot verify commit signatures (SFFMC_STRICT_GPG=1)"
+            exit 1
+        }
     } finally {
         Pop-Location
     }

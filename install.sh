@@ -70,6 +70,10 @@ if [ -d "${SFFMC_INSTALL_DIR}/.git" ]; then
     if git verify-commit HEAD 2>/dev/null; then
       ok "GPG signature verified"
     else
+      if [ "${SFFMC_STRICT_GPG:-}" = "1" ]; then
+        err "GPG signature verification failed — aborting (SFFMC_STRICT_GPG=1)"
+        exit 1
+      fi
       warn "GPG signature verification failed or no signed commits — continue at your own risk"
     fi
   fi
@@ -102,9 +106,17 @@ else
     if git verify-commit HEAD 2>/dev/null; then
       ok "GPG signature verified"
     else
+      if [ "${SFFMC_STRICT_GPG:-}" = "1" ]; then
+        err "GPG signature verification failed — aborting (SFFMC_STRICT_GPG=1)"
+        exit 1
+      fi
       warn "GPG signature verification failed or no signed commits — continue at your own risk"
     fi
   else
+    if [ "${SFFMC_STRICT_GPG:-}" = "1" ]; then
+      err "gpg not found — cannot verify commit signatures (SFFMC_STRICT_GPG=1)"
+      exit 1
+    fi
     warn "gpg not found — skipping commit signature verification"
   fi
 fi
