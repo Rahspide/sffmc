@@ -54,6 +54,12 @@ export async function resolveWorkflow(
   // Absolute or explicit relative path
   if (path.isAbsolute(nameOrPath) || nameOrPath.startsWith("./") || nameOrPath.startsWith("../")) {
     const resolved = path.isAbsolute(nameOrPath) ? nameOrPath : path.resolve(workspace, nameOrPath)
+    // Jail check: resolved path must stay within workspace
+    const normalizedResolved = path.resolve(resolved)
+    const normalizedWorkspace = path.resolve(workspace)
+    if (!normalizedResolved.startsWith(normalizedWorkspace + path.sep) && normalizedResolved !== normalizedWorkspace) {
+      throw new Error(`Workflow path escapes workspace: ${JSON.stringify(nameOrPath)}`)
+    }
     const source = await readFile(resolved, "utf-8")
     const parsed = parseMeta(source)
     if (!parsed.ok) {

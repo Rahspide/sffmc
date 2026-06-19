@@ -1,4 +1,4 @@
-import { parse as parseYaml } from "yaml";
+import { parse as parseYaml, Schema } from "yaml";
 import { readFileSync, existsSync, statSync } from "fs";
 
 export type Action = "allow" | "deny" | "ask";
@@ -67,7 +67,7 @@ export function watchRules(
 
 export function parseRules(yaml: string): Rules {
   try {
-    const parsed = parseYaml(yaml) as Record<string, unknown>;
+    const parsed = parseYaml(yaml, { schema: Schema.JSON }) as Record<string, unknown>;
     if (!parsed || !Array.isArray(parsed.rules)) {
       throw new Error('Invalid rules format: missing "rules" array');
     }

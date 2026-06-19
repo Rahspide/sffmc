@@ -143,7 +143,7 @@ function openDB(dbPath: string): Database {
   // Ensure the directory exists
   const dir = dirname(dbPath);
   if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true });
+    mkdirSync(dir, { recursive: true, mode: 0o700 });
   }
   const db = new Database(dbPath);
   db.exec("PRAGMA journal_mode=WAL;");
@@ -153,7 +153,7 @@ function openDB(dbPath: string): Database {
 function ensureArchiveDir(): void {
   const dir = dirname(ARCHIVE_PATH);
   if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true });
+    mkdirSync(dir, { recursive: true, mode: 0o700 });
   }
 }
 

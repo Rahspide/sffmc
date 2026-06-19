@@ -3,6 +3,7 @@
 
 import { createHash } from "node:crypto"
 import { readFile } from "node:fs/promises"
+import path from "node:path"
 import {
   WorkflowPersistence,
   generateRunID,
@@ -447,7 +448,15 @@ export class WorkflowRuntime {
 
     // File path
     if (input.file) {
-      return readFile(input.file, "utf-8")
+      // Jail check: file must stay within workspace
+      const workspace = input.workspace ?? process.cwd()
+      const resolved = path.resolve(workspace, input.file)
+      const normalizedResolved = path.resolve(resolved)
+      const normalizedWorkspace = path.resolve(workspace)
+      if (!normalizedResolved.startsWith(normalizedWorkspace + path.sep) && normalizedResolved !== normalizedWorkspace) {
+        throw new Error(`Workflow file escapes workspace: ${JSON.stringify(input.file)}`)
+      }
+      return readFile(resolved, "utf-8")
     }
 
     throw new Error("workflow start requires name, script, or file")
@@ -697,7 +706,7 @@ export class WorkflowRuntime {
     // Resolve child script
     let childScript: string
     try {
-      const workspace = process.cwd()
+      const workspace = entry.workspace ?? process.cwd()
       const resolved = isInlineScript(spec)
         ? { source: spec, meta: parseMeta(spec), kind: "inline" as const }
         : await resolveWorkflow(spec, workspace)

@@ -69,7 +69,7 @@ describe("types.ts", () => {
 
   test("DEFAULT_SANDBOX_CONSTRAINTS has reasonable defaults", () => {
     expect(DEFAULT_SANDBOX_CONSTRAINTS.memoryMB).toBe(64)
-    expect(DEFAULT_SANDBOX_CONSTRAINTS.deadlineMs).toBe(12 * 60 * 60 * 1000)
+    expect(DEFAULT_SANDBOX_CONSTRAINTS.deadlineMs).toBe(60 * 60 * 1000) // 1h, matches maxWallClockMs
   })
 
   test("AgentFailureReason has 5 values", () => {

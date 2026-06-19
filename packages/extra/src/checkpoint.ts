@@ -2,7 +2,7 @@
 // @sffmc/extra — F5' Checkpoint
 // Real implementation: session state capture, persistence to JSONL, restore.
 
-import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, unlinkSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { createLogger } from "@sffmc/shared";
@@ -53,9 +53,23 @@ export interface CheckpointHooks {
 // Constants
 // ---------------------------------------------------------------------------
 
+/** Maximum checkpoint file size in bytes. Files larger than this are
+ *  rejected to prevent OOM from loading multi-GB crafted files. */
+const MAX_CHECKPOINT_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+
+/** Maximum number of messages restored from a checkpoint. Prevents
+ *  crafted checkpoint files with thousands of tool calls from
+ *  overwhelming the LLM context window. */
+const MAX_RESTORED_MESSAGES = 50;
+
 const FLUSH_THRESHOLD = 50;
 const FLUSH_INTERVAL_MS = 5_000;
 export const CURRENT_VERSION = 1;
+
+/** Maximum number of sessions tracked in the in-memory buffer map.
+ *  Prevents unbounded memory growth when many sessions are active.
+ *  LRU sessions are flushed to disk and evicted when exceeded. */
+const MAX_BUFFER_SESSIONS = 50;
 
 // ---------------------------------------------------------------------------
 // Storage path — overridable for tests
@@ -74,7 +88,7 @@ function getCheckpointDir(): string {
 
 function ensureDir(dir: string): void {
   if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true });
+    mkdirSync(dir, { recursive: true, mode: 0o700 });
   }
 }
 
@@ -112,7 +126,13 @@ function writeHeader(sessionID: string, dir?: string): void {
 
 function readHeader(sessionID: string, dir?: string): CheckpointHeader | null {
   const fp = filePath(sessionID, dir);
-  if (!existsSync(fp)) return null;
+
+  try {
+    const st = statSync(fp);
+    if (st.size > MAX_CHECKPOINT_FILE_SIZE) return null;
+  } catch {
+    return null;
+  }
 
   try {
     const raw = readFileSync(fp, "utf-8");
@@ -134,8 +154,19 @@ function readHeader(sessionID: string, dir?: string): CheckpointHeader | null {
 export function readToolCalls(sessionID: string, dir?: string): ToolCall[] {
   const fp = filePath(sessionID, dir);
 
-  // Single read into a buffer — no upfront existsSync/stat call.
-  // ENOENT (missing file) and other read errors are handled by the catch.
+  // Stat-based size check before loading into memory.
+  try {
+    const st = statSync(fp);
+    if (st.size > MAX_CHECKPOINT_FILE_SIZE) {
+      log.warn(
+        `checkpoint: skipping ${sessionID} — file size ${(st.size / 1024 / 1024).toFixed(1)}MB exceeds limit (${MAX_CHECKPOINT_FILE_SIZE / 1024 / 1024}MB)`,
+      );
+      return [];
+    }
+  } catch {
+    return [];
+  }
+
   let fileBuf: Buffer;
   try {
     fileBuf = readFileSync(fp);
@@ -250,6 +281,15 @@ function _stopFlushTimer(state: CheckpointBufferState): void {
 function _getOrCreateBuffer(state: CheckpointBufferState, sessionID: string): ToolCall[] {
   let buf = state.sessionBuffers.get(sessionID);
   if (!buf) {
+    // Evict LRU session when cap is reached
+    if (state.sessionBuffers.size >= MAX_BUFFER_SESSIONS) {
+      const oldestKey = state.sessionBuffers.keys().next().value;
+      if (oldestKey) {
+        _flushSession(state, oldestKey);
+        state.sessionBuffers.delete(oldestKey);
+        state.headersWritten.delete(oldestKey);
+      }
+    }
     buf = [];
     state.sessionBuffers.set(sessionID, buf);
   }
@@ -375,7 +415,7 @@ function _createAutoRestoreHook(
         }
 
         const calls = readToolCalls(sessionID, dir);
-        const restored = reconstructMessages(calls);
+        const restored = reconstructMessages(calls).slice(0, MAX_RESTORED_MESSAGES);
 
         msg.content = msg.content.replace(RESTORE_MARKER, "").trim();
 

@@ -19,7 +19,7 @@ import {
   HOOK_CHAT_MESSAGES_TRANSFORM,
   SESSION_CREATED,
 } from "@sffmc/shared";
-import { readFileSync, existsSync, mkdirSync } from "fs"
+import { readFileSync, existsSync, mkdirSync, statSync } from "fs"
 import { resolve, dirname } from "path"
 import { homedir } from "node:os"
 import { AGENTS_FILE } from "./constants.ts";
@@ -47,7 +47,7 @@ interface PluginState {
 function ensureDir(filePath: string): void {
   const dir = dirname(filePath)
   if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true })
+    mkdirSync(dir, { recursive: true, mode: 0o700 })
   }
 }
 
@@ -111,7 +111,16 @@ export const server = async (ctx: PluginContext) => {
         const agentsPath = resolve(ctx.projectRoot, AGENTS_FILE)
         let agents = ""
         if (existsSync(agentsPath)) {
-          agents = readFileSync(agentsPath, "utf-8")
+          try {
+            const st = statSync(agentsPath)
+            if (st.size <= 100 * 1024) { // 100KB safety cap
+              agents = readFileSync(agentsPath, "utf-8")
+            } else {
+              log.warn(`AGENTS.md too large (${(st.size / 1024).toFixed(0)}KB > 100KB), skipping`)
+            }
+          } catch {
+            // stat failed, skip
+          }
         }
 
         const tail = tailFromMessages(
