@@ -42,7 +42,8 @@ export function emit<T>(event: string, payload: T): void {
     try {
       fn(payload)
     } catch (e) {
-      createLogger("sffmc/shared").debug("EventBus: listener error in", event, ":", e)
+      const msg = e instanceof Error ? e.message : String(e)
+      createLogger("sffmc/shared").debug("EventBus: listener error in", event, ":", msg)
     }
   }
 }
