@@ -64,6 +64,15 @@ if [ -d "${SFFMC_INSTALL_DIR}/.git" ]; then
   git checkout "${SFFMC_VERSION}" 2>&1 | sed 's/^/  /'
   git pull --ff-only origin "${SFFMC_VERSION}" 2>&1 | sed 's/^/  /'
   ok "Updated to $(git rev-parse --short HEAD)"
+
+  # Integrity: verify GPG signature if gpg is available
+  if command -v gpg >/dev/null 2>&1; then
+    if git verify-commit HEAD 2>/dev/null; then
+      ok "GPG signature verified"
+    else
+      warn "GPG signature verification failed or no signed commits — continue at your own risk"
+    fi
+  fi
 else
   info "Cloning repo (branch=${SFFMC_VERSION}, depth=1)..."
   mkdir -p "$(dirname "${SFFMC_INSTALL_DIR}")"
@@ -88,6 +97,17 @@ else
 
   cd "${SFFMC_INSTALL_DIR}"
   ok "Cloned to $(git rev-parse --short HEAD)"
+
+  # Integrity: verify GPG signature if gpg is available
+  if command -v gpg >/dev/null 2>&1; then
+    if git verify-commit HEAD 2>/dev/null; then
+      ok "GPG signature verified"
+    else
+      warn "GPG signature verification failed or no signed commits — continue at your own risk"
+    fi
+  else
+    warn "gpg not found — skipping commit signature verification"
+  fi
 fi
 
 # --- preflight: dependencies --------------------------------------
