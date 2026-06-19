@@ -76,8 +76,7 @@ else
     _sffmc_token="${SFFMC_GITHUB_TOKEN:-${GITHUB_TOKEN:-}}"
     if [ -n "${_sffmc_token}" ]; then
       warn "SSH failed; retrying with HTTPS+token..."
-      REPO_URL="https://x-access-token:${_sffmc_token}@github.com/Rahspide/sffmc.git"
-      git clone --branch "${SFFMC_VERSION}" --depth 1 "${REPO_URL}" "${SFFMC_INSTALL_DIR}" 2>&1 | sed 's/^/  /'
+      git -c "http.extraHeader=Authorization: token ${_sffmc_token}" clone --branch "${SFFMC_VERSION}" --depth 1 "https://github.com/Rahspide/sffmc.git" "${SFFMC_INSTALL_DIR}" 2>&1 | sed 's/^/  /'
     else
       err "SSH authentication failed and no SFFMC_GITHUB_TOKEN / GITHUB_TOKEN set."
       err "  Set up SSH: https://docs.github.com/en/authentication/connecting-to-github-with-ssh"

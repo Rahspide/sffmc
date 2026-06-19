@@ -48,8 +48,7 @@ if (Test-Path (Join-Path $SFFMC_INSTALL_DIR ".git")) {
         $token = if ($env:SFFMC_GITHUB_TOKEN) { $env:SFFMC_GITHUB_TOKEN } elseif ($env:GITHUB_TOKEN) { $env:GITHUB_TOKEN } else { $null }
         if ($fetchExit -ne 0 -and $token) {
             Write-Warn "SSH failed; retrying with HTTPS+token..."
-            git remote set-url origin "https://x-access-token:$token@github.com/Rahspide/sffmc.git"
-            git fetch origin --tags 2>&1 | ForEach-Object { Write-Host "  $_" }
+            git -c "http.extraHeader=Authorization: token $token" fetch origin --tags 2>&1 | ForEach-Object { Write-Host "  $_" }
         } elseif ($fetchExit -ne 0) {
             Write-Err "SSH authentication failed and no SFFMC_GITHUB_TOKEN / GITHUB_TOKEN set."
             Write-Err "  Set up SSH: https://docs.github.com/en/authentication/connecting-to-github-with-ssh"
@@ -74,8 +73,7 @@ if (Test-Path (Join-Path $SFFMC_INSTALL_DIR ".git")) {
     $token = if ($env:SFFMC_GITHUB_TOKEN) { $env:SFFMC_GITHUB_TOKEN } elseif ($env:GITHUB_TOKEN) { $env:GITHUB_TOKEN } else { $null }
     if ($cloneExit -ne 0 -and $token) {
         Write-Warn "SSH failed; retrying with HTTPS+token..."
-        $REPO_URL = "https://x-access-token:$token@github.com/Rahspide/sffmc.git"
-        git clone --branch $SFFMC_VERSION --depth 1 $REPO_URL $SFFMC_INSTALL_DIR 2>&1 | ForEach-Object { Write-Host "  $_" }
+        git -c "http.extraHeader=Authorization: token $token" clone --branch $SFFMC_VERSION --depth 1 "https://github.com/Rahspide/sffmc.git" $SFFMC_INSTALL_DIR 2>&1 | ForEach-Object { Write-Host "  $_" }
     } elseif ($cloneExit -ne 0) {
         Write-Err "SSH authentication failed and no SFFMC_GITHUB_TOKEN / GITHUB_TOKEN set."
         Write-Err "  Set up SSH: https://docs.github.com/en/authentication/connecting-to-github-with-ssh"
