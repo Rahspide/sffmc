@@ -561,7 +561,10 @@ export class WorkflowRuntime {
     const source = body + "\n;return typeof main === 'function' ? await main() : undefined"
 
     const result = await runSandboxed(source, primitives, {
-      memoryMB: 64,
+      // W13 — sandbox memory now reads from SFFMC config
+      // (workflow.yaml key: \`sandboxMemoryMB\`). Default 64 MiB matches
+      // the pre-W13 hardcoded value.
+      memoryMB: getSandboxMemoryMB(),
       deadlineMs: SCRIPT_DEADLINE_MS, // 12h wall-clock for the sandbox
       seed,
       runID: entry.runID,
