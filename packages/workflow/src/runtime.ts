@@ -34,7 +34,7 @@ import {
   DEFAULT_WORKFLOW_CONFIG,
   AgentFailureReason as AFR,
 } from "./types.ts"
-import { SCRIPT_DEADLINE_MS, DEFAULT_GRACE_PERIOD_MS, DEFAULT_SANDBOX_CONSTRAINTS, MAX_GRACE_PERIOD_MS } from "./constants.ts"
+import { SCRIPT_DEADLINE_MS, DEFAULT_GRACE_PERIOD_MS, DEFAULT_SANDBOX_CONSTRAINTS, MAX_GRACE_PERIOD_MS, getWorkflowConfigSync, getMaxConcurrentAgents, getSandboxMemoryMB } from "./constants.ts"
 import { getBuiltin, loadBuiltin } from "./builtin-registry.ts"
 import { cpus } from "node:os"
 import { type RichPluginContext, createLogger } from "@sffmc/shared";
@@ -42,12 +42,26 @@ import { resolveInheritedTools, McpBridge, DEFAULT_MAX_MCP_CALLS, discoverParent
 
 // ---------------------------------------------------------------------------
 // Constants
+//
+// W10/W11/W12 — these values used to be hardcoded shadows of constants.ts.
+// They now read from the SFFMC workflow config (`getWorkflowConfigSync()`)
+// so user YAML overrides take effect. The prior hardcoded values (1000 / 16
+// or 2*cpus / 8) are preserved as the defaults in DEFAULT_WORKFLOW_EXTENDED_CONFIG.
 // ---------------------------------------------------------------------------
 
-const MAX_LIFECYCLE_AGENTS = 1000
 const log = createLogger("workflow")
-const DEFAULT_MAX_CONCURRENT = Math.min(16, 2 * Math.max(1, cpus().length))
-const MAX_DEPTH_DEFAULT = 8
+// W11 — global agent-concurrency cap. Prefer the user-configured value from
+// `workflow.yaml` (key: `maxConcurrentAgents`); fall back to a CPU-derived
+// default `min(16, 2*cpus)` that matches the pre-W11 hardcoded behavior when
+// no override is present. We use `!== 16` to detect "user set a non-default
+// value" because the config default is 16 — explicit 16 is treated as
+// user-set, which produces identical behavior to the default.
+function resolveMaxConcurrentAgents(): number {
+  const cfg = getMaxConcurrentAgents()
+  if (cfg !== 16) return cfg
+  return Math.min(16, 2 * Math.max(1, cpus().length))
+}
+const DEFAULT_MAX_CONCURRENT = resolveMaxConcurrentAgents()
 
 /** Marker on errors from STRUCTURAL workflow faults. */
 const WORKFLOW_STRUCTURAL_ERROR = "WorkflowStructuralError"
@@ -995,14 +1009,19 @@ export class WorkflowRuntime {
   // ── Private: helpers ───────────────────────────────────────────────────
 
   private resolveConfig(perStepTimeoutMsOverride?: number): Required<WorkflowConfig> & { maxDepth: number; maxLifecycleAgents: number } {
+    // W10/W12 — read maxDepth / maxLifecycleAgents from the SFFMC-loaded
+    // extended config (workflow.yaml). The local MAX_DEPTH_DEFAULT /
+    // MAX_LIFECYCLE_AGENTS constants previously shadowed the values in
+    // constants.ts; those shadows are removed.
+    const ext = getWorkflowConfigSync()
     return {
       maxSteps: this.ctx.config?.maxSteps ?? DEFAULT_WORKFLOW_CONFIG.maxSteps,
       maxTokens: this.ctx.config?.maxTokens ?? DEFAULT_WORKFLOW_CONFIG.maxTokens,
       maxWallClockMs: this.ctx.config?.maxWallClockMs ?? DEFAULT_WORKFLOW_CONFIG.maxWallClockMs,
       perStepTimeoutMs: perStepTimeoutMsOverride ?? this.ctx.config?.perStepTimeoutMs ?? DEFAULT_WORKFLOW_CONFIG.perStepTimeoutMs,
       gracePeriodMs: this.gracePeriodMs,
-      maxDepth: MAX_DEPTH_DEFAULT,
-      maxLifecycleAgents: MAX_LIFECYCLE_AGENTS,
+      maxDepth: ext.maxDepth,
+      maxLifecycleAgents: ext.maxLifecycleAgents,
     }
   }
 
