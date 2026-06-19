@@ -4,7 +4,7 @@
 
 
 
-W5-6 Dynamic Workflow — sandboxed JavaScript orchestrator (quickjs-emscripten).
+Dynamic Workflow — sandboxed JavaScript orchestrator (quickjs-emscripten).
 
 ## What it does
 

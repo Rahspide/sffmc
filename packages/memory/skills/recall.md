@@ -8,7 +8,7 @@ hidden: true
 
 ## The Rule
 
-At session start, the memory plugin auto-injects a recon summary into the system prompt via `experimental.chat.messages.transform`. The recon is the project's "remembered" state — top memories, AGENTS.md, recent chat tail, task tree, and checkpoint. You DO NOT need to call a tool to use it — it is already in your context, prefixed with `[Context Recon 8K — injected by F4' Memory]`.
+At session start, the memory plugin auto-injects a recon summary into the system prompt via `experimental.chat.messages.transform`. The recon is the project's "remembered" state — top memories, AGENTS.md, recent chat tail, task tree, and checkpoint. You DO NOT need to call a tool to use it — it is already in your context, prefixed with `[Context Recon 8K — injected by @sffmc/memory]`.
 
 If the user asks "what did we work on last time?" or you are switching projects, read the recon first. Only force a re-recall when the recon is clearly stale.
 
@@ -29,7 +29,7 @@ Each budget is a hard character limit. The recon truncates sections that exceed 
 The recon is the first system message in the prompt. It starts with:
 
 ```
-[Context Recon 8K — injected by F4' Memory]
+[Context Recon 8K — injected by @sffmc/memory]
 ```
 
 The recon has 5 sections, each heading is a `##` markdown line: `## Memory`, `## Checkpoint`, `## Task Tree`, `## Recent Context`, `## AGENTS.md`. Look for these before asking "what was the last task?" — the answer is likely already there.

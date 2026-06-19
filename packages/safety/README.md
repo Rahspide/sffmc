@@ -2,7 +2,7 @@
 
 > **Safety composite.** Bundles 5 sub-features for tool-failure recovery, destructive-op safety nets, and log hygiene. Replaces the need to load each sub-feature individually.
 
-safety composite — composes watchdog (F1), rules (F2), auto-max, eos-stripper, and log-whitelist via `mergeHooks()`.
+safety composite — composes watchdog, rules, auto-max, eos-stripper, and log-whitelist via `mergeHooks()`.
 
 ## What it does
 
@@ -12,8 +12,8 @@ Prevents runaway failure cascades, blocks destructive commands via YAML gates, a
 
 | Sub-feature | Purpose | MiMo origin |
 |---|---|---|
-| [watchdog](../watchdog/README.md) | 3-failure counter with auto-recovery and model promotion | F1 (MiMo) |
-| [rules](../rules/README.md) | YAML safety gates (denylist, command block, output pattern) | F2 (MiMo) |
+| [watchdog](../watchdog/README.md) | 3-failure counter with auto-recovery and model promotion | MiMo origin |
+| [rules](../rules/README.md) | YAML safety gates (denylist, command block, output pattern) | MiMo origin |
 | [auto-max](../auto-max/README.md) | Auto-escalation to max-mode when failures cascade | SFFMC (inspired by MiMo) |
 | [eos-stripper](../eos-stripper/README.md) | Strips local-model EOS tokens from `text.complete` output | SFFMC |
 | [log-whitelist](../log-whitelist/README.md) | Prevents 12GB+ permission log accumulation | SFFMC |
@@ -73,7 +73,7 @@ Each sub-feature keeps its own YAML config at `~/.config/SFFMC/<name>.yaml`. The
 | `~/.config/SFFMC/eos-stripper.yaml` | EOS pattern list, log toggle |
 | `~/.config/SFFMC/log-whitelist.yaml` | Whitelist/blacklist patterns, max lines, truncation marker |
 
-Verify with `sffmc_health` — reports `safety: 9 hook keys, 0 tools` (Phase 6).
+Verify with `sffmc_health` — reports `safety: 9 hook keys, 0 tools`.
 
 ## Tests
 

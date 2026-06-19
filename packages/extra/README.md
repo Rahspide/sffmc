@@ -4,15 +4,15 @@
 
 
 
-EXTRA plugin — opt-in bundle of 3 advanced features (F5' Checkpoint, F6' Judge, F8 Dream). All disabled by default.
+EXTRA plugin — opt-in bundle of 3 advanced features (Checkpoint, Judge, Dream). All disabled by default.
 
 ## What it does
 
 A single plugin exposing 3 LLM-callable tools, each gated behind a config flag:
 
-1. **`extra_checkpoint`** (F5') — session snapshot and resumability. Captures tool-call history to enable resume-after-crash. (Phase 3)
-2. **`extra_judge`** (F6') — multi-candidate evaluation and ranking. Evaluates N candidate responses against an optional rubric and returns ranked scores. (Phase 2)
-3. **`extra_dream`** (F8) — background session summarization and deduplication. Periodically scans sessions, deduplicates overlapping content, archives old sessions, and generates structured summaries. (Phase 4)
+1. **`extra_checkpoint`** — session snapshot and resumability. Captures tool-call history to enable resume-after-crash.
+2. **`extra_judge`** — multi-candidate evaluation and ranking. Evaluates N candidate responses against an optional rubric and returns ranked scores.
+3. **`extra_dream`** — background session summarization and deduplication. Periodically scans sessions, deduplicates overlapping content, archives old sessions, and generates structured summaries.
 
 By default, **all 3 features are DISABLED**. Set flags in `~/.config/SFFMC/extra.yaml` to opt in per feature.
 
@@ -66,9 +66,9 @@ All keys in `~/.config/SFFMC/extra.yaml`:
 
 | Key | Type | Default | Description |
 |---|---|---|---|
-| `checkpoint` | boolean | `false` | Enable F5' Checkpoint tool |
-| `judge` | boolean | `false` | Enable F6' Judge tool |
-| `dream` | boolean | `false` | Enable F8 Dream tool |
+| `checkpoint` | boolean | `false` | Enable Checkpoint tool |
+| `judge` | boolean | `false` | Enable Judge tool |
+| `dream` | boolean | `false` | Enable Dream tool |
 | `dream_threshold` | number | `50` | Minimum sessions before dedup triggers |
 | `dream_interval_hours` | number | `24` | Hours between Dream scans |
 

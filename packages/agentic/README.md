@@ -2,7 +2,7 @@
 
 > **Agentic composite.** Bundles 4 sub-features for parallel reasoning, sandboxed multi-step execution, on-demand skill composition, and plugin health diagnostics. Replaces the need to load each sub-feature individually.
 
-agentic composite — composes max-mode (F7), workflow (W5-6), compose (W4), and health (F3+) via `mergeHooks()`.
+agentic composite — composes max-mode, workflow, compose, and health via `mergeHooks()`.
 
 ## What it does
 
@@ -12,10 +12,10 @@ Provides parallel candidate generation with judge-model evaluation, sandboxed JS
 
 | Sub-feature | Purpose | MiMo origin |
 |---|---|---|
-| [max-mode](../max-mode/README.md) | 3 parallel candidate generators + 1 judge model | F7 (MiMo) |
-| [workflow](../workflow/README.md) | Sandboxed JS execution with 7 builtins (deep-research, security-audit, tdd, refactor, plan, doc-gen, lib-migrate) | W5-6 (MiMo) |
-| [compose](../compose/README.md) | 18 markdown skills loaded via `compose_skill` tool (15 from MiMo + 3 SFFMC) | W4 (MiMo) |
-| [health](../health/README.md) | `sffmc_health` tool — 12 checks (Phase 6 adds 13th) | F3+ (SFFMC) |
+| [max-mode](../max-mode/README.md) | 3 parallel candidate generators + 1 judge model | MiMo origin |
+| [workflow](../workflow/README.md) | Sandboxed JS execution with 7 builtins (deep-research, security-audit, tdd, refactor, plan, doc-gen, lib-migrate) | MiMo origin |
+| [compose](../compose/README.md) | 18 markdown skills loaded via `compose_skill` tool (15 from MiMo + 3 SFFMC) | MiMo origin |
+| [health](../health/README.md) | `sffmc_health` tool — 13 checks | SFFMC |
 
 ## Hooks registered
 

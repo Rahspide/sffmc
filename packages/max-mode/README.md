@@ -4,7 +4,7 @@
 
 
 
-F7 Max Mode — parallel drafts plus judge selection (W3).
+Max Mode — parallel drafts plus judge selection.
 
 ## What it does
 
@@ -28,7 +28,7 @@ This plugin is loaded by the SFFMC monorepo's sandbox config. To use standalone:
 Edit `~/.config/SFFMC/max-mode.yaml`:
 
 ```yaml
-# F7 Max Mode — plugin config
+# Max Mode — plugin config
 
 version: 1
 

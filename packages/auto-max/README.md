@@ -4,7 +4,7 @@
 
 
 
-F1+F2 auto-call F7 — auto-escalates to Max Mode when a tool is stuck in a failure loop (W3).
+Auto-escalates to Max Mode when a tool is stuck in a failure loop (threshold from watchdog config).
 
 ## What it does
 

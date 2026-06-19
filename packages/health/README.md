@@ -4,7 +4,7 @@
 
 
 
-F3+ Health — diagnostic for SFFMC plugin authors. Runs 7 checks on the monorepo and returns a JSON health report.
+Health diagnostic for SFFMC plugin authors — runs 13 checks on the monorepo and returns a JSON health report.
 
 ## What it does
 

@@ -2,7 +2,7 @@
 
 > **Part of `@sffmc/agentic` composite.** This package is a sub-feature of the agentic bundle. Load via `@sffmc/agentic` for the full set (compose + max-mode + workflow + health), or standalone if you only need the 18 compose skills.
 
-18 compose skills (W4) — ported from MiMo-Code.
+18 compose skills — ported from MiMo-Code.
 
 ## What it does
 

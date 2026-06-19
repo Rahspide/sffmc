@@ -4,7 +4,7 @@
 
 
 
-EOS token stripper — removes End-of-Sequence tokens from assistant text (W2).
+EOS token stripper — removes End-of-Sequence tokens from assistant text.
 
 ## What it does
 

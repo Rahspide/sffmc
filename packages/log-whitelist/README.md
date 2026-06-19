@@ -4,7 +4,7 @@
 
 
 
-Agent log filter — keeps only whitelist-matching lines in tool output and chat text (W2).
+Agent log filter — keeps only whitelist-matching lines in tool output and chat text.
 
 ## What it does
 
