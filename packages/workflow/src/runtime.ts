@@ -55,13 +55,15 @@ const log = createLogger("workflow")
 // default `min(16, 2*cpus)` that matches the pre-W11 hardcoded behavior when
 // no override is present. We use `!== 16` to detect "user set a non-default
 // value" because the config default is 16 — explicit 16 is treated as
-// user-set, which produces identical behavior to the default.
+// user-set, which produces identical behavior to the default. Called in
+// the constructor (not at module init) so a test that mutates the config
+// cache via `__setWorkflowConfig()` between constructions picks up the
+// updated value.
 function resolveMaxConcurrentAgents(): number {
   const cfg = getMaxConcurrentAgents()
   if (cfg !== 16) return cfg
   return Math.min(16, 2 * Math.max(1, cpus().length))
 }
-const DEFAULT_MAX_CONCURRENT = resolveMaxConcurrentAgents()
 
 /** Marker on errors from STRUCTURAL workflow faults. */
 const WORKFLOW_STRUCTURAL_ERROR = "WorkflowStructuralError"
@@ -216,7 +218,10 @@ export class WorkflowRuntime {
 
   constructor(ctx: PluginContext, opts?: RuntimeOpts) {
     this.ctx = ctx
-    this.globalSem = makeSemaphore(DEFAULT_MAX_CONCURRENT)
+    // W11 — resolve at constructor time (not module init) so the
+    // semaphore respects a config the caller may set via
+    // `__setWorkflowConfig()` before constructing the runtime.
+    this.globalSem = makeSemaphore(resolveMaxConcurrentAgents())
     this.persistence = opts?.persistence ?? new WorkflowPersistence()
     if (opts?.gracePeriodMsOverride !== undefined) {
       this.setGracePeriodMs(opts.gracePeriodMsOverride)
