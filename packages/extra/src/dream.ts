@@ -20,17 +20,27 @@ export type { RichPluginContext } from "@sffmc/shared";
 
 /** Jaccard similarity above which two memory entries are considered duplicates.
  *  Tuned for prose-style entries — 0.9 keeps near-verbatim repeats while
- *  avoiding false positives on "same topic, different angle". */
+ *  avoiding false positives on "same topic, different angle".
+ *
+ *  Phase-1 HIGH migration (E7): this default is now configurable via
+ *  `ExtraConfig.dream_dedup_threshold`. The exported constant retains the
+ *  prior value so any out-of-tree consumers (e.g. tests) still see 0.9. */
 export const DREAM_DEDUP_THRESHOLD = 0.9;
 
 /** Jaccard similarity above which a memory entry joins an existing cluster
  *  during summarization. Lower than the dedup threshold so a cluster can
- *  hold entries that share a topic without being near-duplicates. */
+ *  hold entries that share a topic without being near-duplicates.
+ *
+ *  Phase-1 HIGH migration (E8): this default is now configurable via
+ *  `ExtraConfig.dream_cluster_threshold`. */
 export const DREAM_CLUSTER_THRESHOLD = 0.3;
 
 /** Hard cap on entries processed in a single dream cycle. Prevents O(n^2)
  *  dedup/cluster loops from consuming unbounded CPU and memory when the DB
- *  grows large. Entries beyond this limit are skipped with a warning. */
+ *  grows large. Entries beyond this limit are skipped with a warning.
+ *
+ *  Phase-1 HIGH migration (E9): this default is now configurable via
+ *  `ExtraConfig.dream_max_entries`. */
 export const MAX_DREAM_ENTRIES = 5000;
 
 const log = createLogger("extra-dream");
@@ -56,12 +66,20 @@ export interface DreamConfig {
   enabled: boolean;
   threshold: number;
   intervalHours: number;
-  /** DB path override (for testing). Defaults to ~/.local/share/SFFMC/memory/index.sqlite */
+  /** DB path override (for testing). Defaults to ~/.local/share/sffmc/memory/index.sqlite */
   storagePath?: string;
   /** Plugin context for LLM-based summarization. When absent, falls back to concatenation. */
   ctx?: RichPluginContext;
   /** Model for LLM summarization. Defaults to "". */
   summaryModel?: string;
+  // Phase-1 HIGH migration (E7, E8, E9) — see
+  // .slim/deepwork/hardcode-audit-2026-06.md
+  /** E7 — Jaccard dedup threshold. Defaults to `DREAM_DEDUP_THRESHOLD` (0.9). */
+  dedupThreshold?: number;
+  /** E8 — Jaccard cluster threshold. Defaults to `DREAM_CLUSTER_THRESHOLD` (0.3). */
+  clusterThreshold?: number;
+  /** E9 — max entries processed per dream cycle. Defaults to `MAX_DREAM_ENTRIES` (5000). */
+  maxEntries?: number;
 }
 
 export interface DreamTool {
@@ -267,12 +285,21 @@ async function summarizeViaLLM(
 /**
  * Run the full dream cycle: scan → dedup → stale removal → summarization.
  * Returns DreamResult with counts and any errors.
+ *
+ * Phase-1 HIGH migration (E7, E8, E9): `dedupThreshold`, `clusterThreshold`,
+ * and `maxEntries` are now configurable (via DreamConfig). The exported
+ * module-level constants (`DREAM_DEDUP_THRESHOLD`, `DREAM_CLUSTER_THRESHOLD`,
+ * `MAX_DREAM_ENTRIES`) remain as the defaults — behavior is unchanged when
+ * the caller omits the new fields.
  */
 async function runDream(
   db: Database,
   dryRun: boolean,
   ctx?: RichPluginContext,
   summaryModel?: string,
+  dedupThreshold: number = DREAM_DEDUP_THRESHOLD,
+  clusterThreshold: number = DREAM_CLUSTER_THRESHOLD,
+  maxEntries: number = MAX_DREAM_ENTRIES,
 ): Promise<DreamResult> {
   const errors: string[] = [];
   const start = Date.now();
@@ -288,9 +315,9 @@ async function runDream(
       .all() as MemoryRow[];
     scanned = rows.length;
 
-    if (scanned > MAX_DREAM_ENTRIES) {
+    if (scanned > maxEntries) {
       log.warn(
-        `dream: ${scanned} entries exceed cap of ${MAX_DREAM_ENTRIES} — skipping dedup/cluster to avoid O(n^2) blowup`,
+        `dream: ${scanned} entries exceed cap of ${maxEntries} — skipping dedup/cluster to avoid O(n^2) blowup`,
       );
       return {
         scanned,
@@ -299,7 +326,7 @@ async function runDream(
         summarized: 0,
         durationMs: Date.now() - start,
         errors: [
-          `Skipped: ${scanned} entries exceed MAX_DREAM_ENTRIES (${MAX_DREAM_ENTRIES})`,
+          `Skipped: ${scanned} entries exceed MAX_DREAM_ENTRIES (${maxEntries})`,
         ],
         ok: true,
         dry_run: dryRun,
@@ -328,7 +355,7 @@ async function runDream(
             tokenCache.get(rows[i].id)!,
             tokenCache.get(rows[j].id)!,
           );
-          if (sim > DREAM_DEDUP_THRESHOLD) {
+          if (sim > dedupThreshold) {
             // Keep newer (by last_accessed or created_at); delete older.
             // Timestamps are in seconds (SQLite strftime('%s','now')).
             const timeI = rows[i].last_accessed ?? rows[i].created_at;
@@ -424,8 +451,8 @@ async function runDream(
               jaccardSets(
                 remainingTokenCache.get(member.id)!,
                 remainingTokenCache.get(other.id)!,
-              ) > DREAM_CLUSTER_THRESHOLD
-            ) {
+) > clusterThreshold
+              ) {
               cluster.push(other);
               assigned.add(other.id);
               changed = true;
@@ -557,6 +584,13 @@ export function createDreamTool(config: DreamConfig): {
   const dbPath = config.storagePath ?? DEFAULT_STORAGE_PATH;
   let db: Database | null = null;
 
+  // Phase-1 HIGH migration (E7, E8, E9): resolve the configurable
+  // thresholds/cap up front so they are stable across the lifetime of
+  // this factory instance. Defaults preserve prior behavior.
+  const dedupThreshold = config.dedupThreshold ?? DREAM_DEDUP_THRESHOLD;
+  const clusterThreshold = config.clusterThreshold ?? DREAM_CLUSTER_THRESHOLD;
+  const maxEntries = config.maxEntries ?? MAX_DREAM_ENTRIES;
+
   // Per-instance state (DLC: no shared state between plugins)
   const state: DreamInstanceState = {
     dreamLock: null,
@@ -606,7 +640,15 @@ export function createDreamTool(config: DreamConfig): {
     }
 
     const database = getDB();
-    state.dreamLock = runDream(database, dryRun, config.ctx, config.summaryModel);
+    state.dreamLock = runDream(
+      database,
+      dryRun,
+      config.ctx,
+      config.summaryModel,
+      dedupThreshold,
+      clusterThreshold,
+      maxEntries,
+    );
     try {
       const result = await state.dreamLock;
       return result;

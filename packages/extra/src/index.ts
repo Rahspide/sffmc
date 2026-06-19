@@ -32,6 +32,17 @@ export interface ExtraConfig {
   judge_rubric: string;
   judge_auto: boolean;
   checkpoint_dir: string;
+  // Phase-1 (v0.14.2) HIGH-severity migration — see .slim/deepwork/hardcode-audit-2026-06.md
+  /** E1 — max checkpoint file size in bytes (default 10 MiB). */
+  checkpoint_max_file_size: number;
+  /** E2 — max messages restored from a single checkpoint (default 50). */
+  checkpoint_max_restored_messages: number;
+  /** E7 — Jaccard dedup threshold for dream (default 0.9). */
+  dream_dedup_threshold: number;
+  /** E8 — Jaccard cluster threshold for dream (default 0.3). */
+  dream_cluster_threshold: number;
+  /** E9 — max entries processed per dream cycle (default 5000). */
+  dream_max_entries: number;
 }
 
 const defaultConfig: ExtraConfig = {
@@ -44,6 +55,12 @@ const defaultConfig: ExtraConfig = {
   judge_rubric: DEFAULT_RUBRIC,
   judge_auto: false,
   checkpoint_dir: "", // resolved at server time if empty
+  // Defaults match the prior hardcoded values — behavior unchanged.
+  checkpoint_max_file_size: 10 * 1024 * 1024, // E1: 10 MiB
+  checkpoint_max_restored_messages: 50,        // E2
+  dream_dedup_threshold: 0.9,                  // E7
+  dream_cluster_threshold: 0.3,                // E8
+  dream_max_entries: 5000,                     // E9
 };
 
 const DEFAULT_CHECKPOINT_DIR = join(
@@ -72,7 +89,15 @@ export const checkpointServer = async (ctx: PluginContext): Promise<PluginServer
   log.info(
     `checkpoint: ${config.checkpoint ? "enabled" : "disabled"}`,
   );
-  const cp = createCheckpointTool({ enabled: config.checkpoint, dir: resolvedCheckpointDir });
+  // Phase-1 HIGH migration (E1, E2): forward YAML-configurable limits to
+  // the checkpoint factory. Defaults match the previous hardcoded values,
+  // so behavior is unchanged when no YAML is present.
+  const cp = createCheckpointTool({
+    enabled: config.checkpoint,
+    dir: resolvedCheckpointDir,
+    maxFileSize: config.checkpoint_max_file_size,
+    maxRestoredMessages: config.checkpoint_max_restored_messages,
+  });
   return { id: "extra-checkpoint", tool: { extra_checkpoint: cp.tool }, ...cp.hooks };
 };
 
@@ -96,11 +121,17 @@ export const dreamServer = async (ctx: PluginContext): Promise<PluginServer> => 
   log.info(
     `dream: ${config.dream ? "enabled" : "disabled"}`,
   );
+  // Phase-1 HIGH migration (E7, E8, E9): forward YAML-configurable
+  // thresholds/caps to the dream factory. Defaults match the previous
+  // hardcoded values, so behavior is unchanged when no YAML is present.
   const d = createDreamTool({
     enabled: config.dream,
     threshold: config.dream_threshold,
     intervalHours: config.dream_interval_hours,
     ctx,
+    dedupThreshold: config.dream_dedup_threshold,
+    clusterThreshold: config.dream_cluster_threshold,
+    maxEntries: config.dream_max_entries,
   });
   return { id: "extra-dream", tool: { extra_dream: d.tool }, ...d.hooks };
 };

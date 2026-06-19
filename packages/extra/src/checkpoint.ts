@@ -52,15 +52,24 @@ export interface CheckpointHooks {
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
+//
+// Phase-1 (v0.14.2) HIGH-severity migration — see
+// .slim/deepwork/hardcode-audit-2026-06.md (E1, E2).
+//
+// `MAX_CHECKPOINT_FILE_SIZE` and `MAX_RESTORED_MESSAGES` were hardcoded
+// module-level constants. They are now configurable via the factory's
+// `config.maxFileSize` and `config.maxRestoredMessages` (defaults match the
+// previous hardcoded values, so behavior is unchanged when no YAML is
+// provided). The original values are preserved as `DEFAULT_*` so callers
+// that omit the new fields still see the prior behavior.
 
-/** Maximum checkpoint file size in bytes. Files larger than this are
- *  rejected to prevent OOM from loading multi-GB crafted files. */
-const MAX_CHECKPOINT_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+/** Default max checkpoint file size in bytes (E1). Overridable via
+ *  `ExtraConfig.checkpoint_max_file_size`. */
+const DEFAULT_MAX_CHECKPOINT_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 
-/** Maximum number of messages restored from a checkpoint. Prevents
- *  crafted checkpoint files with thousands of tool calls from
- *  overwhelming the LLM context window. */
-const MAX_RESTORED_MESSAGES = 50;
+/** Default max restored messages per checkpoint (E2). Overridable via
+ *  `ExtraConfig.checkpoint_max_restored_messages`. */
+const DEFAULT_MAX_RESTORED_MESSAGES = 50;
 
 const FLUSH_THRESHOLD = 50;
 const FLUSH_INTERVAL_MS = 5_000;
@@ -124,14 +133,18 @@ function writeHeader(sessionID: string, dir?: string): void {
   appendFileSync(fp, JSON.stringify(header) + "\n");
 }
 
-function readHeader(sessionID: string, dir?: string): CheckpointHeader | null {
+function readHeader(
+  sessionID: string,
+  dir?: string,
+  maxFileSize: number = DEFAULT_MAX_CHECKPOINT_FILE_SIZE,
+): CheckpointHeader | null {
   const fp = filePath(sessionID, dir);
 
   try {
     const st = statSync(fp);
-    if (st.size > MAX_CHECKPOINT_FILE_SIZE) {
+    if (st.size > maxFileSize) {
       log.warn(
-        `checkpoint: skipping ${sessionID} — file size ${(st.size / 1024 / 1024).toFixed(1)}MB exceeds limit (${MAX_CHECKPOINT_FILE_SIZE / 1024 / 1024}MB)`,
+        `checkpoint: skipping ${sessionID} — file size ${(st.size / 1024 / 1024).toFixed(1)}MB exceeds limit (${maxFileSize / 1024 / 1024}MB)`,
       );
       return null;
     }
@@ -156,15 +169,19 @@ function readHeader(sessionID: string, dir?: string): CheckpointHeader | null {
 // ToolCall read / list / delete
 // ---------------------------------------------------------------------------
 
-export function readToolCalls(sessionID: string, dir?: string): ToolCall[] {
+export function readToolCalls(
+  sessionID: string,
+  dir?: string,
+  maxFileSize: number = DEFAULT_MAX_CHECKPOINT_FILE_SIZE,
+): ToolCall[] {
   const fp = filePath(sessionID, dir);
 
   // Stat-based size check before loading into memory.
   try {
     const st = statSync(fp);
-    if (st.size > MAX_CHECKPOINT_FILE_SIZE) {
+    if (st.size > maxFileSize) {
       log.warn(
-        `checkpoint: skipping ${sessionID} — file size ${(st.size / 1024 / 1024).toFixed(1)}MB exceeds limit (${MAX_CHECKPOINT_FILE_SIZE / 1024 / 1024}MB)`,
+        `checkpoint: skipping ${sessionID} — file size ${(st.size / 1024 / 1024).toFixed(1)}MB exceeds limit (${maxFileSize / 1024 / 1024}MB)`,
       );
       return [];
     }
@@ -331,12 +348,16 @@ const RESTORE_MARKER = /<!--\s*EXTRA_RESTORE:\s*(\S+)\s*-->/;
 // ---------------------------------------------------------------------------
 
 /** Execute the "restore" action — pure logic, no side effects beyond disk I/O. */
-function _executeRestoreAction(sessionID: string | undefined, dir: string): unknown {
+function _executeRestoreAction(
+  sessionID: string | undefined,
+  dir: string,
+  maxFileSize: number,
+): unknown {
   if (!sessionID) {
     return { ok: false, error: "sessionID is required for restore" };
   }
 
-  const header = readHeader(sessionID, dir);
+  const header = readHeader(sessionID, dir, maxFileSize);
   if (!header) {
     return { ok: false, error: "checkpoint not found" };
   }
@@ -348,7 +369,7 @@ function _executeRestoreAction(sessionID: string | undefined, dir: string): unkn
     };
   }
 
-  const calls = readToolCalls(sessionID, dir);
+  const calls = readToolCalls(sessionID, dir, maxFileSize);
   const messages = reconstructMessages(calls);
 
   return {
@@ -410,6 +431,8 @@ function _createToolExecuteAfterHook(
 /** Create the experimental.chat.messages.transform hook for auto-restore. */
 function _createAutoRestoreHook(
   dir: string,
+  maxFileSize: number,
+  maxRestoredMessages: number,
 ): (
   _input: unknown,
   data: {
@@ -428,7 +451,7 @@ function _createAutoRestoreHook(
           `[extra] checkpoint auto-restore: loading session ${sessionID}`,
         );
 
-        const header = readHeader(sessionID, dir);
+        const header = readHeader(sessionID, dir, maxFileSize);
         if (!header) {
           log.warn(
             `[extra] checkpoint auto-restore: session ${sessionID} not found`,
@@ -445,8 +468,8 @@ function _createAutoRestoreHook(
           continue;
         }
 
-        const calls = readToolCalls(sessionID, dir);
-        const restored = reconstructMessages(calls).slice(0, MAX_RESTORED_MESSAGES);
+        const calls = readToolCalls(sessionID, dir, maxFileSize);
+        const restored = reconstructMessages(calls).slice(0, maxRestoredMessages);
 
         msg.content = msg.content.replace(RESTORE_MARKER, "").trim();
 
@@ -467,7 +490,16 @@ function _createAutoRestoreHook(
 // createCheckpointTool — returns { tool, hooks }
 // ---------------------------------------------------------------------------
 
-export function createCheckpointTool(config: { enabled: boolean; dir?: string }): {
+export function createCheckpointTool(config: {
+  enabled: boolean;
+  dir?: string;
+  /** Phase-1 HIGH migration (E1): max checkpoint file size in bytes.
+   *  Files larger than this are rejected. Defaults to 10 MiB. */
+  maxFileSize?: number;
+  /** Phase-1 HIGH migration (E2): max messages restored per checkpoint.
+   *  Defaults to 50. */
+  maxRestoredMessages?: number;
+}): {
   tool: CheckpointTool;
   hooks: CheckpointHooks;
   /** Flush a single session's buffer (uses this instance's state). */
@@ -478,6 +510,10 @@ export function createCheckpointTool(config: { enabled: boolean; dir?: string })
   cleanup: () => void;
 } {
   const dir = config.dir || getCheckpointDir();
+  // Phase-1 HIGH migration (E1, E2): defaults match the prior hardcoded
+  // values, so behavior is unchanged when no YAML is provided.
+  const maxFileSize = config.maxFileSize ?? DEFAULT_MAX_CHECKPOINT_FILE_SIZE;
+  const maxRestoredMessages = config.maxRestoredMessages ?? DEFAULT_MAX_RESTORED_MESSAGES;
 
   // Per-instance state (DLC: no shared state between plugins)
   const state: CheckpointBufferState = {
@@ -538,7 +574,7 @@ Auto-restore: inject <!-- EXTRA_RESTORE: <sessionID> --> in a message to auto-lo
         }
 
         case "restore": {
-          return _executeRestoreAction(sessionID, dir);
+          return _executeRestoreAction(sessionID, dir, maxFileSize);
         }
 
         default:
@@ -554,7 +590,11 @@ Auto-restore: inject <!-- EXTRA_RESTORE: <sessionID> --> in a message to auto-lo
   if (config.enabled) {
     hooks["tool.execute.after"] = _createToolExecuteAfterHook(state);
 
-    hooks["experimental.chat.messages.transform"] = _createAutoRestoreHook(dir);
+    hooks["experimental.chat.messages.transform"] = _createAutoRestoreHook(
+      dir,
+      maxFileSize,
+      maxRestoredMessages,
+    );
 
     _startFlushTimer(state);
   }
