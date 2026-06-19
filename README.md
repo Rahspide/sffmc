@@ -261,7 +261,7 @@ See each package's README for its full config reference and defaults.
 - **[Getting started](./docs/getting-started.md)** — install, first workflow, debugging
 - **[Import from MiMo](./docs/import-from-mimo.md)** — migration guide for MiMo-Code users
 - **[Load order audit](./docs/load-order-audit.md)** — hook registration order and rationale
-- **[Workflow reference](./docs/w5-6-dynamic-workflow.md)** — sandbox internals, budgets, error model
+- **[Workflow reference](./docs/dynamic-workflow.md)** — sandbox internals, budgets, error model
 - **[Workflow examples](./docs/workflow-examples.md)** — five ready-to-copy workflows
 - **[Long agent test report](./docs/long-agent-test-v090-report.md)** — v0.9.0 benchmark results
 - **[v0.9.0 restructure decision](./CHANGELOG.md)** — see the v0.9.0 entry
