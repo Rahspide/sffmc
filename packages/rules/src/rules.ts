@@ -1,4 +1,4 @@
-import { parse as parseYaml } from "yaml";
+import { parse as parseYaml, Schema } from "yaml";
 import { readFileSync, existsSync, statSync } from "fs";
 
 export type Action = "allow" | "deny" | "ask";
@@ -21,10 +21,17 @@ export interface Rules {
   rules: Rule[];
 }
 
+/** Shared mutable state — violates DLC "no shared state" contract.
+ *  Consider refactoring to a RulesManager class in a future PR. */
 let panicMode = false;
 
 export function isPanicMode(): boolean {
   return panicMode;
+}
+
+/** Reset panic mode. Useful for tests and after manual rules reload. */
+export function resetPanicMode(): void {
+  panicMode = false;
 }
 
 export function loadRules(path: string): Rules {
@@ -67,7 +74,7 @@ export function watchRules(
 
 export function parseRules(yaml: string): Rules {
   try {
-    const parsed = parseYaml(yaml) as Record<string, unknown>;
+    const parsed = parseYaml(yaml, { schema: Schema.JSON }) as Record<string, unknown>;
     if (!parsed || !Array.isArray(parsed.rules)) {
       throw new Error('Invalid rules format: missing "rules" array');
     }

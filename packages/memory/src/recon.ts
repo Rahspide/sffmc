@@ -3,6 +3,17 @@ import { RECON_AGENTS_BUDGET, RECON_TASKTREE_BUDGET } from "./constants.ts";
 
 export { RECON_AGENTS_BUDGET, RECON_TASKTREE_BUDGET };
 
+/** Patterns for source paths that should never be injected into LLM context.
+ *  Matches L1 watcher deny-list to prevent sensitive data leakage. */
+const SENSITIVE_PATH_PATTERNS = [
+  /credentials/i, /secrets?/i, /\.env/i, /password/i,
+  /token/i, /api[_-]?key/i, /private/i,
+];
+
+function isSensitiveSource(sourcePath: string): boolean {
+  return SENSITIVE_PATH_PATTERNS.some(p => p.test(sourcePath));
+}
+
 const RECON_BUDGETS = {
   memory: 6144,
   checkpoint: 6144,
@@ -20,6 +31,7 @@ export function buildRecon(
   const sections: string[] = [];
 
   const memoryText = memory
+    .filter(e => !isSensitiveSource(e.source_path))
     .map(
       (e) =>
         `[${e.source_path}${e.section ? ` > ${e.section}` : ""}]\n${e.content}`,

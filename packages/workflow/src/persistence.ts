@@ -124,7 +124,7 @@ function rowToRun(row: Record<string, unknown>): WorkflowRun {
     failed: row.failed as number,
     currentPhase: (row.current_phase as string) || undefined,
     parentRunID: (row.parent_run_id as string) || undefined,
-    args: row.args ? JSON.parse(row.args as string) : undefined,
+    args: (() => { try { return row.args ? JSON.parse(row.args as string) : undefined } catch { return undefined } })(),
     scriptSha: (row.script_sha as string) || undefined,
     agentTimeoutMs: (row.agent_timeout_ms as number) || undefined,
     error: (row.error as string) || undefined,

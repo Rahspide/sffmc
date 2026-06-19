@@ -5,6 +5,19 @@ import { readFileSync } from "fs";
 import { relative, basename } from "path";
 import { AGENTS_FILE, MEMORY_BANK_DIR } from "./constants.ts";
 
+/** Patterns for filenames that should never be indexed into the memory DB.
+ *  Prevents sensitive files (credentials, secrets, tokens) from being
+ *  injected into LLM context via recon. */
+const SENSITIVE_FILE_PATTERNS = [
+  /credentials/i, /secrets?/i, /\.env/i, /password/i,
+  /token/i, /api[_-]?key/i, /private/i,
+];
+
+function isSensitiveFile(filePath: string): boolean {
+  const name = basename(filePath);
+  return SENSITIVE_FILE_PATTERNS.some(p => p.test(name));
+}
+
 export function startWatcher(
   rootDir: string,
   db: MemoryDB,
@@ -25,6 +38,7 @@ export function startWatcher(
   });
 
   function indexFile(filePath: string): void {
+    if (isSensitiveFile(filePath)) return;
     try {
       const content = readFileSync(filePath, "utf-8");
       if (!content.trim()) return;

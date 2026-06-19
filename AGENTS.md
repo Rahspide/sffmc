@@ -47,6 +47,38 @@ bun run build
 git commit -m "..."   # runs bun test + typecheck + audit + sffmc_health
 ```
 
+## Containerised Testing (Security Policy)
+
+**Do not run `bun`, `python3`, or project scripts directly on the host.** Use fresh Podman/Docker containers to isolate untrusted or semi-trusted code execution.
+
+### Quick Reference
+
+```bash
+# Pull pinned images (once)
+podman pull oven/bun:1.3.14
+podman pull docker.io/library/python:3-alpine
+
+# Run full test suite in a fresh bun container
+podman run --rm -v "$(pwd)":/work -w /work oven/bun:1.3.14 \
+  sh -c "bun install && bun test && bun run typecheck"
+
+# Run hook conflict audit in a python container
+podman run --rm -v "$(pwd)":/work -w /work docker.io/library/python:3-alpine \
+  sh -c "apk add --no-cache python3 py3-pip >/dev/null 2>&1; python3 scripts/audit-load-order.py"
+
+# Run health check in bun container
+podman run --rm -v "$(pwd)":/work -w /work oven/bun:1.3.14 \
+  sh -c "bun run scripts/run-health.ts"
+```
+
+### Rules
+
+1. **Pin image tags** — always use `oven/bun:1.3.14` (matches CI), never `:latest`
+2. **Mount read-write only when needed** — use `-v "$(pwd)":/work` for tests that write lockfiles or reports
+3. **Use `--rm`** — containers are disposable; never leave running containers behind
+4. **Never use host bun/python** — even if installed, all `bun test`, `bun run`, and `python3 scripts/*` commands go through containers
+5. **One-shot execution** — prefer `sh -c "cmd1 && cmd2"` over entering interactive containers
+
 ## Plugin SDK Notes (OpenCode 1.17.x)
 
 - The `tool` hook's **key** is the tool's name, NOT a `name` field inside the tool definition. Adding `name: "foo"` inside the object silently rejects the tool.

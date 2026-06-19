@@ -27,6 +27,11 @@ export const DREAM_DEDUP_THRESHOLD = 0.9;
  *  hold entries that share a topic without being near-duplicates. */
 export const DREAM_CLUSTER_THRESHOLD = 0.3;
 
+/** Hard cap on entries processed in a single dream cycle. Prevents O(n^2)
+ *  dedup/cluster loops from consuming unbounded CPU and memory when the DB
+ *  grows large. Entries beyond this limit are skipped with a warning. */
+export const MAX_DREAM_ENTRIES = 5000;
+
 const log = createLogger("extra-dream");
 
 // ---------------------------------------------------------------------------
@@ -138,7 +143,7 @@ function openDB(dbPath: string): Database {
   // Ensure the directory exists
   const dir = dirname(dbPath);
   if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true });
+    mkdirSync(dir, { recursive: true, mode: 0o700 });
   }
   const db = new Database(dbPath);
   db.exec("PRAGMA journal_mode=WAL;");
@@ -148,7 +153,7 @@ function openDB(dbPath: string): Database {
 function ensureArchiveDir(): void {
   const dir = dirname(ARCHIVE_PATH);
   if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true });
+    mkdirSync(dir, { recursive: true, mode: 0o700 });
   }
 }
 
@@ -274,6 +279,24 @@ async function runDream(
       .query("SELECT * FROM memory_entries ORDER BY created_at DESC")
       .all() as MemoryRow[];
     scanned = rows.length;
+
+    if (scanned > MAX_DREAM_ENTRIES) {
+      log.warn(
+        `dream: ${scanned} entries exceed cap of ${MAX_DREAM_ENTRIES} — skipping dedup/cluster to avoid O(n^2) blowup`,
+      );
+      return {
+        scanned,
+        deduped: 0,
+        archived: 0,
+        summarized: 0,
+        durationMs: Date.now() - start,
+        errors: [
+          `Skipped: ${scanned} entries exceed MAX_DREAM_ENTRIES (${MAX_DREAM_ENTRIES})`,
+        ],
+        ok: true,
+        dry_run: dryRun,
+      };
+    }
 
     // Pre-tokenize all rows once. The dedup + cluster loops would otherwise
     // call tokenize() on the same content O(n) times each — O(n²) total

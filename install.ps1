@@ -48,8 +48,7 @@ if (Test-Path (Join-Path $SFFMC_INSTALL_DIR ".git")) {
         $token = if ($env:SFFMC_GITHUB_TOKEN) { $env:SFFMC_GITHUB_TOKEN } elseif ($env:GITHUB_TOKEN) { $env:GITHUB_TOKEN } else { $null }
         if ($fetchExit -ne 0 -and $token) {
             Write-Warn "SSH failed; retrying with HTTPS+token..."
-            git remote set-url origin "https://x-access-token:$token@github.com/Rahspide/sffmc.git"
-            git fetch origin --tags 2>&1 | ForEach-Object { Write-Host "  $_" }
+            git -c "http.extraHeader=Authorization: token $token" fetch origin --tags 2>&1 | ForEach-Object { Write-Host "  $_" }
         } elseif ($fetchExit -ne 0) {
             Write-Err "SSH authentication failed and no SFFMC_GITHUB_TOKEN / GITHUB_TOKEN set."
             Write-Err "  Set up SSH: https://docs.github.com/en/authentication/connecting-to-github-with-ssh"
@@ -61,6 +60,23 @@ if (Test-Path (Join-Path $SFFMC_INSTALL_DIR ".git")) {
         git pull --ff-only origin $SFFMC_VERSION 2>&1 | ForEach-Object { Write-Host "  $_" }
         $head = (git rev-parse --short HEAD 2>$null) -replace "`n|`r", ""
         Write-Ok "Updated to $head"
+
+        # Integrity: verify GPG signature if gpg is available
+        if (Get-Command gpg -ErrorAction SilentlyContinue) {
+            git verify-commit HEAD 2>$null | Out-Null
+            if ($LASTEXITCODE -eq 0) {
+                Write-Ok "GPG signature verified"
+            } else {
+                if ($env:SFFMC_STRICT_GPG -eq "1") {
+                    Write-Err "GPG signature verification failed — aborting (SFFMC_STRICT_GPG=1)"
+                    exit 1
+                }
+                Write-Warn "GPG signature verification failed or no signed commits — continue at your own risk"
+            }
+        } elseif ($env:SFFMC_STRICT_GPG -eq "1") {
+            Write-Err "gpg not found — cannot verify commit signatures (SFFMC_STRICT_GPG=1)"
+            exit 1
+        }
     } finally {
         Pop-Location
     }
@@ -74,8 +90,7 @@ if (Test-Path (Join-Path $SFFMC_INSTALL_DIR ".git")) {
     $token = if ($env:SFFMC_GITHUB_TOKEN) { $env:SFFMC_GITHUB_TOKEN } elseif ($env:GITHUB_TOKEN) { $env:GITHUB_TOKEN } else { $null }
     if ($cloneExit -ne 0 -and $token) {
         Write-Warn "SSH failed; retrying with HTTPS+token..."
-        $REPO_URL = "https://x-access-token:$token@github.com/Rahspide/sffmc.git"
-        git clone --branch $SFFMC_VERSION --depth 1 $REPO_URL $SFFMC_INSTALL_DIR 2>&1 | ForEach-Object { Write-Host "  $_" }
+        git -c "http.extraHeader=Authorization: token $token" clone --branch $SFFMC_VERSION --depth 1 "https://github.com/Rahspide/sffmc.git" $SFFMC_INSTALL_DIR 2>&1 | ForEach-Object { Write-Host "  $_" }
     } elseif ($cloneExit -ne 0) {
         Write-Err "SSH authentication failed and no SFFMC_GITHUB_TOKEN / GITHUB_TOKEN set."
         Write-Err "  Set up SSH: https://docs.github.com/en/authentication/connecting-to-github-with-ssh"
@@ -87,6 +102,23 @@ if (Test-Path (Join-Path $SFFMC_INSTALL_DIR ".git")) {
     try {
         $head = (git rev-parse --short HEAD 2>$null) -replace "`n|`r", ""
         Write-Ok "Cloned to $head"
+
+        # Integrity: verify GPG signature if gpg is available
+        if (Get-Command gpg -ErrorAction SilentlyContinue) {
+            git verify-commit HEAD 2>$null | Out-Null
+            if ($LASTEXITCODE -eq 0) {
+                Write-Ok "GPG signature verified"
+            } else {
+                if ($env:SFFMC_STRICT_GPG -eq "1") {
+                    Write-Err "GPG signature verification failed — aborting (SFFMC_STRICT_GPG=1)"
+                    exit 1
+                }
+                Write-Warn "GPG signature verification failed or no signed commits — continue at your own risk"
+            }
+        } elseif ($env:SFFMC_STRICT_GPG -eq "1") {
+            Write-Err "gpg not found — cannot verify commit signatures (SFFMC_STRICT_GPG=1)"
+            exit 1
+        }
     } finally {
         Pop-Location
     }

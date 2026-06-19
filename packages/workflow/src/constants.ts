@@ -10,8 +10,9 @@
 
 import type { SandboxConstraints } from "./types.ts"
 
-/** 12h wall-clock for the sandbox. */
-export const SCRIPT_DEADLINE_MS = 12 * 60 * 60 * 1000 // 12h
+/** 1h wall-clock for the sandbox. Matches maxWallClockMs to prevent
+ *  mismatches where the sandbox runs 12x longer than the workflow. */
+export const SCRIPT_DEADLINE_MS = 60 * 60 * 1000 // 1h
 
 export const DEFAULT_SANDBOX_CONSTRAINTS: SandboxConstraints = {
   memoryMB: 64,

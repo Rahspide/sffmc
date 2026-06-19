@@ -69,7 +69,7 @@ describe("types.ts", () => {
 
   test("DEFAULT_SANDBOX_CONSTRAINTS has reasonable defaults", () => {
     expect(DEFAULT_SANDBOX_CONSTRAINTS.memoryMB).toBe(64)
-    expect(DEFAULT_SANDBOX_CONSTRAINTS.deadlineMs).toBe(12 * 60 * 60 * 1000)
+    expect(DEFAULT_SANDBOX_CONSTRAINTS.deadlineMs).toBe(60 * 60 * 1000) // 1h, matches maxWallClockMs
   })
 
   test("AgentFailureReason has 5 values", () => {
@@ -507,6 +507,36 @@ describe("resolve.ts", () => {
   test("rejects invalid name for saved lookup", async () => {
     // "bad/name" is not a path (no ./ or ../), enters saved lookup branch, fails SAFE_NAME
     await expect(resolveWorkflow("bad/name", ws2)).rejects.toThrow("invalid workflow name")
+  })
+
+  test("rejects path traversal via ../../etc/passwd", async () => {
+    await expect(resolveWorkflow("../../etc/passwd", ws2)).rejects.toThrow(
+      /escapes workspace/i,
+    )
+  })
+
+  test("rejects absolute path /etc/passwd", async () => {
+    await expect(resolveWorkflow("/etc/passwd", ws2)).rejects.toThrow(
+      /escapes workspace/i,
+    )
+  })
+
+  test("rejects mixed traversal ./some/dir/../../../../etc/passwd", async () => {
+    await expect(
+      resolveWorkflow("./some/dir/../../../../etc/passwd", ws2),
+    ).rejects.toThrow(/escapes workspace/i)
+  })
+
+  test("allows relative path within workspace", async () => {
+    const wfDir = path.join(ws2, ".sffmc", "workflows")
+    mkdirSync(wfDir, { recursive: true })
+    writeFileSync(
+      path.join(wfDir, "inner.ts"),
+      `export const meta = { name: 'inner', description: 'inside' }`,
+    )
+    const result = await resolveWorkflow("./.sffmc/workflows/inner.ts", ws2)
+    expect(result.kind).toBe("file")
+    expect(result.meta.name).toBe("inner")
   })
 })
 
