@@ -30,6 +30,10 @@ const DEFAULT_PRNG_SEED = 0x9e3779b9               // fallback
 // agent() is never-throw for agent failures (returns null), so the only
 // throws reaching here are script-logic errors, which SHOULD fail loud
 // rather than become silent nulls that poison downstream .map/.filter.
+//
+// mcpList / mcpCall are host-injected (one round-trip each) and bound here
+// into a single `mcp` object so guest scripts use `mcp.list()` / `mcp.call()`.
+// The host side tracks per-run budget + recursion (see mcp.ts).
 // ---------------------------------------------------------------------------
 
 const PRELUDE = `
@@ -56,6 +60,14 @@ globalThis.URL = class URL {
   }
   toString() { return this.protocol + "//" + this.host + this.pathname + this.search + this.hash; }
 };
+// MCP bridge — bound to host-injected mcpList / mcpCall (see injectHooks).
+// When the runtime does not wire MCP support, both globals are set to no-ops
+// (mcpList returns []; mcpCall rejects with a clear error). Scripts can
+// therefore use mcp.list() and mcp.call(name, args) unconditionally.
+globalThis.mcp = {
+  list: (...args) => globalThis.mcpList(...args),
+  call: (...args) => globalThis.mcpCall(...args),
+};
 `
 
 // ---------------------------------------------------------------------------
@@ -70,7 +82,9 @@ type HostFn = (...args: unknown[]) => unknown | Promise<unknown>
  *  `parallel` / `pipeline` are defined in the PRELUDE (guest-side JS) and
  *  do NOT go through the host bridge — they are present in the interface so
  *  callers can provide typed stubs for type-safety even though the guest
- *  never calls the host versions. `args` is injected by value (JSON). */
+ *  never calls the host versions. `args` is injected by value (JSON).
+ *  `mcpList` / `mcpCall` are host-injected (one round-trip each) and the
+ *  PRELUDE binds them into the single `mcp` object the guest sees. */
 export interface SandboxPrimitives {
   agent: (task: string, opts?: Record<string, unknown>) => Promise<unknown>
   parallel: <T>(thunks: Array<() => Promise<T>>) => Promise<Array<T | null>>
@@ -82,6 +96,13 @@ export interface SandboxPrimitives {
   writeFile: (path: string, content: string) => Promise<void>
   glob: (pattern: string) => Promise<string[]>
   exists: (path: string) => Promise<boolean>
+  /** Host-injected: list the parent's available MCP tool names. No-op
+   *  (`Promise.resolve([])`) when MCP is not wired. */
+  mcpList: () => Promise<string[]>
+  /** Host-injected: dispatch a single MCP tool call. Rejects when the
+   *  budget is exceeded, recursion depth limit is reached, or the parent
+   *  SDK has no MCP surface. */
+  mcpCall: (name: string, args: unknown) => Promise<unknown>
   args: unknown // injected by value
 }
 
