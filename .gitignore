@@ -5,13 +5,15 @@ dist/
 *.log
 coverage/
 .vscode/
+.opencode/
+.mimocode/
 .idea/
 .env
 .env.local
-.slim/deepwork/
 .sffmc/
 dependencies/
 # Ignore auto-generated codemap files (maintained by codemap tool)
 **/codemap.md
+.codegraph/
 # Ignore .slim/* runtime files
 .slim/*
