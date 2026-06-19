@@ -47,3 +47,16 @@ export const MAX_LIFECYCLE_AGENTS = 1000
  *  the call graph becomes too deep to reason about; users can override
  *  via the per-run config. */
 export const MAX_DEPTH_DEFAULT = 8
+
+/** H5 — grace period for `recoverOrphanedWorkflows()`. A workflow row left
+ *  in 'running' status with `time_created` within this window is treated as
+ *  "process restarted, possibly recoverable" → marked 'paused' regardless
+ *  of journal presence. Past the window, the journal-presence check
+ *  decides. Default 5 minutes covers plugin-reload, VS Code hot-reload,
+ *  and the typical OS reboot (see v0.14 design §3.2). */
+export const DEFAULT_GRACE_PERIOD_MS = 5 * 60 * 1000
+
+/** Maximum grace period the user can configure. 24h is the absolute cap
+ *  so even an absurd operator setting can't make workflows live forever.
+ *  Validation in `WorkflowRuntime` constructor throws above this. */
+export const MAX_GRACE_PERIOD_MS = 24 * 60 * 60 * 1000

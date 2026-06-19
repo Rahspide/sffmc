@@ -5,7 +5,7 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
-import { createLogger } from "@sffmc/shared";
+import { createLogger, redactSecrets } from "@sffmc/shared";
 
 const log = createLogger("extra-checkpoint");
 
@@ -361,6 +361,28 @@ function _executeRestoreAction(sessionID: string | undefined, dir: string): unkn
 }
 
 /** Create the tool.execute.after hook that buffers tool calls. */
+/** Recursively walk an unknown value, redacting any string leaves via
+ *  `redactSecrets`. Non-string primitives pass through unchanged. Arrays and
+ *  plain objects are walked element-by-element. Used by M5 (checkpoint
+ *  write) so secrets embedded in tool output are replaced with
+ *  `[REDACTED:<category>]` markers BEFORE the JSONL line is written. */
+function sanitizeResult(result: unknown): unknown {
+  if (typeof result === "string") {
+    return redactSecrets(result).redacted
+  }
+  if (Array.isArray(result)) {
+    return result.map((v) => sanitizeResult(v))
+  }
+  if (result && typeof result === "object") {
+    const out: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(result as Record<string, unknown>)) {
+      out[k] = sanitizeResult(v)
+    }
+    return out
+  }
+  return result
+}
+
 function _createToolExecuteAfterHook(
   state: CheckpointBufferState,
 ): (
@@ -371,7 +393,7 @@ function _createToolExecuteAfterHook(
     const call: ToolCall = {
       tool: toolCtx.tool,
       args: (result.metadata as Record<string, unknown>)?.args ?? {},
-      result: result.output,
+      result: sanitizeResult(result.output),
       timestamp: Date.now(),
       callID: toolCtx.callID,
     };

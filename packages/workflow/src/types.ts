@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/workflow — see ../../LICENSE
 
-import { SCRIPT_DEADLINE_MS, WORKFLOW_LIMITS } from "./constants.ts"
+import { DEFAULT_GRACE_PERIOD_MS, SCRIPT_DEADLINE_MS, WORKFLOW_LIMITS } from "./constants.ts"
 
 /** Status of a workflow run. */
 export type WorkflowStatus =
@@ -80,10 +80,16 @@ export interface WorkflowConfig {
   maxWallClockMs: number
   /** Default per-agent timeout (ms). Default: 120_000 (2 min). */
   perStepTimeoutMs: number
+  /** Grace period (ms) for `recoverOrphanedWorkflows()`. Runs with
+   *  status='running' and age ≤ gracePeriodMs are marked 'paused' (resumable);
+   *  runs past grace without a journal are marked 'crashed' (not resumable).
+   *  Default: 300_000 (5 min). Cap: 24h. */
+  gracePeriodMs: number
 }
 
 export const DEFAULT_WORKFLOW_CONFIG: WorkflowConfig = {
   ...WORKFLOW_LIMITS,
+  gracePeriodMs: DEFAULT_GRACE_PERIOD_MS,
 }
 
 /** Constraints for the sandbox execution environment. */
@@ -99,10 +105,20 @@ export interface SandboxConstraints {
 
 // DEFAULT_SANDBOX_CONSTRAINTS moved to ./constants.ts (breaks types<->runtime cycle)
 
+/** Tool whitelist for an agent call. The string literal `"INHERIT"` resolves
+ *  against the parent OpenCode session's available MCP tools (the MiMo-Code
+ *  INHERIT pattern — w5-6-dynamic-workflow.md §Q7); an array pins the agent to
+ *  an explicit subset. See `mcp.ts` `ToolWhitelist`. */
+export type ToolWhitelist = readonly string[] | "INHERIT"
+
 /** Options passed to agent() inside a workflow script. */
 export interface AgentOptions {
   model?: string
-  tools?: readonly string[]
+  /** When omitted, defaults to `"INHERIT"` (parent's MCP tool set forwarded to
+   *  the LLM). When an array, the agent is pinned to that explicit subset.
+   *  When the literal string `"INHERIT"`, the runtime resolves the parent's
+   *  MCP tools via `mcp.resolveInheritedTools()` before forwarding. */
+  tools?: ToolWhitelist
   schema?: Record<string, unknown>
   isolation?: "worktree"
   label?: string

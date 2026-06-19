@@ -3,25 +3,20 @@ import type { MemoryDB } from "./memory";
 import { upsert, remove } from "./memory";
 import { readFileSync } from "fs";
 import { relative, basename } from "path";
+import { ensureRedactionRules, isSensitiveFilename } from "@sffmc/shared";
 import { AGENTS_FILE, MEMORY_BANK_DIR } from "./constants.ts";
-
-/** Patterns for filenames that should never be indexed into the memory DB.
- *  Prevents sensitive files (credentials, secrets, tokens) from being
- *  injected into LLM context via recon. */
-const SENSITIVE_FILE_PATTERNS = [
-  /credentials/i, /secrets?/i, /\.env/i, /password/i,
-  /token/i, /api[_-]?key/i, /private/i,
-];
-
-function isSensitiveFile(filePath: string): boolean {
-  const name = basename(filePath);
-  return SENSITIVE_FILE_PATTERNS.some(p => p.test(name));
-}
 
 export function startWatcher(
   rootDir: string,
   db: MemoryDB,
 ): { stop: () => void } {
+  // Pre-load redaction rules (user YAML + builtins) so the watcher's hot
+  // path can stay sync. Fire-and-forget — `isSensitiveFilename` falls back
+  // to BUILTIN_RULES if the cache isn't ready yet.
+  void ensureRedactionRules().catch(() => {
+    // Best-effort; fall back to built-ins if config can't be read.
+  })
+
   const patterns = [
     `${rootDir}/${MEMORY_BANK_DIR}/*.md`,
     `${rootDir}/${AGENTS_FILE}`,
@@ -38,7 +33,7 @@ export function startWatcher(
   });
 
   function indexFile(filePath: string): void {
-    if (isSensitiveFile(filePath)) return;
+    if (isSensitiveFilename(filePath)) return;
     try {
       const content = readFileSync(filePath, "utf-8");
       if (!content.trim()) return;

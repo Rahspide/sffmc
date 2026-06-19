@@ -12,6 +12,7 @@ import {
   DEFAULT_MEMORY_DB_PATH,
   HOOK_TOOL_EXECUTE_AFTER,
   NoLLMClientError,
+  redactSecrets,
   SECONDS_PER_DAY,
   unixNow,
 } from "@sffmc/shared";
@@ -159,11 +160,18 @@ function ensureArchiveDir(): void {
 
 function archiveEntry(entry: MemoryRow): void {
   ensureArchiveDir();
+  // M6 — redact content before writing to the dream archive. The archive
+  // is on-disk JSONL; if a memory row embedded a raw credential, the
+  // archive would persist it forever. `redactSecrets` returns the redacted
+  // text plus categories + count for forensic visibility.
+  const redaction = redactSecrets(entry.content);
   const record = {
     id: entry.id,
     source_path: entry.source_path,
     section: entry.section,
-    content: entry.content,
+    content: redaction.redacted,
+    redaction_count: redaction.count,
+    redaction_categories: redaction.categories,
     importance_score: entry.importance_score,
     last_accessed: entry.last_accessed,
     created_at: entry.created_at,

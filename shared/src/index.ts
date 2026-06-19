@@ -3,6 +3,8 @@
 
 export { loadConfig } from "./config.ts"
 export type { PluginContext } from "./context.ts"
+export { __resetRedactionCache, ensureRedactionRules, isSensitiveFilename, isSensitiveSourcePath, redactSecrets } from "./redact-secrets.ts"
+export type { RedactionCategory, RedactionResult } from "./redact-secrets.ts"
 export type { RichPluginContext } from "./context.ts"
 export { SESSION_CREATED } from "./event-names.ts"
 export { extractErrorType, isToolError, JSON_OBJECT_RE, LONG_OUTPUT_THRESHOLD, NoLLMClientError } from "./errors.ts"

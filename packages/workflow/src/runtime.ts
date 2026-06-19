@@ -34,10 +34,11 @@ import {
   DEFAULT_WORKFLOW_CONFIG,
   AgentFailureReason as AFR,
 } from "./types.ts"
-import { SCRIPT_DEADLINE_MS, DEFAULT_SANDBOX_CONSTRAINTS } from "./constants.ts"
+import { SCRIPT_DEADLINE_MS, DEFAULT_GRACE_PERIOD_MS, DEFAULT_SANDBOX_CONSTRAINTS, MAX_GRACE_PERIOD_MS } from "./constants.ts"
 import { getBuiltin, loadBuiltin } from "./builtin-registry.ts"
 import { cpus } from "node:os"
 import { type RichPluginContext, createLogger } from "@sffmc/shared";
+import { resolveInheritedTools, McpBridge, DEFAULT_MAX_MCP_CALLS, discoverParentTools } from "./mcp.ts";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -145,6 +146,9 @@ interface InternalRunEntry {
   /** Lexical jail root — persisted to DB; restored on resume(). Child workflows
    *  inherit from parent so the whole tree stays in the same directory. */
   workspace?: string
+  /** MCP bridge — per-run state for guest MCP calls (budget + recursion guard).
+   *  Constructed in `makeEntry` so each run gets an isolated counter. */
+  mcpBridge: McpBridge
 }
 
 // ---------------------------------------------------------------------------
@@ -155,6 +159,10 @@ export interface RuntimeOpts {
   /** Optional persistence instance. When omitted, a default on-disk
    *  persistence is created using XDG_DATA_HOME or ~/.local/share. */
   persistence?: WorkflowPersistence
+  /** Optional grace period override (ms). When provided, takes precedence
+   *  over both the user YAML config and the default. Used by tests to
+   *  inject a tighter window without round-tripping through the YAML. */
+  gracePeriodMsOverride?: number
 }
 
 // ---------------------------------------------------------------------------
@@ -169,11 +177,32 @@ export class WorkflowRuntime {
   private persistence: WorkflowPersistence
   /** Event bus for observability listeners. */
   readonly events = createEventBus()
+  /** H5 — grace period in ms, populated by the index.ts config hook
+   *  via `loadConfig<WorkflowConfig>("workflow", ...)`. Tests may also
+   *  inject a value via `RuntimeOpts.gracePeriodMsOverride`. Stored on
+   *  the runtime (not the plugin context) so `recoverOrphanedWorkflows()`
+   *  can read it synchronously. */
+  private gracePeriodMs: number = DEFAULT_GRACE_PERIOD_MS
 
   constructor(ctx: PluginContext, opts?: RuntimeOpts) {
     this.ctx = ctx
     this.globalSem = makeSemaphore(DEFAULT_MAX_CONCURRENT)
     this.persistence = opts?.persistence ?? new WorkflowPersistence()
+    if (opts?.gracePeriodMsOverride !== undefined) {
+      this.setGracePeriodMs(opts.gracePeriodMsOverride)
+    }
+  }
+
+  /** H5 — set the grace period at runtime. Used by the index.ts config
+   *  hook after `loadConfig` returns. Validates the value (integer,
+   *  0..24h) and throws on out-of-range. */
+  setGracePeriodMs(ms: number): void {
+    if (!Number.isInteger(ms) || ms < 0 || ms > MAX_GRACE_PERIOD_MS) {
+      throw new Error(
+        `Invalid gracePeriodMs: ${ms} (must be integer 0..${MAX_GRACE_PERIOD_MS})`,
+      )
+    }
+    this.gracePeriodMs = ms
   }
 
   // ── Public API ──────────────────────────────────────────────────────────
@@ -400,25 +429,41 @@ export class WorkflowRuntime {
    *  Any run left in 'running' status after a process restart is orphaned.
    *  Lock recovery is N/A — lockMap at runtime.ts:100 is in-process only;
    *  there is no on-disk lock. After this method returns, all orphaned
-   *  runs are either marked 'paused' (journal present, resumable) or
-   *  'crashed' (no journal). */
+   *  runs are either marked 'paused' (resumable) or 'crashed' (no journal).
+   *
+   *  H5 — grace period: a row with `time_created` within `gracePeriodMs`
+   *  of now is always marked 'paused' (regardless of journal presence);
+   *  rows past the grace use the legacy journal-presence check.
+   *  See v0.14 design §3.2. */
   async recoverOrphanedWorkflows(): Promise<void> {
     const rows = this.persistence.listRunningRuns()
+    const nowMs = Date.now()
+    const graceMs = this.gracePeriodMs
     for (const row of rows) {
       // Belt-and-suspenders: in-memory live runs can't be orphaned.
       if (this.runs.has(row.runID)) continue
+      const ageMs = nowMs - (row.createdAt * 1000)
+      if (ageMs <= graceMs) {
+        // Within grace: always paused. User gets to decide.
+        this.persistence.updateRunStatus(
+          row.runID,
+          "paused",
+          `Process restarted — within grace period (${Math.round(ageMs)}ms <= ${graceMs}ms); resumable`,
+        )
+        continue
+      }
       const hasJournal = await this.persistence.hasJournalEvents(row.runID)
       if (hasJournal) {
         this.persistence.updateRunStatus(
           row.runID,
           "paused",
-          "Process restarted — resumable from journal",
+          `Process restarted — past grace period (${Math.round(ageMs)}ms > ${graceMs}ms); resumable from journal`,
         )
       } else {
         this.persistence.updateRunStatus(
           row.runID,
           "crashed",
-          "Process restarted — no journal to recover",
+          `Process restarted — past grace period (${Math.round(ageMs)}ms) and no journal to recover`,
         )
       }
     }
@@ -487,6 +532,11 @@ export class WorkflowRuntime {
       writeFile: (path: string, content: string) => jail.writeFile(path, content),
       glob: (pattern: string) => jail.glob(pattern),
       exists: (path: string) => jail.exists(path),
+      // MCP bridge: list/call host functions wired into the guest via the
+      // sandbox PRELUDE (see sandbox.ts). Each call goes through the per-run
+      // McpBridge which enforces the budget + recursion guard (mcp.ts).
+      mcpList: () => this.dispatchMcpList(entry),
+      mcpCall: (name: string, args: unknown) => this.dispatchMcpCall(entry, name, args),
       args,
     }
 
@@ -773,6 +823,70 @@ export class WorkflowRuntime {
     this.events.emit("workflow:log", { runID: entry.runID, message: msg })
   }
 
+  // ── Private: MCP dispatch (per-run) ──────────────────────────────────────
+  //
+  // Host-side implementations of the guest's `mcp.list()` / `mcp.call()`
+  // globals. Each guest call funnels through `entry.mcpBridge` (budget +
+  // recursion guard). The actual MCP tool invocation goes through the parent
+  // OpenCode SDK (`ctx.client.tool.call`) — when the SDK surface is missing
+  // the dispatch fails closed with a typed error, never silently dropping the
+  // call (mcp.ts makeMcpPrimitives handles the throw path).
+
+  private async dispatchMcpList(entry: InternalRunEntry): Promise<string[]> {
+    const discovered = await discoverParentTools(this.ctx)
+    return discovered ?? []
+  }
+
+  private async dispatchMcpCall(
+    entry: InternalRunEntry,
+    name: string,
+    args: unknown,
+  ): Promise<unknown> {
+    const bridge = entry.mcpBridge
+
+    // Budget gate (lifecycle cap of MCP calls per run).
+    const budgetReject = bridge.checkBudget()
+    if (budgetReject !== null) {
+      bridge.recordRejected(name, args, budgetReject)
+      throw new Error(`[workflow:mcp] ${budgetReject}`)
+    }
+
+    // Recursion guard — a misbehaving MCP tool that triggers another
+    // workflow agent (or another MCP call) is short-circuited before the
+    // SDK dispatch rather than after.
+    if (!bridge.enterDispatch()) {
+      bridge.recordRejected(name, args, "MCP recursion depth exceeded")
+      throw new Error(`[workflow:mcp] recursion depth limit exceeded`)
+    }
+
+    try {
+      // Dispatch through parent SDK. `ctx.client.tool.call` is the OpenCode
+      // convention (see agentic/runtime.ts in MiMo-Code for the upstream
+      // shape). When the surface is absent we fail closed with a typed
+      // error — the bridge still records the attempt for observability.
+      const tool = (this.ctx.client as { tool?: { call?: (n: string, a: unknown) => Promise<unknown> } } | undefined)?.tool
+      if (!tool?.call) {
+        bridge.recordError(name, args, "no MCP SDK surface available")
+        throw new Error(`[workflow:mcp] no MCP SDK surface available on ctx.client.tool.call`)
+      }
+
+      const result = await tool.call(name, args)
+      bridge.recordCall(name, args)
+      return result
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      // recordCall already incremented callCount on the happy path; on a
+      // failed SDK call we still want it counted as "attempted" so budget
+      // reflects real SDK load, not just successes.
+      if (!msg.includes("no MCP SDK surface")) {
+        bridge.recordError(name, args, msg)
+      }
+      throw e
+    } finally {
+      bridge.leaveDispatch()
+    }
+  }
+
   // ── Private: LLM call ──────────────────────────────────────────────────
 
   private async callLLM(
@@ -795,12 +909,21 @@ export class WorkflowRuntime {
       { role: "user", content: prompt },
     ]
 
+    // Resolve `tools: "INHERIT"` against the parent MCP tool set BEFORE the
+    // SDK call. Three cases:
+    //   - undefined → forward literal "INHERIT" (legacy default; SDK resolves)
+    //   - array → shallow-copy and forward (do NOT mutate caller's array)
+    //   - "INHERIT" → discover parent tools; if discovery surface missing,
+    //     fall back to the literal so the SDK still resolves it correctly.
+    // The MCP bridge lives in mcp.ts; this runtime method only wires the call.
+    const resolvedTools = await resolveInheritedTools(opts.tools, this.ctx)
+
     // Use ctx.client.session.message() — bypasses Max Mode + tool.execute hooks
     if (this.ctx.client?.session?.message) {
       return this.ctx.client.session.message({
         messages,
         model: opts.model,
-        tools: opts.tools ? [...opts.tools] as string[] : "INHERIT",
+        tools: resolvedTools,
       }) as Promise<{
         content: Array<{ type: string; text?: string; data?: string }>
         info?: { tokens?: { input?: number; output?: number } }
@@ -877,6 +1000,7 @@ export class WorkflowRuntime {
       maxTokens: this.ctx.config?.maxTokens ?? DEFAULT_WORKFLOW_CONFIG.maxTokens,
       maxWallClockMs: this.ctx.config?.maxWallClockMs ?? DEFAULT_WORKFLOW_CONFIG.maxWallClockMs,
       perStepTimeoutMs: perStepTimeoutMsOverride ?? this.ctx.config?.perStepTimeoutMs ?? DEFAULT_WORKFLOW_CONFIG.perStepTimeoutMs,
+      gracePeriodMs: this.gracePeriodMs,
       maxDepth: MAX_DEPTH_DEFAULT,
       maxLifecycleAgents: MAX_LIFECYCLE_AGENTS,
     }
@@ -927,6 +1051,10 @@ export class WorkflowRuntime {
       journalPass: opts.journalPass ?? 0,
       cfg: opts.cfg,
       workspace: opts.workspace,
+      // Per-run MCP bridge — counter is isolated so concurrent runs don't
+      // share budget. Override `maxMcpCalls` via WorkflowConfig (deferred —
+      // for now the constant DEFAULT_MAX_MCP_CALLS is the only knob).
+      mcpBridge: new McpBridge(DEFAULT_MAX_MCP_CALLS),
     }
   }
 

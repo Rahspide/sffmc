@@ -5,7 +5,8 @@ import { WorkflowRuntime, type RuntimeOpts } from "./runtime.ts"
 import { createWorkflowTool } from "./tool.ts"
 import type { PluginContext } from "./runtime.ts"
 import type { WorkflowAgentFailedEvent, WorkflowFinishedEvent } from "./events.ts"
-import { createLogger } from "@sffmc/shared";
+import { createLogger, loadConfig } from "@sffmc/shared";
+import { DEFAULT_WORKFLOW_CONFIG } from "./types.ts";
 
 const log = createLogger("workflow")
 
@@ -28,7 +29,7 @@ export type {
 } from "./types.ts"
 
 export { DEFAULT_WORKFLOW_CONFIG } from "./types.ts"
-export { DEFAULT_SANDBOX_CONSTRAINTS } from "./constants.ts"
+export { DEFAULT_GRACE_PERIOD_MS, DEFAULT_SANDBOX_CONSTRAINTS, MAX_GRACE_PERIOD_MS } from "./constants.ts"
 export { WorkflowPersistence } from "./persistence.ts"
 export { parseMeta } from "./meta.ts"
 export { resolveWorkflow, isInlineScript } from "./resolve.ts"
@@ -39,7 +40,19 @@ export { WorkflowRuntime, type RuntimeOpts } from "./runtime.ts"
 
 export const id = "@sffmc/workflow"
 export const server = async (ctx: PluginContext) => {
+  // H5 — load user YAML config (gracePeriodMs + other workflow limits)
+  // once at startup. The runtime reads `this.gracePeriodMs` directly so
+  // `recoverOrphanedWorkflows()` can be called synchronously without
+  // hitting disk. Tests inject via `RuntimeOpts.gracePeriodMsOverride`
+  // to avoid the YAML round-trip.
+  const cfg = await loadConfig<typeof DEFAULT_WORKFLOW_CONFIG>("workflow", DEFAULT_WORKFLOW_CONFIG)
+
   const runtime = new WorkflowRuntime(ctx)
+  try {
+    runtime.setGracePeriodMs(cfg.gracePeriodMs)
+  } catch (err) {
+    log.warn(`workflow: invalid gracePeriodMs=${cfg.gracePeriodMs} — using default ${DEFAULT_WORKFLOW_CONFIG.gracePeriodMs}:`, err)
+  }
   const tool = createWorkflowTool(runtime)
 
   // Register observability listeners on the runtime's event bus
