@@ -21,10 +21,17 @@ export interface Rules {
   rules: Rule[];
 }
 
+/** Shared mutable state — violates DLC "no shared state" contract.
+ *  Consider refactoring to a RulesManager class in a future PR. */
 let panicMode = false;
 
 export function isPanicMode(): boolean {
   return panicMode;
+}
+
+/** Reset panic mode. Useful for tests and after manual rules reload. */
+export function resetPanicMode(): void {
+  panicMode = false;
 }
 
 export function loadRules(path: string): Rules {
