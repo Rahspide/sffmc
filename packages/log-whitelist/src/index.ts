@@ -12,26 +12,32 @@ interface LogWhitelistConfig {
   suppress_patterns: string[];
 }
 
+/** Default cap on kept lines after filtering. Picked to fit comfortably in
+ *  an LLM tool result without overflow. */
+const DEFAULT_MAX_KEPT_LINES = 50;
+
 const defaultConfig: LogWhitelistConfig = {
   whitelist: [],
   blacklist: [],
-  max_kept_lines: 50,
+  max_kept_lines: DEFAULT_MAX_KEPT_LINES,
   truncate_marker: "... [N more lines]",
   log_filtered_count: true,
   suppress_patterns: [],
 };
 
 function compilePatterns(strings: string[]): RegExp[] {
-  return strings
-    .filter((s) => s.length > 0)
-    .map((s) => {
-      try {
-        return new RegExp(s);
-      } catch {
-        return new RegExp("");
-      }
-    })
-    .filter((re) => re.source !== "");
+  const out: RegExp[] = [];
+  for (const s of strings) {
+    if (s.length === 0) continue;
+    try {
+      out.push(new RegExp(s));
+    } catch (e) {
+      // Surface the bad pattern — silently swallowing it (via new RegExp(""))
+      // made the filter match everything and then drop it, hiding typos.
+      log.warn("invalid regex pattern:", s, e);
+    }
+  }
+  return out;
 }
 
 interface PluginState {

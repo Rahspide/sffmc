@@ -21,7 +21,7 @@ export function stripToolExecutes(
   for (const tool of tools) {
     if (tool.execute) {
       state.tools.set(tool.definition.name, { ...tool });
-      delete (tool as { execute?: unknown }).execute;
+      if ("execute" in tool) delete (tool as { execute?: unknown }).execute;
     }
   }
 
@@ -42,6 +42,13 @@ export function restoreToolExecutes(
     }
   }
 
+  state.tools.clear();
+  state.stripped = false;
+}
+
+/** Reset restore state without restoring any tools. Used by `/max execute`
+ *  to clear the schema-only flag when the user re-arms the toolset. */
+export function resetRestoreState(state: RestoreState): void {
   state.tools.clear();
   state.stripped = false;
 }

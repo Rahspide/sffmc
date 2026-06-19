@@ -481,21 +481,15 @@ interface DreamInstanceState {
 }
 
 /** Reference to the most recently created factory instance's state.
- *  Module-level wrapper functions delegate to this for backward compatibility with tests. */
+ *
+ *  Architectural debt (b34 audit, item #11): `_activeDreamState` + the
+ *  previously-exported `clearCronTimer`/`isDreamLocked` test backdoors leak
+ *  per-instance state via a module-level binding. The remaining variable is
+ *  retained for now (no production consumer) but should be removed when the
+ *  factory learns to return a `cleanup()` handle — tests can then call
+ *  `factory.cleanup()` instead of importing module-level backdoors.
+ */
 let _activeDreamState: DreamInstanceState | null = null;
-
-/** Clear a previously-set cron timer (useful for tests). */
-export function clearCronTimer(): void {
-  if (_activeDreamState?.cronTimer != null) {
-    clearInterval(_activeDreamState.cronTimer);
-    _activeDreamState.cronTimer = null;
-  }
-}
-
-/** Expose the dream lock so tests can inspect concurrency state. */
-export function isDreamLocked(): boolean {
-  return (_activeDreamState?.dreamLock ?? null) !== null;
-}
 
 // ---------------------------------------------------------------------------
 // Factory

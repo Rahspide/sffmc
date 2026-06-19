@@ -1,10 +1,13 @@
 import type { MemoryEntry } from "./memory";
+import { RECON_AGENTS_BUDGET, RECON_TASKTREE_BUDGET } from "./constants.ts";
+
+export { RECON_AGENTS_BUDGET, RECON_TASKTREE_BUDGET };
 
 const RECON_BUDGETS = {
   memory: 6144,
   checkpoint: 6144,
-  taskTree: 4096,
-  agents: 8192,
+  agents: RECON_AGENTS_BUDGET,
+  taskTree: RECON_TASKTREE_BUDGET,
 } as const;
 
 export function buildRecon(
@@ -34,13 +37,13 @@ export function buildRecon(
 
   const taskTreeText = taskTree || "(empty)";
   sections.push(
-    `## Task Tree (${RECON_BUDGETS.taskTree} chars)\n${truncate(taskTreeText, RECON_BUDGETS.taskTree)}`,
+    `## Task Tree (${RECON_TASKTREE_BUDGET} chars)\n${truncate(taskTreeText, RECON_TASKTREE_BUDGET)}`,
   );
 
   sections.push(`## Recent Context (${tail.length} chars)\n${tail}`);
 
   sections.push(
-    `## AGENTS.md (${RECON_BUDGETS.agents} chars)\n${truncate(agents, RECON_BUDGETS.agents)}`,
+    `## AGENTS.md (${RECON_AGENTS_BUDGET} chars)\n${truncate(agents, RECON_AGENTS_BUDGET)}`,
   );
 
   return `[Context Recon 8K — injected by F4' Memory]\n\n${sections.join("\n\n")}`;

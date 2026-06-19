@@ -1,6 +1,6 @@
 import { generateCandidates, type Candidate } from "./candidates";
 import { judgeCandidates, type Verdict } from "./judge";
-import { createRestoreState, stripToolExecutes, restoreToolExecutes } from "./restore";
+import { createRestoreState, stripToolExecutes, restoreToolExecutes, resetRestoreState } from "./restore";
 import { loadConfig, MAX_COMMAND, type RichPluginContext, createLogger } from "@sffmc/shared";
 
 const log = createLogger("max-mode");
@@ -100,7 +100,11 @@ export const server = async (ctx: RichPluginContext) => {
       const isExecute = cmd.includes("execute");
 
       if (isExecute) {
-        restoreToolExecutes([], state.restore);
+        // /max execute — clear schema-only mode and re-arm the toolset for
+        // real execution. resetRestoreState is the right primitive here
+        // (we don't want restoreToolExecutes to mutate any tool list — there
+        // isn't one in this branch — we just want to clear the flag).
+        resetRestoreState(state.restore);
         state.maxUsedThisSession = false;
         return;
       }
@@ -190,10 +194,9 @@ export const server = async (ctx: RichPluginContext) => {
       _toolCtx: { tool: string },
       _args: { args: Record<string, unknown> },
     ) => {
-      if (state.restore.stripped) {
-        // Schema-only mode: don't execute, just return placeholder
-        _args.args = { ..._args.args, _schemaOnly: true };
-      }
+      // Schema-only mode is reserved for future use; today the strip happens
+      // upstream of tool.execute.before. The placeholder write to _args.args
+      // was dead — nothing on the consumer side reads _schemaOnly.
     },
 
     "experimental.chat.messages.transform": async (

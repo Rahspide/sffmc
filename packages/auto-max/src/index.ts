@@ -13,13 +13,13 @@ const log = createLogger("auto-max");
 
 const defaultConfig: AutoMaxConfig = {
   enabled: true,
-  dry_run: false,
-  watchdog_threshold: 3,
-  max_mode_config: {
+  dryRun: false,
+  watchdogThreshold: 3,
+  maxModeConfig: {
     n: 3,
-    judge_model: "",
+    judgeModel: "",
   },
-  cost_cap_per_session: 1,
+  costCapPerSession: 1,
 };
 
 interface AutoMaxTrigger {
@@ -27,7 +27,7 @@ interface AutoMaxTrigger {
   errorType: string;
   failCount: number;
   sessionID: string;
-  maxConfig: AutoMaxConfig["max_mode_config"];
+  maxConfig: AutoMaxConfig["maxModeConfig"];
 }
 
 interface PluginState {
@@ -66,7 +66,7 @@ export const server = async (_ctx: PluginContext) => {
     loadedLogged = true;
     if (config.enabled) {
       log.warn(
-        `loaded, threshold=${config.watchdog_threshold}, cap=${config.cost_cap_per_session}/session`,
+        `loaded, threshold=${config.watchdogThreshold}, cap=${config.costCapPerSession}/session`,
       );
     } else {
       log.warn("loaded, DISABLED via config");
@@ -91,15 +91,18 @@ export const server = async (_ctx: PluginContext) => {
       const output = result.output ?? result.metadata ?? "";
       const meta = result.metadata as { error?: unknown } | null | undefined;
 
+      // Compute the error type once. extractErrorType walks o.code / o.name /
+      // string-prefix; cached below to avoid a second walk on the error path.
+      const errorType = extractErrorType(output);
+
       // Error path: extractErrorType covers o.code / o.name; hasMetadataError
       // covers the explicit meta.error flag. isObjectError branch (extracted
       // in determineErrorType before this commit) is now subsumed by
       // extractErrorType's "if (o.code) / if (o.name)" checks.
-      if (!hasMetadataError(meta) && extractErrorType(output) === "UNKNOWN") {
+      if (!hasMetadataError(meta) && errorType === "UNKNOWN") {
         recordSuccess(getOrCreateSession(state, sessionID), tool);
         return;
       }
-      const errorType = extractErrorType(output);
       handleTrigger(state, config, tool, errorType, sessionID);
       return;
     },
@@ -155,10 +158,10 @@ function handleTrigger(
   recordFailure(session, tool, errorType);
 
   if (shouldTriggerMaxMode(session, tool, errorType, config)) {
-    if (config.dry_run) {
+    if (config.dryRun) {
       const failCount = session.failCount.get(`${tool}::${errorType}`) ?? 0;
       log.warn(
-        `dry_run=true: would trigger max-mode for session=${sessionID} (failures=${failCount}, threshold=${config.watchdog_threshold})`,
+        `dryRun=true: would trigger max-mode for session=${sessionID} (failures=${failCount}, threshold=${config.watchdogThreshold})`,
       );
       return;
     }
@@ -166,16 +169,16 @@ function handleTrigger(
     markTriggered(session);
 
     log.warn(
-      `TRIGGERED: ${tool}:${errorType} failed ${config.watchdog_threshold}x in session ${sessionID}\n` +
-      `→ Activating Max Mode, generating ${config.max_mode_config.n} candidates`,
+      `TRIGGERED: ${tool}:${errorType} failed ${config.watchdogThreshold}x in session ${sessionID}\n` +
+      `→ Activating Max Mode, generating ${config.maxModeConfig.n} candidates`,
     );
 
     state._autoMaxTrigger.set(sessionID, {
       tool,
       errorType,
-      failCount: config.watchdog_threshold,
+      failCount: config.watchdogThreshold,
       sessionID,
-      maxConfig: config.max_mode_config,
+      maxConfig: config.maxModeConfig,
     });
   }
 }

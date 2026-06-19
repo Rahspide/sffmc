@@ -9,12 +9,20 @@
 // Extracted from index.ts (Phase 2) so the MSP can compose it via runtime hook().
 
 import { init, topByImportance, type MemoryDB } from "./memory"
-import { buildRecon, tailFromMessages } from "./recon"
+import { buildRecon, tailFromMessages, RECON_AGENTS_BUDGET } from "./recon"
 import { startWatcher } from "./watcher"
-import { loadConfig, type PluginContext, createLogger, DEFAULT_MEMORY_DB_PATH } from "@sffmc/shared";
+import {
+  loadConfig,
+  type PluginContext,
+  createLogger,
+  DEFAULT_MEMORY_DB_PATH,
+  HOOK_CHAT_MESSAGES_TRANSFORM,
+  SESSION_CREATED,
+} from "@sffmc/shared";
 import { readFileSync, existsSync, mkdirSync } from "fs"
 import { resolve, dirname } from "path"
 import { homedir } from "node:os"
+import { AGENTS_FILE } from "./constants.ts";
 
 interface MemoryConfig {
   storagePath: string
@@ -25,7 +33,7 @@ const log = createLogger("memory");
 
 const defaultConfig: MemoryConfig = {
   storagePath: DEFAULT_MEMORY_DB_PATH(),
-  tailChars: 8192,
+  tailChars: RECON_AGENTS_BUDGET,
 }
 
 interface PluginState {
@@ -77,13 +85,13 @@ export const server = async (ctx: PluginContext) => {
     },
 
     event: async (payload: { event: string; [key: string]: unknown }) => {
-      if (payload.event === "session.created") {
+      if (payload.event === SESSION_CREATED) {
         state.reconNeededThisSession = true
         state.reconInjectedThisSession = false
       }
     },
 
-    "experimental.chat.messages.transform": async (
+    [HOOK_CHAT_MESSAGES_TRANSFORM]: async (
       _input: unknown,
       data: {
         messages: Array<{
@@ -100,7 +108,7 @@ export const server = async (ctx: PluginContext) => {
         const db = await ensureDB()
         const memory = topByImportance(db, 20)
 
-        const agentsPath = resolve(ctx.projectRoot, "AGENTS.md")
+        const agentsPath = resolve(ctx.projectRoot, AGENTS_FILE)
         let agents = ""
         if (existsSync(agentsPath)) {
           agents = readFileSync(agentsPath, "utf-8")

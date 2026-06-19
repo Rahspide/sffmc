@@ -309,6 +309,17 @@ export const checkToolRegistration = createCheck("tool_registration", async (rep
       // Track which keys have string values (for distinguishing tool-level name vs parameter)
       const stringKeysByIndent = new Map<number, Set<string>>();
 
+      // Lazy-init helper: returns the Set for a given indent, creating it if
+      // absent. Avoids repeated `.has`/`.set`/`.get!` dance at every line.
+      const getOrCreate = (m: Map<number, Set<string>>, indent: number): Set<string> => {
+        let s = m.get(indent);
+        if (!s) {
+          s = new Set();
+          m.set(indent, s);
+        }
+        return s;
+      };
+
       let inBlockComment = false;
       for (const line of lines) {
         const trimmed = line.trim();
@@ -332,12 +343,10 @@ export const checkToolRegistration = createCheck("tool_registration", async (rep
         const afterColon = line.slice(keyMatch[0].length).trim();
         const isStringVal = /^["'`]/.test(afterColon);
 
-        if (!keysByIndent.has(indent)) keysByIndent.set(indent, new Set());
-        keysByIndent.get(indent)!.add(key);
+        getOrCreate(keysByIndent, indent).add(key);
 
         if (isStringVal) {
-          if (!stringKeysByIndent.has(indent)) stringKeysByIndent.set(indent, new Set());
-          stringKeysByIndent.get(indent)!.add(key);
+          getOrCreate(stringKeysByIndent, indent).add(key);
         }
       }
 

@@ -3,14 +3,15 @@ import type { MemoryDB } from "./memory";
 import { upsert, remove } from "./memory";
 import { readFileSync } from "fs";
 import { relative, basename } from "path";
+import { AGENTS_FILE, MEMORY_BANK_DIR } from "./constants.ts";
 
 export function startWatcher(
   rootDir: string,
   db: MemoryDB,
 ): { stop: () => void } {
   const patterns = [
-    `${rootDir}/memory-bank/*.md`,
-    `${rootDir}/AGENTS.md`,
+    `${rootDir}/${MEMORY_BANK_DIR}/*.md`,
+    `${rootDir}/${AGENTS_FILE}`,
     `${rootDir}/*.md`,
   ];
 
@@ -49,10 +50,10 @@ export function startWatcher(
 
 function determineSection(filePath: string, rootDir: string): string {
   const rel = relative(rootDir, filePath);
-  if (rel.startsWith("memory-bank/")) {
+  if (rel.startsWith(`${MEMORY_BANK_DIR}/`)) {
     const parts = rel.split("/");
     return parts.slice(1).join("/").replace(/\.md$/, "");
   }
-  if (basename(filePath) === "AGENTS.md") return "agents";
+  if (basename(filePath) === AGENTS_FILE) return "agents";
   return basename(filePath).replace(/\.md$/, "");
 }

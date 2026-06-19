@@ -15,27 +15,62 @@ export type PluginServer = {
   [hook: string]: unknown;
 };
 
+// ---------------------------------------------------------------------------
+// Hook name constants — single source of truth for OpenCode hook keys.
+// Plugin authors should import these instead of typing the string literal,
+// so a typo or upstream rename is caught at compile time.
+// ---------------------------------------------------------------------------
+
+/** Fires before a tool call is executed. Args: (toolCtx, args). GATE semantics. */
+export const HOOK_TOOL_EXECUTE_BEFORE = "tool.execute.before"
+
+/** Fires after a tool call completes. Args: (toolCtx, result). GATE semantics. */
+export const HOOK_TOOL_EXECUTE_AFTER = "tool.execute.after"
+
+/** Fires when a permission decision is requested. Args: (permCtx). GATE semantics. */
+export const HOOK_PERMISSION_ASK = "permission.ask"
+
+/** Fires before a slash command is executed. Args: (cmdCtx). GATE semantics. */
+export const HOOK_COMMAND_EXECUTE_BEFORE = "command.execute.before"
+
+/** Fires after the LLM has assembled an assistant message but before the
+ *  user sees it. Args: (input, data). TRANSFORM semantics — the `data.messages`
+ *  array is mutated in place by chained handlers. */
+export const HOOK_CHAT_MESSAGES_TRANSFORM = "experimental.chat.messages.transform"
+
+/** Same as MESSAGES_TRANSFORM but for the `system` prompt array. */
+export const HOOK_CHAT_SYSTEM_TRANSFORM = "experimental.chat.system.transform"
+
+/** Fires as text completes streaming. Args: (msgCtx, data). TRANSFORM semantics. */
+export const HOOK_TEXT_COMPLETE = "experimental.text.complete"
+
+/** Fires when a session starts. Args: (sessionCtx). SIDE_EFFECT semantics. */
+export const HOOK_SESSION_START = "experimental.session.start"
+
+/** Fires when a session ends. Args: (sessionCtx). SIDE_EFFECT semantics. */
+export const HOOK_SESSION_END = "experimental.session.end"
+
 /** Hook keys where the last argument is a transformable value that should be chained through handlers in registration order. */
 export const TRANSFORM_HOOKS: ReadonlySet<string> = new Set([
-  "experimental.chat.messages.transform",
-  "experimental.chat.system.transform",
-  "experimental.text.complete",
+  HOOK_CHAT_MESSAGES_TRANSFORM,
+  HOOK_CHAT_SYSTEM_TRANSFORM,
+  HOOK_TEXT_COMPLETE,
 ]);
 
 /** Hook keys where the first handler returning a truthy value wins and short-circuits. */
 export const GATE_HOOKS: ReadonlySet<string> = new Set([
-  "tool.execute.before",
-  "tool.execute.after",
-  "permission.ask",
-  "command.execute.before",
+  HOOK_TOOL_EXECUTE_BEFORE,
+  HOOK_TOOL_EXECUTE_AFTER,
+  HOOK_PERMISSION_ASK,
+  HOOK_COMMAND_EXECUTE_BEFORE,
 ]);
 
 /** Hook keys where all handlers are called sequentially with the same args (side effects, no return value). */
 export const SIDE_EFFECT_HOOKS: ReadonlySet<string> = new Set([
   "config",
   "event",
-  "experimental.session.start",
-  "experimental.session.end",
+  HOOK_SESSION_START,
+  HOOK_SESSION_END,
 ]);
 
 /**

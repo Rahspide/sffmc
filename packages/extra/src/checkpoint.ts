@@ -262,7 +262,7 @@ function _getOrCreateBuffer(state: CheckpointBufferState, sessionID: string): To
 
 function reconstructMessages(
   calls: ToolCall[],
-): Array<{ role: string; content: string }> {
+): Array<{ role: "assistant"; content: string }> {
   return calls.map(
     (tc) => ({
       role: "assistant" as const,

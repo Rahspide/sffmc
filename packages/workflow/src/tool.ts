@@ -2,6 +2,7 @@
 // @sffmc/workflow — see ../../LICENSE
 
 import type { WorkflowRuntime } from "./runtime.ts"
+import { WORKFLOW_SEARCH_DIRS } from "./constants.ts"
 
 // ---------------------------------------------------------------------------
 // Discriminated union type for compile-time validation
@@ -23,7 +24,7 @@ export function createWorkflowTool(runtime: WorkflowRuntime) {
     description: `Run, monitor, and resume multi-step orchestrated workflows. Use this for tasks with 5+ sequential steps or any fan-out (parallel) work that needs to be durable across the LLM session.
 
 5 operations:
-- run: start a new workflow. Provide either a saved name (from .sffmc/workflows/ or .claude/workflows/), inline script (with export const meta), or file path to a .ts script.
+- run: start a new workflow. Provide either a saved name (from one of: ${WORKFLOW_SEARCH_DIRS.map((d) => `\`${d}/\``).join(", ")}), inline script (with export const meta), or file path to a .ts script.
 - status: poll progress. Returns steps completed, last output, elapsed time.
 - wait: block until completion (or timeout). Use when you want to wait for the workflow before continuing.
 - cancel: stop a running workflow.

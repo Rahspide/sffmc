@@ -30,3 +30,19 @@ export const WORKFLOW_LIMITS = {
   maxWallClockMs: 3_600_000, // 1 hour
   perStepTimeoutMs: 120_000, // 2 minutes
 } as const
+
+/** Directories (under the workspace, walked upward) where saved workflows
+ *  may be looked up by name. Order matters — first match wins. The
+ *  `.sffmc/workflows` namespace is SFFMC's own; `.claude/workflows`
+ *  is the legacy Claude convention for backward compatibility. */
+export const WORKFLOW_SEARCH_DIRS = [".sffmc/workflows", ".claude/workflows"] as const
+
+/** Hard cap on the total number of agents a workflow can spawn across
+ *  its entire lifetime. Bounded so a buggy recursive workflow can't
+ *  exhaust host resources. */
+export const MAX_LIFECYCLE_AGENTS = 1000
+
+/** Default max nesting depth for nested workflow invocations. Beyond 8
+ *  the call graph becomes too deep to reason about; users can override
+ *  via the per-run config. */
+export const MAX_DEPTH_DEFAULT = 8
