@@ -57,6 +57,11 @@ const FLUSH_THRESHOLD = 50;
 const FLUSH_INTERVAL_MS = 5_000;
 export const CURRENT_VERSION = 1;
 
+/** Maximum number of sessions tracked in the in-memory buffer map.
+ *  Prevents unbounded memory growth when many sessions are active.
+ *  LRU sessions are flushed to disk and evicted when exceeded. */
+const MAX_BUFFER_SESSIONS = 50;
+
 // ---------------------------------------------------------------------------
 // Storage path — overridable for tests
 // ---------------------------------------------------------------------------
@@ -250,6 +255,15 @@ function _stopFlushTimer(state: CheckpointBufferState): void {
 function _getOrCreateBuffer(state: CheckpointBufferState, sessionID: string): ToolCall[] {
   let buf = state.sessionBuffers.get(sessionID);
   if (!buf) {
+    // Evict LRU session when cap is reached
+    if (state.sessionBuffers.size >= MAX_BUFFER_SESSIONS) {
+      const oldestKey = state.sessionBuffers.keys().next().value;
+      if (oldestKey) {
+        _flushSession(state, oldestKey);
+        state.sessionBuffers.delete(oldestKey);
+        state.headersWritten.delete(oldestKey);
+      }
+    }
     buf = [];
     state.sessionBuffers.set(sessionID, buf);
   }
