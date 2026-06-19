@@ -151,6 +151,16 @@ describe("resolveScript: rejects input.file path traversal", () => {
     ).rejects.toThrow(/escapes workspace/i)
   })
 
+  test("start() rejects mixed traversal ./some/dir/../../../../etc/passwd via input.file", async () => {
+    const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
+    await expect(
+      runtime.start({
+        file: "./some/dir/../../../../etc/passwd",
+        workspace: tmpDir,
+      }),
+    ).rejects.toThrow(/escapes workspace/i)
+  })
+
   test("start() allows valid file path within workspace", async () => {
     const innerDir = path.join(tmpDir, "wf-inner")
     mkdirSync(innerDir, { recursive: true })
