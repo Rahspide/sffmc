@@ -4,59 +4,62 @@
   "workspaces": {
     "": {
       "name": "sffmc",
+      "devDependencies": {
+        "safe-regex": "^2.1.1",
+      },
     },
     "packages/agentic": {
       "name": "@sffmc/agentic",
-      "version": "0.12.0",
+      "version": "0.14.0",
       "dependencies": {
         "@sffmc/shared": "workspace:*",
       },
     },
     "packages/auto-max": {
       "name": "@sffmc/auto-max",
-      "version": "0.12.0",
+      "version": "0.14.0",
       "dependencies": {
         "@sffmc/shared": "workspace:*",
       },
     },
     "packages/compose": {
       "name": "@sffmc/compose",
-      "version": "0.12.0",
+      "version": "0.14.0",
       "dependencies": {
         "@sffmc/shared": "workspace:*",
       },
     },
     "packages/eos-stripper": {
       "name": "@sffmc/eos-stripper",
-      "version": "0.12.0",
+      "version": "0.14.0",
       "dependencies": {
         "@sffmc/shared": "workspace:*",
       },
     },
     "packages/extra": {
       "name": "@sffmc/extra",
-      "version": "0.12.0",
+      "version": "0.14.0",
       "dependencies": {
         "@sffmc/shared": "workspace:*",
       },
     },
     "packages/health": {
       "name": "@sffmc/health",
-      "version": "0.12.0",
+      "version": "0.14.0",
       "dependencies": {
         "@sffmc/shared": "workspace:*",
       },
     },
     "packages/log-whitelist": {
       "name": "@sffmc/log-whitelist",
-      "version": "0.12.0",
+      "version": "0.14.0",
       "dependencies": {
         "@sffmc/shared": "workspace:*",
       },
     },
     "packages/max-mode": {
       "name": "@sffmc/max-mode",
-      "version": "0.12.0",
+      "version": "0.14.0",
       "dependencies": {
         "@sffmc/shared": "workspace:*",
         "yaml": "^2.0.0",
@@ -64,7 +67,7 @@
     },
     "packages/memory": {
       "name": "@sffmc/memory",
-      "version": "0.12.0",
+      "version": "0.14.0",
       "dependencies": {
         "@sffmc/shared": "workspace:*",
         "chokidar": "^5.0.0",
@@ -73,7 +76,7 @@
     },
     "packages/rules": {
       "name": "@sffmc/rules",
-      "version": "0.12.0",
+      "version": "0.14.0",
       "dependencies": {
         "@sffmc/shared": "workspace:*",
         "yaml": "^2.0.0",
@@ -81,21 +84,21 @@
     },
     "packages/safety": {
       "name": "@sffmc/safety",
-      "version": "0.12.0",
+      "version": "0.14.0",
       "dependencies": {
         "@sffmc/shared": "workspace:*",
       },
     },
     "packages/watchdog": {
       "name": "@sffmc/watchdog",
-      "version": "0.12.0",
+      "version": "0.14.0",
       "dependencies": {
         "@sffmc/shared": "workspace:*",
       },
     },
     "packages/workflow": {
       "name": "@sffmc/workflow",
-      "version": "0.12.0",
+      "version": "0.14.0",
       "dependencies": {
         "@sffmc/shared": "workspace:*",
         "quickjs-emscripten": "0.32.0",
@@ -109,7 +112,7 @@
     },
     "shared": {
       "name": "@sffmc/shared",
-      "version": "0.12.0",
+      "version": "0.14.0",
       "dependencies": {
         "yaml": "^2.0.0",
       },
@@ -167,6 +170,10 @@
     "quickjs-emscripten-core": ["quickjs-emscripten-core@0.32.0", "", { "dependencies": { "@jitl/quickjs-ffi-types": "0.32.0" } }, "sha512-QFnPfjFey8EqknSrSxe1hZrf1/8z7/6s1QzGOmKo6++02r7QRRX7ZoyNaZh7JuVjWsVW87KnQrbZqnHkOAzUyg=="],
 
     "readdirp": ["readdirp@5.0.0", "", {}, "sha512-9u/XQ1pvrQtYyMpZe7DXKv2p5CNvyVwzUB6uhLAnQwHMSgKMBR62lc7AHljaeteeHXn11XTAaLLUVZYVZyuRBQ=="],
+
+    "regexp-tree": ["regexp-tree@0.1.27", "", { "bin": { "regexp-tree": "bin/regexp-tree" } }, "sha512-iETxpjK6YoRWJG5o6hXLwvjYAoW+FEZn9os0PD/b6AP6xQwsa/Y7lCVgIixBbUPMfhu+i2LtdeAqVTgGlQarfA=="],
+
+    "safe-regex": ["safe-regex@2.1.1", "", { "dependencies": { "regexp-tree": "~0.1.1" } }, "sha512-rx+x8AMzKb5Q5lQ95Zoi6ZbJqwCLkqi3XuJXp5P3rT8OEc6sZCJG5AE5dU3lsgRr/F4Bs31jSlVN+j5KrsGu9A=="],
 
     "typescript": ["typescript@6.0.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw=="],
 

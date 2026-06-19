@@ -71,14 +71,17 @@ interface RedactionRule {
  */
 const BUILTIN_RULES: ReadonlyArray<RedactionRule> = [
   // A — env files (filename-only)
-  { id: "env-file", pattern: /^\.env(\.[\w-]+)?$/i, filenameOnly: true, description: ".env and .env.*" },
-  // B — credential filenames (replaces L1's over-broad list)
-  { id: "filename-credentials", pattern: /^credentials(\.[\w-]+)?$/i, filenameOnly: true, description: "credentials.{json,yaml,txt,md}" },
-  { id: "filename-secrets", pattern: /^secrets?(\.[\w-]+)?$/i, filenameOnly: true, description: "secret / secrets" },
-  { id: "filename-password", pattern: /^passwords?(\.[\w-]+)?$/i, filenameOnly: true, description: "password / passwords" },
-  { id: "filename-token", pattern: /^tokens?(\.[\w-]+)?$/i, filenameOnly: true, description: "token / tokens" },
-  { id: "filename-api-key", pattern: /^api[_-]?keys?(\.[\w-]+)?$/i, filenameOnly: true, description: "api_key / apikey / api-key" },
-  { id: "filename-private-key", pattern: /^private[_-]?keys?(\.[\w-]+)?$/i, filenameOnly: true, description: "private_key / private-key" },
+  { id: "env-file", pattern: /^(?:\.env|\.env\.[\w-]+)$/i, filenameOnly: true, description: ".env and .env.*" },
+  // B — credential filenames (replaces L1's over-broad list).
+  // Pattern rewritten as `^(?:X|X\.[\w-]+)$` instead of `^X(\.[\w-]+)?$` to
+  // satisfy safe-regex's star-height-1 check (the nested `+` inside the
+  // optional group was a known false positive). Match set is identical.
+  { id: "filename-credentials", pattern: /^(?:credentials|credentials\.[\w-]+)$/i, filenameOnly: true, description: "credentials.{json,yaml,txt,md}" },
+  { id: "filename-secrets", pattern: /^(?:secrets?|secrets?\.[\w-]+)$/i, filenameOnly: true, description: "secret / secrets" },
+  { id: "filename-password", pattern: /^(?:passwords?|passwords?\.[\w-]+)$/i, filenameOnly: true, description: "password / passwords" },
+  { id: "filename-token", pattern: /^(?:tokens?|tokens?\.[\w-]+)$/i, filenameOnly: true, description: "token / tokens" },
+  { id: "filename-api-key", pattern: /^(?:api[_-]?keys?|api[_-]?keys?\.[\w-]+)$/i, filenameOnly: true, description: "api_key / apikey / api-key" },
+  { id: "filename-private-key", pattern: /^(?:private[_-]?keys?|private[_-]?keys?\.[\w-]+)$/i, filenameOnly: true, description: "private_key / private-key" },
   // B' — source-path rules (L2 preserved behavior). Match sensitive
   // directory names anywhere in the path. A file inside a `secrets/`
   // directory leaks context regardless of the file's basename.
@@ -160,6 +163,19 @@ async function getRules(): Promise<ReadonlyArray<RedactionRule>> {
 /** Test escape hatch — flush the cache so the next call re-reads YAML. */
 export function __resetRedactionCache(): void {
   compiledRules = null
+}
+
+/** Internal export — used by `scripts/check-redos.ts` and the ReDoS test
+ *  to validate built-in patterns against `safe-regex`. Returns a stable
+ *  view (id + RegExp pattern) suitable for static analysis; the order
+ *  matches the catalogue definition. User-defined rules from YAML are
+ *  NOT included — those are validated when `getRules()` compiles them. */
+export function __listBuiltinRedactionRules(): ReadonlyArray<{
+  id: RedactionCategory
+  pattern: RegExp
+  description: string
+}> {
+  return BUILTIN_RULES.map((r) => ({ id: r.id, pattern: r.pattern, description: r.description }))
 }
 
 /** Test escape hatch — point config loading at a temp dir. */
