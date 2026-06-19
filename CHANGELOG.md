@@ -1,5 +1,51 @@
 # SFFMC Changelog
 
+## v0.12.1 (2026-06-19)
+
+Security audit fixes — 30 hardening commits from external contributor Manriel.
+
+### Fixed
+
+- **H1 — Workflow file path traversal jail** (`packages/workflow/src/runtime.ts`): `resolveWorkflow()` now rejects paths that escape the workspace root. Tests cover `../`, `/etc/passwd`, and mixed `./dir/../../etc` cases.
+- **H2 — `input.file` path traversal jail** (`packages/workflow/src/runtime.ts:450-458`): same protection for the `input.file` workflow field.
+- **H3 — Git token in URL** (`packages/workflow/src/resolve.ts`): tokens moved from URL embeds to `http.extraHeader`.
+- **H4 — GPG signature verification** after clone/pull; strict GPG mode.
+- **H5 — Sandbox deadline reduced** from 12h to 1h wall-clock.
+- **H6 — Parallel LLM candidates capped** at 10 to prevent API abuse.
+- **H7 — `JSON.parse` wrapped in try/catch** for corrupted DB data.
+- **C1 — Dream dedup entries capped** to prevent O(n²) blowup.
+- **C2 — Checkpoint session buffer LRU** (`packages/extra/src/checkpoint.ts`): true LRU eviction via `delete + re-set` on every hit (was FIFO).
+- **C3 — Consistent oversize warnings**: `readHeader` and `readToolCalls` now log identical `checkpoint: skipping … exceeds limit` messages.
+- **C4 — Oversized AGENTS.md rejected** before reading into memory.
+- **M1 — YAML parsing uses `Schema.JSON`** in rules package.
+- **M3 — Child workflow resolution uses parent workspace**.
+- **M7 — Restrictive file permissions on data directories**.
+- **M10 — Restored messages from checkpoint capped at 50**.
+- **L1 — Sensitive filenames skipped** when indexing memory.
+- **L2 — Sensitive source paths filtered** from LLM recon injection.
+- **L3 — Event bus logs error message only**, not full error object.
+- **L4 — `panicMode` DLC violation documented** + `resetPanicMode()` added.
+- **L6 — TOCTOU race in `WorkspaceJail`** documented.
+- **L7 — `WORKFLOW_LIMITS` validated** before SQL DDL interpolation.
+- **L9 — Legacy migration failures log warnings** instead of silent swallow.
+
+### Security
+
+- Supply chain hardening: Actions pinned to SHAs, `Invoke-Expression` removed, strict GPG mode.
+
+### Docs
+
+- AGENTS.md: containerised testing policy.
+
+### Deferred to v0.14
+
+- L1/L2 regex narrowing (over-broad scope).
+- M2 checkpoint format change.
+- M4 schema refactor, M5/M6 combined redaction helper.
+- H5 12h → 1h grace period (regression risk; needs AGENTS.md hook).
+
+---
+
 ## v0.12.0 (2026-06-18)
 
 Workflow Resume Passthrough + 6 P0 coverage tests + journal/checkpoint performance + per-session state isolation.
