@@ -17,13 +17,13 @@ const testConfigPath = resolve(testConfigDir, "auto-max.yaml");
 
 const defaultConfig: AutoMaxConfig = {
   enabled: true,
-  dry_run: false,
-  watchdog_threshold: 3,
-  max_mode_config: {
+  dryRun: false,
+  watchdogThreshold: 3,
+  maxModeConfig: {
     n: 3,
-    judge_model: "test-model",
+    judgeModel: "test-model",
   },
-  cost_cap_per_session: 1,
+  costCapPerSession: 1,
 };
 
 describe("coordinator", () => {
@@ -129,7 +129,7 @@ describe("coordinator", () => {
   it("cost cap with higher limit allows multiple triggers", () => {
     const multiConfig: AutoMaxConfig = {
       ...defaultConfig,
-      cost_cap_per_session: 3,
+      costCapPerSession: 3,
     };
 
     const s = createSessionState();
@@ -168,7 +168,7 @@ describe("coordinator", () => {
   it("shouldTriggerMaxMode with threshold=2 triggers at 2 failures", () => {
     const lowThresholdConfig: AutoMaxConfig = {
       ...defaultConfig,
-      watchdog_threshold: 2,
+      watchdogThreshold: 2,
     };
 
     const s = createSessionState();
@@ -222,7 +222,7 @@ describe("coordinator", () => {
 
 describe("Plugin entry", () => {
   beforeAll(() => {
-    // Clean up stale config from any previous dry_run test run
+    // Clean up stale config from any previous dryRun test run
     try {
       unlinkSync(testConfigPath);
     } catch {}
@@ -508,21 +508,21 @@ describe("Plugin entry", () => {
     expect(data.system[0]).toContain("glob:ENOENT");
   });
 
-  // ── dry_run mode ──────────────────────────────────────────
+  // ── dryRun mode ──────────────────────────────────────────
 
-  describe("dry_run mode", () => {
+  describe("dryRun mode", () => {
     beforeAll(() => {
       mkdirSync(testConfigDir, { recursive: true });
       writeFileSync(
         testConfigPath,
         [
-          "dry_run: true",
+          "dryRun: true",
           "enabled: true",
-          "watchdog_threshold: 3",
-          "cost_cap_per_session: 1",
-          "max_mode_config:",
+          "watchdogThreshold: 3",
+          "costCapPerSession: 1",
+          "maxModeConfig:",
           "  n: 3",
-          "  judge_model: test-model",
+          "  judgeModel: test-model",
         ].join("\n"),
       );
     });
@@ -533,7 +533,7 @@ describe("Plugin entry", () => {
       } catch {}
     });
 
-    it("dry_run=true does not inject escalation fragment", async () => {
+    it("dryRun=true does not inject escalation fragment", async () => {
       const mod = await import("../../auto-max/src/index");
       const ctx: Record<string, unknown> = {
         projectRoot: "/tmp/test-project",
@@ -549,7 +549,7 @@ describe("Plugin entry", () => {
         );
       }
 
-      // Observable: dry_run must NOT populate the per-instance trigger
+      // Observable: dryRun must NOT populate the per-instance trigger
       // (state._autoMaxTrigger stays empty → transform adds nothing)
       const data = { system: ["existing"] };
       await hooks["experimental.chat.system.transform"]!(
@@ -559,7 +559,7 @@ describe("Plugin entry", () => {
       expect(data.system.length).toBe(1);
     });
 
-    it("dry_run=true logs 'would trigger' message", async () => {
+    it("dryRun=true logs 'would trigger' message", async () => {
       const mod = await import("../../auto-max/src/index");
       const ctx: Record<string, unknown> = {
         projectRoot: "/tmp/test-project",

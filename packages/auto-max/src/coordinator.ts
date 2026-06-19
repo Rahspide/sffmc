@@ -1,12 +1,12 @@
 export interface AutoMaxConfig {
   enabled: boolean;
-  dry_run: boolean;
-  watchdog_threshold: number;
-  max_mode_config: {
+  dryRun: boolean;
+  watchdogThreshold: number;
+  maxModeConfig: {
     n: number;
-    judge_model: string;
+    judgeModel: string;
   };
-  cost_cap_per_session: number;
+  costCapPerSession: number;
 }
 
 export interface SessionState {
@@ -53,10 +53,10 @@ export function shouldTriggerMaxMode(
 ): boolean {
   if (!config.enabled) return false;
   if (state.triggered) return false;
-  if (state.maxCallsThisSession >= config.cost_cap_per_session) return false;
+  if (state.maxCallsThisSession >= config.costCapPerSession) return false;
 
   const k = toolKey(tool, errorType);
-  return (state.failCount.get(k) ?? 0) >= config.watchdog_threshold;
+  return (state.failCount.get(k) ?? 0) >= config.watchdogThreshold;
 }
 
 export function markTriggered(state: SessionState): void {

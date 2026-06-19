@@ -1,3 +1,11 @@
+// SPDX-License-Identifier: MIT
+// @sffmc/auto-max — see ../../LICENSE
+//
+// F2.5' Auto-Max: Watches tool failures and triggers Max Mode after a
+// configurable threshold of consecutive same-tool errors. Mirrors the
+// safety/watchdog pattern but auto-resolves to Max Mode generation
+// (F4') instead of single-tool retry, and re-arms /max escape.
+
 import {
   createSessionState,
   recordFailure,
@@ -7,16 +15,29 @@ import {
   resetSession,
   type AutoMaxConfig,
 } from "./coordinator";
-import { extractErrorType, MAX_PATTERN, loadConfig, type PluginContext, createLogger, hasMetadataError } from "@sffmc/shared";
+import {
+  extractErrorType,
+  MAX_PATTERN,
+  loadConfig,
+  type PluginContext,
+  createLogger,
+  hasMetadataError,
+  DEFAULT_FAILURE_THRESHOLD,
+  DEFAULT_CANDIDATE_COUNT,
+  HOOK_CHAT_SYSTEM_TRANSFORM,
+  HOOK_COMMAND_EXECUTE_BEFORE,
+  HOOK_TOOL_EXECUTE_AFTER,
+  SESSION_CREATED,
+} from "@sffmc/shared";
 
 const log = createLogger("auto-max");
 
 const defaultConfig: AutoMaxConfig = {
   enabled: true,
   dryRun: false,
-  watchdogThreshold: 3,
+  watchdogThreshold: DEFAULT_FAILURE_THRESHOLD,
   maxModeConfig: {
-    n: 3,
+    n: DEFAULT_CANDIDATE_COUNT,
     judgeModel: "",
   },
   costCapPerSession: 1,
@@ -75,13 +96,13 @@ export const server = async (_ctx: PluginContext) => {
 
   return {
     event: async (payload: { event: string; [key: string]: unknown }) => {
-      if (payload.event === "session.created") {
+      if (payload.event === SESSION_CREATED) {
         const sid = String(payload.sessionID || "");
         resetSession(getOrCreateSession(state, sid));
       }
     },
 
-    "tool.execute.after": async (
+    [HOOK_TOOL_EXECUTE_AFTER]: async (
       toolCtx: { tool: string; sessionID: string; callID: string },
       result: { title?: string; output?: unknown; metadata?: unknown },
     ) => {
@@ -107,7 +128,7 @@ export const server = async (_ctx: PluginContext) => {
       return;
     },
 
-    "command.execute.before": async (cmdCtx: {
+    [HOOK_COMMAND_EXECUTE_BEFORE]: async (cmdCtx: {
       command: string;
       sessionID: string;
     }) => {
@@ -125,7 +146,7 @@ export const server = async (_ctx: PluginContext) => {
       );
     },
 
-    "experimental.chat.system.transform": async (
+    [HOOK_CHAT_SYSTEM_TRANSFORM]: async (
       _input: { sessionID?: string },
       data: { system: string[] },
     ) => {
