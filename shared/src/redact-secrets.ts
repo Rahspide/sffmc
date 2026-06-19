@@ -85,8 +85,12 @@ const BUILTIN_RULES: ReadonlyArray<RedactionRule> = [
   { id: "sourcepath-rule", pattern: /(^|\/)secrets?(\/|$)/i, description: "paths containing /secrets/" },
   { id: "sourcepath-credentials", pattern: /(^|\/)credentials(\/|$|\.)/i, description: "paths containing /credentials/" },
   { id: "sourcepath-private", pattern: /(^|\/)private(\/|$|\.)/i, description: "paths containing /private/" },
-  // C — PEM private keys
-  { id: "private-key-pem", pattern: /-----BEGIN (RSA |EC |DSA |OPENSSH |PGP |ENCRYPTED )?PRIVATE KEY-----/g, description: "PEM-armored private key blocks" },
+  // C — PEM private keys (M5.2 v0.14.1: full block — header, body, footer)
+  // The base64-encoded key material between BEGIN and END markers leaks the
+  // private key even after the header line is redacted, so the regex matches
+  // the entire armored block (non-greedy body) and `redactSecrets()` replaces
+  // the whole match with a single `[REDACTED:private-key-pem]` marker.
+  { id: "private-key-pem", pattern: /-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP |ENCRYPTED )?PRIVATE KEY-----[\s\S]*?-----END (?:RSA |EC |DSA |OPENSSH |PGP |ENCRYPTED )?PRIVATE KEY-----/g, description: "PEM-armored private key blocks (header + body + footer)" },
   // D — inline credential assignments
   { id: "api-key-assignment", pattern: /(api[_-]?key|apikey)\s*[=:]\s*["']?([A-Za-z0-9_+\-\/=]{16,})["']?/gi, description: "api_key=... or apiKey: ..." },
   { id: "password-assignment", pattern: /(password|passwd|pwd)\s*[=:]\s*["']?([^\s"']{6,})["']?/gi, description: "password=... or pwd: ..." },

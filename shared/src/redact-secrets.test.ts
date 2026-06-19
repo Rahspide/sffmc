@@ -61,14 +61,24 @@ describe("isSensitiveFilename — positive cases", () => {
 })
 
 describe("redactSecrets — positive cases", () => {
-  it("catches BEGIN RSA PRIVATE KEY blocks (4)", () => {
-    const input = `const x = "-----BEGIN RSA PRIVATE KEY-----\nMIIEvQ..."`
+  it("catches BEGIN RSA PRIVATE KEY blocks (header + body + footer) (4)", () => {
+    // M5.2 (v0.14.1): the PEM rule now redacts the FULL armored block —
+    // header line, base64-encoded key material body, and footer line — so
+    // the private key cannot be reconstructed from the body alone.
+    const input = [
+      `const x = "-----BEGIN RSA PRIVATE KEY-----`,
+      `MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQ==`,
+      `-----END RSA PRIVATE KEY-----"`,
+    ].join("\n")
     const r = redactSecrets(input)
-    // The PEM rule replaces the header line; the base64 body remains
-    // (replacing the body is M5's M5.2 deferred item, out of scope for v0.14).
     expect(r.redacted).toContain("[REDACTED:private-key-pem]")
     expect(r.redacted).not.toContain("-----BEGIN")
     expect(r.redacted).not.toContain("PRIVATE KEY-----")
+    expect(r.redacted).not.toContain("MIIEvQ")
+    expect(r.redacted).not.toContain("BAQEFAASCBKcwggSjAgEAAoIBAQ")
+    // The surrounding JS string context survives.
+    expect(r.redacted).toContain("const x")
+    expect(r.redacted).toContain(`"`)
   })
 
   it("catches api_key=... assignments (5)", () => {
@@ -173,7 +183,12 @@ describe("edge cases", () => {
   it("multiple categories in one content (19)", async () => {
     await ensureRedactionRules()
     const r = redactSecrets(
-      "api_key=ABCDEFGHIJKLMNOP\n-----BEGIN PRIVATE KEY-----",
+      [
+        "api_key=ABCDEFGHIJKLMNOP",
+        "-----BEGIN PRIVATE KEY-----",
+        "MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQ==",
+        "-----END PRIVATE KEY-----",
+      ].join("\n"),
     )
     expect(r.count).toBeGreaterThanOrEqual(2)
     expect(r.categories).toContain("api-key-assignment")
@@ -277,5 +292,79 @@ describe("performance", () => {
     }
     const elapsed = performance.now() - t0
     expect(elapsed).toBeLessThan(500)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// M5.2 — PEM body redaction (v0.14.1 hotfix) — 7 tests
+// ---------------------------------------------------------------------------
+
+describe("redactSecrets — PEM body redaction (M5.2)", () => {
+  it("redacts the base64 body of an RSA PRIVATE KEY block (29)", () => {
+    const body = "MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQ"
+    const input = `-----BEGIN RSA PRIVATE KEY-----\n${body}==\n-----END RSA PRIVATE KEY-----`
+    const r = redactSecrets(input)
+    expect(r.redacted).toContain("[REDACTED:private-key-pem]")
+    expect(r.redacted).not.toContain(body)
+    // The marker is a single replacement of the entire block (header+body+footer).
+    expect(r.redacted.match(/\[REDACTED:private-key-pem\]/g)?.length).toBe(1)
+  })
+
+  it("redacts EC PRIVATE KEY blocks (30a)", () => {
+    const input = "-----BEGIN EC PRIVATE KEY-----\nMHcCAQE=\n-----END EC PRIVATE KEY-----"
+    const r = redactSecrets(input)
+    expect(r.redacted).toBe("[REDACTED:private-key-pem]")
+    expect(r.count).toBe(1)
+  })
+
+  it("redacts OPENSSH PRIVATE KEY blocks (30b)", () => {
+    const input = "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA\n-----END OPENSSH PRIVATE KEY-----"
+    const r = redactSecrets(input)
+    expect(r.redacted).toBe("[REDACTED:private-key-pem]")
+    expect(r.count).toBe(1)
+  })
+
+  it("redacts ENCRYPTED PRIVATE KEY blocks (30c)", () => {
+    const input = "-----BEGIN ENCRYPTED PRIVATE KEY-----\nMIIBHDBOBgkqhkiG9w0BBQ0wQTApBgkqhkiG9w0BBQwwHAQI\n-----END ENCRYPTED PRIVATE KEY-----"
+    const r = redactSecrets(input)
+    expect(r.redacted).toBe("[REDACTED:private-key-pem]")
+    expect(r.count).toBe(1)
+  })
+
+  it("preserves surrounding content (31)", () => {
+    const input = "keyfile = load(\n-----BEGIN PRIVATE KEY-----\nQUJDREVG\n-----END PRIVATE KEY-----\n)\n"
+    const r = redactSecrets(input)
+    expect(r.redacted).toContain("keyfile = load(")
+    expect(r.redacted).toContain(")")
+    expect(r.redacted).toContain("[REDACTED:private-key-pem]")
+    expect(r.redacted).not.toContain("QUJDREVG")
+  })
+
+  it("redacts multiple PEM blocks in one content (32)", () => {
+    const input = [
+      "-----BEGIN RSA PRIVATE KEY-----",
+      "MIIEowIBAAKCAQEA",
+      "-----END RSA PRIVATE KEY-----",
+      "separator text",
+      "-----BEGIN EC PRIVATE KEY-----",
+      "MHcCAQE=",
+      "-----END EC PRIVATE KEY-----",
+    ].join("\n")
+    const r = redactSecrets(input)
+    expect(r.count).toBe(2)
+    expect(r.redacted).toContain("separator text")
+    // Both blocks fully replaced.
+    expect(r.redacted.match(/\[REDACTED:private-key-pem\]/g)?.length).toBe(2)
+  })
+
+  it("PEM header without matching footer is NOT redacted (33)", () => {
+    // M5.2 scopes the regex to require both BEGIN and END markers. A bare
+    // header (e.g. a truncated dump, or a snippet with the END cut off) is
+    // intentionally left alone — partial redaction of a PEM block would
+    // still leak the body. This is the documented fallback behavior.
+    const input = "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhk\n(no end marker — truncated dump)"
+    const r = redactSecrets(input)
+    expect(r.count).toBe(0)
+    expect(r.redacted).toContain("MIIEvQIBADANBgkqhk")
   })
 })
