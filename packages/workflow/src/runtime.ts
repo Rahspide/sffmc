@@ -697,7 +697,7 @@ export class WorkflowRuntime {
     // Resolve child script
     let childScript: string
     try {
-      const workspace = process.cwd()
+      const workspace = entry.workspace ?? process.cwd()
       const resolved = isInlineScript(spec)
         ? { source: spec, meta: parseMeta(spec), kind: "inline" as const }
         : await resolveWorkflow(spec, workspace)
