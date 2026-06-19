@@ -215,6 +215,14 @@ export class WorkflowRuntime {
   private workflowConfig: Required<WorkflowConfig> | null = null
   /** W14 — flag to skip async YAML load when the test override is set. */
   private workflowConfigInjected: boolean = false
+  /** W14 — in-flight promise cache for `loadWorkflowConfig()`. Prevents the
+   *  TOCTOU race when `start()` and `resume()` are called concurrently:
+   *  both pass the `if (this.workflowConfig) return` guard while the
+   *  cache is `null`, then race to invoke `loadConfig()`. With this
+   *  cache, concurrent callers all await the same promise. Cleared by
+   *  `setConfig(null)` so a subsequent YAML load can re-fire after an
+   *  override is cleared. */
+  private loadWorkflowConfigPromise: Promise<void> | null = null
 
   constructor(ctx: PluginContext, opts?: RuntimeOpts) {
     this.ctx = ctx
@@ -245,43 +253,54 @@ export class WorkflowRuntime {
 
   /** W14 — synchronously inject a workflow config. Used by tests via
    *  `RuntimeOpts.configOverride` to skip the async YAML load. Merges
-   *  onto `DEFAULT_WORKFLOW_CONFIG` so missing keys fall back to defaults.
-   *  When set, subsequent `loadWorkflowConfig()` calls are no-ops unless
-   *  `null` is passed (which re-enables the YAML load). */
+   *  onto `DEFAULT_WORKFLOW_CONFIG` via spread so missing keys fall back
+   *  to defaults, and new fields added to `WorkflowConfig` are auto-
+   *  populated (no compile-time drift). When set, subsequent
+   *  `loadWorkflowConfig()` calls are no-ops unless `null` is passed
+   *  (which re-enables the YAML load). */
   setConfig(cfg: Partial<WorkflowConfig> | null): void {
     if (cfg === null) {
       this.workflowConfig = null
       this.workflowConfigInjected = false
+      // Clear the in-flight promise cache so the next `loadWorkflowConfig()`
+      // call re-fires `loadConfig()` instead of returning a stale promise.
+      this.loadWorkflowConfigPromise = null
       return
     }
     this.workflowConfig = {
-      maxSteps: cfg.maxSteps ?? DEFAULT_WORKFLOW_CONFIG.maxSteps,
-      maxTokens: cfg.maxTokens ?? DEFAULT_WORKFLOW_CONFIG.maxTokens,
-      maxWallClockMs: cfg.maxWallClockMs ?? DEFAULT_WORKFLOW_CONFIG.maxWallClockMs,
-      perStepTimeoutMs: cfg.perStepTimeoutMs ?? DEFAULT_WORKFLOW_CONFIG.perStepTimeoutMs,
-      gracePeriodMs: cfg.gracePeriodMs ?? DEFAULT_WORKFLOW_CONFIG.gracePeriodMs,
-    }
+      ...DEFAULT_WORKFLOW_CONFIG,
+      ...cfg,
+    } as Required<WorkflowConfig>
     this.workflowConfigInjected = true
   }
 
   /** W14 — lazily load the SFFMC workflow config from `workflow.yaml`.
-   *  Idempotent — concurrent callers all await the same promise. No-op
-   *  when the config was already injected (test override path). Called
-   *  eagerly by `start()` / `resume()` before `resolveConfig()` runs. */
+   *  Idempotent — concurrent callers all await the same in-flight promise
+   *  (no TOCTOU race when `start()` and `resume()` run concurrently).
+   *  No-op when the config was already injected (test override path).
+   *  Called eagerly by `start()` / `resume()` before `resolveConfig()` runs. */
   async loadWorkflowConfig(): Promise<void> {
     if (this.workflowConfigInjected) return
-    if (this.workflowConfig) return
+    if (this.workflowConfig !== null) return
+    if (this.loadWorkflowConfigPromise) return this.loadWorkflowConfigPromise
+    this.loadWorkflowConfigPromise = this.doLoadWorkflowConfig()
+    return this.loadWorkflowConfigPromise
+  }
+
+  /** W14 — internal YAML loader. Cached via `loadWorkflowConfigPromise`
+   *  so concurrent callers share the same promise. Uses spread to
+   *  populate every `WorkflowConfig` field from defaults, so new fields
+   *  added to the interface are auto-included (no manual mapping list
+   *  to maintain). */
+  private async doLoadWorkflowConfig(): Promise<void> {
     const loaded = await loadConfig<typeof DEFAULT_WORKFLOW_CONFIG>(
       "workflow",
       DEFAULT_WORKFLOW_CONFIG,
     )
     this.workflowConfig = {
-      maxSteps: loaded.maxSteps ?? DEFAULT_WORKFLOW_CONFIG.maxSteps,
-      maxTokens: loaded.maxTokens ?? DEFAULT_WORKFLOW_CONFIG.maxTokens,
-      maxWallClockMs: loaded.maxWallClockMs ?? DEFAULT_WORKFLOW_CONFIG.maxWallClockMs,
-      perStepTimeoutMs: loaded.perStepTimeoutMs ?? DEFAULT_WORKFLOW_CONFIG.perStepTimeoutMs,
-      gracePeriodMs: loaded.gracePeriodMs ?? DEFAULT_WORKFLOW_CONFIG.gracePeriodMs,
-    }
+      ...DEFAULT_WORKFLOW_CONFIG,
+      ...loaded,
+    } as Required<WorkflowConfig>
   }
 
   // ── Public API ──────────────────────────────────────────────────────────

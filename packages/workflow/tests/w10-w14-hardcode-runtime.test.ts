@@ -365,6 +365,79 @@ describe("W14 — resolveConfig uses SFFMC config, ctx.config is fallback only",
     // (which is null) → ctx.config (empty {}) → DEFAULT.
     expect(cfg2.maxSteps).toBe(DEFAULT_WORKFLOW_CONFIG.maxSteps)
   })
+
+  it("concurrent loadWorkflowConfig() invocations share the same in-flight promise (TOCTOU race fix)", async () => {
+    // Without the loadWorkflowConfigPromise cache, two concurrent
+    // callers could both pass `if (this.workflowConfig) return` while
+    // the cache is null, then both call loadConfig() and race to
+    // assign. With the fix, the second caller receives the same
+    // promise the first caller created → doLoadWorkflowConfig runs
+    // exactly once across concurrent callers.
+    const runtime = new WorkflowRuntime(baseCtx, { persistence })
+
+    // Instrument doLoadWorkflowConfig via a counting wrapper. The
+    // wrapper delegates to the original (captured before replacement)
+    // so the real loadConfig() still runs.
+    let doLoadCount = 0
+    const inner = (runtime as unknown as {
+      doLoadWorkflowConfig: () => Promise<void>
+    }).doLoadWorkflowConfig.bind(runtime)
+    ;(runtime as unknown as {
+      doLoadWorkflowConfig: () => Promise<void>
+    }).doLoadWorkflowConfig = async () => {
+      doLoadCount++
+      return inner()
+    }
+
+    // Two concurrent calls — both hit the YAML-load path because no
+    // configOverride is set.
+    const p1 = runtime.loadWorkflowConfig()
+    const p2 = runtime.loadWorkflowConfig()
+    await Promise.all([p1, p2])
+
+    // The fix: doLoadWorkflowConfig ran exactly ONCE despite two
+    // concurrent callers. Without the promise cache, it would have
+    // run twice (race) and assigned workflowConfig twice.
+    expect(doLoadCount).toBe(1)
+
+    // And the cached promise field is non-null after both calls.
+    const cached = (runtime as unknown as {
+      loadWorkflowConfigPromise: Promise<void> | null
+    }).loadWorkflowConfigPromise
+    expect(cached).not.toBeNull()
+
+    // workflowConfig is populated.
+    const cfg = (runtime as unknown as {
+      resolveConfig: () => { maxSteps: number }
+    }).resolveConfig()
+    expect(cfg.maxSteps).toBeGreaterThan(0)
+  })
+
+  it("setConfig() with a partial override produces a fully-populated WorkflowConfig (exhaustive defaults)", () => {
+    // Pass only maxSteps. The remaining WorkflowConfig fields must come
+    // from DEFAULT_WORKFLOW_CONFIG via spread — no manual field list.
+    // This guards against silent drops when WorkflowConfig gains new
+    // fields: the spread auto-populates them.
+    const runtime = new WorkflowRuntime(baseCtx, {
+      persistence,
+      configOverride: { maxSteps: 100 },
+    })
+    const resolved = (runtime as unknown as {
+      resolveConfig: () => Required<{
+        maxSteps: number
+        maxTokens: number
+        maxWallClockMs: number
+        perStepTimeoutMs: number
+        gracePeriodMs: number
+      }>
+    }).resolveConfig()
+    expect(resolved.maxSteps).toBe(100) // the override
+    // Non-overridden fields fall through to DEFAULT_WORKFLOW_CONFIG.
+    expect(resolved.maxTokens).toBe(DEFAULT_WORKFLOW_CONFIG.maxTokens)
+    expect(resolved.maxWallClockMs).toBe(DEFAULT_WORKFLOW_CONFIG.maxWallClockMs)
+    expect(resolved.perStepTimeoutMs).toBe(DEFAULT_WORKFLOW_CONFIG.perStepTimeoutMs)
+    expect(resolved.gracePeriodMs).toBe(DEFAULT_WORKFLOW_CONFIG.gracePeriodMs)
+  })
 })
 
 // Cleanup tmp dir after all tests
