@@ -53,6 +53,11 @@ export interface CheckpointHooks {
 // Constants
 // ---------------------------------------------------------------------------
 
+/** Maximum number of messages restored from a checkpoint. Prevents
+ *  crafted checkpoint files with thousands of tool calls from
+ *  overwhelming the LLM context window. */
+const MAX_RESTORED_MESSAGES = 50;
+
 const FLUSH_THRESHOLD = 50;
 const FLUSH_INTERVAL_MS = 5_000;
 export const CURRENT_VERSION = 1;
@@ -375,7 +380,7 @@ function _createAutoRestoreHook(
         }
 
         const calls = readToolCalls(sessionID, dir);
-        const restored = reconstructMessages(calls);
+        const restored = reconstructMessages(calls).slice(0, MAX_RESTORED_MESSAGES);
 
         msg.content = msg.content.replace(RESTORE_MARKER, "").trim();
 
