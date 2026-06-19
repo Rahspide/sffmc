@@ -521,6 +521,12 @@ describe("resolve.ts", () => {
     )
   })
 
+  test("rejects mixed traversal ./some/dir/../../../../etc/passwd", async () => {
+    await expect(
+      resolveWorkflow("./some/dir/../../../../etc/passwd", ws2),
+    ).rejects.toThrow(/escapes workspace/i)
+  })
+
   test("allows relative path within workspace", async () => {
     const wfDir = path.join(ws2, ".sffmc", "workflows")
     mkdirSync(wfDir, { recursive: true })
