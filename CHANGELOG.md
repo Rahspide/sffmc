@@ -1,5 +1,38 @@
 # SFFMC Changelog
 
+## v0.14.1 (2026-06-19)
+
+Hotfix: auto-max cap observability + PEM body redaction + ReDoS CI gate + w5-6 link fix. 4 commits since v0.14.0.
+
+### Added
+
+- **ReDoS CI gate** (`scripts/check-redos.ts`, `tests/registry/redos.test.ts`) — pre-commit check using `safe-regex@^2.1.1`. Catches catastrophic backtracking in any rule registered via `BUILTIN_RULES`. Precommit chain now has 6 gates (typecheck, test, audit-load-order, audit:public, audit:redos, health).
+- **Filename rule refactor for ReDoS safety** (`shared/src/redact-secrets.ts`) — 7 filename patterns rewritten from `^X(\.[\w-]+)?$` to `^(?:X|X\.[\w-]+)$` to pass safe-regex star-height-1 check. Identical match set verified by equivalence test.
+
+### Changed
+
+- **Auto-max cap observability** (`packages/auto-max/src/index.ts`) — `handleTrigger` now emits explicit `cap reached (N/M): skipping trigger for ... in session ...` log line when `state.maxCallsThisSession >= config.costCapPerSession` blocks. Previously operators counted stale `TRIGGERED:` log lines and incorrectly assumed cap was bypassed.
+- **Watchdog load log model field** (`packages/watchdog/src/index.ts`) — terminal fallback is `"(default)"` instead of empty string. Distinguishes "no fallback configured" from "config didn't load".
+- **`__listBuiltinRedactionRules` export** (`shared/src/index.ts`) — for tooling introspection of built-in rules.
+
+### Fixed
+
+- **M5.2 PEM key body redaction** (`shared/src/redact-secrets.ts`) — PEM regex extended to match full block (header + body + footer). Previously only `-----BEGIN ... PRIVATE KEY-----` header was redacted; the base64-encoded key material body now also redacted. 7 new tests (#29-35).
+- **Stale w5-6 dynamic-workflow link** (`README.md`) — fixed broken link from v0.14.0.
+
+### Not Changed (already clean)
+
+- Top-level `README.md`, `AGENTS.md`, `CONTRIBUTING.md` — verified clean of F-codes/W-codes/DLC/Phase/Drop-in Lattice jargon. The earlier v0.14.0 polish commits (`b7faec7`, `64a3390`) had already addressed this scope.
+- `**/codemap.md` files — remain gitignored (codemap is internal/regenerated, not source of truth). On-disk edits from fix-7 remain as local artifacts.
+
+### Verification
+
+- 680 pass / 1 skip / 0 fail tests (+12 since v0.14.0)
+- 6 precommit gates green (was 5 before)
+- All 4 deferred v0.12.1 items status unchanged (M5/M6 ✅, H5 ✅, L1/L2 ✅; M2 ❌ not started; M4 design-only)
+
+---
+
 ## v0.14.0 (2026-06-19)
 
 Redaction helper + grace period + MCP integration + I-1 polish redo. 5 commits since v0.12.1.
