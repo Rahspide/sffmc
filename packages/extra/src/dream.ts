@@ -7,8 +7,25 @@ import { Database } from "bun:sqlite";
 import { mkdirSync, existsSync, appendFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { homedir } from "node:os";
-import { createLogger, DEFAULT_MEMORY_DB_PATH } from "@sffmc/shared";
+import {
+  createLogger,
+  DEFAULT_MEMORY_DB_PATH,
+  HOOK_TOOL_EXECUTE_AFTER,
+  NoLLMClientError,
+  SECONDS_PER_DAY,
+  unixNow,
+} from "@sffmc/shared";
 export type { RichPluginContext } from "@sffmc/shared";
+
+/** Jaccard similarity above which two memory entries are considered duplicates.
+ *  Tuned for prose-style entries — 0.9 keeps near-verbatim repeats while
+ *  avoiding false positives on "same topic, different angle". */
+export const DREAM_DEDUP_THRESHOLD = 0.9;
+
+/** Jaccard similarity above which a memory entry joins an existing cluster
+ *  during summarization. Lower than the dedup threshold so a cluster can
+ *  hold entries that share a topic without being near-duplicates. */
+export const DREAM_CLUSTER_THRESHOLD = 0.3;
 
 const log = createLogger("extra-dream");
 
@@ -51,7 +68,7 @@ export interface DreamTool {
 }
 
 export interface DreamHooks {
-  "tool.execute.after"?: (toolCtx: unknown, result: unknown) => Promise<void>;
+  [HOOK_TOOL_EXECUTE_AFTER]?: (toolCtx: unknown, result: unknown) => Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -97,6 +114,7 @@ const ARCHIVE_PATH = resolve(
   ".local/share/sffmc/extra/dream-archive.jsonl",
 );
 const STALE_DAYS = 30;
+const SECONDS_PER_STALE_WINDOW = STALE_DAYS * SECONDS_PER_DAY;
 
 // ---------------------------------------------------------------------------
 // Internal types
@@ -168,7 +186,7 @@ export async function nameClusterViaLLM(
 ): Promise<string> {
   const session = ctx.client?.session;
   if (!session?.message) {
-    throw new Error("ctx.client.session.message() not available");
+    throw new NoLLMClientError();
   }
   const entries = cluster.map(
     (e) => `[${e.source_path}] ${e.content.substring(0, 100)}`,
@@ -203,7 +221,7 @@ async function summarizeViaLLM(
 ): Promise<string> {
   const session = ctx.client?.session;
   if (!session?.message) {
-    throw new Error("ctx.client.session.message() not available");
+    throw new NoLLMClientError();
   }
   const entries = cluster.map(
     (e) => `[${e.source_path}] ${e.content.substring(0, 200)}`,
@@ -267,7 +285,7 @@ async function runDream(
       tokenCache.set(row.id, tokenize(row.content));
     }
 
-    // ── 2. Dedup: Jaccard > 0.9, keep newer, delete older ─────────────
+    // ── 2. Dedup: Jaccard > DREAM_DEDUP_THRESHOLD, keep newer, delete older
     const dedupSet = new Set<number>();
     if (scanned > 1) {
       for (let i = 0; i < rows.length; i++) {
@@ -279,7 +297,7 @@ async function runDream(
             tokenCache.get(rows[i].id)!,
             tokenCache.get(rows[j].id)!,
           );
-          if (sim > 0.9) {
+          if (sim > DREAM_DEDUP_THRESHOLD) {
             // Keep newer (by last_accessed or created_at); delete older.
             // Timestamps are in seconds (SQLite strftime('%s','now')).
             const timeI = rows[i].last_accessed ?? rows[i].created_at;
@@ -303,7 +321,7 @@ async function runDream(
 
     // ── 3. Stale removal: last_accessed < now - 30 days ───────────────
     // created_at / last_accessed are Unix timestamps in seconds.
-    const staleThresholdSec = Math.floor(Date.now() / 1000) - STALE_DAYS * 24 * 3600;
+    const staleThresholdSec = unixNow() - SECONDS_PER_STALE_WINDOW;
 
     const staleAccessed = db
       .query(
@@ -327,7 +345,7 @@ async function runDream(
     }
     archived = allStale.length;
 
-    // ── 4. Summarization: cluster by Jaccard > 0.3, summarize 5+ ──────
+    // ── 4. Summarization: cluster by Jaccard > DREAM_CLUSTER_THRESHOLD, summarize 5+
     // Re-read the DB to work on post-dedup+stale state.
     let remainingRows: MemoryRow[];
     if (!dryRun) {
@@ -355,7 +373,7 @@ async function runDream(
     }
 
     // Greedy clustering: for each unassigned row, start a cluster;
-    // add any other row that has Jaccard > 0.3 with any cluster member.
+    // add any other row that has Jaccard > DREAM_CLUSTER_THRESHOLD with any cluster member.
     const clusters: MemoryRow[][] = [];
     const assigned = new Set<number>();
 
@@ -375,7 +393,7 @@ async function runDream(
               jaccardSets(
                 remainingTokenCache.get(member.id)!,
                 remainingTokenCache.get(other.id)!,
-              ) > 0.3
+              ) > DREAM_CLUSTER_THRESHOLD
             ) {
               cluster.push(other);
               assigned.add(other.id);
@@ -570,7 +588,7 @@ export function createDreamTool(config: DreamConfig): {
   const tool: DreamTool = {
     description: `F8 Dream — background memory cleaning.
 Triggers: count>${config.threshold} OR ${config.intervalHours}h cron OR manual.
-Actions: dedup (Jaccard > 0.9), stale removal (>${STALE_DAYS}d), cluster summarization (5+ similar).`,
+Actions: dedup (Jaccard > ${DREAM_DEDUP_THRESHOLD}), stale removal (>${STALE_DAYS}d), cluster summarization (5+ similar).`,
 
     parameters: {
       type: "object",
@@ -586,7 +604,7 @@ Actions: dedup (Jaccard > 0.9), stale removal (>${STALE_DAYS}d), cluster summari
 
   // ── Hooks ───────────────────────────────────────────────────────
   const hooks: DreamHooks = {
-    "tool.execute.after": async (_toolCtx: unknown, _result: unknown) => {
+    [HOOK_TOOL_EXECUTE_AFTER]: async (_toolCtx: unknown, _result: unknown) => {
       if (!config.enabled) return;
       try {
         const database = getDB();

@@ -1,7 +1,7 @@
 import { FailureCounter } from "./counter";
 import { buildPromotionFragment } from "./promote";
 import { buildRecoveryVerdict } from "./verdict";
-import { extractErrorType, isToolError, hasMetadataError, MAX_PATTERN, loadConfig, type PluginContext, createLogger } from "@sffmc/shared";
+import { extractErrorType, isToolError, hasMetadataError, MAX_PATTERN, loadConfig, type PluginContext, createLogger, SESSION_CREATED } from "@sffmc/shared";
 
 const log = createLogger("watchdog");
 
@@ -61,7 +61,7 @@ export const server = async (ctx: PluginContext) => {
 
   return {
     event: async (payload: { event: string; [key: string]: unknown }) => {
-      if (payload.event === "session.created") {
+      if (payload.event === SESSION_CREATED) {
         const sid = String(payload.sessionID || "");
         state.counter.resetSession(sid);
         state.promotedSessions.delete(sid);
