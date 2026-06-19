@@ -201,6 +201,21 @@ function handleTrigger(
       sessionID,
       maxConfig: config.maxModeConfig,
     });
+    return;
+  }
+
+  // Cap-blocked path — shouldTriggerMaxMode returned false because
+  // session.maxCallsThisSession has already hit costCapPerSession. The
+  // trigger is silently suppressed in the pure-function path; emit an
+  // explicit observability log so operators can confirm the cap is
+  // enforced rather than assuming the trigger fired (production saw 7
+  // suspected triggers during v0.14.0 — turned out the cap was firing
+  // correctly but the suppression was invisible).
+  if (session.maxCallsThisSession >= config.costCapPerSession) {
+    const failCount = session.failCount.get(`${tool}::${errorType}`) ?? 0;
+    log.warn(
+      `cap reached (${session.maxCallsThisSession}/${config.costCapPerSession}): skipping trigger for ${tool}:${errorType} (failures=${failCount}) in session ${sessionID}`,
+    );
   }
 }
 

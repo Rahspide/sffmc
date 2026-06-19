@@ -50,7 +50,21 @@ export const server = async (ctx: PluginContext) => {
     recoveringTools: new Map(),
   };
 
-  const model = config.promote_model || String(ctx.config?.model || "");
+  // Resolve the promote-model with a 3-tier fallback chain:
+  //   1. config.promote_model (explicit watchdog.yaml override)
+  //   2. ctx.config?.model    (OpenCode plugin-config override)
+  //   3. "(default)"          (neither set — emit a visible marker instead of
+  //                            an empty value so operators can confirm whether
+  //                            a fallback is actually configured)
+  //
+  // Bug fix v0.14.1: production logs showed `model=` (empty) when both
+  // promote_model was null (default) AND ctx.config.model was undefined.
+  // The empty value made it impossible to tell whether the configured
+  // fallback had loaded correctly or the chain had silently degraded.
+  const model =
+    config.promote_model ||
+    String(ctx.config?.model || "") ||
+    "(default)";
 
   if (config.log_failures && !loadedLogged) {
     loadedLogged = true;
