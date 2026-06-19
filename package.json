@@ -43,6 +43,6 @@
     "version:list": "for p in packages/*/package.json shared/package.json; do echo -n \"$p: \"; jq -r .version \"$p\"; done"
   },
   "engines": {
-    "bun": ">=1.0.0"
+    "bun": ">=1.3.0"
   }
 }

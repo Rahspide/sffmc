@@ -37,7 +37,7 @@
     "eos-stripper"
   ],
   "engines": {
-    "bun": ">=1.0.0"
+    "bun": ">=1.3.0"
   },
   "category": "sffmc-original",
   "rationale": "Added by SFFMC team for own use case",

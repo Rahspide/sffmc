@@ -41,7 +41,7 @@
     "memory"
   ],
   "engines": {
-    "bun": ">=1.0.0"
+    "bun": ">=1.3.0"
   },
   "role": "memory",
   "composes": [

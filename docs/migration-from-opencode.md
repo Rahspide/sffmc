@@ -153,7 +153,7 @@ cp ~/.local/share/mimo/mimo.db ~/.local/share/opencode/opencode.db
 # 4. Install SFFMC plugins (see "OpenCode → SFFMC" above)
 ```
 
-**What you keep**: Memory (starts fresh in SFFMC — MiMo-Code's memory format is different), Rules (SFFMC rules are YAML, customizable). Max Mode and other features arrive in W2-W6.
+**What you keep**: Memory (starts fresh in SFFMC — MiMo-Code's memory format is different), Rules (SFFMC rules are YAML, customizable). Max Mode and other features arrive in later releases.
 
 ## The 5 Issues to Know (Round 6 Must-Adds)
 
@@ -163,7 +163,7 @@ Based on research of OpenCode community issues (5+ per day as of June 2026).
 
 **Problem**: Some local models (Ollama, vLLM, oMLX) emit end-of-sequence tokens mid-stream — `</s>`, `<|endoftext|>`, `<|im_end|>`, etc. When the agent sees these tokens, it interprets them as "conversation finished" and exits the loop after a single tool call. Your 1-hour task dies in 3 seconds.
 
-**What SFFMC does** (W2): EOS stripper plugin sits on `experimental.text.complete` and strips 10 known EOS token patterns from the end of model output before the agent loop sees them. See `packages/eos-stripper/src/patterns.ts:DEFAULT_EOS_PATTERNS` for the canonical list.
+**What SFFMC does**: EOS stripper plugin sits on `experimental.text.complete` and strips 10 known EOS token patterns from the end of model output before the agent loop sees them. See `packages/eos-stripper/src/patterns.ts:DEFAULT_EOS_PATTERNS` for the canonical list.
 
 ```
 # EOS tokens we strip (matches DEFAULT_EOS_PATTERNS):
@@ -183,25 +183,25 @@ Based on research of OpenCode community issues (5+ per day as of June 2026).
 
 **Problem**: Agent fires 10 `read` calls in a row without waiting for user confirmation. You get 10 file contents you didn't ask for, drowning the thread.
 
-**What SFFMC does** (W2): Tool debounce hook counts consecutive same-tool calls. When count exceeds threshold (default 3), blocks until user explicitly allows. Not shipped yet.
+**What SFFMC does**: Tool debounce hook counts consecutive same-tool calls. When count exceeds threshold (default 3), blocks until user explicitly allows. Not shipped yet.
 
 ### 3. 200K Default Context
 
 **Problem**: OpenCode's default context window is too small for 200+ step tasks. Compaction fires too early or too late — you lose important context or waste tokens on irrelevant history.
 
-**What SFFMC does** (v8.0.1 advisory): F4' Memory thresholds calibrated for 200K context (20/45/70% instead of 40/80%). Compaction triggers earlier, preserving more context for long tasks. PR #609 provides the baseline calibration.
+**What SFFMC does** (advisory): Memory thresholds calibrated for 200K context (20/45/70% instead of 40/80%). Compaction triggers earlier, preserving more context for long tasks. PR #609 provides the baseline calibration.
 
 ### 4. Small Log Entries (Permission Log Spam)
 
 **Problem**: OpenCode's permission system logs every ask/deny decision verbatim. 12 GB of log files in 30 days from `permission.ask` spam. Debugging becomes slow because the actual error is buried in 400 MB of identical "user agreed" entries.
 
-**What SFFMC does** (W2): F2 Rules log whitelist — logs only deny decisions and unexpected states. Allow decisions are silent. Ask decisions are batched. PR #604 from MiMo-Code provides the whitelist approach.
+**What SFFMC does**: Rules log whitelist — logs only deny decisions and unexpected states. Allow decisions are silent. Ask decisions are batched. PR #604 from MiMo-Code provides the whitelist approach.
 
 ### 5. OpenCode-Migration Guide
 
 **Problem**: Users porting between OpenCode and MiMo-Code hit identical issues every day (5+ GitHub issues). Same questions: "Where's my memory?", "Why did my rules disappear?", "How do I get Max Mode back?".
 
-**What SFFMC does**: This document. Plus the "Import from MiMo" guide in W4 that maps every MiMo-Code feature to its SFFMC equivalent.
+**What SFFMC does**: This document. Plus the "Import from MiMo" guide that maps every MiMo-Code feature to its SFFMC equivalent.
 
 ## Risks
 
@@ -229,7 +229,7 @@ Memory must inject recon **before** DCP compacts — otherwise DCP sees stale me
 
 ### DCP Tuning When Adding Memory
 
-F4' Memory injects ~32KB of context recon at session start. If DCP's compaction threshold is at 40%, this pushes you closer to it. Adjust DCP thresholds:
+Memory injects ~32KB of context recon at session start. If DCP's compaction threshold is at 40%, this pushes you closer to it. Adjust DCP thresholds:
 
 ```
 # dcp.jsonc — add at least 5% buffer
@@ -281,7 +281,7 @@ sqlite3 ~/.local/share/sffmc/memory/index.sqlite "SELECT count(*) FROM memory_en
 # 4. Check hooks are active
 
 # Start a new OpenCode session. System message should contain:
-# "[Context Recon 8K — injected by F4' Memory]"
+# "[Context Recon 8K — injected by Memory]"
 # If you see this, memory is working.
 
 # 5. Test path outside protection

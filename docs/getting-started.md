@@ -4,7 +4,7 @@ Take a fresh OpenCode install from zero to "ran my first workflow and saved my o
 
 ## 1. What is SFFMC?
 
-SFFMC ("Some Features From MiMo Code") is a monorepo of 14 MIT-licensed OpenCode packages that port the productivity wins from Xiaomi's MiMo-Code fork into vanilla OpenCode 1.17.6+ — no fork required, drop them in and they install as plugins. Three of them are **composite packages** (`@sffmc/safety`, `@sffmc/memory`, `@sffmc/agentic`) that compose 10 individual sub-features plus the `@sffmc/shared` SDK into one default export via `mergeHooks()`. The headline feature is `@sffmc/workflow`, a sandboxed JavaScript orchestrator that lets the LLM spawn sub-agents, fan out work in parallel, and pipeline multi-step tasks so you can run 200+ step jobs without losing context or getting stuck in loops. The remaining packages split into three families: **safety and context** (`@sffmc/memory` for cross-session recall, `@sffmc/rules` for destructive-op gates, `@sffmc/watchdog` for stuck-loop recovery, `@sffmc/eos-stripper` and `@sffmc/log-whitelist` for clean output); **scaling** (`@sffmc/max-mode` for parallel drafts with a judge, `@sffmc/auto-max` for automatic escalation when things get hard); and **skills** (`@sffmc/compose` for 18 drop-in structured-workflow skills, and `@sffmc/workflow` itself).
+SFFMC ("Some Features From MiMo Code") is a monorepo of 14 MIT-licensed OpenCode packages that port the productivity wins from Xiaomi's MiMo-Code fork into vanilla OpenCode 1.17.6+ — no fork required, drop them in and they install as plugins. Three of them are **composite packages** (`@sffmc/safety`, `@sffmc/memory`, `@sffmc/agentic`) that compose 10 individual sub-features plus the `@sffmc/shared` SDK into a single default export. The headline feature is `@sffmc/workflow`, a sandboxed JavaScript orchestrator that lets the LLM spawn sub-agents, fan out work in parallel, and pipeline multi-step tasks so you can run 200+ step jobs without losing context or getting stuck in loops. The remaining packages split into three families: **safety and context** (`@sffmc/memory` for cross-session recall, `@sffmc/rules` for destructive-op gates, `@sffmc/watchdog` for stuck-loop recovery, `@sffmc/eos-stripper` and `@sffmc/log-whitelist` for clean output); **scaling** (`@sffmc/max-mode` for parallel drafts with a judge, `@sffmc/auto-max` for automatic escalation when things get hard); and **skills** (`@sffmc/compose` for 18 drop-in structured-workflow skills, and `@sffmc/workflow` itself).
 
 ## 2. Prerequisites
 
@@ -19,7 +19,7 @@ SFFMC is developed and tested on Linux (CachyOS / Arch-based, systemd). The plug
 
 ## 3. Install
 
-Add the SFFMC plugin paths to your `~/.config/opencode/opencode.json` under the `plugin` key. v0.9.0+ ships as **3 composite packages** — `@sffmc/safety`, `@sffmc/memory`, `@sffmc/agentic` — each of which composes several sub-features into one default export via `mergeHooks()`. The 10 sub-features (`watchdog`, `rules`, `auto-max`, `eos-stripper`, `log-whitelist`, `extra`, `max-mode`, `workflow`, `compose`, `health`) are also individually available for backward compatibility. The recommended way to install is via the `sffmc` CLI, which adds the 3 composites by default and supports `--all` for the full 13-package set:
+Add the SFFMC plugin paths to your `~/.config/opencode/opencode.json` under the `plugin` key. v0.9.0+ ships as **3 composite packages** — `@sffmc/safety`, `@sffmc/memory`, `@sffmc/agentic` — each of which composes several sub-features into a single default export. The 10 sub-features (`watchdog`, `rules`, `auto-max`, `eos-stripper`, `log-whitelist`, `extra`, `max-mode`, `workflow`, `compose`, `health`) are also individually available for backward compatibility. The recommended way to install is via the `sffmc` CLI, which adds the 3 composites by default and supports `--all` for the full 13-package set:
 
 ```bash
 # macOS / Linux
@@ -88,7 +88,7 @@ workflow({ operation: "wait", run_id: "wf_8c3a91b2", timeout_ms: 600000 })
 
 `wait` returns the full `WorkflowOutcome` — the `outcome.result` field carries the report, the `outcome.stats` field carries the jury's accept/reject counts. The `deep-research` builtin writes its summary, sections, and citation list into `outcome.result`.
 
-The six phases execute in order inside a single sandboxed JavaScript runtime: **Plan** splits your question into 3–7 search lines, **Search** fans out one web-search agent per line in parallel, **Extract** deduplicates URLs and reads the top sources to pull checkable facts, **Group** folds facts that assert the same claim into a single entry so each is checked once, **Crosscheck** runs an adversarial jury of 3 voters per fact (2 rejects = fact dropped), and **Report** ranks survivors by certainty and writes the cited answer. Expect 10–30 minutes and 200k–500k tokens for a real question. Full API reference: [w5-6-dynamic-workflow.md](w5-6-dynamic-workflow.md).
+The six phases execute in order inside a single sandboxed JavaScript runtime: **Plan** splits your question into 3–7 search lines, **Search** fans out one web-search agent per line in parallel, **Extract** deduplicates URLs and reads the top sources to pull checkable facts, **Group** folds facts that assert the same claim into a single entry so each is checked once, **Crosscheck** runs an adversarial jury of 3 voters per fact (2 rejects = fact dropped), and **Report** ranks survivors by certainty and writes the cited answer. Expect 10–30 minutes and 200k–500k tokens for a real question. Full API reference: [dynamic-workflow.md](dynamic-workflow.md).
 
 ## 5. Save a custom workflow
 
@@ -177,7 +177,7 @@ Resume replays cached agent results and continues from the next pending step. Th
 - **[README](../README.md)** — top-level overview, benchmark numbers, full feature list
 - **[import-from-mimo.md](import-from-mimo.md)** — porting guide for users coming from Xiaomi's MiMo-Code
 - **[load-order-audit.md](load-order-audit.md)** — full hook audit for plugin authors and reviewers
-- **[w5-6-dynamic-workflow.md](w5-6-dynamic-workflow.md)** — complete Workflow engine reference (budgets, sandbox internals, error model)
+- **[dynamic-workflow.md](dynamic-workflow.md)** — complete Workflow engine reference (budgets, sandbox internals, error model)
 - **[workflow-examples.md](workflow-examples.md)** — five more ready-to-copy workflows (api-migration, security-audit, daily-report, hello-world, deep-research)
 
 If a workflow is failing and the journal isn't enough to diagnose it, open an issue with the `run_id` and the last 20 lines of its journal — that's usually enough to reproduce.

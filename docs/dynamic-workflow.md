@@ -1,4 +1,4 @@
-# W5-6: Dynamic Workflow Engine
+# Dynamic Workflow Engine
 
 **Shipped**: 2026-06-14 · **Version**: v0.6.0 (historical — see CHANGELOG) · **Package**: `@sffmc/workflow` · **LOC**: ~1500
 
@@ -177,7 +177,7 @@ export const meta = {
   whenToUse: "When to pick it",  // optional, LLM hint
   phases: [                      // optional, for progress bar
     { title: "Phase 1", detail: "What happens in phase 1" },
-    { title: "Phase 2", detail: "What happens in phase 2" },
+    { title: "Stage 2", detail: "What happens in stage 2" },
   ],
   model: "your-model-id",      // optional, default model
 }
@@ -302,7 +302,7 @@ const page = await agent("fetch: " + url, {
 })
 ```
 
-Direct MCP bindings are planned for W7.
+Direct MCP bindings are planned for a future release.
 
 ## Sandbox isolation
 
@@ -407,8 +407,8 @@ workflow({ operation: "run", name: "deep-research", args: { question: "What is t
 | **Budgets** | 2 caps (lifecycle, concurrent) | 5 caps (added: depth, token, wall-clock) |
 | **LLM interface** | 5 tool operations | Same 5 (run/status/wait/cancel/resume) |
 | **Deep research** | 391 lines JS, JURY_SIZE=3 | Ported to TS, 280 lines, same parameters |
-| **MCP** | Direct bindings | No (W7) — via agent({ tools }) |
-| **Streaming** | Yes (SSE via event) | No (W7) |
+| **MCP** | Direct bindings | No — via agent({ tools }) |
+| **Streaming** | Yes (SSE via event) | No |
 
 What we changed and why:
 - **Added token cap (2M)** — MiMo didn't count tokens, could burn budget
@@ -422,11 +422,11 @@ What we changed and why:
 
 1. **Cross-process resume** — works only within a single process.
    After restarting OpenCode, `resume` must be called explicitly. No
-   automatic resume (W7).
+   automatic resume.
 2. **No direct MCP** — agent() cannot directly call MCP servers.
-   Only via `tools: ["bash"]` and curl to your search endpoint (W7).
+   Only via `tools: ["bash"]` and curl to your search endpoint.
 3. **No streaming** — workflow result is only visible after completion.
-   Cannot observe progress in real time (W7).
+   Cannot observe progress in real time.
 4. **QuickJS performance** — JSON marshalling between host and guest costs
    ~0.5-2ms per call. For 200 steps that's ~100-400ms — negligible. For 2000
    steps — ~1-4s of overhead.
@@ -438,11 +438,11 @@ What we changed and why:
 
 ## Roadmap
 
-| Wave | What | When |
+| Stage | What | When |
 |---|---|---|
-| **W7** | Streaming progress (SSE events per agent) | Post-v0.9.0 |
-| **W7** | Multi-server resume (Redis/pubsub for cross-process) | Post-v0.9.0 |
-| **W7** | MCP bindings (agent can call mcp__* tools directly) | Post-v0.9.0 |
-| **W8** | Web UI dashboard for monitoring running workflows | TBD |
-| **W8** | Integration with upstream OpenCode scheduler (workflow as subagent) | TBD |
-| **W8** | Workflow templates (pre-built: code-review, release-checklist, etc) | TBD |
+| Next | Streaming progress (SSE events per agent) | Post-v0.9.0 |
+| Next | Multi-server resume (Redis/pubsub for cross-process) | Post-v0.9.0 |
+| Next | MCP bindings (agent can call mcp__* tools directly) | Post-v0.9.0 |
+| Later | Web UI dashboard for monitoring running workflows | TBD |
+| Later | Integration with upstream OpenCode scheduler (workflow as subagent) | TBD |
+| Later | Workflow templates (pre-built: code-review, release-checklist, etc) | TBD |

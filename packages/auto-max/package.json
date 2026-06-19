@@ -37,7 +37,7 @@
     "auto-max"
   ],
   "engines": {
-    "bun": ">=1.0.0"
+    "bun": ">=1.3.0"
   },
   "category": "mimo-port",
   "portSource": "MiMo-Code v8.0",
