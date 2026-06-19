@@ -155,6 +155,47 @@ describe("buildRecon", () => {
     expect(memSection.length).toBeLessThanOrEqual(6144 + 50);
     expect(result).toContain("[...truncated]");
   });
+
+  // Phase-1 HIGH migration (M2) — verifies the new configurable budgets.
+  it("honors custom reconMemoryBudget and reconCheckpointBudget", () => {
+    const memory = [
+      {
+        id: 1,
+        source_path: "x.md",
+        section: "x",
+        content: "x".repeat(500),
+        importance_score: 0.5,
+        last_accessed: null,
+        created_at: 1000,
+      },
+    ];
+    // Lower budgets than the default 6144 — the section headers and
+    // truncated content must reflect the override values.
+    const result = buildRecon(memory, "x".repeat(500), "", "", "", 100, 200);
+    expect(result).toContain("## Memory (100 chars)");
+    expect(result).toContain("## Checkpoint (200 chars)");
+    // Memory section content + header + truncation suffix ≤ ~100 + 100
+    const memSection = result.match(/## Memory[\s\S]*?(?=\n## |$)/)?.[0] ?? "";
+    expect(memSection.length).toBeLessThanOrEqual(100 + 50);
+  });
+
+  // Phase-1 HIGH migration (M2) — defaults match the prior hardcoded values.
+  it("default recon budgets remain 6144 chars (no behavior change)", () => {
+    const memory = [
+      {
+        id: 1,
+        source_path: "x.md",
+        section: "x",
+        content: "x".repeat(10000),
+        importance_score: 0.5,
+        last_accessed: null,
+        created_at: 1000,
+      },
+    ];
+    const result = buildRecon(memory, null, "", "", "");
+    expect(result).toContain("## Memory (6144 chars)");
+    expect(result).not.toContain("## Checkpoint"); // null → skipped
+  });
 });
 
 describe("tailFromMessages", () => {

@@ -4,12 +4,17 @@ import { RECON_AGENTS_BUDGET, RECON_TASKTREE_BUDGET } from "./constants.ts";
 
 export { RECON_AGENTS_BUDGET, RECON_TASKTREE_BUDGET };
 
-const RECON_BUDGETS = {
-  memory: 6144,
-  checkpoint: 6144,
-  agents: RECON_AGENTS_BUDGET,
-  taskTree: RECON_TASKTREE_BUDGET,
-} as const;
+// Phase-1 (v0.14.2) HIGH-severity migration — see
+// .slim/deepwork/hardcode-audit-2026-06.md (M2).
+//
+// `memory` and `checkpoint` were hardcoded at 6144 chars each. They are
+// now configurable via `MemoryConfig.reconMemoryBudget` and
+// `reconCheckpointBudget` (defaults preserve the prior values). The
+// existing `RECON_AGENTS_BUDGET` / `RECON_TASKTREE_BUDGET` constants are
+// left untouched (not flagged HIGH — they're the more reasonable 8K/4K
+// already; left for a future polish pass).
+const DEFAULT_RECON_MEMORY_BUDGET = 6144;
+const DEFAULT_RECON_CHECKPOINT_BUDGET = 6144;
 
 export function buildRecon(
   memory: MemoryEntry[],
@@ -17,6 +22,10 @@ export function buildRecon(
   taskTree: string,
   tail: string,
   agents: string,
+  /** M2 — character budget for the memory section. Defaults to 6144. */
+  reconMemoryBudget: number = DEFAULT_RECON_MEMORY_BUDGET,
+  /** M2 — character budget for the checkpoint section. Defaults to 6144. */
+  reconCheckpointBudget: number = DEFAULT_RECON_CHECKPOINT_BUDGET,
 ): string {
   const sections: string[] = [];
 
@@ -28,12 +37,12 @@ export function buildRecon(
     )
     .join("\n\n");
   sections.push(
-    `## Memory (${RECON_BUDGETS.memory} chars)\n${truncate(memoryText, RECON_BUDGETS.memory)}`,
+    `## Memory (${reconMemoryBudget} chars)\n${truncate(memoryText, reconMemoryBudget)}`,
   );
 
   if (checkpoint) {
     sections.push(
-      `## Checkpoint (${RECON_BUDGETS.checkpoint} chars)\n${truncate(checkpoint, RECON_BUDGETS.checkpoint)}`,
+      `## Checkpoint (${reconCheckpointBudget} chars)\n${truncate(checkpoint, reconCheckpointBudget)}`,
     );
   }
 

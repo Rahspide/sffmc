@@ -27,6 +27,18 @@ import { AGENTS_FILE } from "./constants.ts";
 interface MemoryConfig {
   storagePath: string
   tailChars: number
+  // Phase-1 HIGH migration (M2, M3) — see
+  // .slim/deepwork/hardcode-audit-2026-06.md
+  /** M2 — character budget for the memory section in recon injection.
+   *  Defaults to 6144 (matches the prior hardcoded value). */
+  reconMemoryBudget: number
+  /** M2 — character budget for the checkpoint section in recon injection.
+   *  Defaults to 6144 (matches the prior hardcoded value). */
+  reconCheckpointBudget: number
+  /** M3 — safety cap for AGENTS.md size in bytes. Files larger than this
+   *  are skipped (with a warn log) to prevent OOM from large crafted
+   *  AGENTS.md files. Defaults to 100 KiB. */
+  agentsMaxSize: number
 }
 
 const log = createLogger("memory");
@@ -34,6 +46,10 @@ const log = createLogger("memory");
 const defaultConfig: MemoryConfig = {
   storagePath: DEFAULT_MEMORY_DB_PATH(),
   tailChars: RECON_AGENTS_BUDGET,
+  // Defaults match the prior hardcoded values — behavior unchanged.
+  reconMemoryBudget: 6144,    // M2
+  reconCheckpointBudget: 6144, // M2
+  agentsMaxSize: 100 * 1024,  // M3: 100 KiB
 }
 
 interface PluginState {
@@ -113,10 +129,10 @@ export const server = async (ctx: PluginContext) => {
         if (existsSync(agentsPath)) {
           try {
             const st = statSync(agentsPath)
-            if (st.size <= 100 * 1024) { // 100KB safety cap
+            if (st.size <= state.config.agentsMaxSize) {
               agents = readFileSync(agentsPath, "utf-8")
             } else {
-              log.warn(`AGENTS.md too large (${(st.size / 1024).toFixed(0)}KB > 100KB), skipping`)
+              log.warn(`AGENTS.md too large (${(st.size / 1024).toFixed(0)}KB > ${(state.config.agentsMaxSize / 1024).toFixed(0)}KB), skipping`)
             }
           } catch {
             // stat failed, skip
@@ -134,6 +150,8 @@ export const server = async (ctx: PluginContext) => {
           "",
           tail,
           agents,
+          state.config.reconMemoryBudget,
+          state.config.reconCheckpointBudget,
         )
 
         data.messages.unshift({
