@@ -7,7 +7,15 @@
 // Resolution is lazy — happens on first init() call.  This avoids top-level
 // await issues with synchronous module consumers (plugin loaders, bundlers).
 // -------------------------------------------------------------------------
-let DatabaseCtor: any = null;
+import type { Database as BunDatabase } from "bun:sqlite";
+import type { DatabaseSync } from "node:sqlite";
+
+/** Constructor of either bun:sqlite.Database or node:sqlite.DatabaseSync.
+ *  Both share the (path: string) signature, so a union of constructor types
+ *  is the most precise typing we can give the dynamic-resolution helper. */
+type SqliteCtor = typeof BunDatabase | typeof DatabaseSync;
+
+let DatabaseCtor: SqliteCtor | null = null;
 export let isBunSqlite = false;
 let _resolvePromise: Promise<void> | null = null;
 
@@ -44,18 +52,24 @@ async function resolveEngine(): Promise<void> {
  * handle — is normalised for node:sqlite (which only offers
  * prepare().run()).
  */
-function createAdapter(rawDb: any, _isBun: boolean): any {
+
+/** Minimal adapter surface consumed by upsert/remove/search/all/topByImportance.
+ *  Bun's Database matches natively; node:sqlite (DatabaseSync) is shimmed below. */
+type MemoryAdapter = Pick<BunDatabase, "exec" | "query" | "run">;
+
+function createAdapter(rawDb: BunDatabase | DatabaseSync, _isBun: boolean): MemoryAdapter {
   if (_isBun) return rawDb; // pass-through — bun:sqlite API matches our usage
 
   // node:sqlite (DatabaseSync) shim
+  const nodeDb = rawDb as DatabaseSync;
   return {
-    exec: (sql: string) => rawDb.exec(sql),
-    query: (sql: string) => rawDb.prepare(sql),
-    run: (sql: string, params?: any[]) => {
+    exec: (sql: string) => nodeDb.exec(sql),
+    query: (sql: string) => nodeDb.prepare(sql),
+    run: (sql: string, params?: unknown[]) => {
       if (params && params.length > 0) {
-        rawDb.prepare(sql).run(...params);
+        nodeDb.prepare(sql).run(...params);
       } else {
-        rawDb.prepare(sql).run();
+        nodeDb.prepare(sql).run();
       }
     },
   };
@@ -74,7 +88,7 @@ export interface MemoryEntry {
   created_at: number;
 }
 
-export type MemoryDB = { db: any };
+export type MemoryDB = { db: MemoryAdapter };
 
 const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS memory_entries (
@@ -115,10 +129,13 @@ END;
 
 export async function init(dbPath: string): Promise<MemoryDB> {
   await resolveEngine();
-  const rawDb = new DatabaseCtor(dbPath);
+  // resolveEngine() always assigns DatabaseCtor (either bun:sqlite.Database or
+  // node:sqlite.DatabaseSync) — the union guarantees either constructor exists.
+  const Ctor = DatabaseCtor as SqliteCtor;
+  const rawDb = new Ctor(dbPath);
   rawDb.exec("PRAGMA journal_mode=WAL;");
   rawDb.exec(SCHEMA_SQL);
-  const adapted = createAdapter(rawDb, isBunSqlite);
+  const adapted = createAdapter(rawDb as BunDatabase | DatabaseSync, isBunSqlite);
   return { db: adapted };
 }
 

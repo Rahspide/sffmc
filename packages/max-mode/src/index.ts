@@ -101,10 +101,9 @@ export const server = async (ctx: RichPluginContext) => {
 
       if (isExecute) {
         // /max execute — clear schema-only mode and re-arm the toolset for
-        // real execution. resetRestoreState is the right primitive here
-        // (we don't want restoreToolExecutes to mutate any tool list — there
-        // isn't one in this branch — we just want to clear the flag).
-        resetRestoreState(state.restore);
+        // real execution. resetRestoreState is a no-op (state is per-session),
+        // but we still call it as a documented checkpoint for the re-arm path.
+        resetRestoreState();
         state.maxUsedThisSession = false;
         return;
       }
