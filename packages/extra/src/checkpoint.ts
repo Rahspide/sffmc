@@ -129,7 +129,12 @@ function readHeader(sessionID: string, dir?: string): CheckpointHeader | null {
 
   try {
     const st = statSync(fp);
-    if (st.size > MAX_CHECKPOINT_FILE_SIZE) return null;
+    if (st.size > MAX_CHECKPOINT_FILE_SIZE) {
+      log.warn(
+        `checkpoint: skipping ${sessionID} — file size ${(st.size / 1024 / 1024).toFixed(1)}MB exceeds limit (${MAX_CHECKPOINT_FILE_SIZE / 1024 / 1024}MB)`,
+      );
+      return null;
+    }
   } catch {
     return null;
   }
