@@ -7,7 +7,7 @@ SFFMC is a monorepo of standalone OpenCode plugins. Each plugin:
 - Uses Bun as the runtime (Bun 1.3+, JavaScriptCore engine)
 - Targets OpenCode 1.17.x plugin SDK (and tracks upstream changes)
 
-## Architecture: composite (Drop-in Lattice Components)
+## Architecture: composite
 
 Every SFFMC plugin follows the **composite** pattern:
 - **Read** existing data freely (other plugins' state, OpenCode state)

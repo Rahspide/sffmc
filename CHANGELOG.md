@@ -278,18 +278,18 @@ Each of the 11 SFFMC packages now has explicit `category` metadata in
 `package.json` to clearly separate features ported from MiMo-Code v8.0
 from SFFMC team additions.
 ### mimo-port (7 packages — ported from MiMo-Code v8.0)
-- @sffmc/memory (F4' Memory + Context Recon)
-- @sffmc/rules (F2 Safety Rules)
-- @sffmc/watchdog (F1 Auto-recovery)
-- @sffmc/max-mode (F7 Parallel drafts)
+- @sffmc/memory (Memory + Context Recon)
+- @sffmc/rules (Safety Rules)
+- @sffmc/watchdog (Auto-recovery)
+- @sffmc/max-mode (Parallel drafts)
 - @sffmc/auto-max (Auto-escalation)
 - @sffmc/compose (15 MiMo compose skills)
-- @sffmc/workflow (W5-6 Dynamic Workflow)
+- @sffmc/workflow (Dynamic Workflow)
 ### sffmc-original (4 packages — SFFMC team additions)
 - @sffmc/eos-stripper (local model EOS token survival)
 - @sffmc/log-whitelist (12GB log file prevention)
 - @sffmc/health (plugin-author diagnostic)
-- @sffmc/extra (F5'/F6'/F8 opt-in bundle)
+- @sffmc/extra (opt-in bundle)
 ## sffmc_health new check
 12th check `category_split` reports the split and warns if any package
 is uncategorized. Currently 7 mimo-port + 4 sffmc-original, 0 uncategorized.
@@ -303,7 +303,7 @@ due to changelog_currency mismatch — fixed by version bump).
 All 13 packages (11 SFFMC + shared + root) bumped 0.8.0 → 0.8.1 to
 align with CHANGELOG v0.8.1 (was inconsistent in v0.8.1 release).
 
-## v0.8.1 — Known gaps fixed + F5'/F6'/F8 enhancements + 6 new skills/builtins (2026-06-15)
+## v0.8.1 — Known gaps fixed + opt-in bundle enhancements + 6 new skills/builtins (2026-06-15)
 
 ### Fixed
 
@@ -315,10 +315,10 @@ align with CHANGELOG v0.8.1 (was inconsistent in v0.8.1 release).
 
 ### Added
 
-**F5'/F6'/F8 enhancements:**
-- **F5' Checkpoint**: schema migration — `CURRENT_VERSION=1`, `migrateCheckpoint(raw, fromVersion)`, forward-compat restore
-- **F6' Judge**: streaming mode — `callJudgeStream` with `onChunk` callback for `scores`/`winner`/`reasoning`/`complete`/`error` chunks
-- **F8 Dream**: LLM cluster naming — `nameClusterViaLLM` generates 3-5 word topic phrase
+**opt-in bundle enhancements:**
+- **Checkpoint**: schema migration — `CURRENT_VERSION=1`, `migrateCheckpoint(raw, fromVersion)`, forward-compat restore
+- **Judge**: streaming mode — `callJudgeStream` with `onChunk` callback for `scores`/`winner`/`reasoning`/`complete`/`error` chunks
+- **Dream**: LLM cluster naming — `nameClusterViaLLM` generates 3-5 word topic phrase
 
 **New workflow builtins (3):**
 - `security-audit` (4 phases): Scope → Scan (4 parallel agents) → Triage → Report
@@ -340,14 +340,14 @@ align with CHANGELOG v0.8.1 (was inconsistent in v0.8.1 release).
 
 - 429 → 465 tests (+36)
 
-## v0.8.0 — @sffmc/extra plugin (F5'/F6'/F8 opt-in bundle) (2026-06-15)
+## v0.8.0 — @sffmc/extra plugin (opt-in bundle) (2026-06-15)
 
 ### Added
 
 New `@sffmc/extra` plugin: opt-in bundle of 3 advanced features.
 All features disabled by default — toggle per feature via config flags.
 
-**F5' Checkpoint** (`extra_checkpoint` tool):
+**Checkpoint** (`extra_checkpoint` tool):
 - Captures every `tool.execute.after` call into per-session JSONL at
   `~/.local/share/sffmc/extra/checkpoints/<sessionID>.jsonl` (configurable via `checkpoint_dir`)
 - Schema versioning: `version: 1` header, restore rejects unknown versions
@@ -355,7 +355,7 @@ All features disabled by default — toggle per feature via config flags.
 - Auto-restore via `<!-- EXTRA_RESTORE: <sessionID> -->` marker in messages
 - Append-only JSONL for crash safety
 
-**F6' Judge** (`extra_judge` tool):
+**Judge** (`extra_judge` tool):
 - LLM judge scoring 2-8 candidate outputs
 - Multi-criteria rubric: correctness, completeness, conciseness (0-10 each)
 - Returns `{ scores, winner, reasoning, model, latencyMs }`
@@ -364,7 +364,7 @@ All features disabled by default — toggle per feature via config flags.
 - LLM call at temperature 0.2 for determinism
 - JSON parsing with validation (rejects malformed responses)
 
-**F8 Dream** (`extra_dream` tool):
+**Dream** (`extra_dream` tool):
 - 3 trigger paths: count > threshold (default 50), cron interval (default 24h), manual
 - Dedup: Jaccard similarity > 0.9, keep newer entry by `last_accessed`
 - Stale removal: `last_accessed > 30 days` → archived to `dream-archive.jsonl`
@@ -380,11 +380,11 @@ All features disabled by default — toggle per feature via config flags.
 
 ### Migration from v0.7.5
 
-No breaking changes. To opt in to F5'/F6'/F8, add to `~/.config/SFFMC/extra.yaml`:
+No breaking changes. To opt in to the extra bundle, add to `~/.config/SFFMC/extra.yaml`:
 ```yaml
-checkpoint: true      # F5' capture + restore
-judge: true           # F6' multi-criteria LLM scoring
-dream: true           # F8 background memory cleaner
+checkpoint: true      # capture + restore
+judge: true           # multi-criteria LLM scoring
+dream: true           # background memory cleaner
 checkpoint_dir: ""    # default ~/.local/share/sffmc/extra/checkpoints/
 dream_threshold: 50   # count > N triggers dream
 dream_interval_hours: 24
@@ -462,9 +462,9 @@ judge_auto: false     # auto-judge markers in messages
 
 - 272 → 292 tests (+20 from `@sffmc/health`)
 
-## v0.7.2 — F3+ Health plugin (2026-06-15)
+## v0.7.2 — Health plugin (2026-06-15)
 
-Revived F3+ Health as a real diagnostic tool. Plugin authors can now run `sffmc_health` to check monorepo health in <1s.
+Revived Health as a real diagnostic tool. Plugin authors can now run `sffmc_health` to check monorepo health in <1s.
 
 ### New package: `@sffmc/health`
 
@@ -539,15 +539,15 @@ No code changes. No plugin version bumps. Pure docs + tooling.
 ## v0.6.0 — Dynamic Workflow engine (2026-06-14)
 
 9 SFFMC plugins shipped:
-- @sffmc/memory (W1) — FTS5 + ICM extraction
-- @sffmc/rules (W1) — YAML gate-based allow/deny
-- @sffmc/watchdog (W2) — 3-failure counter, auto-recovery
-- @sffmc/eos-stripper (W2) — EOS token cleanup
-- @sffmc/log-whitelist (W2) — agent log filter
-- @sffmc/max-mode (W3) — parallel drafts + judge
-- @sffmc/auto-max (W3) — auto-escalation to max-mode
-- @sffmc/compose (W4) — 15 compose skills
-- @sffmc/workflow (W5-6) — NEW
+- @sffmc/memory — FTS5 + ICM extraction
+- @sffmc/rules — YAML gate-based allow/deny
+- @sffmc/watchdog — 3-failure counter, auto-recovery
+- @sffmc/eos-stripper — EOS token cleanup
+- @sffmc/log-whitelist — agent log filter
+- @sffmc/max-mode — parallel drafts + judge
+- @sffmc/auto-max — auto-escalation to max-mode
+- @sffmc/compose — 15 compose skills
+- @sffmc/workflow — NEW
 
 Workflow engine:
 - Sandboxed JavaScript via quickjs-emscripten WASM

@@ -13,9 +13,9 @@ Before working on any task, read `codemap.md` to understand:
 - Directory responsibilities and design patterns
 - Data flow and integration points between modules
 
-For deep work on a specific folder, also read that folder's `codemap.md` (e.g. `packages/workflow/codemap.md` for the W5-6 workflow engine).
+For deep work on a specific folder, also read that folder's `codemap.md` (e.g. `packages/workflow/codemap.md` for the workflow engine).
 
-## Architecture: composite (Drop-in Lattice Components)
+## Architecture: composite
 
 Every SFFMC plugin follows the **composite** pattern:
 - **Read** existing data freely (other plugins' state, OpenCode state)
@@ -34,7 +34,7 @@ bun test
 # Type-check (uses bun build --no-bundle, no global tsc needed)
 bun run typecheck
 
-# Run F3+ Health diagnostic (13 checks, JSON output)
+# Run health diagnostic (13 checks, JSON output)
 bun run scripts/run-health.ts
 
 # Audit hook conflicts (0 conflicts expected)

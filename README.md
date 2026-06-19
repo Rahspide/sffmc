@@ -31,7 +31,7 @@ default export using `mergeHooks()` from `@sffmc/shared`. The remaining 10
 packages are the individual sub-features; they still work standalone for
 backward compatibility.
 
-Every plugin is a **composite** (Drop-in Lattice Component): it reads any hook payload
+Every plugin is a **composite**: it reads any hook payload
 freely but writes only to its own slot. No module-level exports, no shared
 mutable state, no cross-plugin coupling. Load any combination — all three
 composite packages, individual sub-features, or a mix — and they compose cleanly.
