@@ -48,6 +48,14 @@ CREATE INDEX IF NOT EXISTS idx_wf_runs_status ON workflow_runs(status);
 `
 
 export function applySchema(db: import("bun:sqlite").Database): void {
+  // Runtime validation: ensure WORKFLOW_LIMITS values are safe integers
+  const limits = WORKFLOW_LIMITS;
+  for (const [key, val] of Object.entries(limits)) {
+    if (!Number.isInteger(val) || (val as number) <= 0 || (val as number) > 100_000_000) {
+      throw new Error(`Invalid WORKFLOW_LIMITS.${key}: ${val}`);
+    }
+  }
+
   db.exec("PRAGMA journal_mode=WAL")
   db.exec(SCHEMA_SQL)
   // v0.13.0 — additive migration: workspace column for resume() to restore
