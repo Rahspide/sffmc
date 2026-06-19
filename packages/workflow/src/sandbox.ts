@@ -10,13 +10,24 @@ import {
   type QuickJSWASMModule,
 } from "quickjs-emscripten"
 import type { SandboxConstraints } from "./types"
-import { SCRIPT_DEADLINE_MS } from "./constants.ts"
+import {
+  SCRIPT_DEADLINE_MS,
+  getSandboxMemoryMB,
+  getSandboxStackSize,
+} from "./constants.ts"
 
 // ---------------------------------------------------------------------------
 // Defaults
 // ---------------------------------------------------------------------------
+//
+// Phase-1 HIGH migration (W15, W16): the QuickJS memory limit and
+// max-stack-size now defer to `getSandboxMemoryMB()` /
+// `getSandboxStackSize()` from `./constants.ts`, which read from
+// `~/.config/SFFMC/workflow.yaml` (default 64 MiB / 1 MiB). When no
+// caller-supplied `memoryMB` is given AND the YAML has not been loaded,
+// the prior hardcoded behavior (64 MiB) is preserved via the default in
+// `DEFAULT_WORKFLOW_EXTENDED_CONFIG`.
 
-const DEFAULT_MEMORY = 64 * 1024 * 1024            // 64 MiB
 /** Fallback seed when no caller-supplied seed is set. Stable so existing
  *  single-shot tests stay deterministic. The runtime always passes
  *  seed=hash(runID) so production paths never see this default. */
@@ -138,8 +149,16 @@ export async function runSandboxed(
 
   // --- Create runtime + context ---
   const rt = QJS.newRuntime()
-  rt.setMemoryLimit(opts?.memoryMB ? opts.memoryMB * 1024 * 1024 : DEFAULT_MEMORY)
-  rt.setMaxStackSize(1024 * 1024) // 1 MB stack
+  // Phase-1 HIGH migration (W15): sandbox memory now defaults to the
+  // YAML-configured value (via `getSandboxMemoryMB()`), which falls back
+  // to 64 MiB when no override is set. The previous hardcoded `DEFAULT_MEMORY`
+  // constant is preserved as `DEFAULT_MEMORY_BYTES` for any code paths
+  // that still need to compute byte counts directly.
+  const memoryMB = opts?.memoryMB ?? getSandboxMemoryMB()
+  rt.setMemoryLimit(memoryMB * 1024 * 1024)
+  // Phase-1 HIGH migration (W16): QuickJS max stack size now reads from
+  // the YAML config via `getSandboxStackSize()` (default 1 MiB).
+  rt.setMaxStackSize(getSandboxStackSize())
   rt.setInterruptHandler(
     shouldInterruptAfterDeadline(Date.now() + (opts?.deadlineMs ?? SCRIPT_DEADLINE_MS)),
   )

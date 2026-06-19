@@ -4,6 +4,7 @@
 import { readFile, access } from "node:fs/promises"
 import path from "node:path"
 import { parseMeta, type Meta } from "./meta.ts"
+import { ensureWorkflowConfig, getWorkflowSearchDirs } from "./constants.ts"
 
 /** Raw filesystem existence check — NOT workspace-jailed.
  *  resolve.ts walks UP the directory tree and needs to check paths
@@ -16,6 +17,14 @@ async function fileExists(p: string): Promise<boolean> {
     return false
   }
 }
+
+/** Eagerly populate the workflow config cache at module-load time so
+ *  `getWorkflowSearchDirs()` returns the YAML override (if any) on the
+ *  first call to `resolveWorkflow()`. Failure is non-fatal: the sync
+ *  getter falls back to `WORKFLOW_SEARCH_DIRS`. */
+void ensureWorkflowConfig().catch(() => {
+  // Best-effort — the sync getter's fallback handles the failure case.
+})
 
 const META_RE = /export\s+const\s+meta\s*=/
 
@@ -73,7 +82,12 @@ export async function resolveWorkflow(
     throw new Error(`invalid workflow name: ${JSON.stringify(nameOrPath)}`)
   }
 
-  const subdirs = [".sffmc/workflows", ".claude/workflows"]
+  // Phase-1 HIGH migration (W25): search dirs are now read from the
+  // YAML-config (`WorkflowConfig.searchDirs`), defaulting to the prior
+  // `[".sffmc/workflows", ".claude/workflows"]` array. The sync getter
+  // returns the cached value or the default if `ensureWorkflowConfig()`
+  // has not yet completed (best-effort — see top-of-file fire-and-forget).
+  const subdirs = getWorkflowSearchDirs()
   let current = workspace
   for (;;) {
     for (const sub of subdirs) {

@@ -10,6 +10,7 @@ import { homedir } from "node:os"
 import { createInterface } from "node:readline"
 import type { WorkflowRun, WorkflowStep, JournalEvent, WorkflowStatus } from "./types.ts"
 import { applySchema } from "./schema.ts"
+import { ensureWorkflowConfig, getWorkflowDataDir } from "./constants.ts"
 
 // ---------------------------------------------------------------------------
 // RunID generation (base62)
@@ -99,12 +100,29 @@ export function journalKey(
 // ---------------------------------------------------------------------------
 // Default paths (used when no explicit dataDir provided)
 // ---------------------------------------------------------------------------
+//
+// Phase-1 HIGH migration (W20): the data directory can be overridden via
+// `WorkflowConfig.dataDir`. The override (via `getWorkflowDataDir()`) wins
+// over the XDG / `~/.local/share` default. The override is empty string by
+// default — the empty case falls through to the original XDG lookup so
+// behavior is unchanged when no YAML is provided.
 
 function defaultDataDir(): string {
+  // Phase-1 HIGH migration (W20): prefer the YAML-config override if set.
+  const override = getWorkflowDataDir()
+  if (override && override.trim().length > 0) return override
   const xdg = process.env.XDG_DATA_HOME
   if (xdg) return path.join(xdg, "SFFMC", "workflow")
   return path.join(homedir(), ".local", "share", "SFFMC", "workflow")
 }
+
+/** Eagerly populate the workflow config cache at module-load time so
+ *  `getWorkflowDataDir()` returns the YAML override (if any) on the
+ *  first call to `defaultDataDir()`. Failure is non-fatal: the sync
+ *  getter falls back to the hardcoded XDG default. */
+void ensureWorkflowConfig().catch(() => {
+  // Best-effort — the sync getter's fallback handles the failure case.
+})
 
 function dbPathForDir(dir: string): string {
   return path.join(dir, "state.sqlite")
