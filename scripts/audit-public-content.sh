@@ -45,10 +45,14 @@ SCOPE=(
 #   - docs/load-order-audit.md : hook registration audit, names external
 #     OpenCode wrappers it observes (e.g. oh-my-opencode-slim, dcp-strip-malformed,
 #     icm) — accurate signal for SFFMC maintainers, not for end users.
+#   - docs/mimo-code-features.md : pure MiMo-Code reference doc for SFFMC
+#     maintainers. Counts and names (e.g. "15 compose skills") reflect
+#     MiMo-Code's own state in dependencies/MiMo-Code/, NOT SFFMC's.
 #   - scripts/audit-public-content.sh : this file itself. The regex categories
 #     would match their own keywords; self-exclusion breaks the chicken-and-egg.
 EXCLUDE_FILES=(
   docs/load-order-audit.md
+  docs/mimo-code-features.md
   scripts/audit-public-content.sh
 )
 
