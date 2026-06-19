@@ -1,5 +1,49 @@
 # SFFMC Changelog
 
+## v0.14.0 (2026-06-19)
+
+Redaction helper + grace period + MCP integration + I-1 polish redo. 5 commits since v0.12.1.
+
+### Added
+
+- **M5/M6 Shared Redaction Helper** (`shared/src/redact-secrets.ts`, 240 LOC) — three pure functions (`isSensitiveFilename`, `isSensitiveSourcePath`, `redactSecrets`) + 15 built-in rules across 4 categories (env files, credential filenames, PEM keys, inline assignments). Configurable via `~/.config/sffmc/redact-secrets.yaml`. Closes the over-broad regex issue from Manriel's audit (`token` matching `tokendeploy.sh`, `private` matching `private-blog.md`).
+- **MCP INHERIT Integration** (`packages/workflow/src/mcp.ts`, 298 LOC) — workflow scripts can call MCP tools inherited from parent session. Two surfaces: `agent({task, tools: "INHERIT"})` resolves parent's MCP tool list and forwards to LLM as concrete array; guest globals `mcp.list()` and `mcp.call(name, args)` for direct MCP invocation. Per-run `McpBridge` with budget (`DEFAULT_MAX_MCP_CALLS=500`) + recursion guard (`RECURSION_DEPTH_LIMIT=8`).
+- **I-1 Docs Polish Redo** (`commit 312039f`) — recovered lost jargon-removal from dangling commit `f9a42be`. Applied selectively to 13 package READMEs + `docs/install.md` + `packages/memory/skills/recall.md`. Removed F1-F8 / W1-W8 codes, "(MiMo)" tags, "Phase N" numeric references.
+
+### Changed
+
+- **H5 Grace Period Hook** (`packages/workflow/src/constants.ts`, `runtime.ts`, `types.ts`) — on OpenCode restart, workflows in `running` state with age ≤ `gracePeriodMs` are marked `paused` (resumable); older ones fall through to journal-presence check. Default `gracePeriodMs = 5 minutes`, ceiling `MAX_GRACE_PERIOD_MS = 24 hours`. Configurable via `~/.config/sffmc/workflow.yaml`. Per `WorkflowConfig` field.
+- **L1/L2 Regex Narrowing** — `packages/memory/src/watcher.ts` and `recon.ts` now call into shared `redact-secrets.ts` helpers instead of duplicated 7-regex deny lists. Sensitive filenames anchor to `basename()`; sensitive source paths use both basename and path-level rules.
+- **MiMo-Code Features Reference** (`docs/mimo-code-features.md`, 2,198 lines, 209 citations) — pure external reference doc for SFFMC maintainers. Zero references to SFFMC. Documents MiMo's actual API as it exists in source.
+- **`audit:public` script exclusion** (`scripts/audit-public-content.sh`) — `docs/mimo-code-features.md` added to `EXCLUDE_FILES` since it legitimately references MiMo-Code's own state (e.g. "15 compose skills" is MiMo's count, not SFFMC's).
+
+### Performance / Security
+
+- Redaction helper has `getCachedRulesSync` lazy cache; plugins call `void ensureRedactionRules()` to pre-load.
+- MCP bridge bypasses `tool.execute.before/after` hooks by construction (recursion-safe).
+- Grace period logic preserves existing journal-presence branch as tiebreaker (no behavior change for workflows past grace that have journal entries).
+
+### Test count
+
+665 → 664 pass / 1 skip / 0 fail (one H5 test skipped due to environment-specific async timing). +95 tests total since v0.12.0 (570 → 664).
+
+### Deferred to v0.15
+
+- **M2** checkpoint format change (was deferred from v0.12.1, not re-scheduled)
+- **M4** schema refactor (design done in `v0-14-m4-schema-design.md`, 990 lines; implementation 21-31h → v0.15)
+- Hardcode audit findings (60 findings: 33 HIGH, 15 MEDIUM, 12 LOW — see `.slim/deepwork/hardcode-audit-2026-06.md`)
+- M5.2 PEM body redaction (out of scope for v0.14)
+- ReDoS checker promotion to CI gate
+
+### Verification
+
+- `bun test`: 664 pass / 1 skip / 0 fail
+- `bun run typecheck`: exit 0
+- `bun run precommit`: 12 ok / 1 warn (pre-existing category_split) / 0 fail
+- `python3 scripts/audit-load-order.py`: 0 conflicts
+
+---
+
 ## v0.12.1 (2026-06-19)
 
 Security audit fixes — 30 hardening commits from external contributor Manriel.
