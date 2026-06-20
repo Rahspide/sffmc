@@ -86,7 +86,7 @@ See [`docs/install.md`](./docs/install.md) for the full guide (pinned versions, 
 
 ## What's new in v0.14.2
 
-- **External security audit — all hardening items closed.** Real LRU eviction in checkpoint session buffer, typed error for oversize checkpoint files, module-level mutable state in dream.ts documented with migration path, sandbox deadline rationale documented, parallel candidates cap retained at 10 with explicit trade-off documentation. See [`pr-review-manriel-security-audit.md`](./pr-review-manriel-security-audit.md).
+- **External security audit by @Manriel — all hardening items closed.** Real LRU eviction in checkpoint session buffer, typed error for oversize checkpoint files, module-level mutable state in dream.ts documented with migration path, sandbox deadline rationale documented, parallel candidates cap retained at 10 with explicit trade-off documentation. See [`pr-review-manriel-security-audit.md`](./pr-review-manriel-security-audit.md).
 - **Workflow hardcode migration** — 10 hardcoded constants moved from `runtime.ts` to a `WorkflowConfig` YAML schema, overrideable via `~/.config/sffmc/workflow.yaml`. 17 new tests plus concurrent-access fix.
 - **`flushNow` NOT NULL regression fix** — defensive `?? 0` coercion at the persistence boundary plus test-side fixes for two fake `InternalRunEntry` objects missing counter fields. New regression test `flushNow coerces undefined counters to 0`.
 

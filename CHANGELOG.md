@@ -26,11 +26,11 @@
 
 ## Thank you to contributors
 
-Thanks to the external security audit that identified many of the hardening items addressed across the v0.12.1–v0.14.x line.
+Thanks to **@Manriel** for the external security audit that identified many of the hardening items addressed across the v0.12.1–v0.14.x line.
 
 ## v0.14.2 (2026-06-20)
 
-External security audit closeout (all 30 items) + flushNow NOT NULL fix. See [`README.md`](./README.md) for details. 2 commits since v0.14.1.
+**@Manriel**: external security audit closeout (all 30 items) + flushNow NOT NULL fix. See [`README.md`](./README.md) for details. 2 commits since v0.14.1.
 
 ## v0.14.1 (2026-06-19)
 
@@ -70,7 +70,7 @@ Redaction helper + grace period + MCP integration + docs polish redo. 5 commits 
 
 ### Added
 
-- **Shared redaction helper** (`shared/src/redact-secrets.ts`, 240 LOC) — three pure functions (`isSensitiveFilename`, `isSensitiveSourcePath`, `redactSecrets`) + 15 built-in rules across 4 categories (env files, credential filenames, PEM keys, inline assignments). Configurable via `~/.config/sffmc/redact-secrets.yaml`. Fixes the over-broad regex issue from the external security audit (`token` matching `tokendeploy.sh`, `private` matching `private-blog.md`).
+- **Shared redaction helper** (`shared/src/redact-secrets.ts`, 240 LOC) — three pure functions (`isSensitiveFilename`, `isSensitiveSourcePath`, `redactSecrets`) + 15 built-in rules across 4 categories (env files, credential filenames, PEM keys, inline assignments). Configurable via `~/.config/sffmc/redact-secrets.yaml`. Fixes the over-broad regex issue from the external security audit by **@Manriel** (`token` matching `tokendeploy.sh`, `private` matching `private-blog.md`).
 - **MCP INHERIT Integration** (`packages/workflow/src/mcp.ts`, 298 LOC) — workflow scripts can call MCP tools inherited from parent session. Two surfaces: `agent({task, tools: "INHERIT"})` resolves parent's MCP tool list and forwards to the AI model as a concrete array; guest globals `mcp.list()` and `mcp.call(name, args)` for direct MCP invocation. Per-run `McpBridge` with budget (`DEFAULT_MAX_MCP_CALLS=500`) + recursion guard (`RECURSION_DEPTH_LIMIT=8`).
 - **Docs polish redo** (`commit 312039f`) — recovered lost jargon-removal from dangling commit `f9a42be`. Applied selectively to 13 package READMEs + `docs/install.md` + `packages/memory/skills/recall.md`.
 
@@ -113,7 +113,7 @@ Redaction helper + grace period + MCP integration + docs polish redo. 5 commits 
 
 ## v0.12.1 (2026-06-19)
 
-Security hardening — 30 fixes from an external security audit.
+Security hardening — 30 fixes from **@Manriel**'s external security audit.
 
 ### Fixed
 
