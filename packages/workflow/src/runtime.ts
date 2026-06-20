@@ -526,7 +526,7 @@ export class WorkflowRuntime {
 
   /** Recover orphaned workflows on startup.
    *  Any run left in 'running' status after a process restart is orphaned.
-   *  Lock recovery is N/A — lockMap at runtime.ts:100 is in-process only;
+   *  Lock recovery is N/A — lockMap at module scope is in-process only;
    *  there is no on-disk lock. After this method returns, all orphaned
    *  runs are either marked 'paused' (resumable) or 'crashed' (no journal).
    *

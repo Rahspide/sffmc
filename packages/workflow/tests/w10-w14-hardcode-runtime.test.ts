@@ -139,11 +139,11 @@ describe("W11 — DEFAULT_MAX_CONCURRENT reads from SFFMC config", () => {
     expect(sem.max).toBe(4)
   })
 
-  it("YAML override of 0 falls back to CPU-derived default (not zero)", () => {
+  it("YAML override of 0 is honored literally as zero concurrency", () => {
     // Edge case: if a user sets maxConcurrentAgents: 0 in YAML, the
-    // resolveMaxConcurrentAgents() function detects the override (0 !== 16)
-    // and returns 0. This is a documented "0 means zero concurrency" path,
-    // not a fallback. Verify the behavior.
+    // resolver returns 0 directly. There is no CPU-derived fallback
+    // (that was removed in v0.14.2 by the W11 fix — commit 4064ad3).
+    // Verify the "0 means zero concurrency" path is the only path.
     __setWorkflowConfig({
       ...DEFAULT_WORKFLOW_EXTENDED_CONFIG,
       maxConcurrentAgents: 0,
