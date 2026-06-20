@@ -54,6 +54,12 @@ export interface ExtraConfig {
   /** E10 — JSONL path for archived dream entries. Empty string means
    *  "use the homedir default" (`~/.local/share/sffmc/extra/dream-archive.jsonl`). */
   dream_archive_path: string;
+  /** E12 — max characters per entry in the concatenated dream summary
+   *  (also used by `nameClusterViaLLM`). Recommended range: 20 ≤ x ≤ 1000. */
+  dream_snippet_length: number;
+  /** E13 — max characters per entry in the LLM summarization prompt.
+   *  Recommended range: 50 ≤ x ≤ 4000. */
+  dream_llm_snippet_length: number;
   /** E15 — max candidates per judge call. Validated to the 2-20 range. */
   judge_max_candidates: number;
 }
@@ -78,6 +84,8 @@ const defaultConfig: ExtraConfig = {
   dream_cluster_threshold: 0.3,                // E8
   dream_max_entries: 5000,                     // E9
   dream_archive_path: "",                      // E10: empty → DEFAULT_ARCHIVE_PATH
+  dream_snippet_length: 100,                   // E12
+  dream_llm_snippet_length: 200,               // E13
   judge_max_candidates: 8,                     // E15
 };
 
@@ -146,11 +154,14 @@ export const dreamServer = async (ctx: PluginContext): Promise<PluginServer> => 
   log.info(
     `dream: ${config.dream ? "enabled" : "disabled"}`,
   );
-  // Phase-1 HIGH migration (E7, E8, E9) + Phase-2 MEDIUM migration (E10):
-  // forward YAML-configurable thresholds/caps/paths to the dream factory.
-  // Defaults match the previous hardcoded values, so behavior is
-  // unchanged when no YAML is present. The factory falls back to
-  // `DEFAULT_ARCHIVE_PATH` when `archivePath` is empty.
+  // Phase-1 HIGH migration (E7, E8, E9) + Phase-2 MEDIUM migration (E10)
+  // + Phase-3 LOW migration (E12, E13): forward YAML-configurable
+  // thresholds/caps/paths/sizes to the dream factory. Defaults match the
+  // previous hardcoded values, so behavior is unchanged when no YAML is
+  // present. The factory falls back to `DEFAULT_ARCHIVE_PATH` when
+  // `archivePath` is empty, and to the documented constants
+  // (`DREAM_SNIPPET_LENGTH` = 100, `DREAM_LLM_SNIPPET_LENGTH` = 200) when
+  // the snippet-length fields are omitted.
   const d = createDreamTool({
     enabled: config.dream,
     threshold: config.dream_threshold,
@@ -160,6 +171,8 @@ export const dreamServer = async (ctx: PluginContext): Promise<PluginServer> => 
     clusterThreshold: config.dream_cluster_threshold,
     maxEntries: config.dream_max_entries,
     archivePath: config.dream_archive_path,
+    snippetLength: config.dream_snippet_length,
+    llmSnippetLength: config.dream_llm_snippet_length,
   });
   return { id: "extra-dream", tool: { extra_dream: d.tool }, ...d.hooks };
 };

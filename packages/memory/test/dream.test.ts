@@ -9,6 +9,8 @@ import {
   isDreamLocked,
   nameClusterViaLLM,
   DEFAULT_ARCHIVE_PATH,
+  DREAM_SNIPPET_LENGTH,
+  DREAM_LLM_SNIPPET_LENGTH,
   type DreamResult,
   type RichPluginContext,
   type MemoryRow,
@@ -1241,6 +1243,569 @@ describe("F8 Dream", () => {
 
       try { unlinkSync(pathA); } catch {}
       try { unlinkSync(pathB); } catch {}
+    });
+  });
+
+  // ── Phase-3 (v0.14.3) LOW migration — E12/E13 snippetLength ───────────
+  // dream.ts — the `100` and `200` literals in `concatenateSummary`,
+  // `nameClusterViaLLM`, and `summarizeViaLLM` are now configurable via
+  // `DreamConfig.snippetLength` and `DreamConfig.llmSnippetLength`.
+  // Default behavior must be preserved (regression), and overrides must
+  // reach the helpers via the factory's runDream() thread.
+  //
+  // These tests cover:
+  //   1. Exported constants match the documented defaults (100 / 200).
+  //   2. `concatenateSummary` (no-ctx path) truncates each entry to
+  //      exactly `snippetLength` chars; ellipsis appears when content
+  //      exceeds the limit. Regression: default 100.
+  //   3. Custom `snippetLength` reaches `concatenateSummary` — a 50-char
+  //      cap produces shorter previews with ellipsis on long entries.
+  //   4. Custom `llmSnippetLength` reaches `summarizeViaLLM` — the LLM
+  //      mock receives a substring of the configured length per entry.
+  //   5. Custom `snippetLength` reaches `nameClusterViaLLM` — the
+  //      topic-namer LLM mock receives a substring of the configured
+  //      length per entry.
+  //   6. Range validation: out-of-range values (below recommended min,
+  //      above recommended max) are accepted at the runtime layer — the
+  //      factory does NOT clamp; it trusts the YAML. This documents the
+  //      current contract and would surface any future change to
+  //      add clamping.
+
+  describe("E12/E13 snippetLength config", () => {
+    it("DREAM_SNIPPET_LENGTH and DREAM_LLM_SNIPPET_LENGTH constants match documented defaults", () => {
+      expect(DREAM_SNIPPET_LENGTH).toBe(100);
+      expect(DREAM_LLM_SNIPPET_LENGTH).toBe(200);
+    });
+
+    it("default snippetLength=100: concatenateSummary truncates each entry to 100 chars with ellipsis on long content (regression)", async () => {
+      // 6 entries, each with content >> 100 chars to force ellipsis.
+      // Entries share a 30-token base and add 2 unique tokens each →
+      // pairwise Jaccard ≈ 30/34 ≈ 0.88 (cluster but NOT dedup).
+      const db = openTestDB();
+      const now = Math.floor(Date.now() / 1000);
+      const sharedBase =
+        "alpha beta gamma delta epsilon zeta eta theta iota kappa " +
+        "lambda mu nu xi omicron pi rho sigma tau upsilon phi chi psi " +
+        "omega1 omega2 omega3 omega4 omega5 omega6"; // 30 tokens
+      const uniqueTokens = [
+        "oauth2 grant",
+        "rbac permission",
+        "https cookies",
+        "throttle limits",
+        "audit trail",
+        "mfa verify",
+      ];
+      for (let i = 0; i < 6; i++) {
+        const content = sharedBase + " " + uniqueTokens[i]; // ~150+ chars
+        db.run(
+          "INSERT INTO memory_entries (source_path, section, content, importance_score, last_accessed, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+          [
+            `test/snip-default-${i}.md`,
+            "default",
+            content,
+            0.5,
+            now - i,
+            now - i,
+          ],
+        );
+      }
+      db.close();
+
+      // No ctx → concatenateSummary path. No snippetLength override → default 100.
+      const { tool } = createDreamTool({
+        enabled: true,
+        threshold: 50,
+        intervalHours: 0,
+        storagePath: TEST_DB_PATH,
+      });
+      const result = await tool.execute();
+      expect(result.ok).toBe(true);
+      expect(result.summarized).toBe(6);
+
+      const db2 = openTestDB();
+      const rows = db2
+        .query("SELECT * FROM memory_entries")
+        .all() as Array<{ source_path: string; content: string }>;
+      expect(rows.length).toBe(1);
+      const summary = rows[0].content;
+      // Header line includes the count.
+      expect(summary).toMatch(/DREAM-SUMMARY \(6 entries merged\)/);
+      // Each snippet line: [<source_path>] <first 100 chars><ellipsis?>.
+      // The `…` (U+2026) appears only when content.length > snippetLength.
+      const snippetLines = summary.split("\n").slice(1);
+      expect(snippetLines.length).toBe(6);
+      for (const line of snippetLines) {
+        // Strip the "[path] " prefix to isolate the preview + ellipsis.
+        const previewMatch = line.match(/^\[[^\]]+\] (.*)$/);
+        expect(previewMatch).not.toBeNull();
+        const preview = previewMatch![1];
+        // Default 100 chars: preview must be exactly 100 + ellipsis.
+        expect(preview.length).toBe(101); // 100 chars + "…"
+        expect(preview.endsWith("…")).toBe(true);
+      }
+      db2.close();
+    });
+
+    it("custom snippetLength=50: concatenateSummary uses 50-char previews with ellipsis", async () => {
+      // Same shape as the regression test, but with snippetLength=50.
+      const db = openTestDB();
+      const now = Math.floor(Date.now() / 1000);
+      const sharedBase =
+        "alpha beta gamma delta epsilon zeta eta theta iota kappa " +
+        "lambda mu nu xi omicron pi rho sigma tau upsilon phi chi psi " +
+        "omega1 omega2 omega3 omega4 omega5 omega6";
+      const uniqueTokens = [
+        "oauth2 grant",
+        "rbac permission",
+        "https cookies",
+        "throttle limits",
+        "audit trail",
+        "mfa verify",
+      ];
+      for (let i = 0; i < 6; i++) {
+        const content = sharedBase + " " + uniqueTokens[i];
+        db.run(
+          "INSERT INTO memory_entries (source_path, section, content, importance_score, last_accessed, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+          [
+            `test/snip-50-${i}.md`,
+            "fifty",
+            content,
+            0.5,
+            now - i,
+            now - i,
+          ],
+        );
+      }
+      db.close();
+
+      const { tool } = createDreamTool({
+        enabled: true,
+        threshold: 50,
+        intervalHours: 0,
+        storagePath: TEST_DB_PATH,
+        snippetLength: 50, // override
+      });
+      const result = await tool.execute();
+      expect(result.summarized).toBe(6);
+
+      const db2 = openTestDB();
+      const rows = db2
+        .query("SELECT * FROM memory_entries")
+        .all() as Array<{ content: string }>;
+      expect(rows.length).toBe(1);
+      const summary = rows[0].content;
+      const snippetLines = summary.split("\n").slice(1);
+      expect(snippetLines.length).toBe(6);
+      for (const line of snippetLines) {
+        const previewMatch = line.match(/^\[[^\]]+\] (.*)$/);
+        const preview = previewMatch![1];
+        // 50 chars + ellipsis = 51 total.
+        expect(preview.length).toBe(51);
+        expect(preview.endsWith("…")).toBe(true);
+      }
+      db2.close();
+    });
+
+    it("custom llmSnippetLength=400: summarizeViaLLM receives 400-char previews", async () => {
+      // The LLM mock captures the user message sent to summarizeViaLLM.
+      // We assert the previews in that message match the configured length.
+      //
+      // Content shape: 100 shared tokens + 12 unique tokens per entry →
+      // pairwise Jaccard = 100/(100+12+12-100) = 100/124 ≈ 0.806 →
+      // cluster (above 0.3) but NOT dedup (below 0.9). 100 tokens × ~5
+      // chars = ~500 chars per entry, which is > 400 (the override).
+      const db = openTestDB();
+      const now = Math.floor(Date.now() / 1000);
+      const sharedBase =
+        "alpha beta gamma delta epsilon zeta eta theta iota kappa " +
+        "lambda mu nu xi omicron pi rho sigma tau upsilon phi chi psi " +
+        "one two three four five six seven eight nine ten " +
+        "eleven twelve thirteen fourteen fifteen sixteen seventeen " +
+        "eighteen nineteen twenty thirty forty fifty sixty seventy " +
+        "eighty ninety hundred apple banana cherry date grape lemon " +
+        "mango orange peach quince raspberry strawberry tangerine " +
+        "watermelon blueberry blackberry cranberry fig kiwi papaya " +
+        "apricot boysenberry cantaloupe damson elderberry guava " +
+        "honeydew jackfruit kumquat lime nectarine olive pomegranate " +
+        "quince rhubarb starfruit ugli vanilla watermelon xigua yam " +
+        "zucchini almond bread carrot dill endive fennel garlic herb";
+      // 100 distinct base tokens. Each entry adds 12 unique tokens.
+      const uniqueTokens = [
+        "alpha1 alpha2 alpha3 alpha4 alpha5 alpha6 alpha7 alpha8 alpha9 alpha10 alpha11 alpha12",
+        "beta1 beta2 beta3 beta4 beta5 beta6 beta7 beta8 beta9 beta10 beta11 beta12",
+        "gamma1 gamma2 gamma3 gamma4 gamma5 gamma6 gamma7 gamma8 gamma9 gamma10 gamma11 gamma12",
+        "delta1 delta2 delta3 delta4 delta5 delta6 delta7 delta8 delta9 delta10 delta11 delta12",
+        "epsilon1 epsilon2 epsilon3 epsilon4 epsilon5 epsilon6 epsilon7 epsilon8 epsilon9 epsilon10 epsilon11 epsilon12",
+        "zeta1 zeta2 zeta3 zeta4 zeta5 zeta6 zeta7 zeta8 zeta9 zeta10 zeta11 zeta12",
+      ];
+      const contents = uniqueTokens.map((u) => sharedBase + " " + u);
+      for (let i = 0; i < contents.length; i++) {
+        db.run(
+          "INSERT INTO memory_entries (source_path, section, content, importance_score, last_accessed, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+          [
+            `test/llm-snip-${i}.md`,
+            "auth",
+            contents[i],
+            0.5 + i * 0.05,
+            now - i,
+            now - i,
+          ],
+        );
+      }
+      db.close();
+
+      // Capture the user message sent to summarizeViaLLM (skip nameClusterViaLLM).
+      let capturedUserMsg = "";
+      const mockCtx: RichPluginContext = {
+        client: {
+          session: {
+            message: async (params: { messages: Array<{ role: string; content: string }> }) => {
+              const sysMsg = params.messages.find((m) => m.role === "system")?.content ?? "";
+              const userMsg = params.messages.find((m) => m.role === "user")?.content ?? "";
+              if (sysMsg.includes("memory summarizer")) {
+                capturedUserMsg = userMsg;
+                return { content: [{ type: "text", text: "captured summary" }] };
+              }
+              // topic-namer — return canned name, no need to inspect
+              return { content: [{ type: "text", text: "captured topic" }] };
+            },
+          },
+        },
+      };
+
+      const { tool } = createDreamTool({
+        enabled: true,
+        threshold: 50,
+        intervalHours: 0,
+        storagePath: TEST_DB_PATH,
+        ctx: mockCtx,
+        llmSnippetLength: 400, // override
+      });
+      const result = await tool.execute();
+      expect(result.ok).toBe(true);
+      expect(result.summarized).toBe(6);
+
+      // The captured user message starts with "Summarize these N related...".
+      // Each entry is formatted as "[<source_path>] <substring(0, llmSnippetLength)>".
+      // We verify that each entry's preview is exactly 400 chars long.
+      // Split on the separator "\n\n" used by nameClusterViaLLM/summarizeViaLLM.
+      const entryLines = capturedUserMsg
+        .split("\n\n")
+        .slice(1) // skip the "Summarize these 6..." header
+        .filter((l) => l.startsWith("["));
+      expect(entryLines.length).toBe(6);
+      for (const line of entryLines) {
+        const previewMatch = line.match(/^\[[^\]]+\] (.*)$/);
+        expect(previewMatch).not.toBeNull();
+        const preview = previewMatch![1];
+        // llmSnippetLength=400 → preview must be exactly 400 chars.
+        // Content was much longer, so substring(0, 400) truncates without ellipsis
+        // (the LLM helpers don't add ellipsis — only concatenateSummary does).
+        expect(preview.length).toBe(400);
+      }
+    });
+
+    it("custom snippetLength=30: nameClusterViaLLM receives 30-char previews", async () => {
+      // Direct test of nameClusterViaLLM with snippetLength=30.
+      // The mock captures the user message and we verify preview lengths.
+      const longContent = Array.from({ length: 50 }, (_, i) => `w${i}`).join(" "); // >> 30 chars
+      const cluster: MemoryRow[] = [
+        {
+          id: 1,
+          source_path: "src/a.ts",
+          section: null,
+          content: longContent,
+          importance_score: 0.5,
+          last_accessed: null,
+          created_at: 1000,
+        },
+        {
+          id: 2,
+          source_path: "src/b.ts",
+          section: null,
+          content: longContent + " extra",
+          importance_score: 0.5,
+          last_accessed: null,
+          created_at: 1001,
+        },
+      ];
+
+      let capturedUserMsg = "";
+      const mockCtx: RichPluginContext = {
+        client: {
+          session: {
+            message: async (params: { messages: Array<{ role: string; content: string }> }) => {
+              capturedUserMsg = params.messages.find((m) => m.role === "user")?.content ?? "";
+              return { content: [{ type: "text", text: "captured topic" }] };
+            },
+          },
+        },
+      };
+
+      const name = await nameClusterViaLLM(
+        cluster,
+        mockCtx,
+        "test-model",
+        30, // snippetLength override
+      );
+      expect(name).toBe("captured topic");
+
+      // Verify each preview in the user message is exactly 30 chars.
+      const entryLines = capturedUserMsg
+        .split("\n\n")
+        .slice(1)
+        .filter((l) => l.startsWith("["));
+      expect(entryLines.length).toBe(2);
+      for (const line of entryLines) {
+        const previewMatch = line.match(/^\[[^\]]+\] (.*)$/);
+        expect(previewMatch).not.toBeNull();
+        const preview = previewMatch![1];
+        expect(preview.length).toBe(30);
+      }
+    });
+
+    it("default snippetLength=100 on nameClusterViaLLM direct call (regression)", async () => {
+      // Confirms the default parameter on nameClusterViaLLM itself
+      // (separate from the factory's resolution) still produces 100-char
+      // previews. This protects out-of-tree consumers that import the
+      // helper directly without going through createDreamTool.
+      const longContent = Array.from({ length: 50 }, (_, i) => `w${i}`).join(" "); // >> 100 chars
+      const cluster: MemoryRow[] = [
+        {
+          id: 1,
+          source_path: "src/a.ts",
+          section: null,
+          content: longContent,
+          importance_score: 0.5,
+          last_accessed: null,
+          created_at: 1000,
+        },
+      ];
+
+      let capturedUserMsg = "";
+      const mockCtx: RichPluginContext = {
+        client: {
+          session: {
+            message: async (params: { messages: Array<{ role: string; content: string }> }) => {
+              capturedUserMsg = params.messages.find((m) => m.role === "user")?.content ?? "";
+              return { content: [{ type: "text", text: "topic" }] };
+            },
+          },
+        },
+      };
+
+      await nameClusterViaLLM(cluster, mockCtx, "test-model"); // no override → 100
+
+      const entryLines = capturedUserMsg
+        .split("\n\n")
+        .slice(1)
+        .filter((l) => l.startsWith("["));
+      expect(entryLines.length).toBe(1);
+      const previewMatch = entryLines[0].match(/^\[[^\]]+\] (.*)$/);
+      const preview = previewMatch![1];
+      expect(preview.length).toBe(100);
+    });
+
+    it("range validation: out-of-range values are accepted at runtime (no clamping)", async () => {
+      // Documents the current contract: the factory trusts the YAML and
+      // does NOT clamp to the recommended range. The plan recommends
+      // 20 ≤ snippetLength ≤ 1000 and 50 ≤ llmSnippetLength ≤ 4000, but
+      // these are documentation hints, not runtime invariants.
+      //
+      // We exercise three edge cases:
+      //   a. snippetLength = 5 (below recommended min 20) — accepted.
+      //   b. snippetLength = 5000 (above recommended max 1000) — accepted.
+      //   c. llmSnippetLength = 10000 (above recommended max 4000) — accepted.
+
+      // (a) snippetLength = 5
+      {
+        const db = openTestDB();
+        const now = Math.floor(Date.now() / 1000);
+        // 30 shared tokens (~150 chars) + 2 unique per entry →
+        // pairwise Jaccard ≈ 30/34 ≈ 0.88 → cluster, NOT dedup.
+        const sharedBase =
+          "alpha beta gamma delta epsilon zeta eta theta iota kappa " +
+          "lambda mu nu xi omicron pi rho sigma tau upsilon phi chi psi " +
+          "omega1 omega2 omega3 omega4 omega5 omega6";
+        const uniqueTokens = [
+          "oauth2 grant",
+          "rbac permission",
+          "https cookies",
+          "throttle limits",
+          "audit trail",
+          "mfa verify",
+        ];
+        for (let i = 0; i < 6; i++) {
+          const content = sharedBase + " " + uniqueTokens[i];
+          db.run(
+            "INSERT INTO memory_entries (source_path, section, content, importance_score, last_accessed, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            [`test/range-low-${i}.md`, "x", content, 0.5, now - i, now - i],
+          );
+        }
+        db.close();
+
+        const { tool } = createDreamTool({
+          enabled: true,
+          threshold: 50,
+          intervalHours: 0,
+          storagePath: TEST_DB_PATH,
+          snippetLength: 5, // below recommended min
+        });
+        const result = await tool.execute();
+        expect(result.ok).toBe(true);
+        expect(result.summarized).toBe(6);
+
+        const db2 = openTestDB();
+        const rows = db2
+          .query("SELECT * FROM memory_entries")
+          .all() as Array<{ content: string }>;
+        const summary = rows[0].content;
+        const snippetLines = summary.split("\n").slice(1);
+        expect(snippetLines.length).toBe(6);
+        for (const line of snippetLines) {
+          const previewMatch = line.match(/^\[[^\]]+\] (.*)$/);
+          const preview = previewMatch![1];
+          // 5 chars + ellipsis = 6 total.
+          expect(preview.length).toBe(6);
+          expect(preview.endsWith("…")).toBe(true);
+        }
+        db2.close();
+      }
+
+      // (b) snippetLength = 5000 — must not crash; previews stay within content length.
+      {
+        // Clean DB: sub-test (a) inserted a dream-summary row that would
+        // cluster with the new entries and pollute the snippet lines.
+        try { rmSync(TEST_DIR, { recursive: true, force: true }); } catch {}
+        setupTestDir();
+        const db = openTestDB();
+        const now = Math.floor(Date.now() / 1000);
+        // 30 shared tokens + 2 unique per entry → cluster, NOT dedup.
+        const sharedBase =
+          "alpha beta gamma delta epsilon zeta eta theta iota kappa " +
+          "lambda mu nu xi omicron pi rho sigma tau upsilon phi chi psi " +
+          "omega1 omega2 omega3 omega4 omega5 omega6";
+        const uniqueTokens = [
+          "oauth2 grant",
+          "rbac permission",
+          "https cookies",
+          "throttle limits",
+          "audit trail",
+          "mfa verify",
+        ];
+        const contents = uniqueTokens.map((u) => sharedBase + " " + u); // ~150–175 chars each
+        for (let i = 0; i < 6; i++) {
+          db.run(
+            "INSERT INTO memory_entries (source_path, section, content, importance_score, last_accessed, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            [`test/range-high-${i}.md`, "x", contents[i], 0.5, now - i, now - i],
+          );
+        }
+        db.close();
+
+        const { tool } = createDreamTool({
+          enabled: true,
+          threshold: 50,
+          intervalHours: 0,
+          storagePath: TEST_DB_PATH,
+          snippetLength: 5000, // above recommended max
+        });
+        const result = await tool.execute();
+        expect(result.ok).toBe(true);
+        expect(result.summarized).toBe(6);
+
+        const db2 = openTestDB();
+        const rows = db2
+          .query("SELECT * FROM memory_entries")
+          .all() as Array<{ content: string }>;
+        const summary = rows[0].content;
+        const snippetLines = summary.split("\n").slice(1);
+        for (const line of snippetLines) {
+          const previewMatch = line.match(/^\[[^\]]+\] (.*)$/);
+          const preview = previewMatch![1];
+          // No ellipsis because content.length (~150) < snippetLength (5000).
+          expect(preview.endsWith("…")).toBe(false);
+          // Preview equals the full content (substring(0, 5000) on a ~150-char string).
+          // Compare by content (source_path → content mapping).
+          const pathMatch = line.match(/^\[([^\]]+)\]/);
+          const expectedPath = pathMatch![1];
+          const expectedContent = contents.find((_c, i) =>
+            expectedPath === `test/range-high-${i}.md`,
+          );
+          expect(expectedContent).toBeDefined();
+          expect(preview).toBe(expectedContent!);
+        }
+        db2.close();
+      }
+
+      // (c) llmSnippetLength = 10000 — LLM mock receives the full content (which is short).
+      {
+        // Clean DB: sub-test (b) left a dream-summary row.
+        try { rmSync(TEST_DIR, { recursive: true, force: true }); } catch {}
+        setupTestDir();
+        const db = openTestDB();
+        const now = Math.floor(Date.now() / 1000);
+        const sharedBase =
+          "alpha beta gamma delta epsilon zeta eta theta iota kappa " +
+          "lambda mu nu xi omicron pi rho sigma tau upsilon phi chi psi " +
+          "omega1 omega2 omega3 omega4 omega5 omega6";
+        const uniqueTokens = [
+          "oauth2 grant",
+          "rbac permission",
+          "https cookies",
+          "throttle limits",
+          "audit trail",
+          "mfa verify",
+        ];
+        const contents = uniqueTokens.map((u) => sharedBase + " " + u);
+        for (let i = 0; i < contents.length; i++) {
+          db.run(
+            "INSERT INTO memory_entries (source_path, section, content, importance_score, last_accessed, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            [`test/range-llm-${i}.md`, "auth", contents[i], 0.5, now - i, now - i],
+          );
+        }
+        db.close();
+
+        let capturedUserMsg = "";
+        const mockCtx: RichPluginContext = {
+          client: {
+            session: {
+              message: async (params: { messages: Array<{ role: string; content: string }> }) => {
+                const sysMsg = params.messages.find((m) => m.role === "system")?.content ?? "";
+                if (sysMsg.includes("memory summarizer")) {
+                  capturedUserMsg = params.messages.find((m) => m.role === "user")?.content ?? "";
+                  return { content: [{ type: "text", text: "captured" }] };
+                }
+                return { content: [{ type: "text", text: "topic" }] };
+              },
+            },
+          },
+        };
+
+        const { tool } = createDreamTool({
+          enabled: true,
+          threshold: 50,
+          intervalHours: 0,
+          storagePath: TEST_DB_PATH,
+          ctx: mockCtx,
+          llmSnippetLength: 10_000, // above recommended max
+        });
+        const result = await tool.execute();
+        expect(result.ok).toBe(true);
+        expect(result.summarized).toBe(6);
+
+        // Each preview must be the full content string (since content << 10_000).
+        const entryLines = capturedUserMsg
+          .split("\n\n")
+          .slice(1)
+          .filter((l) => l.startsWith("["));
+        expect(entryLines.length).toBe(6);
+        for (let i = 0; i < entryLines.length; i++) {
+          const previewMatch = entryLines[i].match(/^\[[^\]]+\] (.*)$/);
+          const preview = previewMatch![1];
+          // contents[i] is the source; substring(0, 10_000) returns the full string.
+          expect(preview).toBe(contents[i]);
+        }
+      }
     });
   });
 });

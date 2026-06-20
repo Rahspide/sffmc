@@ -187,6 +187,9 @@ export interface WorkflowExtendedConfig {
    *  `setTimeout(flushFsync, getFsyncCoalesceMs())`. The default
    *  matches the prior hardcoded 50. Default: 50. */
   fsyncCoalesceMs: number
+  dbFilename: string
+  scriptExt: string
+  journalExt: string
 }
 
 export const DEFAULT_WORKFLOW_EXTENDED_CONFIG: WorkflowExtendedConfig = {
@@ -208,6 +211,9 @@ export const DEFAULT_WORKFLOW_EXTENDED_CONFIG: WorkflowExtendedConfig = {
   sandboxFastWindow: 50,
   flushDebounceMs: 250,
   fsyncCoalesceMs: 50,
+  dbFilename: "state.sqlite",
+  scriptExt: ".js",
+  journalExt: ".jsonl",
 }
 
 // Module-level cache for the loaded config. Populated on first call to
@@ -336,4 +342,8 @@ export function getFlushDebounceMs(): number {
 
 export function getFsyncCoalesceMs(): number {
   return getWorkflowConfigSync().fsyncCoalesceMs
+}
+
+export function getDbFilename(): string {
+  return getWorkflowConfigSync().dbFilename
 }

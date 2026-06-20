@@ -72,7 +72,7 @@ export function parseVerdict(raw: string, n: number): Verdict | null {
   }
 }
 
-function fallbackVerdict(candidates: Candidate[]): Verdict {
+function fallbackVerdict(candidates: Candidate[], fallbackConfidence: number = 0.3): Verdict {
   // Pick the candidate with the longest draft as a heuristic
   let best = 0;
   let maxLen = 0;
@@ -85,7 +85,7 @@ function fallbackVerdict(candidates: Candidate[]): Verdict {
   return {
     winner: best,
     reasoning: "Fallback: selected candidate with most detailed output",
-    confidence: 0.3,
+    confidence: fallbackConfidence,
   };
 }
 
@@ -97,10 +97,14 @@ export async function judgeCandidates(
   // (3-arg signature used in agentic/test/max-mode.test.ts) keep working
   // without modification. Default 8000 matches the prior literal.
   judgeDraftMaxChars: number = 8000,
+  // X3 — Phase-3 LOW migration. Optional 5th arg for fallback confidence.
+  // Default 0.3 matches the prior literal. Configurable via
+  // MaxModeConfig.fallbackConfidence in ~/.config/SFFMC/max-mode.yaml.
+  fallbackConfidence: number = 0.3,
 ): Promise<Verdict> {
   const session = ctx.client?.session;
   if (!session?.message) {
-    return fallbackVerdict(candidates);
+    return fallbackVerdict(candidates, fallbackConfidence);
   }
 
   const prompt = buildJudgePrompt(candidates, judgeDraftMaxChars);
@@ -127,8 +131,8 @@ export async function judgeCandidates(
       .join("\n");
 
     const verdict = parseVerdict(text, candidates.length);
-    return verdict ?? fallbackVerdict(candidates);
+    return verdict ?? fallbackVerdict(candidates, fallbackConfidence);
   } catch {
-    return fallbackVerdict(candidates);
+    return fallbackVerdict(candidates, fallbackConfidence);
   }
 }

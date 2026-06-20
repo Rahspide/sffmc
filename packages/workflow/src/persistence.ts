@@ -10,7 +10,7 @@ import { homedir } from "node:os"
 import { createInterface } from "node:readline"
 import type { WorkflowRun, WorkflowStep, JournalEvent, WorkflowStatus } from "./types.ts"
 import { applySchema } from "./schema.ts"
-import { ensureWorkflowConfig, getWorkflowDataDir } from "./constants.ts"
+import { ensureWorkflowConfig, getDbFilename, getWorkflowConfigSync, getWorkflowDataDir } from "./constants.ts"
 import { validateJournalEvent } from "./schema-journal.ts"
 import { createLogger } from "@sffmc/shared"
 
@@ -129,7 +129,7 @@ void ensureWorkflowConfig().catch(() => {
 })
 
 function dbPathForDir(dir: string): string {
-  return path.join(dir, "state.sqlite")
+  return path.join(dir, getDbFilename())
 }
 
 // ---------------------------------------------------------------------------
@@ -312,7 +312,7 @@ export class WorkflowPersistence {
 
   private scriptPath(runID: string): string {
     safeRunID(runID)
-    return path.join(this.dir, `${runID}.js`)
+    return path.join(this.dir, `${runID}${getWorkflowConfigSync().scriptExt}`)
   }
 
   async writeScript(runID: string, source: string): Promise<void> {
@@ -334,7 +334,7 @@ export class WorkflowPersistence {
 
   private journalPath(runID: string): string {
     safeRunID(runID)
-    return path.join(this.dir, `${runID}.jsonl`)
+    return path.join(this.dir, `${runID}${getWorkflowConfigSync().journalExt}`)
   }
 
   /** Cheap pre-check: does the journal file exist and have at least one byte?

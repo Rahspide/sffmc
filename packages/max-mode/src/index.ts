@@ -27,6 +27,16 @@ interface MaxModeConfig {
    *  batch × 8k draft stays under the model's context window. Default
    *  8000 matches the prior literal. Validation: 500 ≤ x ≤ 32000. */
   judgeDraftMaxChars: number;
+  // Phase-3 LOW migration (X3) — see
+  // .slim/deepwork/phase-2-3-hardcode-migration-plan.md §3.X3
+  /** X3 — confidence value stamped on the verdict whenever the judge path
+   *  falls back (SDK offline, parse error, or empty/invalid response).
+   *  Semantically distinct from a judge-reported confidence: a verdict
+   *  produced under fallback tells downstream consumers "we have no real
+   *  judge opinion" rather than "the judge rated this X%". Default 0.3
+   *  matches the prior literal in fallbackVerdict(). Validation:
+   *  0 ≤ x ≤ 1 (finite, not NaN/Infinity). */
+  fallbackConfidence: number;
 }
 
 export const defaultConfig: MaxModeConfig = {
@@ -40,6 +50,7 @@ export const defaultConfig: MaxModeConfig = {
   // when no ~/.config/SFFMC/max-mode.yaml is present.
   maxCandidates: 10,        // X1 (was `export const MAX_CANDIDATES = 10`)
   judgeDraftMaxChars: 8000, // X2 (was `c.draft.slice(0, 8000)` literal)
+  fallbackConfidence: 0.3,  // X3 (was hardcoded `confidence: 0.3` in fallbackVerdict)
 };
 
 interface MaxModeResult {
@@ -181,6 +192,10 @@ export const server = async (ctx: RichPluginContext) => {
           // to the judge. judge.ts truncates each draft before it enters
           // the judge prompt.
           config.judgeDraftMaxChars,
+          // X3 — Phase-3 LOW migration. Confidence stamped on fallback
+          // verdicts (SDK offline / parse failure / empty response).
+          // Distinct from judge-reported confidence.
+          config.fallbackConfidence,
         );
 
         const winner = candidates[verdict.winner];
