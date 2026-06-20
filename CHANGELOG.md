@@ -1,5 +1,9 @@
 # SFFMC Changelog
 
+## v0.14.2 (2026-06-20)
+
+Manriel audit closeout (all 30 items) + flushNow NOT NULL fix. See [`README.md`](./README.md) for details. 2 commits since v0.14.1.
+
 ## v0.14.1 (2026-06-19)
 
 Hotfix: auto-max cap observability + PEM body redaction + ReDoS CI gate + w5-6 link fix. 4 commits since v0.14.0.

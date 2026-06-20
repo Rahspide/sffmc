@@ -6,8 +6,8 @@
 
 [![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 [![Bun >= 1.0](https://img.shields.io/badge/Bun-%E2%89%A51.0-f9f1e1?logo=bun)](https://bun.sh)
-[![Version 0.12.0](https://img.shields.io/badge/version-0.12.0-success)](https://github.com/Rahspide/sffmc/releases)
-[![Tests](https://img.shields.io/badge/tests-578%20passing-brightgreen)](./packages/health)
+[![Version 0.14.2](https://img.shields.io/badge/version-0.14.2-success)](https://github.com/Rahspide/sffmc/releases)
+[![Tests](https://img.shields.io/badge/tests-722%20passing-brightgreen)](./packages/health)
 
 [**Packages**](./packages) &nbsp;·&nbsp; [**Getting started**](./docs/getting-started.md) &nbsp;·&nbsp; [**Contributing**](./CONTRIBUTING.md) &nbsp;·&nbsp; [**Changelog**](./CHANGELOG.md)
 
@@ -43,7 +43,7 @@ composite packages, individual sub-features, or a mix — and they compose clean
 - **Zero shared state.** Every plugin is composite. No side effects from load order.
 - **Drop-in.** `curl ... | sh` then restart OpenCode. No build step, no npm
   install, no configuration required to start.
-- **Battle-tested.** 578 unit tests across 30 files. Long-form agent test:
+- **Battle-tested.** 722 unit tests across 40 files. Long-form agent test:
   96% pass rate on 121 turns covering 41 patterns and 12 plugin-coverage
   blocks.
 - **MIT licensed.** Ported from MiMo-Code (Xiaomi) plus SFFMC team originals.
@@ -83,6 +83,14 @@ cd ~/.sffmc/plugins/sffmc
 | `sffmc uninstall` | Remove all SFFMC entries from config |
 
 See [`docs/install.md`](./docs/install.md) for the full guide (pinned versions, PATH setup, troubleshooting).
+
+## What's new in v0.14.2
+
+- **Manriel security audit — all 30 items closed.** Real LRU eviction in checkpoint session buffer (`C2`), typed `CheckpointTooLargeError` for oversize checkpoint files (`C3`), module-level mutable state in dream.ts documented with migration path (`M9`), sandbox deadline rationale documented (`H5`), parallel candidates cap retained at 10 with explicit trade-off doc (`H6`). See [`pr-review-manriel-security-audit.md`](./pr-review-manriel-security-audit.md).
+- **Workflow hardcode migration Phase 1** — 10 high-severity hardcoded constants moved from `runtime.ts` to `WorkflowConfig` YAML schema, overrideable via `~/.config/sffmc/workflow.yaml`. 17 new tests + W11 race fix.
+- **`flushNow` NOT NULL regression fix** — defensive `?? 0` coercion at the persistence boundary plus test-side fixes for two fake `InternalRunEntry` objects missing counter fields. New regression test `flushNow coerces undefined counters to 0`.
+
+Tests: 722 pass + 1 skip + 0 fail (was 710 in v0.14.0). 13 commits since v0.14.0.
 
 <details>
 <summary>Want individual sub-features instead? (after `sffmc init --all`)</summary>
