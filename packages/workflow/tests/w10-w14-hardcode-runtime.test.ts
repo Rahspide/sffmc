@@ -32,10 +32,13 @@ process.env.XDG_DATA_HOME = tmpDir
 import { WorkflowRuntime } from "../src/runtime.ts"
 import type { PluginContext } from "../src/runtime.ts"
 import { WorkflowPersistence } from "../src/persistence.ts"
+// v0.14.3 D-1 — every workflow-config import now goes through the
+// test-helper shim so production code can never accidentally depend
+// on `__setWorkflowConfig` (which is no longer exported from src/).
 import {
   DEFAULT_WORKFLOW_EXTENDED_CONFIG,
   __setWorkflowConfig,
-} from "../src/constants.ts"
+} from "./_test-helpers/config-cache.ts"
 import { DEFAULT_WORKFLOW_CONFIG } from "../src/types.ts"
 
 afterEach(() => {
@@ -223,7 +226,7 @@ describe("W13 — launchScript memoryMB reads from SFFMC config", () => {
     __setWorkflowConfig(DEFAULT_WORKFLOW_EXTENDED_CONFIG)
     // The runtime reads `getSandboxMemoryMB()` at launchScript() time.
     // Verify the default.
-    const { getSandboxMemoryMB } = require("../src/constants.ts") as {
+    const { getSandboxMemoryMB } = require("./_test-helpers/config-cache.ts") as {
       getSandboxMemoryMB: () => number
     }
     expect(getSandboxMemoryMB()).toBe(64)
@@ -234,7 +237,7 @@ describe("W13 — launchScript memoryMB reads from SFFMC config", () => {
       ...DEFAULT_WORKFLOW_EXTENDED_CONFIG,
       sandboxMemoryMB: 256,
     })
-    const { getSandboxMemoryMB } = require("../src/constants.ts") as {
+    const { getSandboxMemoryMB } = require("./_test-helpers/config-cache.ts") as {
       getSandboxMemoryMB: () => number
     }
     expect(getSandboxMemoryMB()).toBe(256)

@@ -193,11 +193,23 @@ export function ensureWorkflowConfig(
 }
 
 /** Test helper — reset the cached config. Useful for unit tests that
- *  want to inject a custom config without round-tripping through YAML. */
-export function __setWorkflowConfig(cfg: WorkflowExtendedConfig | null): void {
+ *  want to inject a custom config without round-tripping through YAML.
+ *  NOT exported (v0.14.3 D-1) — tests reach this function via the
+ *  test-helper shim at `tests/_test-helpers/config-cache.ts`, which
+ *  looks up the implementation through a Symbol registry rather than
+ *  a public export. The Symbol is namespaced under `@sffmc/workflow.*`
+ *  to avoid collisions. */
+function __setWorkflowConfig(cfg: WorkflowExtendedConfig | null): void {
   _workflowConfig = cfg
   _workflowConfigPromise = null
 }
+
+/** v0.14.3 D-1 — Symbol-keyed registration so the test shim can find
+ *  `__setWorkflowConfig` without `src/constants.ts` having to export it
+ *  publicly. Registered at module load; the shim looks it up via
+ *  `Symbol.for("@sffmc/workflow.__setWorkflowConfig")`. */
+const __SET_WORKFLOW_CONFIG_SYMBOL = Symbol.for("@sffmc/workflow.__setWorkflowConfig")
+;(globalThis as Record<symbol, unknown>)[__SET_WORKFLOW_CONFIG_SYMBOL] = __setWorkflowConfig
 
 /** Sync accessor — returns the cached config or the defaults if the
  *  YAML hasn't been loaded yet. Use this in hot paths where awaiting is

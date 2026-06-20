@@ -2,7 +2,7 @@
 // @sffmc/workflow — see ../../LICENSE
 //
 // Phase-1 HIGH migration tests (v0.14.2). Verifies the new YAML-config
-// getters in `src/constants.ts`:
+// getters in the workflow-constants module:
 //   - DEFAULT_WORKFLOW_EXTENDED_CONFIG has the prior hardcoded values
 //   - getWorkflowConfigSync() returns defaults before any YAML load
 //   - ensureWorkflowConfig() merges YAML overrides onto defaults
@@ -38,6 +38,9 @@ afterAll(() => {
   if (ORIGINAL_HOME !== undefined) process.env.HOME = ORIGINAL_HOME
 })
 
+// v0.14.3 D-1 — every workflow-config import now goes through the
+// test-helper shim so production code can never accidentally depend
+// on `__setWorkflowConfig` (which is no longer exported from src/).
 import {
   DEFAULT_WORKFLOW_EXTENDED_CONFIG,
   SCRIPT_DEADLINE_MS,
@@ -54,7 +57,7 @@ import {
   getWorkflowSearchDirs,
   getWorkflowDataDir,
   getMaxConcurrentAgents,
-} from "../src/constants.ts"
+} from "./_test-helpers/config-cache.ts"
 
 describe("@sffmc/workflow — Phase-1 HIGH migration config-loading path", () => {
   beforeEach(() => {
