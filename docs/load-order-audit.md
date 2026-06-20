@@ -5,7 +5,7 @@
 **Method**: AST-based extraction of hook keys from `server()` return blocks
 **Result**: **No conflicts** — all multi-listener registrations are intentional and OpenCode handles them in plugin load order
 
-## Load order (W1 → W6 chronological)
+## Load order (chronological by slot)
 
 | Slot | Plugin | Hooks registered |
 |---|---|---|
@@ -92,7 +92,7 @@ SFFMC plugins load in a deterministic order (composites first, then sub-features
 
 1. **No tool name conflicts** (compose_skill, workflow — both SFFMC-only)
 2. **No hook ownership conflicts** (all multi-registrations are intentional listeners)
-3. **Plugin load order is correct** (chronological W1→W6, SFFMC after external deps)
+3. **Plugin load order is correct** (chronological, SFFMC after external deps)
 4. **Critical sequencing verified** (/max reset before activate, watchdog before log-whitelist, etc.)
 5. **External hook overlap is non-conflicting** (additive, not replacing)
 
