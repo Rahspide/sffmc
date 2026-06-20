@@ -86,8 +86,8 @@ See [`docs/install.md`](./docs/install.md) for the full guide (pinned versions, 
 
 ## What's new in v0.14.2
 
-- **Manriel security audit — all 30 items closed.** Real LRU eviction in checkpoint session buffer (`C2`), typed `CheckpointTooLargeError` for oversize checkpoint files (`C3`), module-level mutable state in dream.ts documented with migration path (`M9`), sandbox deadline rationale documented (`H5`), parallel candidates cap retained at 10 with explicit trade-off doc (`H6`). See [`pr-review-manriel-security-audit.md`](./pr-review-manriel-security-audit.md).
-- **Workflow hardcode migration Phase 1** — 10 high-severity hardcoded constants moved from `runtime.ts` to `WorkflowConfig` YAML schema, overrideable via `~/.config/sffmc/workflow.yaml`. 17 new tests + W11 race fix.
+- **External security audit — all hardening items closed.** Real LRU eviction in checkpoint session buffer, typed error for oversize checkpoint files, module-level mutable state in dream.ts documented with migration path, sandbox deadline rationale documented, parallel candidates cap retained at 10 with explicit trade-off documentation. See [`pr-review-manriel-security-audit.md`](./pr-review-manriel-security-audit.md).
+- **Workflow hardcode migration** — 10 hardcoded constants moved from `runtime.ts` to a `WorkflowConfig` YAML schema, overrideable via `~/.config/sffmc/workflow.yaml`. 17 new tests plus concurrent-access fix.
 - **`flushNow` NOT NULL regression fix** — defensive `?? 0` coercion at the persistence boundary plus test-side fixes for two fake `InternalRunEntry` objects missing counter fields. New regression test `flushNow coerces undefined counters to 0`.
 
 Tests: 722 pass + 1 skip + 0 fail (was 710 in v0.14.0). 13 commits since v0.14.0.
@@ -188,7 +188,7 @@ bus, and the `mergeHooks` composer.
 | [`@sffmc/extra`](./packages/extra/README.md) | memory | Opt-in bundle: checkpoint, judge, dream | stable |
 | [`@sffmc/max-mode`](./packages/max-mode/README.md) | agentic | Parallel drafts + judge selection | stable |
 | [`@sffmc/workflow`](./packages/workflow/README.md) | agentic | Sandboxed JS orchestrator (quickjs-emscripten WASM) | stable |
-| [`@sffmc/compose`](./packages/compose/README.md) | agentic | 18 markdown skills (plan, tdd, verify, subagent, etc.) | stable |
+| [`@sffmc/compose`](./packages/compose/README.md) | agentic | 18 markdown skills for common workflows (planning, TDD, verification, task delegation, etc.) | stable |
 | [`@sffmc/health`](./packages/health/README.md) | agentic | Plugin diagnostic with JSON output | stable |
 | [`@sffmc/shared`](./shared/README.md) | — | SDK: loadConfig, PluginContext, EventBus, mergeHooks | stable |
 
@@ -296,11 +296,11 @@ auto-max, eos-stripper, log-whitelist, and health.
 |---|---|---|
 | Watchdog | `@sffmc/watchdog` | 3-failure rolling counter + recovery verdict |
 | Rules | `@sffmc/rules` | YAML gate-based allow/deny for destructive commands |
-| Memory | `@sffmc/memory` | FTS5 SQLite + context recon at session start |
+| Memory | `@sffmc/memory` | FTS5 SQLite + context recall at session start |
 | Checkpoint | `@sffmc/extra` | 200K resume with schema migration |
 | Judge | `@sffmc/extra` | Multi-criteria verdict with streaming mode |
 | Max Mode | `@sffmc/max-mode` | Parallel drafts + judge selection |
-| Dream | `@sffmc/extra` | LLM cluster naming + memory cleaning |
+| Dream | `@sffmc/extra` | Cluster naming + memory cleaning |
 | Compose | `@sffmc/compose` | 18 markdown skills |
 | Dynamic Workflow | `@sffmc/workflow` | Sandboxed JS orchestrator |
 
