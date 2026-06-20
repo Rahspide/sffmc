@@ -24,7 +24,7 @@ import { resolve, dirname } from "path"
 import { homedir } from "node:os"
 import { AGENTS_FILE } from "./constants.ts";
 
-interface MemoryConfig {
+export interface MemoryConfig {
   storagePath: string
   tailChars: number
   // Phase-1 HIGH migration (M2, M3) — see
@@ -39,17 +39,32 @@ interface MemoryConfig {
    *  are skipped (with a warn log) to prevent OOM from large crafted
    *  AGENTS.md files. Defaults to 100 KiB. */
   agentsMaxSize: number
+  // Phase-2 MEDIUM migration (M4, M5a, M5b) — see
+  // .slim/deepwork/phase-2-3-hardcode-migration-plan.md §2.2
+  /** M4 — max memories to include in recon injection (defaults to 20,
+   *  the prior hardcoded value). Raising this directly increases LLM
+   *  context consumption. */
+  reconTopN: number
+  /** M5a — chokidar `awaitWriteFinish.stabilityThreshold` in ms. Defaults
+   *  to 300 (the prior hardcoded value). */
+  watchStabilityMs: number
+  /** M5b — chokidar `awaitWriteFinish.pollInterval` in ms. Defaults to
+   *  100 (the prior hardcoded value). */
+  watchPollIntervalMs: number
 }
 
 const log = createLogger("memory");
 
-const defaultConfig: MemoryConfig = {
+export const defaultConfig: MemoryConfig = {
   storagePath: DEFAULT_MEMORY_DB_PATH(),
   tailChars: RECON_AGENTS_BUDGET,
   // Defaults match the prior hardcoded values — behavior unchanged.
   reconMemoryBudget: 6144,    // M2
   reconCheckpointBudget: 6144, // M2
   agentsMaxSize: 100 * 1024,  // M3: 100 KiB
+  reconTopN: 20,               // M4
+  watchStabilityMs: 300,      // M5a
+  watchPollIntervalMs: 100,    // M5b
 }
 
 interface PluginState {
@@ -90,7 +105,10 @@ export const server = async (ctx: PluginContext) => {
   async function ensureWatcher(): Promise<void> {
     if (!state.watcher) {
       const db = await ensureDB()
-      state.watcher = startWatcher(ctx.projectRoot, db)
+      state.watcher = startWatcher(ctx.projectRoot, db, {
+        stabilityMs: state.config.watchStabilityMs,
+        pollIntervalMs: state.config.watchPollIntervalMs,
+      })
     }
   }
 
@@ -122,7 +140,7 @@ export const server = async (ctx: PluginContext) => {
 
       try {
         const db = await ensureDB()
-        const memory = topByImportance(db, 20)
+        const memory = topByImportance(db, state.config.reconTopN)
 
         const agentsPath = resolve(ctx.projectRoot, AGENTS_FILE)
         let agents = ""

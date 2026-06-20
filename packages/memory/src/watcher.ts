@@ -6,9 +6,26 @@ import { relative, basename } from "path";
 import { ensureRedactionRules, isSensitiveFilename } from "@sffmc/shared";
 import { AGENTS_FILE, MEMORY_BANK_DIR } from "./constants.ts";
 
+/** Watcher tuning parameters (Phase-2 MEDIUM migration M5a, M5b).
+ *  Defaults match the prior hardcoded values (300ms / 100ms). */
+export interface WatcherConfig {
+  /** Chokidar `awaitWriteFinish.stabilityThreshold` in ms. */
+  stabilityMs: number
+  /** Chokidar `awaitWriteFinish.pollInterval` in ms. */
+  pollIntervalMs: number
+}
+
+export const DEFAULT_WATCHER_CONFIG: WatcherConfig = {
+  stabilityMs: 300,
+  pollIntervalMs: 100,
+}
+
 export function startWatcher(
   rootDir: string,
   db: MemoryDB,
+  /** Optional watcher tuning; defaults to { stabilityMs: 300, pollIntervalMs: 100 }
+   *  which preserves the prior hardcoded behaviour. */
+  watchCfg: WatcherConfig = DEFAULT_WATCHER_CONFIG,
 ): { stop: () => void } {
   // Pre-load redaction rules (user YAML + builtins) so the watcher's hot
   // path can stay sync. Fire-and-forget — `isSensitiveFilename` falls back
@@ -27,8 +44,8 @@ export function startWatcher(
     persistent: true,
     ignoreInitial: false,
     awaitWriteFinish: {
-      stabilityThreshold: 300,
-      pollInterval: 100,
+      stabilityThreshold: watchCfg.stabilityMs,
+      pollInterval: watchCfg.pollIntervalMs,
     },
   });
 

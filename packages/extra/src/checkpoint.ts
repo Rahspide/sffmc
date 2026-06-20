@@ -95,14 +95,31 @@ const DEFAULT_MAX_CHECKPOINT_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
  *  `ExtraConfig.checkpoint_max_restored_messages`. */
 const DEFAULT_MAX_RESTORED_MESSAGES = 50;
 
-const FLUSH_THRESHOLD = 50;
-const FLUSH_INTERVAL_MS = 5_000;
+//
+// Phase-2 (v0.14.3) MEDIUM-severity migration — see
+// .slim/deepwork/phase-2-3-hardcode-migration-plan.md §2.3
+//
+// `FLUSH_THRESHOLD`, `FLUSH_INTERVAL_MS`, and `MAX_BUFFER_SESSIONS` were
+// hardcoded module-level constants. They are now configurable via the
+// factory's `config.flushThreshold`, `config.flushIntervalMs`, and
+// `config.maxBufferedSessions`. The original values are preserved as
+// `DEFAULT_*` so callers that omit the new fields still see the prior
+// behavior.
+//
+
+/** Default buffer flush threshold (E3). Overridable via
+ *  `ExtraConfig.checkpoint_flush_threshold`. */
+export const DEFAULT_FLUSH_THRESHOLD = 50;
+
+/** Default periodic flush interval in ms (E4). Overridable via
+ *  `ExtraConfig.checkpoint_flush_interval_ms`. */
+export const DEFAULT_FLUSH_INTERVAL_MS = 5_000;
+
 export const CURRENT_VERSION = 1;
 
-/** Maximum number of sessions tracked in the in-memory buffer map.
- *  Prevents unbounded memory growth when many sessions are active.
- *  Least-recently-used sessions are flushed to disk and evicted when exceeded. */
-const MAX_BUFFER_SESSIONS = 50;
+/** Default max in-memory session buffers (E5). Overridable via
+ *  `ExtraConfig.checkpoint_max_buffered_sessions`. */
+export const DEFAULT_MAX_BUFFER_SESSIONS = 50;
 
 // ---------------------------------------------------------------------------
 // Storage path — overridable for tests
@@ -307,6 +324,12 @@ interface CheckpointBufferState {
   headersWritten: Set<string>;
   flushTimer: ReturnType<typeof setInterval> | null;
   dir: string;
+  /** E3 — buffer flush threshold (tool calls buffered before disk flush). */
+  flushThreshold: number;
+  /** E4 — periodic flush interval in ms. */
+  flushIntervalMs: number;
+  /** E5 — max in-memory session buffers (LRU eviction when exceeded). */
+  maxBufferedSessions: number;
 }
 
 /** Monotonic counter for insertion ordering. Module-level because the
@@ -343,7 +366,7 @@ function _flushAll(state: CheckpointBufferState): void {
 
 function _startFlushTimer(state: CheckpointBufferState): void {
   if (state.flushTimer) return;
-  state.flushTimer = setInterval(() => _flushAll(state), FLUSH_INTERVAL_MS);
+  state.flushTimer = setInterval(() => _flushAll(state), state.flushIntervalMs);
   if (state.flushTimer && typeof state.flushTimer === "object" && "unref" in state.flushTimer) {
     state.flushTimer.unref();
   }
@@ -394,7 +417,7 @@ function _getOrCreateBuffer(state: CheckpointBufferState, sessionID: string): To
   }
   // Evict LRU when the cap is reached. C2: the victim is determined
   // by the explicit timestamp scan, not by Map iteration order.
-  if (state.sessionBuffers.size >= MAX_BUFFER_SESSIONS) {
+  if (state.sessionBuffers.size >= state.maxBufferedSessions) {
     const victim = _findLRUVictim(state.sessionBuffers);
     if (victim !== null) {
       _flushSession(state, victim);
@@ -530,7 +553,7 @@ function _createToolExecuteAfterHook(
     const buf = _getOrCreateBuffer(state, toolCtx.sessionID);
     buf.push(call);
 
-    if (buf.length >= FLUSH_THRESHOLD) {
+    if (buf.length >= state.flushThreshold) {
       _flushSession(state, toolCtx.sessionID);
     }
   };
@@ -635,6 +658,18 @@ export function createCheckpointTool(config: {
   /** Phase-1 HIGH migration (E2): max messages restored per checkpoint.
    *  Defaults to 50. */
   maxRestoredMessages?: number;
+  /** Phase-2 MEDIUM migration (E3): buffer flush threshold. The buffer
+   *  is flushed to disk when this many tool calls accumulate for a
+   *  single session. Defaults to 50. */
+  flushThreshold?: number;
+  /** Phase-2 MEDIUM migration (E4): periodic flush interval in ms. A
+   *  background timer flushes all buffered sessions at this interval.
+   *  Defaults to 5_000 (5 seconds). */
+  flushIntervalMs?: number;
+  /** Phase-2 MEDIUM migration (E5): max in-memory session buffers. When
+   *  the cap is reached, the LRU session is flushed to disk and evicted.
+   *  Defaults to 50. */
+  maxBufferedSessions?: number;
 }): {
   tool: CheckpointTool;
   hooks: CheckpointHooks;
@@ -646,10 +681,14 @@ export function createCheckpointTool(config: {
   cleanup: () => void;
 } {
   const dir = config.dir || getCheckpointDir();
-  // Phase-1 HIGH migration (E1, E2): defaults match the prior hardcoded
-  // values, so behavior is unchanged when no YAML is provided.
+  // Phase-1 HIGH migration (E1, E2) + Phase-2 MEDIUM migration (E3, E4,
+  // E5): defaults match the prior hardcoded values, so behavior is
+  // unchanged when no YAML is provided.
   const maxFileSize = config.maxFileSize ?? DEFAULT_MAX_CHECKPOINT_FILE_SIZE;
   const maxRestoredMessages = config.maxRestoredMessages ?? DEFAULT_MAX_RESTORED_MESSAGES;
+  const flushThreshold = config.flushThreshold ?? DEFAULT_FLUSH_THRESHOLD;
+  const flushIntervalMs = config.flushIntervalMs ?? DEFAULT_FLUSH_INTERVAL_MS;
+  const maxBufferedSessions = config.maxBufferedSessions ?? DEFAULT_MAX_BUFFER_SESSIONS;
 
   // Per-instance state (DLC: no shared state between plugins)
   const state: CheckpointBufferState = {
@@ -657,6 +696,9 @@ export function createCheckpointTool(config: {
     headersWritten: new Set(),
     flushTimer: null,
     dir,
+    flushThreshold,
+    flushIntervalMs,
+    maxBufferedSessions,
   };
 
   const tool: CheckpointTool = {

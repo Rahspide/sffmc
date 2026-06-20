@@ -11,7 +11,9 @@ import { type RichPluginContext } from "@sffmc/shared";
  *  behavior for max-mode parallel candidates, capping at 10 breaks
  *  the design."
  *
- *  Decision: KEEP 10. Rationale:
+ *  Decision: KEEP the default at 10 (now configurable via
+ *  `MaxModeConfig.maxCandidates`, see .slim/deepwork/phase-2-3-
+ *  hardcode-migration-plan.md §2.6 — X1). Rationale:
  *
  *  1. Budget protection is the primary constraint. Each candidate is
  *     a separate `session.message()` call — the LLM API charges per
@@ -33,22 +35,19 @@ import { type RichPluginContext } from "@sffmc/shared";
  *     primary use case for max-mode in MiMo-Code) cannot wait for
  *     50 sequential LLM round-trips before showing the first result.
  *
- *  4. The cap is enforced at `Math.min(config.n, MAX_CANDIDATES)`
- *     (line 62 below). Callers that want more candidates can request
- *     them; the runtime clamps to 10. This is a deliberate budget
- *     guard, not a bug.
+ *  4. The cap is enforced at `Math.min(config.n, config.maxCandidates
+ *     ?? 10)` (below). Callers that want more candidates can request
+ *     them; the runtime clamps to the configured cap (default 10).
+ *     This is a deliberate budget guard, not a bug.
  *
- *  If a future use case requires the higher cap, the right place to
- *  lift it is:
- *    - Add `MaxModeConfig.maxCandidates` (configurable per call)
- *    - Pass it through to `generateCandidates(config, ctx)` as part
- *      of `GenerateConfig`
- *    - Keep this module-level constant as the hard ceiling
+ *  v0.14.3 (Phase 2 — X1): the prior module-level `MAX_CANDIDATES = 10`
+ *  was replaced with a `MaxModeConfig.maxCandidates` field. The default
+ *  of 10 is preserved in `defaultConfig.maxCandidates`, so behavior is
+ *  unchanged when no `~/.config/SFFMC/max-mode.yaml` is present.
  *
  *  See also: judge.ts (verdict selection across candidates) and
  *  restore.ts (tool execution after verdict).
  */
-export const MAX_CANDIDATES = 10;
 
 export interface ToolCall {
   name: string;
@@ -68,6 +67,11 @@ interface GenerateConfig {
   n: number;
   models: string[];
   temperature: number;
+  /** X1 — Phase-2 MEDIUM migration. Hard cap on parallel LLM
+   *  candidates. Optional so callers can omit it; safety cap falls
+   *  back to 10 (matching the v0.14.2 module-level const). Callers
+   *  built on `MaxModeConfig` always pass `config.maxCandidates`. */
+  maxCandidates?: number;
 }
 
 export function buildCandidatePrompt(
@@ -104,7 +108,10 @@ export async function generateCandidates(
 
   const model = config.models[0] || String(ctx.config?.model || "");
   const candidates: Candidate[] = [];
-  const n = Math.min(config.n, MAX_CANDIDATES);
+  // X1 — Phase-2 MEDIUM migration. Safety cap: clamp requested n to the
+  // configured maxCandidates (default 10, matching v0.14.2 const). This
+  // is the deliberate budget guard — see block comment above.
+  const n = Math.min(config.n, config.maxCandidates ?? 10);
 
   const messages = buildCandidatePrompt(prompt, 0, n);
   const requests = Array.from({ length: n }, (_, i) =>

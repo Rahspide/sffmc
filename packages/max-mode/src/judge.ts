@@ -7,11 +7,24 @@ export interface Verdict {
   confidence: number;
 }
 
-export function buildJudgePrompt(candidates: Candidate[]): string {
+/**
+ * Build the judge prompt from a list of candidates.
+ *
+ * X2 — Phase-2 MEDIUM migration (v0.14.3). The per-candidate draft
+ * truncation length was a hardcoded `c.draft.slice(0, 8000)` literal; it
+ * is now `judgeDraftMaxChars` (default 8000, matches the prior literal).
+ * Configurable via `MaxModeConfig.judgeDraftMaxChars` in
+ * `~/.config/SFFMC/max-mode.yaml`. See
+ * .slim/deepwork/phase-2-3-hardcode-migration-plan.md §2.6.
+ */
+export function buildJudgePrompt(
+  candidates: Candidate[],
+  judgeDraftMaxChars: number = 8000,
+): string {
   const drafts = candidates
     .map(
       (c, i) =>
-        `### Candidate ${i}\n\`\`\`\n${c.draft.slice(0, 8000)}\n\`\`\`\n${c.toolCalls.length > 0 ? `Tool calls suggested: ${c.toolCalls.length}` : "No tool calls"}`,
+        `### Candidate ${i}\n\`\`\`\n${c.draft.slice(0, judgeDraftMaxChars)}\n\`\`\`\n${c.toolCalls.length > 0 ? `Tool calls suggested: ${c.toolCalls.length}` : "No tool calls"}`,
     )
     .join("\n\n");
 
@@ -59,7 +72,7 @@ export function parseVerdict(raw: string, n: number): Verdict | null {
   }
 }
 
-function fallbackVerdict(candidates: Candidate[]): Verdict {
+function fallbackVerdict(candidates: Candidate[], fallbackConfidence: number = 0.3): Verdict {
   // Pick the candidate with the longest draft as a heuristic
   let best = 0;
   let maxLen = 0;
@@ -72,7 +85,7 @@ function fallbackVerdict(candidates: Candidate[]): Verdict {
   return {
     winner: best,
     reasoning: "Fallback: selected candidate with most detailed output",
-    confidence: 0.3,
+    confidence: fallbackConfidence,
   };
 }
 
@@ -80,13 +93,21 @@ export async function judgeCandidates(
   candidates: Candidate[],
   judgeModel: string,
   ctx: RichPluginContext,
+  // X2 — Phase-2 MEDIUM migration. Optional 4th arg so existing callers
+  // (3-arg signature used in agentic/test/max-mode.test.ts) keep working
+  // without modification. Default 8000 matches the prior literal.
+  judgeDraftMaxChars: number = 8000,
+  // X3 — Phase-3 LOW migration. Optional 5th arg for fallback confidence.
+  // Default 0.3 matches the prior literal. Configurable via
+  // MaxModeConfig.fallbackConfidence in ~/.config/SFFMC/max-mode.yaml.
+  fallbackConfidence: number = 0.3,
 ): Promise<Verdict> {
   const session = ctx.client?.session;
   if (!session?.message) {
-    return fallbackVerdict(candidates);
+    return fallbackVerdict(candidates, fallbackConfidence);
   }
 
-  const prompt = buildJudgePrompt(candidates);
+  const prompt = buildJudgePrompt(candidates, judgeDraftMaxChars);
 
   try {
     const response = await session.message({
@@ -110,8 +131,8 @@ export async function judgeCandidates(
       .join("\n");
 
     const verdict = parseVerdict(text, candidates.length);
-    return verdict ?? fallbackVerdict(candidates);
+    return verdict ?? fallbackVerdict(candidates, fallbackConfidence);
   } catch {
-    return fallbackVerdict(candidates);
+    return fallbackVerdict(candidates, fallbackConfidence);
   }
 }

@@ -103,12 +103,21 @@ export const MAX_GRACE_PERIOD_MS = 24 * 60 * 60 * 1000
 // Phase-1 HIGH migration (W1, W2, W3, W4, W5, W6, W7, W8, W9, W11, W15, W16,
 // W20, W25) — YAML-configurable workflow limits.
 //
+// Phase-2 MEDIUM migration (W17a, W17b, W17c) — sandbox pump timings.
+//
 // The schema below is loaded lazily via `loadConfig<>("workflow", …)` from
 // `@sffmc/shared`. Defaults match the exported constants above so behavior
 // is unchanged when no `~/.config/SFFMC/workflow.yaml` is present. Callers
 // that want config-aware values use the getter functions (`getScriptDeadlineMs`,
 // `getSandboxMemoryMB`, …) — they prefer the YAML override and fall back to
 // the hardcoded constant.
+//
+// Phase 2 sandbox pump timings (W17a-c): defaults match the prior hardcoded
+// values in `sandbox.ts` (FAST_MS=1, SLOW_MS=50, FAST_WINDOW=50). The pump
+// is the BACKSTOP that drains guest microtasks while we await the guest
+// promise — adaptive cadence to avoid idle CPU churn. A too-fast pump
+// increases CPU without throughput gain; a too-slow pump adds latency.
+// These are expert-only settings; the defaults are well-tuned.
 // ---------------------------------------------------------------------------
 
 export interface WorkflowExtendedConfig {
@@ -142,6 +151,45 @@ export interface WorkflowExtendedConfig {
   /** W20 — data directory override (default: XDG_DATA_HOME or
    *  ~/.local/share/SFFMC/workflow). Empty string means "use default". */
   dataDir: string
+  /** W17a — sandbox pump fast interval (ms). Adaptive pump cadence that
+   *  drains guest microtasks; stays FAST right after finding work, decays
+   *  to SLOW when idle. Expert-only. Default: 1. */
+  sandboxFastMs: number
+  /** W17b — sandbox pump slow interval (ms). Idle pump cadence; worst
+   *  case adds ≤ SLOW_MS latency when no work is found. Expert-only.
+   *  Default: 50. */
+  sandboxSlowMs: number
+  /** W17c — number of idle ticks before the pump decays from FAST to
+   *  SLOW cadence. Expert-only. Default: 50. */
+  sandboxFastWindow: number
+  /** W19 — scheduleFlush debounce window (ms). Coalesces frequent
+   *  flushNow calls (one DB UPDATE per run) within this window.
+   *
+   *  v0.14.3 hardcode Phase 2: getter + field added NOW (per the W17a-c
+   *  pattern), but the consumer wiring in `runtime.ts:scheduleFlush`
+   *  (replacing `setTimeout(..., 250)` with `getFlushDebounceMs()`) is
+   *  DEFERRED — runtime.ts is off-limits per the v0.14.1 hotfix policy.
+   *  The override takes effect once runtime.ts is updated in a follow-up
+   *  hotfix commit. Until then, the runtime uses the hardcoded 250
+   *  regardless of YAML.
+   *
+   *  Default: 250 (matches the prior hardcoded value in runtime.ts). */
+  flushDebounceMs: number
+  /** W22 — fsync coalescing window (ms). High-frequency
+   *  appendJournalSync callers (100+ events per workflow) would otherwise
+   *  fsync per append, costing O(n) syscalls. Coalesce fsync calls
+   *  within this window: each append schedules a deferred fsync that
+   *  fires once per window across all tracked paths.
+   *
+   *  Note: unlike W17a-c/W19, the consumer wiring in `persistence.ts`
+   *  is NOT off-limits — this commit replaces the literal
+   *  `setTimeout(flushFsync, FSYNC_COALESCE_MS)` with
+   *  `setTimeout(flushFsync, getFsyncCoalesceMs())`. The default
+   *  matches the prior hardcoded 50. Default: 50. */
+  fsyncCoalesceMs: number
+  dbFilename: string
+  scriptExt: string
+  journalExt: string
 }
 
 export const DEFAULT_WORKFLOW_EXTENDED_CONFIG: WorkflowExtendedConfig = {
@@ -158,6 +206,14 @@ export const DEFAULT_WORKFLOW_EXTENDED_CONFIG: WorkflowExtendedConfig = {
   sandboxStackSize: 1024 * 1024, // 1 MiB
   searchDirs: WORKFLOW_SEARCH_DIRS,
   dataDir: "",
+  sandboxFastMs: 1,
+  sandboxSlowMs: 50,
+  sandboxFastWindow: 50,
+  flushDebounceMs: 250,
+  fsyncCoalesceMs: 50,
+  dbFilename: "state.sqlite",
+  scriptExt: ".js",
+  journalExt: ".jsonl",
 }
 
 // Module-level cache for the loaded config. Populated on first call to
@@ -193,11 +249,23 @@ export function ensureWorkflowConfig(
 }
 
 /** Test helper — reset the cached config. Useful for unit tests that
- *  want to inject a custom config without round-tripping through YAML. */
-export function __setWorkflowConfig(cfg: WorkflowExtendedConfig | null): void {
+ *  want to inject a custom config without round-tripping through YAML.
+ *  NOT exported (v0.14.3 D-1) — tests reach this function via the
+ *  test-helper shim at `tests/_test-helpers/config-cache.ts`, which
+ *  looks up the implementation through a Symbol registry rather than
+ *  a public export. The Symbol is namespaced under `@sffmc/workflow.*`
+ *  to avoid collisions. */
+function __setWorkflowConfig(cfg: WorkflowExtendedConfig | null): void {
   _workflowConfig = cfg
   _workflowConfigPromise = null
 }
+
+/** v0.14.3 D-1 — Symbol-keyed registration so the test shim can find
+ *  `__setWorkflowConfig` without `src/constants.ts` having to export it
+ *  publicly. Registered at module load; the shim looks it up via
+ *  `Symbol.for("@sffmc/workflow.__setWorkflowConfig")`. */
+const __SET_WORKFLOW_CONFIG_SYMBOL = Symbol.for("@sffmc/workflow.__setWorkflowConfig")
+;(globalThis as Record<symbol, unknown>)[__SET_WORKFLOW_CONFIG_SYMBOL] = __setWorkflowConfig
 
 /** Sync accessor — returns the cached config or the defaults if the
  *  YAML hasn't been loaded yet. Use this in hot paths where awaiting is
@@ -235,4 +303,47 @@ export function getMaxInstructions(): number {
 
 export function getMaxConcurrentAgents(): number {
   return getWorkflowConfigSync().maxConcurrentAgents
+}
+
+// W17a-c — sandbox pump timings. The defaults match the prior hardcoded
+// values in `sandbox.ts` (FAST_MS=1, SLOW_MS=50, FAST_WINDOW=50). These
+// getters prefer the YAML override and fall back to the defaults above.
+
+export function getSandboxFastMs(): number {
+  return getWorkflowConfigSync().sandboxFastMs
+}
+
+export function getSandboxSlowMs(): number {
+  return getWorkflowConfigSync().sandboxSlowMs
+}
+
+export function getSandboxFastWindow(): number {
+  return getWorkflowConfigSync().sandboxFastWindow
+}
+
+// W19 — scheduleFlush debounce window. The default matches the prior
+// hardcoded value in `runtime.ts:scheduleFlush` (`setTimeout(..., 250)`).
+//
+// IMPORTANT: runtime.ts is off-limits per the v0.14.1 hotfix policy.
+// This getter is defined NOW so the consumer wiring (replacing the
+// literal `250` in runtime.ts with `getFlushDebounceMs()`) can be done
+// in a follow-up hotfix commit. Until then, the runtime ignores YAML
+// overrides for this field — the getter is consumed only by callers
+// outside runtime.ts (none today, future consumers expected).
+
+export function getFlushDebounceMs(): number {
+  return getWorkflowConfigSync().flushDebounceMs
+}
+
+// W22 — journal fsync coalescing window. The default matches the
+// prior hardcoded `const FSYNC_COALESCE_MS = 50` in `persistence.ts`.
+// This getter is used by `persistence.ts:scheduleFsync` (replacing
+// the local const with `getFsyncCoalesceMs()`).
+
+export function getFsyncCoalesceMs(): number {
+  return getWorkflowConfigSync().fsyncCoalesceMs
+}
+
+export function getDbFilename(): string {
+  return getWorkflowConfigSync().dbFilename
 }

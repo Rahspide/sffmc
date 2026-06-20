@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/health — see ../../LICENSE
 
-import { type PluginContext } from "@sffmc/shared";
+import { loadConfig, type PluginContext } from "@sffmc/shared";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -15,6 +15,122 @@ import {
 // Re-export the public schema so consumers (scripts, tests, agentic composite)
 // can `import { CheckResult, HealthResult, CheckFn } from "@sffmc/health"`.
 export type { CheckResult, HealthResult, CheckFn } from "./check-factory.ts";
+
+// ---------------------------------------------------------------------------
+// Phase-2 MEDIUM migration (H1, H2, H3) — YAML-configurable health checks.
+//
+// The health package historically had three module-level `const` arrays
+// (TOOL_FILES, safeMultiHooks, EXPECTED_COMPOSITES) that pinned the behavior
+// of three checks. We now load them from `~/.config/SFFMC/health.yaml` via
+// `loadConfig<>("health", …)`. When no YAML exists the merged defaults
+// exactly match the v0.14.2 hardcoded values, so behavior is unchanged.
+//
+// Pattern precedent: `packages/workflow/src/constants.ts` (`ensureWorkflowConfig`,
+// `getWorkflowConfigSync`, `__setWorkflowConfig`). The same shape works here
+// — a single `let _healthConfig` caches the merged config and the sync getter
+// falls back to defaults when no load has happened. Each check reads via
+// `getHealthConfigSync().X` rather than a module-level `let X` so the
+// per-test reset (`__setHealthConfig`) takes effect immediately.
+// ---------------------------------------------------------------------------
+
+/** H1 — repo-relative paths of files that register a tool (used by
+ *  `checkToolRegistration` to scan for the fix-17 `name` field bug). */
+export interface HealthConfig {
+  /** H1 — tool-registration scan targets (fix-17 regression guard). */
+  toolFiles: readonly string[]
+  /** H2 — hook names that are SAFE for multiple plugins to register
+   *  (`checkHookConflicts` whitelists these and treats all others as
+   *  real conflicts). */
+  safeMultiHooks: readonly string[]
+  /** H3 — composites the monorepo is expected to ship (used by
+   *  `checkCompositeStructure` for forward-validation of the
+   *  safety/memory/agentic layout). */
+  expectedComposites: readonly string[]
+}
+
+export const DEFAULT_HEALTH_CONFIG: HealthConfig = {
+  // H1 — matches the v0.14.2 hardcoded TOOL_FILES at src/index.ts:280-287
+  toolFiles: [
+    "packages/compose/src/index.ts",       // compose_skill
+    "packages/workflow/src/tool.ts",       // workflow
+    "packages/health/src/index.ts",        // sffmc_health
+    "packages/extra/src/checkpoint.ts",    // extra_checkpoint
+    "packages/extra/src/judge.ts",         // extra_judge
+    "packages/extra/src/dream.ts",         // extra_dream
+  ],
+  // H2 — matches the v0.14.2 hardcoded `new Set([...])` at src/index.ts:133-149
+  safeMultiHooks: [
+    "config",
+    "event",
+    "tool.execute.before",
+    "tool.execute.after",
+    "command.execute.before",
+    "command.execute.after",
+    "experimental.text.complete",
+    "experimental.chat.messages.transform",
+    "experimental.chat.system.transform",
+    "permission.ask",
+    "permission.respond",
+    "tool",            // each plugin registers distinct tool name under this key
+    "chat.message",
+    "chat.params",
+    "chat.system",
+  ],
+  // H3 — matches the v0.14.2 hardcoded EXPECTED_COMPOSITES at src/index.ts:693
+  expectedComposites: ["safety", "memory", "agentic"],
+}
+
+let _healthConfig: HealthConfig | null = null
+let _healthConfigPromise: Promise<HealthConfig> | null = null
+
+/** Load `~/.config/SFFMC/health.yaml` once and cache the result.
+ *  Idempotent — concurrent callers receive the same promise.
+ *
+ *  @param opts.configHome — override the config directory (useful for
+ *    tests that need an isolated config file). Defaults to
+ *    `~/.config/SFFMC`. */
+export function ensureHealthConfig(
+  opts?: { configHome?: string },
+): Promise<HealthConfig> {
+  if (_healthConfig) return Promise.resolve(_healthConfig)
+  if (!_healthConfigPromise) {
+    _healthConfigPromise = loadConfig<Partial<HealthConfig>>(
+      "health",
+      DEFAULT_HEALTH_CONFIG,
+      { configHome: opts?.configHome },
+    ).then((loaded) => {
+      const merged: HealthConfig = {
+        ...DEFAULT_HEALTH_CONFIG,
+        ...loaded,
+      }
+      _healthConfig = merged
+      return merged
+    })
+  }
+  return _healthConfigPromise
+}
+
+/** Test helper — reset the cached config. Useful for unit tests that
+ *  want to inject a custom config without round-tripping through YAML.
+ *  NOT publicly exported (v0.14.3 D-1) — tests reach this function via
+ *  the test-helper shim at `tests/_test-helpers/config-cache.ts`, which
+ *  looks up the implementation through a Symbol registry rather than
+ *  a public export. The Symbol is namespaced under `@sffmc.health.*` to
+ *  avoid collisions with the workflow shim. */
+function __setHealthConfig(cfg: HealthConfig | null): void {
+  _healthConfig = cfg
+  _healthConfigPromise = null
+}
+
+const __SET_HEALTH_CONFIG_SYMBOL = Symbol.for("@sffmc/health.__setHealthConfig")
+;(globalThis as Record<symbol, unknown>)[__SET_HEALTH_CONFIG_SYMBOL] = __setHealthConfig
+
+/** Sync accessor — returns the cached config or the defaults if the YAML
+ *  hasn't been loaded yet. Use this in hot paths where awaiting is not
+ *  an option; call `ensureHealthConfig()` at startup to populate. */
+export function getHealthConfigSync(): HealthConfig {
+  return _healthConfig ?? DEFAULT_HEALTH_CONFIG
+}
 
 // homedir() may cache at module load in Bun; use process.env.HOME first so
 // tests can override it.
@@ -129,24 +245,10 @@ export const checkHookConflicts = createCheck("hook_conflicts", async (repoRoot)
 
     // Most OpenCode hooks are designed for multiple plugins to chain/aggregate.
     // Only a few hooks are truly exclusive (where multiple registrations would conflict).
-    // The known-safe hooks for multi-registration:
-    const safeMultiHooks = new Set([
-      "config",
-      "event",
-      "tool.execute.before",
-      "tool.execute.after",
-      "command.execute.before",
-      "command.execute.after",
-      "experimental.text.complete",
-      "experimental.chat.messages.transform",
-      "experimental.chat.system.transform",
-      "permission.ask",
-      "permission.respond",
-      "tool",            // each plugin registers distinct tool name under this key
-      "chat.message",
-      "chat.params",
-      "chat.system",
-    ]);
+    // The known-safe hooks for multi-registration come from
+    // `getHealthConfigSync().safeMultiHooks` (H2 Phase-2 migration) — defaults
+    // match the v0.14.2 hardcoded list verbatim.
+    const safeMultiHooks = new Set(getHealthConfigSync().safeMultiHooks);
 
     const realConflicts: string[] = [];
     for (const [hook, pkgs] of Object.entries(allHooks)) {
@@ -277,19 +379,15 @@ export const checkTypeCheck = createCheck("type_check", async (repoRoot) => {
 });
 
 // Check 5: Tool registration sanity (fix-17 regression guard)
-const TOOL_FILES = [
-  "packages/compose/src/index.ts",       // compose_skill
-  "packages/workflow/src/tool.ts",       // workflow
-  "packages/health/src/index.ts",        // sffmc_health
-  "packages/extra/src/checkpoint.ts",    // extra_checkpoint
-  "packages/extra/src/judge.ts",         // extra_judge
-  "packages/extra/src/dream.ts",         // extra_dream
-];
-
+// H1 Phase-2 migration — the file list now comes from
+// `getHealthConfigSync().toolFiles` (default matches the v0.14.2 hardcoded
+// list). We resolve it once at the start of the check to keep the inner
+// loop allocation-free.
 export const checkToolRegistration = createCheck("tool_registration", async (repoRoot) => {
+  const toolFiles = getHealthConfigSync().toolFiles
   const bugs: string[] = [];
 
-  for (const relPath of TOOL_FILES) {
+  for (const relPath of toolFiles) {
     const absPath = join(repoRoot, relPath);
     if (!(await fileExists(absPath))) {
       bugs.push(`${relPath}: file not found`);
@@ -372,7 +470,7 @@ export const checkToolRegistration = createCheck("tool_registration", async (rep
   if (bugs.length === 0) {
     return {
       status: "ok",
-      detail: `0 'name' field bugs across ${TOOL_FILES.length} tool-bearing files`,
+      detail: `0 'name' field bugs across ${toolFiles.length} tool-bearing files`,
     };
   }
 
@@ -690,14 +788,16 @@ export const checkCategorySplit = createCheck("category_split", async (repoRoot)
 });
 
 // Check 13: Composite structure (v0.9.0)
-const EXPECTED_COMPOSITES = ["safety", "memory", "agentic"] as const;
-
+// H3 Phase-2 migration — the expected composite list now comes from
+// `getHealthConfigSync().expectedComposites` (default matches the v0.14.2
+// hardcoded `["safety", "memory", "agentic"]` list verbatim).
 export const checkCompositeStructure = createCheck("composite_structure", async (repoRoot) => {
+  const expectedComposites = getHealthConfigSync().expectedComposites
   const errors: string[] = [];
   const warnings: string[] = [];
 
   // 1. Each expected composite exists
-  for (const compositeName of EXPECTED_COMPOSITES) {
+  for (const compositeName of expectedComposites) {
     const compositeDir = join(repoRoot, "packages", compositeName);
     if (!(await fileExists(compositeDir))) {
       errors.push(`Composite directory missing: packages/${compositeName}/`);
@@ -750,13 +850,13 @@ export const checkCompositeStructure = createCheck("composite_structure", async 
 
   // 5. No sub-feature claims to be a composite (inverse check)
   for (const pkg of await packageNames(repoRoot)) {
-    if (EXPECTED_COMPOSITES.includes(pkg as typeof EXPECTED_COMPOSITES[number])) continue;
+    if (expectedComposites.includes(pkg)) continue;
     const pkgJsonPath = join(repoRoot, "packages", pkg, "package.json");
     try {
       const content = await readFile(pkgJsonPath, "utf-8");
       const parsed = JSON.parse(content) as { role?: string };
       if (parsed.role) {
-        errors.push(`${pkg}: claims role "${parsed.role}" but is not in EXPECTED_COMPOSITES`);
+        errors.push(`${pkg}: claims role "${parsed.role}" but is not in expectedComposites`);
       }
     } catch {
       // package.json unreadable — other checks handle this

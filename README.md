@@ -6,8 +6,8 @@
 
 [![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 [![Bun >= 1.0](https://img.shields.io/badge/Bun-%E2%89%A51.0-f9f1e1?logo=bun)](https://bun.sh)
-[![Version 0.14.2](https://img.shields.io/badge/version-0.14.2-success)](https://github.com/Rahspide/sffmc/releases)
-[![Tests](https://img.shields.io/badge/tests-722%20passing-brightgreen)](./packages/health)
+[![Version 0.14.3](https://img.shields.io/badge/version-0.14.3-success)](https://github.com/Rahspide/sffmc/releases)
+[![Tests](https://img.shields.io/badge/tests-811%20passing-brightgreen)](./packages/health)
 
 [**Packages**](./packages) &nbsp;·&nbsp; [**Getting started**](./docs/getting-started.md) &nbsp;·&nbsp; [**Contributing**](./CONTRIBUTING.md) &nbsp;·&nbsp; [**Changelog**](./CHANGELOG.md)
 
@@ -43,7 +43,7 @@ composite packages, individual sub-features, or a mix — and they compose clean
 - **Zero shared state.** Every plugin is composite. No side effects from load order.
 - **Drop-in.** `curl ... | sh` then restart OpenCode. No build step, no npm
   install, no configuration required to start.
-- **Battle-tested.** 722 unit tests across 40 files. Long-form agent test:
+- **Battle-tested.** 811 unit tests across 50 files. Long-form agent test:
   96% pass rate on 121 turns covering 41 patterns and 12 plugin-coverage
   blocks.
 - **MIT licensed.** Ported from MiMo-Code (Xiaomi) plus SFFMC team originals.

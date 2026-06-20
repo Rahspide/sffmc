@@ -37,12 +37,31 @@ export interface ExtraConfig {
   checkpoint_max_file_size: number;
   /** E2 — max messages restored from a single checkpoint (default 50). */
   checkpoint_max_restored_messages: number;
+  // Phase-2 (v0.14.3) MEDIUM-severity migration — see
+  // .slim/deepwork/phase-2-3-hardcode-migration-plan.md §2.3
+  /** E3 — buffer flush threshold (tool calls buffered before disk flush). */
+  checkpoint_flush_threshold: number;
+  /** E4 — periodic flush interval in ms. */
+  checkpoint_flush_interval_ms: number;
+  /** E5 — max in-memory session buffers (LRU eviction when exceeded). */
+  checkpoint_max_buffered_sessions: number;
   /** E7 — Jaccard dedup threshold for dream (default 0.9). */
   dream_dedup_threshold: number;
   /** E8 — Jaccard cluster threshold for dream (default 0.3). */
   dream_cluster_threshold: number;
   /** E9 — max entries processed per dream cycle (default 5000). */
   dream_max_entries: number;
+  /** E10 — JSONL path for archived dream entries. Empty string means
+   *  "use the homedir default" (`~/.local/share/sffmc/extra/dream-archive.jsonl`). */
+  dream_archive_path: string;
+  /** E12 — max characters per entry in the concatenated dream summary
+   *  (also used by `nameClusterViaLLM`). Recommended range: 20 ≤ x ≤ 1000. */
+  dream_snippet_length: number;
+  /** E13 — max characters per entry in the LLM summarization prompt.
+   *  Recommended range: 50 ≤ x ≤ 4000. */
+  dream_llm_snippet_length: number;
+  /** E15 — max candidates per judge call. Validated to the 2-20 range. */
+  judge_max_candidates: number;
 }
 
 const defaultConfig: ExtraConfig = {
@@ -58,9 +77,16 @@ const defaultConfig: ExtraConfig = {
   // Defaults match the prior hardcoded values — behavior unchanged.
   checkpoint_max_file_size: 10 * 1024 * 1024, // E1: 10 MiB
   checkpoint_max_restored_messages: 50,        // E2
+  checkpoint_flush_threshold: 50,              // E3
+  checkpoint_flush_interval_ms: 5_000,         // E4
+  checkpoint_max_buffered_sessions: 50,        // E5
   dream_dedup_threshold: 0.9,                  // E7
   dream_cluster_threshold: 0.3,                // E8
   dream_max_entries: 5000,                     // E9
+  dream_archive_path: "",                      // E10: empty → DEFAULT_ARCHIVE_PATH
+  dream_snippet_length: 100,                   // E12
+  dream_llm_snippet_length: 200,               // E13
+  judge_max_candidates: 8,                     // E15
 };
 
 const DEFAULT_CHECKPOINT_DIR = join(
@@ -89,14 +115,18 @@ export const checkpointServer = async (ctx: PluginContext): Promise<PluginServer
   log.info(
     `checkpoint: ${config.checkpoint ? "enabled" : "disabled"}`,
   );
-  // Phase-1 HIGH migration (E1, E2): forward YAML-configurable limits to
-  // the checkpoint factory. Defaults match the previous hardcoded values,
-  // so behavior is unchanged when no YAML is present.
+  // Phase-1 HIGH migration (E1, E2) + Phase-2 MEDIUM migration (E3, E4, E5):
+  // forward YAML-configurable limits to the checkpoint factory. Defaults
+  // match the previous hardcoded values, so behavior is unchanged when no
+  // YAML is present.
   const cp = createCheckpointTool({
     enabled: config.checkpoint,
     dir: resolvedCheckpointDir,
     maxFileSize: config.checkpoint_max_file_size,
     maxRestoredMessages: config.checkpoint_max_restored_messages,
+    flushThreshold: config.checkpoint_flush_threshold,
+    flushIntervalMs: config.checkpoint_flush_interval_ms,
+    maxBufferedSessions: config.checkpoint_max_buffered_sessions,
   });
   return { id: "extra-checkpoint", tool: { extra_checkpoint: cp.tool }, ...cp.hooks };
 };
@@ -112,6 +142,9 @@ export const judgeServer = async (ctx: PluginContext): Promise<PluginServer> => 
     rubric: config.judge_rubric,
     judge_auto: config.judge_auto,
     ctx,
+    // Phase-2 MEDIUM migration (E15): forward the YAML-configurable cap.
+    // The factory clamps to 2-20, so an out-of-range YAML will not crash.
+    maxCandidates: config.judge_max_candidates,
   });
   return { id: "extra-judge", tool: { extra_judge: j.tool }, ...j.hooks };
 };
@@ -121,9 +154,14 @@ export const dreamServer = async (ctx: PluginContext): Promise<PluginServer> => 
   log.info(
     `dream: ${config.dream ? "enabled" : "disabled"}`,
   );
-  // Phase-1 HIGH migration (E7, E8, E9): forward YAML-configurable
-  // thresholds/caps to the dream factory. Defaults match the previous
-  // hardcoded values, so behavior is unchanged when no YAML is present.
+  // Phase-1 HIGH migration (E7, E8, E9) + Phase-2 MEDIUM migration (E10)
+  // + Phase-3 LOW migration (E12, E13): forward YAML-configurable
+  // thresholds/caps/paths/sizes to the dream factory. Defaults match the
+  // previous hardcoded values, so behavior is unchanged when no YAML is
+  // present. The factory falls back to `DEFAULT_ARCHIVE_PATH` when
+  // `archivePath` is empty, and to the documented constants
+  // (`DREAM_SNIPPET_LENGTH` = 100, `DREAM_LLM_SNIPPET_LENGTH` = 200) when
+  // the snippet-length fields are omitted.
   const d = createDreamTool({
     enabled: config.dream,
     threshold: config.dream_threshold,
@@ -132,6 +170,9 @@ export const dreamServer = async (ctx: PluginContext): Promise<PluginServer> => 
     dedupThreshold: config.dream_dedup_threshold,
     clusterThreshold: config.dream_cluster_threshold,
     maxEntries: config.dream_max_entries,
+    archivePath: config.dream_archive_path,
+    snippetLength: config.dream_snippet_length,
+    llmSnippetLength: config.dream_llm_snippet_length,
   });
   return { id: "extra-dream", tool: { extra_dream: d.tool }, ...d.hooks };
 };

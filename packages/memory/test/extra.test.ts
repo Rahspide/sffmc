@@ -2,7 +2,7 @@
 // @sffmc/extra — see ../../LICENSE
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type PluginContext } from "@sffmc/shared";
@@ -163,5 +163,122 @@ describe("@sffmc/extra — Phase-1 HIGH migration", () => {
     });
     expect(d.tool).toBeDefined();
     expect(d.tool.description).toContain("F8 Dream");
+  });
+});
+
+
+// ---------------------------------------------------------------------------
+// Phase-2 MEDIUM migration (E3, E4, E5) — config-loading path tests
+// ---------------------------------------------------------------------------
+//
+// Verifies that the YAML-configurable buffer/flush fields reach the
+// checkpoint factory and produce the expected behavior:
+//   (a) defaults match v0.14.2 hardcoded values (50 / 5_000 / 50)
+//   (b) overrides change observable behavior
+
+describe("@sffmc/extra — Phase-2 MEDIUM migration (checkpoint E3, E4, E5)", () => {
+  it("default constants exported by checkpoint.ts match v0.14.2 values", async () => {
+    const {
+      DEFAULT_FLUSH_THRESHOLD,
+      DEFAULT_FLUSH_INTERVAL_MS,
+      DEFAULT_MAX_BUFFER_SESSIONS,
+    } = await import("../../extra/src/checkpoint");
+    expect(DEFAULT_FLUSH_THRESHOLD).toBe(50);
+    expect(DEFAULT_FLUSH_INTERVAL_MS).toBe(5_000);
+    expect(DEFAULT_MAX_BUFFER_SESSIONS).toBe(50);
+  });
+
+  it("factory accepts flushThreshold / flushIntervalMs / maxBufferedSessions overrides (E3, E4, E5)", async () => {
+    const { createCheckpointTool } = await import("../../extra/src/checkpoint");
+    const cp = createCheckpointTool({
+      enabled: true,
+      flushThreshold: 3,
+      flushIntervalMs: 200,
+      maxBufferedSessions: 5,
+    });
+    expect(cp.tool).toBeDefined();
+    cp.cleanup();
+  });
+
+  it("flushThreshold override changes buffer-flush behavior (E3, b-1)", async () => {
+    const { createCheckpointTool, filePath, __setCheckpointDir, readToolCalls } = await import(
+      "../../extra/src/checkpoint"
+    );
+    const testDir = mkdtempSync(join(tmpdir(), "sffmc-e3-threshold-"));
+    try {
+      __setCheckpointDir(testDir);
+      const cp = createCheckpointTool({ enabled: true, dir: testDir, flushThreshold: 2 });
+      await cp.hooks["tool.execute.after"]!(
+        { tool: "bash", sessionID: "e3-ses", callID: "c1" },
+        { output: "out1", metadata: { args: { x: 1 } } },
+      );
+      const fp = filePath("e3-ses", testDir);
+      expect(existsSync(fp)).toBe(false);
+      await cp.hooks["tool.execute.after"]!(
+        { tool: "bash", sessionID: "e3-ses", callID: "c2" },
+        { output: "out2", metadata: { args: { x: 2 } } },
+      );
+      const calls = readToolCalls("e3-ses", testDir);
+      expect(calls.length).toBe(2);
+      expect(calls[0].callID).toBe("c1");
+      expect(calls[1].callID).toBe("c2");
+      cp.cleanup();
+    } finally {
+      rmSync(testDir, { recursive: true, force: true });
+    }
+  });
+
+  it("maxBufferedSessions override changes LRU eviction behavior (E5, b-2)", async () => {
+    const { createCheckpointTool, filePath, __setCheckpointDir, readToolCalls } = await import(
+      "../../extra/src/checkpoint"
+    );
+    const testDir = mkdtempSync(join(tmpdir(), "sffmc-e5-maxbuf-"));
+    try {
+      __setCheckpointDir(testDir);
+      const cp = createCheckpointTool({ enabled: true, dir: testDir, maxBufferedSessions: 3 });
+      for (const s of ["e5-a", "e5-b", "e5-c"]) {
+        await cp.hooks["tool.execute.after"]!(
+          { tool: "bash", sessionID: s, callID: `c-${s}` },
+          { output: `o-${s}`, metadata: { args: {} } },
+        );
+      }
+      expect(existsSync(filePath("e5-a", testDir))).toBe(false);
+      expect(existsSync(filePath("e5-b", testDir))).toBe(false);
+      expect(existsSync(filePath("e5-c", testDir))).toBe(false);
+      await cp.hooks["tool.execute.after"]!(
+        { tool: "bash", sessionID: "e5-d", callID: "cd" },
+        { output: "od", metadata: { args: {} } },
+      );
+      const evicted = readToolCalls("e5-a", testDir);
+      expect(evicted.length).toBe(1);
+      expect(evicted[0].callID).toBe("c-e5-a");
+      cp.cleanup();
+    } finally {
+      rmSync(testDir, { recursive: true, force: true });
+    }
+  });
+
+  it("flushIntervalMs override is reflected in the periodic timer (E4, b-3)", async () => {
+    const { createCheckpointTool, filePath, __setCheckpointDir, readToolCalls } = await import(
+      "../../extra/src/checkpoint"
+    );
+    const testDir = mkdtempSync(join(tmpdir(), "sffmc-e4-interval-"));
+    try {
+      __setCheckpointDir(testDir);
+      const cp = createCheckpointTool({
+        enabled: true, dir: testDir, flushThreshold: 100, flushIntervalMs: 100,
+      });
+      await cp.hooks["tool.execute.after"]!(
+        { tool: "bash", sessionID: "e4-timer", callID: "ct" },
+        { output: "out-t", metadata: { args: {} } },
+      );
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      const periodic = readToolCalls("e4-timer", testDir);
+      expect(periodic.length).toBe(1);
+      expect(periodic[0].callID).toBe("ct");
+      cp.cleanup();
+    } finally {
+      rmSync(testDir, { recursive: true, force: true });
+    }
   });
 });
