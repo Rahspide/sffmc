@@ -8,7 +8,7 @@ EXTRA plugin — opt-in bundle of 3 advanced features (Checkpoint, Judge, Dream)
 
 ## What it does
 
-A single plugin exposing 3 LLM-callable tools, each gated behind a config flag:
+A single plugin exposing 3 AI-callable tools, each gated behind a config flag:
 
 1. **`extra_checkpoint`** — session snapshot and resumability. Captures tool-call history to enable resume-after-crash.
 2. **`extra_judge`** — multi-candidate evaluation and ranking. Evaluates N candidate responses against an optional rubric and returns ranked scores.
@@ -46,7 +46,7 @@ dream_threshold: 50
 dream_interval_hours: 24
 ```
 
-Then call the tools from an LLM:
+Then call the tools:
 
 ```
 extra_checkpoint()

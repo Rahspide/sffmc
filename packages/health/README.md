@@ -8,12 +8,12 @@ Health diagnostic for SFFMC plugin authors — runs 13 checks on the monorepo an
 
 ## What it does
 
-A single LLM-callable tool (`sffmc_health`) that runs:
+A single tool (`sffmc_health`) that runs:
 1. **Hook conflict audit** — invokes `scripts/audit-load-order.py`, reports 0 conflicts
 2. **Test presence** — every `packages/*` + `shared/` must have `*.test.ts`
 3. **README presence** — every package must have `README.md`
 4. **Type check** — `bun build --no-bundle` per package
-5. **Tool registration sanity** — scans for `name:` field bug (fix-17 regression)
+5. **Tool registration sanity** — scans for the `name:` field bug (regression check)
 6. **Version consistency** — root vs plugin `package.json` versions
 7. **License** — root `LICENSE` exists, referenced from all READMEs
 
@@ -34,7 +34,7 @@ This plugin is loaded by the SFFMC monorepo's sandbox config. To use standalone:
 
 ## Usage
 
-Call the tool from an LLM:
+Call the tool:
 
 ```
 sffmc_health()
