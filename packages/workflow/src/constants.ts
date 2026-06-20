@@ -162,6 +162,19 @@ export interface WorkflowExtendedConfig {
   /** W17c — number of idle ticks before the pump decays from FAST to
    *  SLOW cadence. Expert-only. Default: 50. */
   sandboxFastWindow: number
+  /** W19 — scheduleFlush debounce window (ms). Coalesces frequent
+   *  flushNow calls (one DB UPDATE per run) within this window.
+   *
+   *  v0.14.3 hardcode Phase 2: getter + field added NOW (per the W17a-c
+   *  pattern), but the consumer wiring in `runtime.ts:scheduleFlush`
+   *  (replacing `setTimeout(..., 250)` with `getFlushDebounceMs()`) is
+   *  DEFERRED — runtime.ts is off-limits per the v0.14.1 hotfix policy.
+   *  The override takes effect once runtime.ts is updated in a follow-up
+   *  hotfix commit. Until then, the runtime uses the hardcoded 250
+   *  regardless of YAML.
+   *
+   *  Default: 250 (matches the prior hardcoded value in runtime.ts). */
+  flushDebounceMs: number
 }
 
 export const DEFAULT_WORKFLOW_EXTENDED_CONFIG: WorkflowExtendedConfig = {
@@ -181,6 +194,7 @@ export const DEFAULT_WORKFLOW_EXTENDED_CONFIG: WorkflowExtendedConfig = {
   sandboxFastMs: 1,
   sandboxSlowMs: 50,
   sandboxFastWindow: 50,
+  flushDebounceMs: 250,
 }
 
 // Module-level cache for the loaded config. Populated on first call to
@@ -286,4 +300,18 @@ export function getSandboxSlowMs(): number {
 
 export function getSandboxFastWindow(): number {
   return getWorkflowConfigSync().sandboxFastWindow
+}
+
+// W19 — scheduleFlush debounce window. The default matches the prior
+// hardcoded value in `runtime.ts:scheduleFlush` (`setTimeout(..., 250)`).
+//
+// IMPORTANT: runtime.ts is off-limits per the v0.14.1 hotfix policy.
+// This getter is defined NOW so the consumer wiring (replacing the
+// literal `250` in runtime.ts with `getFlushDebounceMs()`) can be done
+// in a follow-up hotfix commit. Until then, the runtime ignores YAML
+// overrides for this field — the getter is consumed only by callers
+// outside runtime.ts (none today, future consumers expected).
+
+export function getFlushDebounceMs(): number {
+  return getWorkflowConfigSync().flushDebounceMs
 }
