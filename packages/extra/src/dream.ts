@@ -80,6 +80,14 @@ export interface DreamConfig {
   clusterThreshold?: number;
   /** E9 — max entries processed per dream cycle. Defaults to `MAX_DREAM_ENTRIES` (5000). */
   maxEntries?: number;
+  // Phase-2 MEDIUM migration (E10) — see
+  // .slim/deepwork/phase-2-3-hardcode-migration-plan.md §2.4
+  /** E10 — JSONL path for archived memory entries. When empty, the
+   *  default `DEFAULT_ARCHIVE_PATH` (`~/.local/share/sffmc/extra/dream-archive.jsonl`)
+   *  is used. Set this to relocate the archive (e.g. on a different volume).
+   *  Changing it mid-session after dream has already archived entries will
+   *  split the archive across two files — set it before the first dream run. */
+  archivePath?: string;
 }
 
 export interface DreamTool {
@@ -133,7 +141,9 @@ function jaccardSets(a: Set<string>, b: Set<string>): number {
 // ---------------------------------------------------------------------------
 
 const DEFAULT_STORAGE_PATH = DEFAULT_MEMORY_DB_PATH();
-const ARCHIVE_PATH = resolve(
+/** Default JSONL path for archived memory entries (E10). Overridable via
+ *  `ExtraConfig.dream_archive_path` (forwarded to `DreamConfig.archivePath`). */
+export const DEFAULT_ARCHIVE_PATH = resolve(
   homedir(),
   ".local/share/sffmc/extra/dream-archive.jsonl",
 );
@@ -169,15 +179,15 @@ function openDB(dbPath: string): Database {
   return db;
 }
 
-function ensureArchiveDir(): void {
-  const dir = dirname(ARCHIVE_PATH);
+function ensureArchiveDir(archivePath: string): void {
+  const dir = dirname(archivePath);
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true, mode: 0o700 });
   }
 }
 
-function archiveEntry(entry: MemoryRow): void {
-  ensureArchiveDir();
+function archiveEntry(entry: MemoryRow, archivePath: string): void {
+  ensureArchiveDir(archivePath);
   // M6 — redact content before writing to the dream archive. The archive
   // is on-disk JSONL; if a memory row embedded a raw credential, the
   // archive would persist it forever. `redactSecrets` returns the redacted
@@ -196,7 +206,7 @@ function archiveEntry(entry: MemoryRow): void {
     archived_at_ms: Date.now(),
     archived_at_iso: new Date().toISOString(),
   };
-  appendFileSync(ARCHIVE_PATH, JSON.stringify(record) + "\n");
+  appendFileSync(archivePath, JSON.stringify(record) + "\n");
 }
 
 /** Fallback summarization: concatenate first 100 chars of each entry */
@@ -291,6 +301,10 @@ async function summarizeViaLLM(
  * module-level constants (`DREAM_DEDUP_THRESHOLD`, `DREAM_CLUSTER_THRESHOLD`,
  * `MAX_DREAM_ENTRIES`) remain as the defaults — behavior is unchanged when
  * the caller omits the new fields.
+ *
+ * Phase-2 MEDIUM migration (E10): `archivePath` is now configurable. The
+ * default `DEFAULT_ARCHIVE_PATH` (`~/.local/share/sffmc/extra/dream-archive.jsonl`)
+ * is used when the caller omits the field.
  */
 async function runDream(
   db: Database,
@@ -300,6 +314,7 @@ async function runDream(
   dedupThreshold: number = DREAM_DEDUP_THRESHOLD,
   clusterThreshold: number = DREAM_CLUSTER_THRESHOLD,
   maxEntries: number = MAX_DREAM_ENTRIES,
+  archivePath: string = DEFAULT_ARCHIVE_PATH,
 ): Promise<DreamResult> {
   const errors: string[] = [];
   const start = Date.now();
@@ -397,7 +412,7 @@ async function runDream(
 
     for (const entry of allStale) {
       if (!dryRun) {
-        archiveEntry(entry);
+        archiveEntry(entry, archivePath);
         db.run("DELETE FROM memory_entries WHERE id = ?", [entry.id]);
       }
     }
@@ -576,10 +591,10 @@ interface DreamInstanceState {
  *    The per-instance `state.dreamLock` Promise serializes them (see
  *    `executeDream()` in `createDreamTool`).
  *
- *  - The constant declarations above (`DREAM_DEDUP_THRESHOLD`,
- *    `DREAM_CLUSTER_THRESHOLD`, `MAX_DREAM_ENTRIES`,
- *    `DEFAULT_STORAGE_PATH`, `ARCHIVE_PATH`, `STALE_DAYS`,
- *    `SECONDS_PER_STALE_WINDOW`) are immutable.
+  *  - The constant declarations above (`DREAM_DEDUP_THRESHOLD`,
+  *    `DREAM_CLUSTER_THRESHOLD`, `MAX_DREAM_ENTRIES`,
+  *    `DEFAULT_STORAGE_PATH`, `DEFAULT_ARCHIVE_PATH`, `STALE_DAYS`,
+  *    `SECONDS_PER_STALE_WINDOW`) are immutable.
  *
  *  If a future use case requires multiple dream factories, replace
  *  `_activeDreamState` with a `Map<factoryId, DreamInstanceState>`
@@ -618,6 +633,10 @@ export function createDreamTool(config: DreamConfig): {
   const dedupThreshold = config.dedupThreshold ?? DREAM_DEDUP_THRESHOLD;
   const clusterThreshold = config.clusterThreshold ?? DREAM_CLUSTER_THRESHOLD;
   const maxEntries = config.maxEntries ?? MAX_DREAM_ENTRIES;
+  // Phase-2 MEDIUM migration (E10): resolve the archive path up front.
+  // Empty string / undefined falls back to the homedir default. This
+  // replaces the previous module-level `ARCHIVE_PATH` constant.
+  const archivePath = config.archivePath || DEFAULT_ARCHIVE_PATH;
 
   // Per-instance state (DLC: no shared state between plugins)
   const state: DreamInstanceState = {
@@ -676,6 +695,7 @@ export function createDreamTool(config: DreamConfig): {
       dedupThreshold,
       clusterThreshold,
       maxEntries,
+      archivePath,
     );
     try {
       const result = await state.dreamLock;

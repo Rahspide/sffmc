@@ -99,7 +99,24 @@ export interface JudgeConfig {
   judge_auto?: boolean;
   /** PluginContext for LLM calls. Required for real judging. */
   ctx?: RichPluginContext;
+  // Phase-2 MEDIUM migration (E15) — see
+  // .slim/deepwork/phase-2-3-hardcode-migration-plan.md §2.5
+  /** E15 — max number of candidates the judge will accept per call. Also
+   *  used as the JSON-Schema `maxItems` for the `candidates` parameter.
+   *  Defaults to `DEFAULT_MAX_CANDIDATES` (8). Validated to the 2-20 range
+   *  to protect the LLM context window. Raising this directly increases
+   *  the per-judge LLM call size and latency (O(n) per candidate). */
+  maxCandidates?: number;
 }
+
+/** Default max candidates per judge call (E15). Overridable via
+ *  `ExtraConfig.judge_max_candidates` (forwarded to
+ *  `JudgeConfig.maxCandidates`). Range: 2-20 (clamped on assignment). */
+export const DEFAULT_MAX_CANDIDATES = 8;
+/** Lower bound for `JudgeConfig.maxCandidates` (E15). */
+export const MIN_MAX_CANDIDATES = 2;
+/** Upper bound for `JudgeConfig.maxCandidates` (E15). */
+export const MAX_MAX_CANDIDATES = 20;
 
 // ---------------------------------------------------------------------------
 // Prompt building
@@ -308,12 +325,22 @@ export function createJudgeTool(
   config: JudgeConfig,
 ): { tool: JudgeTool; hooks: JudgeHooks } {
   const rubric = config.rubric || DEFAULT_RUBRIC;
+  // Phase-2 MEDIUM migration (E15): resolve the configurable max
+  // candidates cap up front. Clamp to the documented 2-20 range so
+  // out-of-range YAML cannot crash the LLM or blow context. This
+  // replaces the previous hardcoded `maxItems: 8` and the matching
+  // runtime check `candidates.length > 8`.
+  const rawMax = config.maxCandidates ?? DEFAULT_MAX_CANDIDATES;
+  const maxCandidates = Math.max(
+    MIN_MAX_CANDIDATES,
+    Math.min(MAX_MAX_CANDIDATES, Math.floor(rawMax)),
+  );
 
   const tool: JudgeTool = {
     description: `F6' Judge — multi-criteria LLM judge for evaluating candidate outputs.
 Status: ${config.enabled ? "enabled" : "disabled"}.
 When enabled, scores candidates 0-10 on correctness, completeness, conciseness, picks winner with reasoning. Model: ${config.model}.
-Set stream: true to receive partial results as they become available (useful for 8+ candidates).`,
+Set stream: true to receive partial results as they become available (useful for ${maxCandidates}+ candidates).`,
 
     parameters: {
       type: "object",
@@ -322,7 +349,7 @@ Set stream: true to receive partial results as they become available (useful for
           type: "array",
           items: { type: "string" },
           minItems: 2,
-          maxItems: 8,
+          maxItems: maxCandidates,
         },
         rubric: { type: "string" },
       },
@@ -341,12 +368,12 @@ Set stream: true to receive partial results as they become available (useful for
 
       const { candidates } = input;
 
-      if (candidates.length < 2) {
-        return { ok: false, error: "at least 2 candidates required" };
+      if (candidates.length < MIN_MAX_CANDIDATES) {
+        return { ok: false, error: `at least ${MIN_MAX_CANDIDATES} candidates required` };
       }
 
-      if (candidates.length > 8) {
-        return { ok: false, error: "maximum 8 candidates allowed" };
+      if (candidates.length > maxCandidates) {
+        return { ok: false, error: `maximum ${maxCandidates} candidates allowed` };
       }
 
       const effectiveRubric = input.rubric || rubric;

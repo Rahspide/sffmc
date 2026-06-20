@@ -8,13 +8,14 @@ import {
   clearCronTimer,
   isDreamLocked,
   nameClusterViaLLM,
+  DEFAULT_ARCHIVE_PATH,
   type DreamResult,
   type RichPluginContext,
   type MemoryRow,
 } from "../../extra/src/dream";
 import { mkdirSync, existsSync, readFileSync, unlinkSync, rmdirSync, rmSync } from "node:fs";
-import { resolve } from "node:path";
-import { tmpdir } from "node:os";
+import { resolve, dirname } from "node:path";
+import { homedir, tmpdir } from "node:os";
 
 // ---------------------------------------------------------------------------
 // Test helpers
@@ -1040,5 +1041,206 @@ describe("F8 Dream", () => {
         `(scanned=${result.scanned}, deduped=${result.deduped}, ` +
         `archived=${result.archived}, summarized=${result.summarized})`,
     );
+  });
+
+  // ── Phase-2 (v0.14.3) MEDIUM migration — E10 archivePath ──────────────
+  // dream.ts:146 — DEFAULT_ARCHIVE_PATH is exported. The factory resolves
+  // `config.archivePath || DEFAULT_ARCHIVE_PATH` and uses that single path
+  // for the entire factory instance. Empty string is a falsy "use default"
+  // signal, matching the ExtraConfig YAML contract (empty string is the
+  // loader's neutral value).
+  //
+  // These tests cover:
+  //   1. DEFAULT_ARCHIVE_PATH points at the documented homedir location.
+  //   2. When `archivePath` is omitted, the factory uses DEFAULT_ARCHIVE_PATH
+  //      (regression — preserves the prior module-level constant behavior).
+  //   3. When `archivePath` is an empty string, the factory falls back to
+  //      DEFAULT_ARCHIVE_PATH (matches `||` truthy semantics).
+  //   4. When `archivePath` is set, the factory writes to that path and
+  //      does NOT touch the default. We use a per-test temp path so the
+  //      home dir stays clean.
+  //   5. Two factories with different `archivePath` values write to
+  //      independent files — confirms the per-instance resolution.
+
+  describe("E10 archivePath config", () => {
+    it("DEFAULT_ARCHIVE_PATH equals the documented homedir location", () => {
+      const expected = resolve(
+        homedir(),
+        ".local/share/sffmc/extra/dream-archive.jsonl",
+      );
+      expect(DEFAULT_ARCHIVE_PATH).toBe(expected);
+    });
+
+    it("omitting archivePath uses DEFAULT_ARCHIVE_PATH (regression)", async () => {
+      // Unlink the real archive first so any write is observable.
+      try { unlinkSync(DEFAULT_ARCHIVE_PATH); } catch {}
+      try {
+        mkdirSync(dirname(DEFAULT_ARCHIVE_PATH), { recursive: true });
+      } catch {}
+
+      const db = openTestDB();
+      const staleTime = Math.floor(Date.now() / 1000) - 31 * 24 * 3600;
+      db.run(
+        "INSERT INTO memory_entries (source_path, section, content, importance_score, last_accessed, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+        ["test/regress.md", null, "stale content", 0.5, staleTime, staleTime],
+      );
+      db.close();
+
+      // No archivePath provided → factory must fall back to DEFAULT_ARCHIVE_PATH.
+      const { tool } = createDreamTool({
+        enabled: true,
+        threshold: 50,
+        intervalHours: 0,
+        storagePath: TEST_DB_PATH,
+      });
+      const result = await tool.execute();
+      expect(result.ok).toBe(true);
+      expect(result.archived).toBe(1);
+
+      // The default file must exist and have 1 JSONL line.
+      expect(existsSync(DEFAULT_ARCHIVE_PATH)).toBe(true);
+      const lines = readFileSync(DEFAULT_ARCHIVE_PATH, "utf-8")
+        .split("\n")
+        .filter((l) => l.length > 0);
+      expect(lines.length).toBe(1);
+
+      try { unlinkSync(DEFAULT_ARCHIVE_PATH); } catch {}
+    });
+
+    it("empty string archivePath falls back to DEFAULT_ARCHIVE_PATH", async () => {
+      // Same as above but with the explicit empty-string form. The factory
+      // uses `||` truthy semantics, so "" must resolve to the default.
+      try { unlinkSync(DEFAULT_ARCHIVE_PATH); } catch {}
+      try {
+        mkdirSync(dirname(DEFAULT_ARCHIVE_PATH), { recursive: true });
+      } catch {}
+
+      const db = openTestDB();
+      const staleTime = Math.floor(Date.now() / 1000) - 31 * 24 * 3600;
+      db.run(
+        "INSERT INTO memory_entries (source_path, section, content, importance_score, last_accessed, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+        ["test/empty.md", null, "stale content", 0.5, staleTime, staleTime],
+      );
+      db.close();
+
+      const { tool } = createDreamTool({
+        enabled: true,
+        threshold: 50,
+        intervalHours: 0,
+        storagePath: TEST_DB_PATH,
+        archivePath: "", // empty → default
+      });
+      const result = await tool.execute();
+      expect(result.archived).toBe(1);
+      expect(existsSync(DEFAULT_ARCHIVE_PATH)).toBe(true);
+
+      try { unlinkSync(DEFAULT_ARCHIVE_PATH); } catch {}
+    });
+
+    it("custom archivePath writes to the custom path and skips DEFAULT_ARCHIVE_PATH", async () => {
+      const customPath = resolve(
+        tmpdir(),
+        `sffmc-dream-archive-custom-${Date.now()}-${Math.random().toString(36).slice(2)}.jsonl`,
+      );
+      // Make sure the default is absent so we can assert it stays absent.
+      try { unlinkSync(DEFAULT_ARCHIVE_PATH); } catch {}
+
+      const db = openTestDB();
+      const staleTime = Math.floor(Date.now() / 1000) - 31 * 24 * 3600;
+      db.run(
+        "INSERT INTO memory_entries (source_path, section, content, importance_score, last_accessed, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+        ["test/custom.md", null, "stale content for custom archive", 0.5, staleTime, staleTime],
+      );
+      db.close();
+
+      const { tool } = createDreamTool({
+        enabled: true,
+        threshold: 50,
+        intervalHours: 0,
+        storagePath: TEST_DB_PATH,
+        archivePath: customPath,
+      });
+      const result = await tool.execute();
+      expect(result.ok).toBe(true);
+      expect(result.archived).toBe(1);
+
+      // Custom path must exist with exactly 1 record.
+      expect(existsSync(customPath)).toBe(true);
+      const lines = readFileSync(customPath, "utf-8")
+        .split("\n")
+        .filter((l) => l.length > 0);
+      expect(lines.length).toBe(1);
+      const record = JSON.parse(lines[0]);
+      expect(record.source_path).toBe("test/custom.md");
+      expect(record.content).toBe("stale content for custom archive");
+
+      // DEFAULT_ARCHIVE_PATH must NOT have been touched.
+      expect(existsSync(DEFAULT_ARCHIVE_PATH)).toBe(false);
+
+      try { unlinkSync(customPath); } catch {}
+    });
+
+    it("two factories with different archivePaths write to independent files", async () => {
+      // Confirms the per-instance resolution: each factory must use its
+      // own archivePath, not a shared module-level constant.
+      const pathA = resolve(
+        tmpdir(),
+        `sffmc-dream-archive-A-${Date.now()}-${Math.random().toString(36).slice(2)}.jsonl`,
+      );
+      const pathB = resolve(
+        tmpdir(),
+        `sffmc-dream-archive-B-${Date.now()}-${Math.random().toString(36).slice(2)}.jsonl`,
+      );
+
+      const seedStale = (label: string) => {
+        const db = openTestDB();
+        const staleTime = Math.floor(Date.now() / 1000) - 31 * 24 * 3600;
+        db.run(
+          "INSERT INTO memory_entries (source_path, section, content, importance_score, last_accessed, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+          [`test/${label}.md`, null, `stale ${label}`, 0.5, staleTime, staleTime],
+        );
+        db.close();
+      };
+
+      seedStale("a");
+      const { tool: toolA } = createDreamTool({
+        enabled: true,
+        threshold: 50,
+        intervalHours: 0,
+        storagePath: TEST_DB_PATH,
+        archivePath: pathA,
+      });
+      const resultA = await toolA.execute();
+      expect(resultA.archived).toBe(1);
+
+      // Reset DB and seed a different entry.
+      try { rmSync(TEST_DIR, { recursive: true, force: true }); } catch {}
+      setupTestDir();
+      seedStale("b");
+      const { tool: toolB } = createDreamTool({
+        enabled: true,
+        threshold: 50,
+        intervalHours: 0,
+        storagePath: TEST_DB_PATH,
+        archivePath: pathB,
+      });
+      const resultB = await toolB.execute();
+      expect(resultB.archived).toBe(1);
+
+      // Each file has exactly its own 1 record — no cross-contamination.
+      const recA = JSON.parse(
+        readFileSync(pathA, "utf-8").split("\n").filter((l) => l.length > 0)[0],
+      );
+      const recB = JSON.parse(
+        readFileSync(pathB, "utf-8").split("\n").filter((l) => l.length > 0)[0],
+      );
+      expect(recA.source_path).toBe("test/a.md");
+      expect(recA.content).toBe("stale a");
+      expect(recB.source_path).toBe("test/b.md");
+      expect(recB.content).toBe("stale b");
+
+      try { unlinkSync(pathA); } catch {}
+      try { unlinkSync(pathB); } catch {}
+    });
   });
 });

@@ -8,6 +8,9 @@ import {
   parseJudgeResponse,
   extractCandidatesFromMessages,
   callJudgeStream,
+  DEFAULT_MAX_CANDIDATES,
+  MIN_MAX_CANDIDATES,
+  MAX_MAX_CANDIDATES,
   type JudgeConfig,
   type JudgeExecuteResult,
   type JudgeScore,
@@ -488,5 +491,192 @@ describe("createJudgeTool shape", () => {
   it("hooks are empty when judge_auto is not set", () => {
     const { hooks } = createJudgeTool({ enabled: true, model: "m", rubric: "r" });
     expect(hooks["experimental.chat.messages.transform"]).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase-2 (v0.14.3) MEDIUM migration — E15 maxCandidates
+// ---------------------------------------------------------------------------
+// judge.ts:115 — DEFAULT_MAX_CANDIDATES is exported (= 8). MIN/MAX bounds
+// (2-20) are also exported. The factory clamps `config.maxCandidates` to
+// the 2-20 range and uses the clamped value for BOTH the JSON-Schema
+// `maxItems` and the runtime `candidates.length > N` check, so the schema
+// and the execute() guard never disagree.
+//
+// These tests cover:
+//   1. Exported constants match the documented values (8, 2, 20).
+//   2. Default (omitted) config → schema maxItems = 8, runtime accepts
+//      up to 8, rejects 9. Description mentions "8+".
+//   3. Custom maxCandidates → schema maxItems reflects it. Description
+//      mentions the new value.
+//   4. Runtime execute() enforces the configured cap (not the default 8).
+//   5. Out-of-range values are clamped: < 2 → 2, > 20 → 20.
+//   6. Non-integer values are floored.
+//   7. Lower bound check still rejects 1 candidate regardless of cap.
+
+describe("E15 maxCandidates config", () => {
+  it("exports the documented default and bounds", () => {
+    expect(DEFAULT_MAX_CANDIDATES).toBe(8);
+    expect(MIN_MAX_CANDIDATES).toBe(2);
+    expect(MAX_MAX_CANDIDATES).toBe(20);
+  });
+
+  it("omitting maxCandidates uses DEFAULT_MAX_CANDIDATES (8)", () => {
+    const { tool } = createJudgeTool({ enabled: false, model: "m", rubric: "r" });
+    const schema = tool.parameters.properties.candidates as { maxItems: number; minItems: number };
+    expect(schema.maxItems).toBe(8);
+    expect(schema.minItems).toBe(2);
+    // Description mentions the default cap so callers know when streaming is worth it.
+    expect(tool.description).toContain("8+ candidates");
+  });
+
+  it("custom maxCandidates: 12 → schema maxItems=12, description updated", () => {
+    const { tool } = createJudgeTool({
+      enabled: false,
+      model: "m",
+      rubric: "r",
+      maxCandidates: 12,
+    });
+    const schema = tool.parameters.properties.candidates as { maxItems: number };
+    expect(schema.maxItems).toBe(12);
+    expect(tool.description).toContain("12+ candidates");
+  });
+
+  it("custom maxCandidates: 2 (lower bound) → schema maxItems=2", () => {
+    const { tool } = createJudgeTool({
+      enabled: false,
+      model: "m",
+      rubric: "r",
+      maxCandidates: 2,
+    });
+    const schema = tool.parameters.properties.candidates as { maxItems: number };
+    expect(schema.maxItems).toBe(2);
+  });
+
+  it("custom maxCandidates: 20 (upper bound) → schema maxItems=20", () => {
+    const { tool } = createJudgeTool({
+      enabled: false,
+      model: "m",
+      rubric: "r",
+      maxCandidates: 20,
+    });
+    const schema = tool.parameters.properties.candidates as { maxItems: number };
+    expect(schema.maxItems).toBe(20);
+  });
+
+  it("execute() enforces the configured cap (maxCandidates: 4) — 5th candidate rejected", async () => {
+    const { tool } = createJudgeTool(enabledConfig({ maxCandidates: 4 }));
+    const result = await tool.execute({
+      candidates: ["a", "b", "c", "d", "e"], // 5 > configured 4
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("expected error");
+    expect(result.error).toContain("maximum 4 candidates");
+  });
+
+  it("execute() enforces the configured cap (maxCandidates: 4) — 4 candidates accepted", async () => {
+    // Build a custom ctx that returns 4 scores (the default mock returns 3).
+    const fourScoreJson = mockJsonResponse(
+      [
+        { correctness: 8, completeness: 7, conciseness: 9 },
+        { correctness: 6, completeness: 9, conciseness: 5 },
+        { correctness: 9, completeness: 8, conciseness: 7 },
+        { correctness: 7, completeness: 6, conciseness: 8 },
+      ],
+      0,
+      "Candidate 0 is the best.",
+    );
+    const { tool } = createJudgeTool(
+      enabledConfig({ maxCandidates: 4, ctx: mockCtx(fourScoreJson) }),
+    );
+    const result = await tool.execute({
+      candidates: ["a", "b", "c", "d"],
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("expected ok");
+    expect(result.scores).toHaveLength(4);
+  });
+
+  it("execute() with default cap rejects 9 candidates (above 8)", async () => {
+    const { tool } = createJudgeTool(enabledConfig());
+    const result = await tool.execute({
+      candidates: ["a", "b", "c", "d", "e", "f", "g", "h", "i"], // 9
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("expected error");
+    expect(result.error).toContain("maximum 8 candidates");
+  });
+
+  it("execute() still rejects < 2 candidates (lower bound unchanged)", async () => {
+    const { tool } = createJudgeTool(enabledConfig({ maxCandidates: 20 }));
+    const result = await tool.execute({
+      candidates: ["only one"],
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("expected error");
+    expect(result.error).toContain("at least 2");
+  });
+
+  it("below MIN is clamped to 2", () => {
+    const { tool } = createJudgeTool({
+      enabled: false,
+      model: "m",
+      rubric: "r",
+      maxCandidates: 0,
+    });
+    const schema = tool.parameters.properties.candidates as { maxItems: number };
+    expect(schema.maxItems).toBe(2);
+  });
+
+  it("above MAX is clamped to 20", () => {
+    const { tool } = createJudgeTool({
+      enabled: false,
+      model: "m",
+      rubric: "r",
+      maxCandidates: 100,
+    });
+    const schema = tool.parameters.properties.candidates as { maxItems: number };
+    expect(schema.maxItems).toBe(20);
+  });
+
+  it("non-integer is floored (e.g. 12.7 → 12)", () => {
+    const { tool } = createJudgeTool({
+      enabled: false,
+      model: "m",
+      rubric: "r",
+      maxCandidates: 12.7,
+    });
+    const schema = tool.parameters.properties.candidates as { maxItems: number };
+    expect(schema.maxItems).toBe(12);
+  });
+
+  it("execute() after clamping accepts up to the clamped cap", async () => {
+    // maxCandidates: 100 → clamped to 20. So 20 candidates should be
+    // accepted and 21 should be rejected.
+    // Build a custom ctx that returns 20 scores.
+    const twentyScoreJson = mockJsonResponse(
+      Array.from({ length: 20 }, (_, i) => ({
+        correctness: 5 + (i % 6),
+        completeness: 5 + ((i + 1) % 6),
+        conciseness: 5 + ((i + 2) % 6),
+      })),
+      0,
+      "Candidate 0 wins.",
+    );
+    const { tool } = createJudgeTool(
+      enabledConfig({ maxCandidates: 100, ctx: mockCtx(twentyScoreJson) }),
+    );
+    const ok20 = await tool.execute({
+      candidates: Array.from({ length: 20 }, (_, i) => `cand-${i}`),
+    });
+    expect(ok20.ok).toBe(true);
+    if (!ok20.ok) throw new Error("expected ok");
+
+    const bad21 = await tool.execute({
+      candidates: Array.from({ length: 21 }, (_, i) => `cand-${i}`),
+    });
+    expect(bad21.ok).toBe(false);
+    if (bad21.ok) throw new Error("expected error");
+    expect(bad21.error).toContain("maximum 20 candidates");
   });
 });

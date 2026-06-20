@@ -12,15 +12,34 @@ interface MaxModeConfig {
   judge_model: string;
   budget_cap_multiplier: number;
   dry_run: boolean;
+  // Phase-2 MEDIUM migration (X1) — see
+  // .slim/deepwork/phase-2-3-hardcode-migration-plan.md §2.6
+  /** X1 — hard cap on the number of parallel LLM candidates. Safety
+   *  limit: prevents accidental bursts (e.g. `n_candidates: 100` firing
+   *  100 parallel API calls). Enforced at runtime as
+   *  `Math.min(config.n, maxCandidates)`. Default 10 matches the prior
+   *  module-level const. Validation: 1 ≤ x ≤ 50. */
+  maxCandidates: number;
+  // Phase-2 MEDIUM migration (X2) — see
+  // .slim/deepwork/phase-2-3-hardcode-migration-plan.md §2.6
+  /** X2 — max chars of each candidate draft sent to the judge. Truncates
+   *  long drafts before they enter the judge prompt so a 50-candidate
+   *  batch × 8k draft stays under the model's context window. Default
+   *  8000 matches the prior literal. Validation: 500 ≤ x ≤ 32000. */
+  judgeDraftMaxChars: number;
 }
 
-const defaultConfig: MaxModeConfig = {
+export const defaultConfig: MaxModeConfig = {
   n_candidates: 3,
   candidate_models: [],
   candidate_temperature: 1.0,
   judge_model: "",
   budget_cap_multiplier: 5,
   dry_run: false,
+  // Defaults match the prior hardcoded values — behavior unchanged
+  // when no ~/.config/SFFMC/max-mode.yaml is present.
+  maxCandidates: 10,        // X1 (was `export const MAX_CANDIDATES = 10`)
+  judgeDraftMaxChars: 8000, // X2 (was `c.draft.slice(0, 8000)` literal)
 };
 
 interface MaxModeResult {
@@ -143,6 +162,10 @@ export const server = async (ctx: RichPluginContext) => {
             n: config.n_candidates,
             models: config.candidate_models,
             temperature: config.candidate_temperature,
+            // X1 — Phase-2 MEDIUM migration. Safety cap on parallel
+            // candidates. candidates.ts enforces
+            // `Math.min(config.n, config.maxCandidates ?? 10)`.
+            maxCandidates: config.maxCandidates,
           },
           ctx,
         );
@@ -154,6 +177,10 @@ export const server = async (ctx: RichPluginContext) => {
           candidates,
           config.judge_model,
           ctx,
+          // X2 — Phase-2 MEDIUM migration. Max chars of each draft sent
+          // to the judge. judge.ts truncates each draft before it enters
+          // the judge prompt.
+          config.judgeDraftMaxChars,
         );
 
         const winner = candidates[verdict.winner];

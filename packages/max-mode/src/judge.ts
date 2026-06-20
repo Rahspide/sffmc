@@ -7,11 +7,24 @@ export interface Verdict {
   confidence: number;
 }
 
-export function buildJudgePrompt(candidates: Candidate[]): string {
+/**
+ * Build the judge prompt from a list of candidates.
+ *
+ * X2 — Phase-2 MEDIUM migration (v0.14.3). The per-candidate draft
+ * truncation length was a hardcoded `c.draft.slice(0, 8000)` literal; it
+ * is now `judgeDraftMaxChars` (default 8000, matches the prior literal).
+ * Configurable via `MaxModeConfig.judgeDraftMaxChars` in
+ * `~/.config/SFFMC/max-mode.yaml`. See
+ * .slim/deepwork/phase-2-3-hardcode-migration-plan.md §2.6.
+ */
+export function buildJudgePrompt(
+  candidates: Candidate[],
+  judgeDraftMaxChars: number = 8000,
+): string {
   const drafts = candidates
     .map(
       (c, i) =>
-        `### Candidate ${i}\n\`\`\`\n${c.draft.slice(0, 8000)}\n\`\`\`\n${c.toolCalls.length > 0 ? `Tool calls suggested: ${c.toolCalls.length}` : "No tool calls"}`,
+        `### Candidate ${i}\n\`\`\`\n${c.draft.slice(0, judgeDraftMaxChars)}\n\`\`\`\n${c.toolCalls.length > 0 ? `Tool calls suggested: ${c.toolCalls.length}` : "No tool calls"}`,
     )
     .join("\n\n");
 
@@ -80,13 +93,17 @@ export async function judgeCandidates(
   candidates: Candidate[],
   judgeModel: string,
   ctx: RichPluginContext,
+  // X2 — Phase-2 MEDIUM migration. Optional 4th arg so existing callers
+  // (3-arg signature used in agentic/test/max-mode.test.ts) keep working
+  // without modification. Default 8000 matches the prior literal.
+  judgeDraftMaxChars: number = 8000,
 ): Promise<Verdict> {
   const session = ctx.client?.session;
   if (!session?.message) {
     return fallbackVerdict(candidates);
   }
 
-  const prompt = buildJudgePrompt(candidates);
+  const prompt = buildJudgePrompt(candidates, judgeDraftMaxChars);
 
   try {
     const response = await session.message({

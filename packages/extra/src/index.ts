@@ -51,6 +51,11 @@ export interface ExtraConfig {
   dream_cluster_threshold: number;
   /** E9 — max entries processed per dream cycle (default 5000). */
   dream_max_entries: number;
+  /** E10 — JSONL path for archived dream entries. Empty string means
+   *  "use the homedir default" (`~/.local/share/sffmc/extra/dream-archive.jsonl`). */
+  dream_archive_path: string;
+  /** E15 — max candidates per judge call. Validated to the 2-20 range. */
+  judge_max_candidates: number;
 }
 
 const defaultConfig: ExtraConfig = {
@@ -72,6 +77,8 @@ const defaultConfig: ExtraConfig = {
   dream_dedup_threshold: 0.9,                  // E7
   dream_cluster_threshold: 0.3,                // E8
   dream_max_entries: 5000,                     // E9
+  dream_archive_path: "",                      // E10: empty → DEFAULT_ARCHIVE_PATH
+  judge_max_candidates: 8,                     // E15
 };
 
 const DEFAULT_CHECKPOINT_DIR = join(
@@ -127,6 +134,9 @@ export const judgeServer = async (ctx: PluginContext): Promise<PluginServer> => 
     rubric: config.judge_rubric,
     judge_auto: config.judge_auto,
     ctx,
+    // Phase-2 MEDIUM migration (E15): forward the YAML-configurable cap.
+    // The factory clamps to 2-20, so an out-of-range YAML will not crash.
+    maxCandidates: config.judge_max_candidates,
   });
   return { id: "extra-judge", tool: { extra_judge: j.tool }, ...j.hooks };
 };
@@ -136,9 +146,11 @@ export const dreamServer = async (ctx: PluginContext): Promise<PluginServer> => 
   log.info(
     `dream: ${config.dream ? "enabled" : "disabled"}`,
   );
-  // Phase-1 HIGH migration (E7, E8, E9): forward YAML-configurable
-  // thresholds/caps to the dream factory. Defaults match the previous
-  // hardcoded values, so behavior is unchanged when no YAML is present.
+  // Phase-1 HIGH migration (E7, E8, E9) + Phase-2 MEDIUM migration (E10):
+  // forward YAML-configurable thresholds/caps/paths to the dream factory.
+  // Defaults match the previous hardcoded values, so behavior is
+  // unchanged when no YAML is present. The factory falls back to
+  // `DEFAULT_ARCHIVE_PATH` when `archivePath` is empty.
   const d = createDreamTool({
     enabled: config.dream,
     threshold: config.dream_threshold,
@@ -147,6 +159,7 @@ export const dreamServer = async (ctx: PluginContext): Promise<PluginServer> => 
     dedupThreshold: config.dream_dedup_threshold,
     clusterThreshold: config.dream_cluster_threshold,
     maxEntries: config.dream_max_entries,
+    archivePath: config.dream_archive_path,
   });
   return { id: "extra-dream", tool: { extra_dream: d.tool }, ...d.hooks };
 };
