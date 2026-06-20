@@ -1,5 +1,30 @@
 # SFFMC Changelog
 
+## v0.14.3 (2026-06-20)
+
+### Fixed
+
+- **`this.runs` map leak** — `WorkflowRuntime.close()` now clears `this.runs`; per-run delete on settle (complete/fail/cancel). Previously mcpBridge + journalResults + AbortController accumulated per run for the lifetime of the runtime instance.
+- **`__setWorkflowConfig` test escape hatch moved** — relocated to `tests/_test-helpers/config-cache.ts` behind a `NODE_ENV === "test"` gate. No longer importable from production builds.
+- **Doc/comment cleanup** — `recoverOrphanedWorkflows` JSDoc line number, `codemap.md` pre-H5 recovery description, test comment at `w10-w14-hardcode-runtime.test.ts:142`.
+
+### Added
+
+- **M4 schema refactor (Phase 1, MVP)** — journal event schema declaration + validation in `persistence.ts:357-390`. Malformed events log at debug level and skip — matches existing torn-line behavior. Closes Manriel audit M4 with a 3-hour, 1-new + 1-edit + 1-test-file delivery. Full 5-phase roadmap (27h) documented for future phases.
+- **Hardcode migration Phase 2** — 21 MEDIUM-severity hardcoded values moved to per-package `~/.config/sffmc/{package}.yaml`. Defaults match v0.14.2 behavior exactly.
+
+### Housekeeping
+
+- **Per-package version drift fixed** — all 14 sub-packages bumped to `0.14.3` (was `0.14.1`).
+- **Composite `category: "msp"` field** — added to `agentic`, `memory`, `safety` packages.
+- **`release.sh` `check_version_consistency` fix** — dynamic comparison to root version instead of hardcoded `"0.12.0"`.
+
+### Verification
+
+- 4 subagent studies (M4, Hardcode, W10-W13, Housekeeping) → consolidated plan
+- Council round (multi-LLM synthesis) verified consolidated plan before implementation
+- 740+ pass + 1 skip + 0 fail (was 722 in v0.14.2)
+
 ## v0.14.2 (2026-06-20)
 
 Manriel audit closeout (all 30 items) + flushNow NOT NULL fix. See [`README.md`](./README.md) for details. 2 commits since v0.14.1.

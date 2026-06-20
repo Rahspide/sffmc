@@ -11,12 +11,16 @@ import { createInterface } from "node:readline"
 import type { WorkflowRun, WorkflowStep, JournalEvent, WorkflowStatus } from "./types.ts"
 import { applySchema } from "./schema.ts"
 import { ensureWorkflowConfig, getWorkflowDataDir } from "./constants.ts"
+import { validateJournalEvent } from "./schema-journal.ts"
+import { createLogger } from "@sffmc/shared"
 
 // ---------------------------------------------------------------------------
 // RunID generation (base62)
 // ---------------------------------------------------------------------------
 
 export const RUN_ID_REGEX = /^wf_[0-9A-Za-z]{26}$/
+
+const log = createLogger("workflow:persistence")
 
 const BASE62 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 
@@ -379,25 +383,36 @@ export class WorkflowPersistence {
     const results = new Map<string, unknown>()
     let maxPass = 0
     let headerSeen = false
+    let lineNo = 0
     try {
       const stream = createReadStream(this.journalPath(runID), { encoding: "utf-8" })
       const rl = createInterface({ input: stream, crlfDelay: Infinity })
       for await (const line of rl) {
+        lineNo++
         if (!line) continue
-        let ev: Record<string, unknown>
-        try {
-          ev = JSON.parse(line) as Record<string, unknown>
-        } catch {
-          continue // skip torn lines from crash mid-append
-        }
-        // Skip v1 header line (has `v` but no `t` event-type field)
-        if (typeof ev.v === "number" && !("t" in ev)) {
-          headerSeen = true
+        // v0.14.3 M4 Phase 1 — validate every parsed event against the
+        // JournalEvent discriminated union. Torn JSON lines (truncated by
+        // a crash mid-append), unknown event types, and missing required
+        // fields are all skipped silently with a structured debug log,
+        // matching the existing torn-line skip behavior but with explicit
+        // reason capture.
+        const v = validateJournalEvent(line, lineNo)
+        if (!v.ok) {
+          // `v.error.error === "v1 header line, not an event"` is a
+          // non-error case (intentional format marker) — skip silently.
+          // Everything else (malformed JSON, unknown `t`, missing fields)
+          // gets a debug log.
+          if (!v.error.error.startsWith("v1 header line")) {
+            log.debug(
+              `loadJournal(${runID}): skipping malformed event at line ${v.error.line}: ${v.error.error}`,
+            )
+          } else {
+            headerSeen = true
+          }
           continue
         }
-        // v0 legacy events (no v field): accepted as-is
-        const je = ev as unknown as JournalEvent
-        if (typeof je.pass === "number" && je.pass > maxPass) maxPass = je.pass
+        const je = v.event
+        if (je.pass > maxPass) maxPass = je.pass
         if (je.t === "agent") results.set(je.key, je.result)
       }
     } catch {
