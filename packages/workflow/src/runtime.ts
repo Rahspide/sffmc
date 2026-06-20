@@ -36,7 +36,6 @@ import {
 } from "./types.ts"
 import { SCRIPT_DEADLINE_MS, DEFAULT_GRACE_PERIOD_MS, DEFAULT_SANDBOX_CONSTRAINTS, MAX_GRACE_PERIOD_MS, getWorkflowConfigSync, getMaxConcurrentAgents, getSandboxMemoryMB } from "./constants.ts"
 import { getBuiltin, loadBuiltin } from "./builtin-registry.ts"
-import { cpus } from "node:os"
 import { type RichPluginContext, createLogger, loadConfig } from "@sffmc/shared";
 import { resolveInheritedTools, McpBridge, DEFAULT_MAX_MCP_CALLS, discoverParentTools } from "./mcp.ts";
 
@@ -45,24 +44,18 @@ import { resolveInheritedTools, McpBridge, DEFAULT_MAX_MCP_CALLS, discoverParent
 //
 // W10/W11/W12 — these values used to be hardcoded shadows of constants.ts.
 // They now read from the SFFMC workflow config (`getWorkflowConfigSync()`)
-// so user YAML overrides take effect. The prior hardcoded values (1000 / 16
-// or 2*cpus / 8) are preserved as the defaults in DEFAULT_WORKFLOW_EXTENDED_CONFIG.
+// so user YAML overrides take effect. The prior hardcoded values (1000 / 16)
+// are preserved as the defaults in DEFAULT_WORKFLOW_EXTENDED_CONFIG.
 // ---------------------------------------------------------------------------
 
 const log = createLogger("workflow")
-// W11 — global agent-concurrency cap. Prefer the user-configured value from
-// `workflow.yaml` (key: `maxConcurrentAgents`); fall back to a CPU-derived
-// default `min(16, 2*cpus)` that matches the pre-W11 hardcoded behavior when
-// no override is present. We use `!== 16` to detect "user set a non-default
-// value" because the config default is 16 — explicit 16 is treated as
-// user-set, which produces identical behavior to the default. Called in
-// the constructor (not at module init) so a test that mutates the config
-// cache via `__setWorkflowConfig()` between constructions picks up the
-// updated value.
+// W11 — global agent-concurrency cap. Reads `maxConcurrentAgents` from the
+// SFFMC config (overrideable via `workflow.yaml`). The default is 16 (matches
+// the pre-W11 hardcoded value). Called in the constructor (not at module
+// init) so a test that mutates the config cache via `__setWorkflowConfig()`
+// between constructions picks up the updated value.
 function resolveMaxConcurrentAgents(): number {
-  const cfg = getMaxConcurrentAgents()
-  if (cfg !== 16) return cfg
-  return Math.min(16, 2 * Math.max(1, cpus().length))
+  return getMaxConcurrentAgents()
 }
 
 /** Marker on errors from STRUCTURAL workflow faults. */
