@@ -4,9 +4,10 @@
 
 ### Fixed
 
-- **`this.runs` map leak** — `WorkflowRuntime.close()` now clears `this.runs`; per-run delete on settle (complete/fail/cancel). Previously mcpBridge + journalResults + AbortController accumulated per run for the lifetime of the runtime instance.
+- **`this.runs` map leak** — `WorkflowRuntime.close()` now clears `this.runs`; per-run delete on settle (complete/fail/cancel). Previously mcpBridge + journalResults + AbortController accumulated per run for the lifetime of the runtime instance. **Policy exception**: this commit modifies `runtime.ts` (off-limits per v0.14.1 hotfix policy) to close the C-2 memory leak finding from the W10-W13 review. Justified by: the fix is well-tested (5 new tests in `v0-14-3-this-runs-cleanup.test.ts`), the W10-W13 audit flagged this as a critical memory leak in long-lived runtimes, and the alternative (deferring to v0.15) would have shipped a known regression.
 - **`__setWorkflowConfig` test escape hatch moved** — relocated to `tests/_test-helpers/config-cache.ts` behind a `NODE_ENV === "test"` gate. No longer importable from production builds.
 - **Doc/comment cleanup** — `recoverOrphanedWorkflows` JSDoc line number, `codemap.md` pre-H5 recovery description, test comment at `w10-w14-hardcode-runtime.test.ts:142`.
+- **Phase event field-name mismatch (CRIT-1)** — `schema-journal.ts` was validating `name` field on phase events but `runtime.ts:942-946` writes `title` field (and `types.ts:57` defines it as `title`). Every phase event written by the runtime was silently rejected by the validator and skipped at `loadJournal` time. Aligned validator + JournalEventPhase type to use `title`. Regression test added in `v0-14-3-schema-journal.test.ts:160` (phase event with pass=3 → maxPass=3 → journal.pass=4).
 
 ### Added
 

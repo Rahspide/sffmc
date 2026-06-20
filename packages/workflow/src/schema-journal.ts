@@ -54,7 +54,7 @@ export interface JournalEventLog {
 /** A phase event: a `phase(title)` primitive call. */
 export interface JournalEventPhase {
   t: "phase"
-  name: string
+  title: string
   pass: number
 }
 
@@ -193,12 +193,15 @@ export function validateJournalEvent(
   }
 
   // t === "phase"
-  if (typeof obj.name !== "string" || obj.name.length === 0) {
+  // Field name is `title` (matches runtime.ts:942-946 setPhase() call site
+  // and types.ts:57 JournalEventPhase definition). Was previously `name` here
+  // in error — fixed in v0.14.3 CRIT-1 verification by oracle.
+  if (typeof obj.title !== "string" || obj.title.length === 0) {
     return {
       ok: false,
-      error: { line: lineNo, raw, error: "phase event missing or empty `name`" },
+      error: { line: lineNo, raw, error: "phase event missing or empty `title`" },
     }
   }
-  const event: JournalEventPhase = { t: "phase", name: obj.name, pass: obj.pass }
+  const event: JournalEventPhase = { t: "phase", title: obj.title, pass: obj.pass }
   return { ok: true, event }
 }

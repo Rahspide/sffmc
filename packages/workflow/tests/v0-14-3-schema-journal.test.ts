@@ -73,13 +73,16 @@ describe("v0.14.3 M4 Phase 1: journal event schema validation", () => {
   test("valid phase event returns ok:true", () => {
     const raw = JSON.stringify({
       t: "phase",
-      name: "execute",
+      title: "execute",
       pass: 1,
     })
     const v = validateJournalEvent(raw, 1)
     expect(v.ok).toBe(true)
     if (v.ok) {
       expect(v.event.t).toBe("phase")
+      if (v.event.t === "phase") {
+        expect(v.event.title).toBe("execute")
+      }
     }
   })
 
@@ -154,7 +157,13 @@ describe("v0.14.3 M4 Phase 1: journal event schema validation", () => {
         JSON.stringify({ t: "agent", key: "k1", args: {}, result: "r1", pass: 1 }),
         '{"t":"agent","key":"k2","result":"par', // torn line
         JSON.stringify({ t: "log", msg: "hi", pass: 1 }),
-        JSON.stringify({ t: "phase", name: "execute", pass: 1 }),
+        // Phase event uses `title` field (matches runtime.ts:942-946 setPhase
+        // and types.ts:57 JournalEventPhase). The phase event's pass=3 is
+        // deliberately higher than other events — if the validator
+        // incorrectly rejects phase events (CRIT-1 regression), maxPass
+        // stays at 1 and journal.pass = 2. After CRIT-1 fix, maxPass=3
+        // and journal.pass=4.
+        JSON.stringify({ t: "phase", title: "execute", pass: 3 }),
       ].join("\n")
       writeFileSync(journalPath, lines)
 
@@ -164,9 +173,10 @@ describe("v0.14.3 M4 Phase 1: journal event schema validation", () => {
       // Valid events loaded; torn line silently skipped.
       expect(journal.results.has("k1")).toBe(true)
       expect(journal.results.has("k2")).toBe(false) // torn → skipped
-      // pass is maxPass + 1 (matches foundation.test.ts:156 convention).
-      // All valid events here are pass:1 → maxPass=1 → pass=2.
-      expect(journal.pass).toBe(2)
+      // CRIT-1 regression guard: phase event must be accepted (pass=3 →
+      // maxPass=3 → journal.pass=4). If validator rejects phase events,
+      // maxPass stays at 1 → journal.pass=2 → this assertion fails.
+      expect(journal.pass).toBe(4)
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
