@@ -88,7 +88,19 @@ describe("spawnChildWorkflow journal replay", () => {
 
       const fakeEntry = {
         runID: fakeRunID,
+        // Fix-10: include `running: 0` and `failed: 0` on the fake
+        // entry. The journal-hit branch of spawnChildWorkflow calls
+        // `this.scheduleFlush(entry)` (runtime.ts:695), which captures
+        // the entry in a 250ms setTimeout. When the timer fires,
+        // `flushNow` reads these fields — if any are `undefined`,
+        // bun:sqlite binds them as NULL and trips the NOT NULL
+        // constraint on `workflow_runs`. The runtime now has a
+        // defensive `?? 0` in flushNow, but the test fake entry should
+        // still mirror the full InternalRunEntry shape to avoid silent
+        // data masking.
+        running: 0,
         succeeded: 0,
+        failed: 0,
         childRunIDs: new Set<string>(),
         journalResults: new Map<string, unknown>([
           [secondCallKey, "from-journal"],

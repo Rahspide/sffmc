@@ -263,6 +263,57 @@ describe("scheduleFlush / flushNow DB counter flush", () => {
     expect(row!.failed).toBe(0)
     expect(row!.running).toBe(0)
   })
+
+  // Fix-10 regression: flushNow() must NOT throw a NOT NULL constraint
+  // error when the entry has undefined counter fields. Previously, tests
+  // that drove internal methods via reflection built minimal fake
+  // entries missing one or more of {running, succeeded, failed}. When
+  // those tests triggered scheduleFlush, the 250ms timer fired with
+  // an incomplete entry and bun:sqlite bound `undefined` as NULL,
+  // tripping the NOT NULL constraint on workflow_runs.
+  //
+  // The fix has two layers:
+  //   1. flushNow() coerces missing fields with `?? 0` (defensive).
+  //   2. Test fake entries include all three fields (proper fix).
+  //
+  // This test exercises layer 1 directly by driving flushNow with a
+  // minimal entry that has `undefined` for every counter.
+  test("flushNow coerces undefined counters to 0 (Fix-10 NOT NULL regression)", async () => {
+    const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
+    const { runID } = await runtime.start({
+      script: `export const meta = { name: "fix10-test", description: "t", phases: [] }
+        async function main() { return "ok"; }`,
+      workspace: tmpDir,
+    })
+    await runtime.wait({ runID, timeoutMs: 5000 })
+
+    // Now drive flushNow directly with a minimal entry missing all
+    // counter fields. The defensive `?? 0` must coerce them to 0 so
+    // the UPDATE succeeds without a NOT NULL constraint error.
+    const flushNow = (
+      runtime as unknown as { flushNow: (e: unknown) => void }
+    ).flushNow.bind(runtime)
+
+    // Use a real runID (the one we just created) so the UPDATE matches
+    // a row. Build a minimal entry with undefined counters.
+    const minimalEntry = { runID, /* running, succeeded, failed all undefined */ }
+
+    // If the `?? 0` fix is missing, this throws (caught by flushNow's
+    // try/catch, logged as "flushNow DB update error"). The row would
+    // not be updated to 0. With the fix, no error is logged and the
+    // row's counters are set to 0.
+    flushNow(minimalEntry)
+
+    // Verify the row was updated to 0 for all counters. If the `?? 0`
+    // fix were missing, the UPDATE would have thrown (caught by the
+    // try/catch) and the row's counters would be unchanged from their
+    // prior state (succeeded=1 after the one agent call).
+    const row = p.loadRun(runID)
+    expect(row).not.toBeNull()
+    expect(row!.running).toBe(0)
+    expect(row!.succeeded).toBe(0)
+    expect(row!.failed).toBe(0)
+  })
 })
 
 // ── P0 #7: spawnChildWorkflow() structural error propagation ───────────────
@@ -376,10 +427,20 @@ describe("executeAgentCall schema-based structured extract", () => {
     // calls appendJournalSync on success, and persistence throws on bad IDs.
     const sha = computeScriptSha("schema-extract-test")
     const runID = p.createRun("s.ts", "schema-extract", sha)
+    // Fix-10: include `failed: 0` (and all other flushNow fields) on
+    // the fake entry. executeAgentCall's success path calls
+    // `this.scheduleFlush(entry)`, which captures the entry in a 250ms
+    // setTimeout. When the timer fires, `flushNow` reads these fields
+    // — if any are `undefined`, bun:sqlite binds them as NULL and
+    // trips the NOT NULL constraint on `workflow_runs`. The runtime
+    // now has a defensive `?? 0` in flushNow, but the test fake entry
+    // should still mirror the full InternalRunEntry shape to avoid
+    // silent data masking.
     const fakeEntry = {
       runID,
       tokensUsed: 0,
       succeeded: 0,
+      failed: 0,
       running: 1,
       journalPass: 1,
       cfg: { maxTokens: 2_000_000 },

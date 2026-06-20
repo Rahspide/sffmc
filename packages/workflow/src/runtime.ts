@@ -1218,9 +1218,26 @@ export class WorkflowRuntime {
     // Update DB counters
     const db = this.persistence.getDB()
     try {
+      // Defensive `?? 0` — the schema requires NOT NULL for running /
+      // succeeded / failed (schema.ts:13-16). In production, `makeEntry()`
+      // always initializes all three to 0, so the `??` is a no-op. But
+      // tests that drive internal methods via reflection (e.g.
+      // `runtime-coverage.test.ts`, `spawn-child-coverage.test.ts`) build
+      // minimal fake entries that only include the fields they exercise.
+      // When those tests trigger `scheduleFlush` indirectly, the timer
+      // fires 250ms later and `flushNow` reads `undefined` for the
+      // omitted fields, which bun:sqlite binds as NULL and trips the
+      // NOT NULL constraint. The `?? 0` coerces to the schema default
+      // so the UPDATE succeeds silently.
       db.run(
         `UPDATE workflow_runs SET running = ?, succeeded = ?, failed = ?, time_updated = ? WHERE id = ?`,
-        [entry.running, entry.succeeded, entry.failed, Math.floor(Date.now() / 1000), entry.runID],
+        [
+          entry.running ?? 0,
+          entry.succeeded ?? 0,
+          entry.failed ?? 0,
+          Math.floor(Date.now() / 1000),
+          entry.runID,
+        ],
       )
     } catch (e) {
       log.debug("flushNow DB update error:", e)
