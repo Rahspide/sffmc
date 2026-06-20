@@ -216,6 +216,15 @@ export class WorkflowRuntime {
    *  `setConfig(null)` so a subsequent YAML load can re-fire after an
    *  override is cleared. */
   private loadWorkflowConfigPromise: Promise<void> | null = null
+  /** v0.14.3 C-2 — cached resolved outcomes for settled runs. The
+   *  `completeRun` / `failRun` / `cancel` paths delete the entry from
+   *  `this.runs` so its McpBridge / journalResults / AbortController /
+   *  closures are GC-eligible, but `wait()` may still be called after
+   *  settle (e.g. a test that awaits the workflow and then inspects
+   *  the outcome). The resolved outcome is stored here keyed by runID
+   *  so late `wait()` calls return the same value as the in-flight
+   *  entry would have. Cleared by `close()`. */
+  private completedOutcomes = new Map<string, WorkflowOutcome>()
 
   constructor(ctx: PluginContext, opts?: RuntimeOpts) {
     this.ctx = ctx
@@ -388,6 +397,12 @@ export class WorkflowRuntime {
   async wait(input: { runID: string; timeoutMs?: number }): Promise<WorkflowOutcome> {
     const entry = this.runs.get(input.runID)
     if (!entry) {
+      // v0.14.3 C-2 — settled runs are removed from `this.runs` (so their
+      // McpBridge / journalResults / AbortController are GC-eligible). A
+      // late `wait()` for a settled runID returns the cached outcome
+      // instead of a synthetic "unknown runID" failure.
+      const completed = this.completedOutcomes.get(input.runID)
+      if (completed) return completed
       return {
         runID: input.runID,
         status: "failed",
@@ -420,10 +435,16 @@ export class WorkflowRuntime {
     if (!entry || entry.status !== "running") return
     entry.controller.abort()
     entry.status = "cancelled"
-    entry.resolveOutcome(this.outcomeFor(entry, "cancelled"))
+    const outcome = this.outcomeFor(entry, "cancelled")
+    entry.resolveOutcome(outcome)
     this.persistence.updateRunStatus(entry.runID, "cancelled")
     flushJournalSync()
     this.events.emit("workflow:finished", { runID: entry.runID, status: "cancelled" })
+    // v0.14.3 C-2 — cache the resolved outcome (late wait() callers still
+    // need it) then drop the entry from `this.runs` so the McpBridge,
+    // journalResults Map, AbortController, and closures are GC-eligible.
+    this.completedOutcomes.set(entry.runID, outcome)
+    this.runs.delete(entry.runID)
   }
 
   async list(): Promise<Array<{ runID: string; name: string; status: WorkflowStatus }>> {
@@ -513,6 +534,16 @@ export class WorkflowRuntime {
         entry.status = "cancelled"
       }
     }
+    // v0.14.3 C-2 — clear `this.runs` after cancel loop. Without this,
+    // every entry — completed/failed/cancelled/crashed — holds an
+    // mcpBridge (McpBridge with up to 1000 records), journalResults Map,
+    // childRunIDs Set, AbortController, and closures for the lifetime of
+    // the runtime. close() is the second line of defense after the
+    // per-settle deletes in completeRun/failRun/cancel.
+    this.runs.clear()
+    // Also drop the completed-outcomes cache — the runtime is going away
+    // and any further `wait()` calls are meaningless.
+    this.completedOutcomes.clear()
     // Clear event listeners
     this.events.clearAll()
     // Clear flush timers
@@ -1077,10 +1108,18 @@ export class WorkflowRuntime {
     // overwrites entry.status / DB row from "cancelled" → "completed".
     if (entry.status !== "running") return
     entry.status = "completed"
-    entry.resolveOutcome(this.outcomeFor(entry, "completed", { result }))
+    const outcome = this.outcomeFor(entry, "completed", { result })
+    entry.resolveOutcome(outcome)
     this.persistence.updateRunStatus(entry.runID, "completed")
     flushJournalSync()
     this.events.emit("workflow:finished", { runID: entry.runID, status: "completed" })
+    // v0.14.3 C-2 — cache the resolved outcome (late wait() callers still
+    // need it) then drop the entry from `this.runs` so the McpBridge,
+    // journalResults Map, childRunIDs Set, AbortController, and closures
+    // are GC-eligible. Without this, every completed run leaks its
+    // entry for the lifetime of the runtime.
+    this.completedOutcomes.set(entry.runID, outcome)
+    this.runs.delete(entry.runID)
   }
 
   private failRun(entry: InternalRunEntry, error: string): void {
@@ -1088,10 +1127,18 @@ export class WorkflowRuntime {
     entry.status = error.includes("budget_exceeded") || error.includes("deadline exceeded")
       ? "budget_exceeded"
       : "failed"
-    entry.resolveOutcome(this.outcomeFor(entry, entry.status as "failed" | "budget_exceeded", { error }))
+    const outcome = this.outcomeFor(entry, entry.status as "failed" | "budget_exceeded", { error })
+    entry.resolveOutcome(outcome)
     this.persistence.updateRunStatus(entry.runID, entry.status, error)
     flushJournalSync()
     this.events.emit("workflow:finished", { runID: entry.runID, status: entry.status, error })
+    // v0.14.3 C-2 — cache the resolved outcome (late wait() callers still
+    // need it) then drop the entry from `this.runs` so the McpBridge,
+    // journalResults Map, childRunIDs Set, AbortController, and closures
+    // are GC-eligible. Without this, every failed run leaks its entry
+    // for the lifetime of the runtime.
+    this.completedOutcomes.set(entry.runID, outcome)
+    this.runs.delete(entry.runID)
   }
 
   // ── Private: helpers ───────────────────────────────────────────────────
