@@ -37,6 +37,9 @@ export {
   getWorkflowSearchDirs,
   getWorkflowDataDir,
   getMaxConcurrentAgents,
+  getSandboxFastMs,
+  getSandboxSlowMs,
+  getSandboxFastWindow,
   type WorkflowExtendedConfig,
 } from "../../src/constants.ts"
 

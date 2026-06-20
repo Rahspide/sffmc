@@ -103,12 +103,21 @@ export const MAX_GRACE_PERIOD_MS = 24 * 60 * 60 * 1000
 // Phase-1 HIGH migration (W1, W2, W3, W4, W5, W6, W7, W8, W9, W11, W15, W16,
 // W20, W25) — YAML-configurable workflow limits.
 //
+// Phase-2 MEDIUM migration (W17a, W17b, W17c) — sandbox pump timings.
+//
 // The schema below is loaded lazily via `loadConfig<>("workflow", …)` from
 // `@sffmc/shared`. Defaults match the exported constants above so behavior
 // is unchanged when no `~/.config/SFFMC/workflow.yaml` is present. Callers
 // that want config-aware values use the getter functions (`getScriptDeadlineMs`,
 // `getSandboxMemoryMB`, …) — they prefer the YAML override and fall back to
 // the hardcoded constant.
+//
+// Phase 2 sandbox pump timings (W17a-c): defaults match the prior hardcoded
+// values in `sandbox.ts` (FAST_MS=1, SLOW_MS=50, FAST_WINDOW=50). The pump
+// is the BACKSTOP that drains guest microtasks while we await the guest
+// promise — adaptive cadence to avoid idle CPU churn. A too-fast pump
+// increases CPU without throughput gain; a too-slow pump adds latency.
+// These are expert-only settings; the defaults are well-tuned.
 // ---------------------------------------------------------------------------
 
 export interface WorkflowExtendedConfig {
@@ -142,6 +151,17 @@ export interface WorkflowExtendedConfig {
   /** W20 — data directory override (default: XDG_DATA_HOME or
    *  ~/.local/share/SFFMC/workflow). Empty string means "use default". */
   dataDir: string
+  /** W17a — sandbox pump fast interval (ms). Adaptive pump cadence that
+   *  drains guest microtasks; stays FAST right after finding work, decays
+   *  to SLOW when idle. Expert-only. Default: 1. */
+  sandboxFastMs: number
+  /** W17b — sandbox pump slow interval (ms). Idle pump cadence; worst
+   *  case adds ≤ SLOW_MS latency when no work is found. Expert-only.
+   *  Default: 50. */
+  sandboxSlowMs: number
+  /** W17c — number of idle ticks before the pump decays from FAST to
+   *  SLOW cadence. Expert-only. Default: 50. */
+  sandboxFastWindow: number
 }
 
 export const DEFAULT_WORKFLOW_EXTENDED_CONFIG: WorkflowExtendedConfig = {
@@ -158,6 +178,9 @@ export const DEFAULT_WORKFLOW_EXTENDED_CONFIG: WorkflowExtendedConfig = {
   sandboxStackSize: 1024 * 1024, // 1 MiB
   searchDirs: WORKFLOW_SEARCH_DIRS,
   dataDir: "",
+  sandboxFastMs: 1,
+  sandboxSlowMs: 50,
+  sandboxFastWindow: 50,
 }
 
 // Module-level cache for the loaded config. Populated on first call to
@@ -247,4 +270,20 @@ export function getMaxInstructions(): number {
 
 export function getMaxConcurrentAgents(): number {
   return getWorkflowConfigSync().maxConcurrentAgents
+}
+
+// W17a-c — sandbox pump timings. The defaults match the prior hardcoded
+// values in `sandbox.ts` (FAST_MS=1, SLOW_MS=50, FAST_WINDOW=50). These
+// getters prefer the YAML override and fall back to the defaults above.
+
+export function getSandboxFastMs(): number {
+  return getWorkflowConfigSync().sandboxFastMs
+}
+
+export function getSandboxSlowMs(): number {
+  return getWorkflowConfigSync().sandboxSlowMs
+}
+
+export function getSandboxFastWindow(): number {
+  return getWorkflowConfigSync().sandboxFastWindow
 }
