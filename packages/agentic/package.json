@@ -1,6 +1,6 @@
 {
   "name": "@sffmc/agentic",
-  "version": "0.14.1",
+  "version": "0.14.3",
   "type": "module",
   "main": "src/index.ts",
   "dependencies": {
@@ -48,5 +48,6 @@
     "compose",
     "health"
   ],
-  "description": "Agentic composite — composes max-mode, workflow, compose, health"
+  "description": "Agentic composite — composes max-mode, workflow, compose, health",
+  "category": "msp"
 }

@@ -84,7 +84,9 @@ check_version_consistency() {
   local pkg_versions_csv
   pkg_versions_csv=$(echo "$pkg_versions" | paste -sd, -)
 
-  if [[ "$(echo "$pkg_versions" | wc -l)" -gt 1 ]] || [[ "$root_version" != "0.12.0" ]]; then
+  # v0.14.3: dynamic comparison — root must match the single unique package version.
+  # Previously hardcoded to "0.12.0" which broke every release since v0.12.0.
+  if [[ "$(echo "$pkg_versions" | wc -l)" -gt 1 ]] || [[ "$root_version" != "$(echo "$pkg_versions" | head -1)" ]]; then
     error "version mismatch: root=$root_version, packages=$pkg_versions_csv"
     error "All packages and root package.json must be at the same version."
     exit 2

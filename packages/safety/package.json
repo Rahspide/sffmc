@@ -1,6 +1,6 @@
 {
   "name": "@sffmc/safety",
-  "version": "0.14.1",
+  "version": "0.14.3",
   "type": "module",
   "main": "src/index.ts",
   "dependencies": {
@@ -49,5 +49,6 @@
     "eos-stripper",
     "log-whitelist"
   ],
-  "description": "Safety composite — composes watchdog, rules, auto-max, eos-stripper, log-whitelist"
+  "description": "Safety composite — composes watchdog, rules, auto-max, eos-stripper, log-whitelist",
+  "category": "msp"
 }

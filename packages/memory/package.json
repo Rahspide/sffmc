@@ -1,6 +1,6 @@
 {
   "name": "@sffmc/memory",
-  "version": "0.14.1",
+  "version": "0.14.3",
   "type": "module",
   "main": "src/index.ts",
   "dependencies": {
@@ -49,5 +49,6 @@
   ],
   "portSource": "MiMo-Code v8.0",
   "portFeature": "memory",
-  "description": "Memory composite — FTS5 SQLite recall + chokidar file watcher + opt-in checkpoint/judge/dream"
+  "description": "Memory composite — FTS5 SQLite recall + chokidar file watcher + opt-in checkpoint/judge/dream",
+  "category": "msp"
 }
