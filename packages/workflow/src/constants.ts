@@ -175,6 +175,18 @@ export interface WorkflowExtendedConfig {
    *
    *  Default: 250 (matches the prior hardcoded value in runtime.ts). */
   flushDebounceMs: number
+  /** W22 — fsync coalescing window (ms). High-frequency
+   *  appendJournalSync callers (100+ events per workflow) would otherwise
+   *  fsync per append, costing O(n) syscalls. Coalesce fsync calls
+   *  within this window: each append schedules a deferred fsync that
+   *  fires once per window across all tracked paths.
+   *
+   *  Note: unlike W17a-c/W19, the consumer wiring in `persistence.ts`
+   *  is NOT off-limits — this commit replaces the literal
+   *  `setTimeout(flushFsync, FSYNC_COALESCE_MS)` with
+   *  `setTimeout(flushFsync, getFsyncCoalesceMs())`. The default
+   *  matches the prior hardcoded 50. Default: 50. */
+  fsyncCoalesceMs: number
 }
 
 export const DEFAULT_WORKFLOW_EXTENDED_CONFIG: WorkflowExtendedConfig = {
@@ -195,6 +207,7 @@ export const DEFAULT_WORKFLOW_EXTENDED_CONFIG: WorkflowExtendedConfig = {
   sandboxSlowMs: 50,
   sandboxFastWindow: 50,
   flushDebounceMs: 250,
+  fsyncCoalesceMs: 50,
 }
 
 // Module-level cache for the loaded config. Populated on first call to
@@ -314,4 +327,13 @@ export function getSandboxFastWindow(): number {
 
 export function getFlushDebounceMs(): number {
   return getWorkflowConfigSync().flushDebounceMs
+}
+
+// W22 — journal fsync coalescing window. The default matches the
+// prior hardcoded `const FSYNC_COALESCE_MS = 50` in `persistence.ts`.
+// This getter is used by `persistence.ts:scheduleFsync` (replacing
+// the local const with `getFsyncCoalesceMs()`).
+
+export function getFsyncCoalesceMs(): number {
+  return getWorkflowConfigSync().fsyncCoalesceMs
 }

@@ -41,6 +41,7 @@ export {
   getSandboxSlowMs,
   getSandboxFastWindow,
   getFlushDebounceMs,
+  getFsyncCoalesceMs,
   type WorkflowExtendedConfig,
 } from "../../src/constants.ts"
 
