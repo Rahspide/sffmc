@@ -1,6 +1,6 @@
 # @sffmc/memory
 
-> **This is the memory composite.** It composes 4 sub-features: `memory-core` (SQLite + recon, inlined), plus `checkpoint` / `judge` / `dream` from `@sffmc/extra` (all opt-in, disabled by default — flip flags in `~/.config/SFFMC/extra.yaml` per feature). The standalone `memory` package now exports the composite that wires the 4 sub-features via `mergeHooks()`.
+> **This is the memory composite.** It composes 4 sub-features: `memory-core` (SQLite + context recall, inlined), plus `checkpoint` / `judge` / `dream` from `@sffmc/extra` (all opt-in, disabled by default — flip flags in `~/.config/SFFMC/extra.yaml` per feature). The standalone `memory` package now exports the composite that wires the 4 sub-features via `mergeHooks()`.
 
 ## Sub-features
 
@@ -8,7 +8,7 @@ Memory composes 2 sub-features via `mergeHooks()`:
 
 | Sub-feature | Description |
 |---|---|
-| `memory-core` | FTS5 SQLite index + chokidar watcher + context-recon injection (internal, in `packages/memory/src/plugin.ts`) |
+| `memory-core` | FTS5 SQLite index + chokidar watcher + context-recall injection (internal, in `packages/memory/src/plugin.ts`) |
 | [`@sffmc/extra`](../extra/README.md) | 3 opt-in named tools: `extra_checkpoint`, `extra_judge`, `extra_dream` (disabled by default; enable per-feature in `~/.config/SFFMC/extra.yaml`) |
 
 ## Opt-in configuration
@@ -32,7 +32,7 @@ To enable @sffmc/extra features:
 
 ## What it does
 
-Gives your agent persistent memory across sessions. Indexes project docs (`memory-bank/*.md`, `AGENTS.md`, root `*.md`) into an FTS5 SQLite database and injects a structured "Context Recon" block at the start of each session. A chokidar watcher re-indexes changed files. The recon block is composed of top-importance memory rows, an `AGENTS.md` parse, and a tail of recent messages — all sized by the per-section budget.
+Gives your agent persistent memory across sessions. Indexes project docs (`memory-bank/*.md`, `AGENTS.md`, root `*.md`) into an FTS5 SQLite database and injects a structured "Context Recall" block at the start of each session. A chokidar watcher re-indexes changed files. The recall block is composed of top-importance memory rows, an `AGENTS.md` parse, and a tail of recent messages — all sized by the per-section budget.
 
 ## Install
 
@@ -73,7 +73,7 @@ default_importance: 0.5
 |---|---|
 | `config` | Initialize FTS5 DB and start chokidar watcher |
 | `event` | Mark `reconNeededThisSession` on `session.created` |
-| `experimental.chat.messages.transform` | Build Context Recon block, unshift as system message (once per session) |
+| `experimental.chat.messages.transform` | Build Context Recall block, unshift as system message (once per session) |
 
 ## Tests
 

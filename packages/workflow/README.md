@@ -4,7 +4,7 @@
 
 
 
-Dynamic Workflow — sandboxed JavaScript orchestrator (quickjs-emscripten).
+Dynamic Workflow — sandboxed JavaScript workflow runner (quickjs-emscripten).
 
 ## What it does
 
@@ -61,7 +61,7 @@ bun test packages/workflow/
 
 ## Builtins
 
-`deep-research` — 6-phase research orchestrator (`JURY_SIZE=3`, `REJECT_QUORUM=2`, `SOURCE_BUDGET=15`, `FACT_CAP=25`). Ported from MiMo-Code. Loaded via `loadBuiltin("deep-research")`.
+`deep-research` — 6-phase research workflow (`JURY_SIZE=3`, `REJECT_QUORUM=2`, `SOURCE_BUDGET=15`, `FACT_CAP=25`). Ported from MiMo-Code. Loaded via `loadBuiltin("deep-research")`.
 
 ## License
 
