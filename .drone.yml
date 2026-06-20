@@ -157,44 +157,46 @@ steps:
       - name: bun-cache
         path: /root/.bun/install/cache
 
-  # ── Publish (tag-only, gated on all 4 tag-gates green) ───────
-  - name: publish
-    image: oven/bun:1.3.14
-    depends_on: [tag-gate-typecheck, tag-gate-test, tag-gate-audit, tag-gate-health]
-    when:
-      event: tag
-      ref: refs/tags/v*.*.*
-    secrets: [npm_token, github_token]
-    commands:
-      - echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > ~/.npmrc
-      - bun run scripts/release.sh --actual
-    volumes:
-      - name: bun-cache
-        path: /root/.bun/install/cache
+  # ── Publish (DISABLED — private development mode, no npm publish) ──
+  # Заблокировано 2026-06-20: режим приватной разработки, только git.
+  # Чтобы включить публикацию, раскомментировать блок ниже и
+  # убедиться что Drone secrets (npm_token, github_token) настроены.
+  #
+  # - name: publish
+  #   image: oven/bun:1.3.14
+  #   depends_on: [tag-gate-typecheck, tag-gate-test, tag-gate-audit, tag-gate-health]
+  #   when:
+  #     event: tag
+  #     ref: refs/tags/v*.*.*
+  #   secrets: [npm_token, github_token]
+  #   commands:
+  #     - echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > ~/.npmrc
+  #     - bun run scripts/release.sh --actual
+  #   volumes:
+  #     - name: bun-cache
+  #       path: /root/.bun/install/cache
 
-  # ── Notify (tag-only, runs regardless of publish status) ─────
-  # status: [success, failure] makes this step run even if publish
-  # failed, so the team always gets a notification on tag builds.
-  - name: notify
-    image: oven/bun:1.3.14
-    depends_on: [publish]
-    when:
-      event: tag
-      ref: refs/tags/v*.*.*
-      status: [success, failure]
-    secrets: [slack_webhook]
-    commands:
-      - |
-        if [[ -n "${SLACK_WEBHOOK:-}" ]]; then
-          STATUS=$DRONE_BUILD_STATUS
-          TAG=$DRONE_TAG
-          curl -fsS -X POST -H 'Content-type: application/json' \
-            --data "{\"text\":\"📦 SFFMC ${TAG} — publish ${STATUS} (build #${DRONE_BUILD_NUMBER})\"}" \
-            "$SLACK_WEBHOOK" || echo "[WARN] slack webhook POST failed"
-        else
-          echo "[INFO] no SLACK_WEBHOOK secret set; skipping notification"
-          echo "[INFO] build #${DRONE_BUILD_NUMBER} status=${DRONE_BUILD_STATUS} tag=${DRONE_TAG}"
-        fi
+  # ── Notify (DISABLED — depends on publish) ─────────────────────
+  # - name: notify
+  #   image: oven/bun:1.3.14
+  #   depends_on: [publish]
+  #   when:
+  #     event: tag
+  #     ref: refs/tags/v*.*.*
+  #     status: [success, failure]
+  #   secrets: [slack_webhook]
+  #   commands:
+  #     - |
+  #       if [[ -n "${SLACK_WEBHOOK:-}" ]]; then
+  #         STATUS=$DRONE_BUILD_STATUS
+  #         TAG=$DRONE_TAG
+  #         curl -fsS -X POST -H 'Content-type: application/json' \
+  #           --data "{\"text\":\"📦 SFFMC ${TAG} — publish ${STATUS} (build #${DRONE_BUILD_NUMBER})\"}" \
+  #           "$SLACK_WEBHOOK" || echo "[WARN] slack webhook POST failed"
+  #       else
+  #         echo "[INFO] no SLACK_WEBHOOK secret set; skipping notification"
+  #         echo "[INFO] build #${DRONE_BUILD_NUMBER} status=${DRONE_BUILD_STATUS} tag=${DRONE_TAG}"
+  #       fi
 
 # ── Volumes ─────────────────────────────────────────────────────
 # `node_modules` and `bun-cache` are host-persistent volumes shared
