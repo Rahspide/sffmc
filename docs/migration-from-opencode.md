@@ -105,7 +105,7 @@ rm -f ~/.local/share/sffmc/memory/index.sqlite*
 # 4. Restart OpenCode
 ```
 
-**What you lose**: Memory, rules, and any in-progress sessions that depended on context recon blocks. Your OpenCode sessions return to default behavior immediately.
+**What you lose**: Memory, rules, and any in-progress sessions that depended on context recall blocks. Your OpenCode sessions return to default behavior immediately.
 
 ### 3. OpenCode → MiMo-Code
 
@@ -161,7 +161,7 @@ Based on research of OpenCode community issues (5+ per day as of June 2026).
 
 ### 1. EOS Token Stripping for Local Models
 
-**Problem**: Some local models (Ollama, vLLM, oMLX) emit end-of-sequence tokens mid-stream — `</s>`, `<|endoftext|>`, `<|im_end|>`, etc. When the agent sees these tokens, it interprets them as "conversation finished" and exits the loop after a single tool call. Your 1-hour task dies in 3 seconds.
+**Problem**: Some local models (Ollama, vLLM, oMLX) emit end-of-sequence tokens mid-stream — `</s>`, `<|endoftext|>`, `<|im_end|>`, etc. When the agent sees these tokens, it interprets them as "conversation finished" and exits the loop after a single tool call. Your long-running task fails quickly.
 
 **What SFFMC does**: EOS stripper plugin sits on `experimental.text.complete` and strips 10 known EOS token patterns from the end of model output before the agent loop sees them. See `packages/eos-stripper/src/patterns.ts:DEFAULT_EOS_PATTERNS` for the canonical list.
 

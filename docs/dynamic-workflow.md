@@ -27,7 +27,7 @@ survives even a process crash.
 
 ## Why we built it
 
-In a single LLM session for a 200+ step task, the context window bloats,
+In a single session for a 200+ step task, the context window bloats,
 attention decays, the model starts hallucinating or looping.
 The "one session = one task" approach works up to ~30 steps, then —
 degradation.
@@ -436,13 +436,6 @@ What we changed and why:
 6. **Maximum 1000 lifecycle agents** — hard limit per runtime
    instance. When exceeded, agent() silently returns null.
 
-## Roadmap
+## Future work
 
-| Stage | What | When |
-|---|---|---|
-| Next | Streaming progress (SSE events per agent) | Post-v0.9.0 |
-| Next | Multi-server resume (Redis/pubsub for cross-process) | Post-v0.9.0 |
-| Next | MCP bindings (agent can call mcp__* tools directly) | Post-v0.9.0 |
-| Later | Web UI dashboard for monitoring running workflows | TBD |
-| Later | Integration with upstream OpenCode scheduler (workflow as subagent) | TBD |
-| Later | Workflow templates (pre-built: code-review, release-checklist, etc) | TBD |
+Planned improvements to the workflow engine include streaming progress events, cross-process resume coordination, MCP bindings for direct tool access from inside workflows, a web UI dashboard for monitoring running workflows, integration with the upstream scheduler so workflows can run as delegated tasks, and pre-built workflow templates for common patterns like code review and release checklists. Dates for these improvements are not yet committed.
