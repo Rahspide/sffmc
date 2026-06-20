@@ -14,6 +14,13 @@ import { loadConfig } from "@sffmc/shared"
 /** 1h wall-clock for the sandbox. Matches maxWallClockMs to prevent
  *  mismatches where the sandbox runs 12x longer than the workflow.
  *
+ *  Manriel H5 design rationale (2026-06-19): the 12h → 1h reduction is
+ *  deliberate. The 12h value was NOT chosen for cleanup-after-kill;
+ *  cleanup happens via `recoverOrphanedWorkflows()` + the H5 grace
+ *  period above (5 min default, 24h ceiling), which is the right
+ *  abstraction for post-kill recovery. A 12h sandbox deadline would
+ *  only mask runaway workflows and delay their failure signal.
+ *
  *  Phase-1 HIGH migration (W1): the runtime value can be overridden via
  *  `WorkflowConfig.scriptDeadlineMs`. The exported constant remains the
  *  default (and is still used directly by `runtime.ts` per the v0.14.1

@@ -25,6 +25,30 @@ export interface CheckpointState {
   version: number;
 }
 
+/** C3 (Manriel audit, v0.14.2): typed error thrown by `readHeader()` and
+ *  `readToolCalls()` when the on-disk file exceeds `maxFileSize`.
+ *  Previously, `readHeader()` returned `null` and `readToolCalls()`
+ *  returned `[]` for the oversize case, which made it impossible for
+ *  callers to distinguish "checkpoint missing" from "checkpoint too
+ *  large" — both surfaced as empty results. Callers in this file catch
+ *  `CheckpointTooLargeError` and convert to the existing
+ *  `{ ok: false, error: "..." }` response shape so the public tool API
+ *  is unchanged. */
+export class CheckpointTooLargeError extends Error {
+  readonly sessionID: string;
+  readonly fileSize: number;
+  readonly maxFileSize: number;
+  constructor(sessionID: string, fileSize: number, maxFileSize: number) {
+    super(
+      `Checkpoint "${sessionID}" file size ${(fileSize / 1024 / 1024).toFixed(1)}MB exceeds limit (${(maxFileSize / 1024 / 1024).toFixed(1)}MB)`,
+    );
+    this.name = "CheckpointTooLargeError";
+    this.sessionID = sessionID;
+    this.fileSize = fileSize;
+    this.maxFileSize = maxFileSize;
+  }
+}
+
 export interface CheckpointTool {
   description: string;
   parameters: {
@@ -146,9 +170,12 @@ function readHeader(
       log.warn(
         `checkpoint: skipping ${sessionID} — file size ${(st.size / 1024 / 1024).toFixed(1)}MB exceeds limit (${maxFileSize / 1024 / 1024}MB)`,
       );
-      return null;
+      // C3: throw a typed error so callers can distinguish "oversize"
+      // from "missing file" (which still returns null).
+      throw new CheckpointTooLargeError(sessionID, st.size, maxFileSize);
     }
-  } catch {
+  } catch (e) {
+    if (e instanceof CheckpointTooLargeError) throw e;
     return null;
   }
 
@@ -183,9 +210,12 @@ export function readToolCalls(
       log.warn(
         `checkpoint: skipping ${sessionID} — file size ${(st.size / 1024 / 1024).toFixed(1)}MB exceeds limit (${maxFileSize / 1024 / 1024}MB)`,
       );
-      return [];
+      // C3: throw a typed error so callers can distinguish "oversize"
+      // from "missing file" (which still returns []).
+      throw new CheckpointTooLargeError(sessionID, st.size, maxFileSize);
     }
-  } catch {
+  } catch (e) {
+    if (e instanceof CheckpointTooLargeError) throw e;
     return [];
   }
 
@@ -253,16 +283,42 @@ function deleteCheckpoint(sessionID: string, dir?: string): boolean {
 // In-memory buffer — per-instance state (DLC: no shared state between plugins)
 // ---------------------------------------------------------------------------
 
+/** Per-session buffer entry with explicit LRU metadata.
+ *
+ *  C2 (Manriel audit, v0.14.2): the prior implementation relied on
+ *  `Map.keys().next().value` + a `delete; set` touch to implement LRU
+ *  via Map's iteration order. That worked but was implicit — the
+ *  eviction logic depended on Map's internal ordering, not on a
+ *  tracked access timestamp. This struct makes the LRU policy
+ *  explicit: `lastAccessMs` is the value compared for eviction, and
+ *  `insertionOrder` is the deterministic tie-breaker when two entries
+ *  share the same access time. */
+interface SessionBufferEntry {
+  buf: ToolCall[];
+  lastAccessMs: number;
+  /** Monotonic counter assigned at insertion. Tie-breaker for LRU when
+   *  two entries share `lastAccessMs` (e.g. when `Date.now()` does not
+   *  advance between inserts). The lower value is older. */
+  insertionOrder: number;
+}
+
 interface CheckpointBufferState {
-  sessionBuffers: Map<string, ToolCall[]>;
+  sessionBuffers: Map<string, SessionBufferEntry>;
   headersWritten: Set<string>;
   flushTimer: ReturnType<typeof setInterval> | null;
   dir: string;
 }
 
+/** Monotonic counter for insertion ordering. Module-level because the
+ *  LRU tie-breaker must be globally unique within a process. Each
+ *  factory instance shares the counter (intentional — sessions
+ *  inserted by different factories never coexist in the same buffer
+ *  map, since the buffer is per-instance). */
+let _bufferInsertionCounter = 0;
+
 function _flushSession(state: CheckpointBufferState, sessionID: string): void {
-  const buf = state.sessionBuffers.get(sessionID);
-  if (!buf || buf.length === 0) return;
+  const entry = state.sessionBuffers.get(sessionID);
+  if (!entry || entry.buf.length === 0) return;
 
   ensureDir(state.dir);
 
@@ -272,11 +328,11 @@ function _flushSession(state: CheckpointBufferState, sessionID: string): void {
   }
 
   const fp = filePath(sessionID, state.dir);
-  for (const tc of buf) {
+  for (const tc of entry.buf) {
     appendFileSync(fp, JSON.stringify(tc) + "\n");
   }
 
-  buf.length = 0;
+  entry.buf.length = 0;
 }
 
 function _flushAll(state: CheckpointBufferState): void {
@@ -300,26 +356,59 @@ function _stopFlushTimer(state: CheckpointBufferState): void {
   }
 }
 
-function _getOrCreateBuffer(state: CheckpointBufferState, sessionID: string): ToolCall[] {
-  let buf = state.sessionBuffers.get(sessionID);
-  if (buf) {
-    // Touch: move to end of insertion order for true LRU
-    state.sessionBuffers.delete(sessionID);
-    state.sessionBuffers.set(sessionID, buf);
-    return buf;
-  }
-  // Evict LRU (oldest-inserted) session when cap is reached
-  if (state.sessionBuffers.size >= MAX_BUFFER_SESSIONS) {
-    const oldestKey = state.sessionBuffers.keys().next().value;
-    if (oldestKey) {
-      _flushSession(state, oldestKey);
-      state.sessionBuffers.delete(oldestKey);
-      state.headersWritten.delete(oldestKey);
+/** Find the LRU victim. Scans every entry and picks the one with the
+ *  smallest `lastAccessMs`; ties are broken by `insertionOrder` (the
+ *  older insertion wins). Returns `null` when the map is empty.
+ *
+ *  Exported (with underscore prefix) for the C2 regression test. */
+export function _findLRUVictim(buffers: Map<string, SessionBufferEntry>): string | null {
+  let victimKey: string | null = null;
+  let victimAccess = Number.POSITIVE_INFINITY;
+  let victimInsertion = Number.POSITIVE_INFINITY;
+  for (const [key, entry] of buffers) {
+    if (
+      entry.lastAccessMs < victimAccess ||
+      (entry.lastAccessMs === victimAccess && entry.insertionOrder < victimInsertion)
+    ) {
+      victimKey = key;
+      victimAccess = entry.lastAccessMs;
+      victimInsertion = entry.insertionOrder;
     }
   }
-  buf = [];
-  state.sessionBuffers.set(sessionID, buf);
-  return buf;
+  return victimKey;
+}
+
+function _getOrCreateBuffer(state: CheckpointBufferState, sessionID: string): ToolCall[] {
+  const now = Date.now();
+  let entry = state.sessionBuffers.get(sessionID);
+  if (entry) {
+    // Touch: refresh the access timestamp so this entry is no longer
+    // the eviction candidate. We also delete + re-insert to keep the
+    // Map's iteration order aligned with LRU (defensive — eviction
+    // uses the explicit scan, but iteration order is useful for tests
+    // and for future fast paths).
+    state.sessionBuffers.delete(sessionID);
+    entry.lastAccessMs = now;
+    state.sessionBuffers.set(sessionID, entry);
+    return entry.buf;
+  }
+  // Evict LRU when the cap is reached. C2: the victim is determined
+  // by the explicit timestamp scan, not by Map iteration order.
+  if (state.sessionBuffers.size >= MAX_BUFFER_SESSIONS) {
+    const victim = _findLRUVictim(state.sessionBuffers);
+    if (victim !== null) {
+      _flushSession(state, victim);
+      state.sessionBuffers.delete(victim);
+      state.headersWritten.delete(victim);
+    }
+  }
+  entry = {
+    buf: [],
+    lastAccessMs: now,
+    insertionOrder: _bufferInsertionCounter++,
+  };
+  state.sessionBuffers.set(sessionID, entry);
+  return entry.buf;
 }
 
 // ---------------------------------------------------------------------------
@@ -357,7 +446,18 @@ function _executeRestoreAction(
     return { ok: false, error: "sessionID is required for restore" };
   }
 
-  const header = readHeader(sessionID, dir, maxFileSize);
+  let header: CheckpointHeader | null;
+  try {
+    header = readHeader(sessionID, dir, maxFileSize);
+  } catch (e) {
+    // C3: translate the typed error into the existing response shape
+    // so the public tool API is unchanged. Callers see
+    // { ok: false, error: "<message>" }.
+    if (e instanceof CheckpointTooLargeError) {
+      return { ok: false, error: e.message };
+    }
+    throw e;
+  }
   if (!header) {
     return { ok: false, error: "checkpoint not found" };
   }
@@ -369,7 +469,15 @@ function _executeRestoreAction(
     };
   }
 
-  const calls = readToolCalls(sessionID, dir, maxFileSize);
+  let calls: ToolCall[];
+  try {
+    calls = readToolCalls(sessionID, dir, maxFileSize);
+  } catch (e) {
+    if (e instanceof CheckpointTooLargeError) {
+      return { ok: false, error: e.message };
+    }
+    throw e;
+  }
   const messages = reconstructMessages(calls);
 
   return {
@@ -444,43 +552,71 @@ function _createAutoRestoreHook(
       const msg = data.messages[i];
       if (typeof msg.content !== "string") continue;
 
-      const match = msg.content.match(RESTORE_MARKER);
-      if (match) {
-        const sessionID = match[1];
-        log.info(
-          `[extra] checkpoint auto-restore: loading session ${sessionID}`,
-        );
-
-        const header = readHeader(sessionID, dir, maxFileSize);
-        if (!header) {
-          log.warn(
-            `[extra] checkpoint auto-restore: session ${sessionID} not found`,
+        const match = msg.content.match(RESTORE_MARKER);
+        if (match) {
+          const sessionID = match[1];
+          log.info(
+            `[extra] checkpoint auto-restore: loading session ${sessionID}`,
           );
+
+          // C3: catch the typed error and degrade gracefully — the
+          // auto-restore hook is best-effort and must not break the
+          // chat pipeline. Strip the marker and continue.
+          let header: CheckpointHeader | null;
+          try {
+            header = readHeader(sessionID, dir, maxFileSize);
+          } catch (e) {
+            if (e instanceof CheckpointTooLargeError) {
+              log.warn(
+                `[extra] checkpoint auto-restore: session ${sessionID} is oversize — skipping (${e.message})`,
+              );
+              msg.content = msg.content.replace(RESTORE_MARKER, "").trim();
+              continue;
+            }
+            throw e;
+          }
+          if (!header) {
+            log.warn(
+              `[extra] checkpoint auto-restore: session ${sessionID} not found`,
+            );
+            msg.content = msg.content.replace(RESTORE_MARKER, "").trim();
+            continue;
+          }
+
+          if (header.version > CURRENT_VERSION) {
+            log.warn(
+              `[extra] checkpoint auto-restore: session ${sessionID} has future version ${header.version} (current: ${CURRENT_VERSION})`,
+            );
+            msg.content = msg.content.replace(RESTORE_MARKER, "").trim();
+            continue;
+          }
+
+          // C3: same catch for readToolCalls.
+          let calls: ToolCall[];
+          try {
+            calls = readToolCalls(sessionID, dir, maxFileSize);
+          } catch (e) {
+            if (e instanceof CheckpointTooLargeError) {
+              log.warn(
+                `[extra] checkpoint auto-restore: session ${sessionID} tool calls oversize — skipping`,
+              );
+              msg.content = msg.content.replace(RESTORE_MARKER, "").trim();
+              continue;
+            }
+            throw e;
+          }
+          const restored = reconstructMessages(calls).slice(0, maxRestoredMessages);
+
           msg.content = msg.content.replace(RESTORE_MARKER, "").trim();
-          continue;
+
+          if (msg.content === "") {
+            data.messages.splice(i, 1, ...restored);
+          } else {
+            data.messages.splice(i + 1, 0, ...restored);
+          }
+
+          break;
         }
-
-        if (header.version > CURRENT_VERSION) {
-          log.warn(
-            `[extra] checkpoint auto-restore: session ${sessionID} has future version ${header.version} (current: ${CURRENT_VERSION})`,
-          );
-          msg.content = msg.content.replace(RESTORE_MARKER, "").trim();
-          continue;
-        }
-
-        const calls = readToolCalls(sessionID, dir, maxFileSize);
-        const restored = reconstructMessages(calls).slice(0, maxRestoredMessages);
-
-        msg.content = msg.content.replace(RESTORE_MARKER, "").trim();
-
-        if (msg.content === "") {
-          data.messages.splice(i, 1, ...restored);
-        } else {
-          data.messages.splice(i + 1, 0, ...restored);
-        }
-
-        break;
-      }
     }
     return data;
   };

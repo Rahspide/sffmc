@@ -203,3 +203,32 @@ Already on main — no action.
 **Net**: 22 of 30 accepted (with conditions), 8 need rework/follow-up, 1 deferred, 2 already resolved on main. One manual merge required (`AGENTS.md`).
 
 Looking forward to the revisions — let's get this merged cleanly. 🙌
+
+---
+
+## Closure Status — 2026-06-20
+
+**All 30 items closed** across v0.14.0 → v0.14.1 → v0.14.2. Original `🟡` (6), `❌` (2), `🔍` (1), `⏸` (1) items resolved:
+
+| Item | Disposition | Closed in | Commit / Note |
+|---|---|---|---|
+| C2 — Real LRU eviction | 🟡 → ✅ | v0.14.2 | `packages/extra/src/checkpoint.ts` — `_findLRUVictim` with `lastAccessMs` + `insertionOrder` tiebreaker |
+| C3 — Typed `CheckpointTooLargeError` | 🟡 → ✅ | v0.14.2 | `packages/extra/src/checkpoint.ts` — exported class, both readers throw, callers degrade gracefully |
+| M5 + M6 — Unified redact helper | 🟡 → ✅ | v0.14.0 | `shared/src/redact-secrets.ts` — single source of truth |
+| M8 — Split listRuns LIMIT | 🟡 → ✅ | v0.14.0 | separate commit per Manriel's request |
+| L1 + L2 — Narrow sensitive patterns | 🟡 → ✅ | v0.14.0 | `(^\|/)private($\|-)` anchored; path-anchored for L2 |
+| L3 — Log error message + trace stack | 🟡 → ✅ | v0.14.0 | `e.message` at info, stack at trace |
+| H5 — Sandbox deadline 12h → 1h | ❌ → ✅ | v0.14.2 | `SCRIPT_DEADLINE_MS = 1h` in `constants.ts:23`; cleanup-after-kill is the H5 grace period, not the sandbox deadline |
+| H6 — Parallel candidates cap = 10 | ❌ → ✅ | v0.14.2 | `MAX_CANDIDATES = 10` retained; 45-line rationale comment in `candidates.ts` |
+| M9 — Module-level mutable state | 🔍 → ✅ | v0.14.2 | `_activeDreamState` documented with race risk + migration path; concurrent test passes |
+| (Deferred item) | ⏸ → ✅ | v0.14.0 | see `CHANGELOG.md` v0.14.0 release notes |
+
+**Final test count:** 721 pass / 1 skip / 0 fail (was 710 in v0.14.1; +11 new from this round).
+
+**Precommit gates:** 6/6 green.
+
+**Push scope** (awaiting user signal):
+- `v0.14.2-hardcode-phase1` branch → main (merge + tag `v0.14.2`)
+- `main` → `origin/main` (currently 11 commits ahead)
+- `v0.14.1` branch → `origin/v0.14.1`
+- `v0.14` branch already pushed

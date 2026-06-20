@@ -373,6 +373,51 @@ describe("F8 Dream", () => {
     expect(isDreamLocked()).toBe(false); // lock released after completion
   });
 
+  // ── M9 (Manriel audit, v0.14.2) — concurrent dream() calls under
+  //    the module-level _activeDreamState singleton. ────────────────
+  it("M9: 10 concurrent dream() calls — exactly 1 succeeds, 9 skipped, no state corruption", async () => {
+    const db = openTestDB();
+    seedDB(db, 100);
+    db.close();
+
+    const { tool } = createDreamTool({
+      enabled: true,
+      threshold: 50,
+      intervalHours: 0,
+      storagePath: TEST_DB_PATH,
+    });
+
+    // Fire 10 concurrent dream() calls. The per-instance lock
+    // (state.dreamLock) must serialize them: the first one runs,
+    // the rest observe the lock and return { skipped: true,
+    // reason: "dream already in progress" }.
+    const N = 10;
+    const promises = Array.from({ length: N }, () => tool.execute());
+    const results = await Promise.all(promises);
+
+    // Exactly one succeeded; the rest skipped.
+    const succeeded = results.filter((r) => !r.skipped);
+    const skipped = results.filter((r) => r.skipped);
+    expect(succeeded.length).toBe(1);
+    expect(skipped.length).toBe(N - 1);
+    for (const s of skipped) {
+      expect(s.reason).toBe("dream already in progress");
+    }
+
+    // State is clean after the burst — the lock was released and
+    // isDreamLocked() reports false. This catches the M9 race: if
+    // _activeDreamState were mishandled, the lock pointer could be
+    // left dangling and a subsequent call would see a stale lock.
+    expect(isDreamLocked()).toBe(false);
+
+    // A follow-up call after the burst must succeed normally (the
+    // singleton state was correctly reset).
+    const followUp = await tool.execute();
+    expect(followUp.skipped).toBeUndefined();
+    expect(followUp.ok).toBe(true);
+    expect(isDreamLocked()).toBe(false);
+  });
+
   // ── Test 8: Disabled — returns skipped with reason ─────────────────
   it("disabled: tool returns { skipped: true, reason: 'feature disabled' }", async () => {
     const { tool } = createDreamTool({

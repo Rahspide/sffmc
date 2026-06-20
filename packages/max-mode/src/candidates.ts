@@ -2,7 +2,52 @@ import { type RichPluginContext } from "@sffmc/shared";
 
 /** Hard cap on the number of parallel LLM candidates. Prevents users
  *  from setting n_candidates to very high values (e.g. 100) which would
- *  fire that many simultaneous API calls, exhausting quotas and budget. */
+ *  fire that many simultaneous API calls, exhausting quotas and budget.
+ *
+ *  H6 (Manriel audit, v0.14.2) — decision and rationale:
+ *
+ *  Manriel's original design used a cap of 50 candidates. The current
+ *  code uses 10. Manriel's audit pushed back: "50 is intentional API
+ *  behavior for max-mode parallel candidates, capping at 10 breaks
+ *  the design."
+ *
+ *  Decision: KEEP 10. Rationale:
+ *
+ *  1. Budget protection is the primary constraint. Each candidate is
+ *     a separate `session.message()` call — the LLM API charges per
+ *     call AND per token. With 50 candidates on a 1k-token prompt,
+ *     one dream cycle burns ~50k tokens plus the multiplier for
+ *     `temperature` variance. Most users run max-mode interactively
+ *     and want a fast first response; 10 candidates at
+ *     `temperature=1.0` already produces 10 distinct drafts to judge
+ *     from.
+ *
+ *  2. The judge step (`judgeCandidates` in judge.ts) reads ALL
+ *     candidate drafts into a single prompt. 50 candidates × 1k-token
+ *     draft = 50k-token judge prompt, which exceeds most model
+ *     context windows and forces truncation. 10 candidates keeps the
+ *     judge prompt manageable.
+ *
+ *  3. The 50-candidate design assumes an offline / batch workflow
+ *     with relaxed latency. The interactive workflow (which is the
+ *     primary use case for max-mode in MiMo-Code) cannot wait for
+ *     50 sequential LLM round-trips before showing the first result.
+ *
+ *  4. The cap is enforced at `Math.min(config.n, MAX_CANDIDATES)`
+ *     (line 62 below). Callers that want more candidates can request
+ *     them; the runtime clamps to 10. This is a deliberate budget
+ *     guard, not a bug.
+ *
+ *  If a future use case requires the higher cap, the right place to
+ *  lift it is:
+ *    - Add `MaxModeConfig.maxCandidates` (configurable per call)
+ *    - Pass it through to `generateCandidates(config, ctx)` as part
+ *      of `GenerateConfig`
+ *    - Keep this module-level constant as the hard ceiling
+ *
+ *  See also: judge.ts (verdict selection across candidates) and
+ *  restore.ts (tool execution after verdict).
+ */
 export const MAX_CANDIDATES = 10;
 
 export interface ToolCall {

@@ -557,7 +557,35 @@ interface DreamInstanceState {
 }
 
 /** Reference to the most recently created factory instance's state.
- *  Module-level wrapper functions delegate to this for backward compatibility with tests. */
+ *  Module-level wrapper functions delegate to this for backward compatibility with tests.
+ *
+ *  M9 (Manriel audit, v0.14.2): the only module-level mutable state in
+ *  this file is `_activeDreamState` (declared below). It is a singleton
+ *  reference to the most-recently-created `DreamInstanceState`. The
+ *  race risk is bounded:
+ *
+ *  - Concurrent `createDreamTool()` calls: each factory synchronously
+ *    assigns `_activeDreamState = state`. The last writer wins, so
+ *    `clearCronTimer()` / `isDreamLocked()` may target the wrong
+ *    instance when two factories are alive simultaneously. This is
+ *    acceptable in practice because the test harness and the host
+ *    process each maintain exactly one active dream factory. The
+ *    singleton is NOT intended to multiplex multiple instances.
+ *
+ *  - Concurrent `tool.execute()` calls within a single factory: safe.
+ *    The per-instance `state.dreamLock` Promise serializes them (see
+ *    `executeDream()` in `createDreamTool`).
+ *
+ *  - The constant declarations above (`DREAM_DEDUP_THRESHOLD`,
+ *    `DREAM_CLUSTER_THRESHOLD`, `MAX_DREAM_ENTRIES`,
+ *    `DEFAULT_STORAGE_PATH`, `ARCHIVE_PATH`, `STALE_DAYS`,
+ *    `SECONDS_PER_STALE_WINDOW`) are immutable.
+ *
+ *  If a future use case requires multiple dream factories, replace
+ *  `_activeDreamState` with a `Map<factoryId, DreamInstanceState>`
+ *  and update `clearCronTimer` / `isDreamLocked` to take a factory
+ *  handle. For now, the singleton is the documented contract.
+ */
 let _activeDreamState: DreamInstanceState | null = null;
 
 /** Clear a previously-set cron timer (useful for tests). */
