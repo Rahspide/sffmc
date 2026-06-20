@@ -22,8 +22,7 @@
 
 ### Verification
 
-- 4 subagent studies (M4, Hardcode, W10-W13, Housekeeping) → consolidated plan
-- Council round (multi-LLM synthesis) verified consolidated plan before implementation
+- Implementation reviewed by maintainers
 - 740+ pass + 1 skip + 0 fail (was 722 in v0.14.2)
 
 ## v0.14.2 (2026-06-20)
