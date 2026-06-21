@@ -1,49 +1,5 @@
 # SFFMC Changelog
 
-## v0.14.5 (2026-06-21)
-
-### Changed
-
-- **Checkpoint write batching** — `_flushSession` writes all buffered `ToolCall`s in a single `appendFileSync` call instead of N separate calls. On-disk file format is byte-identical to prior releases (one JSON-encoded `ToolCall` per line, terminated with `\n`); existing readers (`readToolCalls`, `readHeader`) are unaffected.
-
-### Added
-
-- **`packages/extra/bench/checkpoint-flush.bench.ts`** — synthetic microbenchmark for `_flushSession` throughput. Drives the `tool.execute.after` hook for 10/100/1000 calls and reports ops/sec plus file size. Run with `bun run packages/extra/bench/checkpoint-flush.bench.ts`.
-
-### Performance
-
-Benchmarks (bun 1.3.14, default `flushThreshold = 50`):
-
-| Buffer size | Throughput | File size |
-|---|---|---|
-| 10 calls | ~10k ops/sec | 1062 B |
-| 100 calls | ~130k ops/sec | 9882 B |
-| 1000 calls | ~350k ops/sec | 100782 B |
-
-Sub-millisecond measurements are noisy; file sizes are byte-identical across runs, confirming the batched write produces the same content as the prior loop.
-
-## v0.14.5 (2026-06-21)
-
-### Изменено
-
-- **Батчинг записи в checkpoint** — `_flushSession` теперь записывает все буферизованные `ToolCall` за один вызов `appendFileSync` вместо N отдельных вызовов. Формат файла на диске побайтно идентичен предыдущим релизам (по одному JSON-сериализованному `ToolCall` на строку, оканчивающемуся `\n`); существующие reader'ы (`readToolCalls`, `readHeader`) не затронуты.
-
-### Добавлено
-
-- **`packages/extra/bench/checkpoint-flush.bench.ts`** — синтетический микробенчмарк для пропускной способности `_flushSession`. Прогоняет `tool.execute.after` hook на 10/100/1000 вызовов и сообщает ops/sec и размер файла. Запуск: `bun run packages/extra/bench/checkpoint-flush.bench.ts`.
-
-### Производительность
-
-Бенчмарки (bun 1.3.14, `flushThreshold = 50` по умолчанию):
-
-| Размер буфера | Пропускная способность | Размер файла |
-|---|---|---|
-| 10 вызовов | ~10k ops/sec | 1062 Б |
-| 100 вызовов | ~130k ops/sec | 9882 Б |
-| 1000 вызовов | ~350k ops/sec | 100782 Б |
-
-Измерения в субмиллисекундном диапазоне зашумлены; размеры файлов побайтно идентичны между прогонами, что подтверждает: батчированная запись даёт тот же контент, что и старый цикл.
-
 ## v0.14.3 (2026-06-20)
 
 ### Fixed

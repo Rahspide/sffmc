@@ -349,18 +349,10 @@ function _flushSession(state: CheckpointBufferState, sessionID: string): void {
   }
 
   const fp = filePath(sessionID, state.dir);
-  // v0.14.5: batch the buffer into a single appendFileSync syscall instead of
-  // N appendFileSync calls. The output bytes are identical (one
-  // JSON-encoded ToolCall per line, each terminated with "\n"), so on-disk
-  // format is unchanged and existing readers (readToolCalls) are unaffected.
-  // The `entry.buf.length > 0` guard is defensive — the early-return at the
-  // top of this function already covers the empty case, but skipping the
-  // map+join+appendFileSync work entirely for an empty flush saves 1 syscall
-  // and a small string allocation.
-  if (entry.buf.length > 0) {
-    const lines = entry.buf.map((tc) => JSON.stringify(tc)).join("\n") + "\n";
-    appendFileSync(fp, lines);
+  for (const tc of entry.buf) {
+    appendFileSync(fp, JSON.stringify(tc) + "\n");
   }
+
   entry.buf.length = 0;
 }
 

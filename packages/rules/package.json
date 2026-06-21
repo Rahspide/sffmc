@@ -1,6 +1,6 @@
 {
   "name": "@sffmc/rules",
-  "version": "0.14.5",
+  "version": "0.14.3",
   "type": "module",
   "main": "src/index.ts",
   "dependencies": {
