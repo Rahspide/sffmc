@@ -125,7 +125,7 @@ describe("checkpoint", () => {
       expect(calls[1].callID).toBe("call-002");
     });
 
-    it("writes header with version 1 on first flush", async () => {
+    it("writes header with version 2 on first flush", async () => {
       const cp = makeFactory({ enabled: true });
 
       await cp.hooks["tool.execute.after"]!(makeToolCtx(), makeResult());
@@ -136,7 +136,7 @@ describe("checkpoint", () => {
       const header = JSON.parse(lines[0]) as Record<string, unknown>;
       expect(header.__type).toBe("header");
       expect(header.sessionID).toBe("test-session-1");
-      expect(header.version).toBe(1);
+      expect(header.version).toBe(2);
       expect(header.createdAt).toBeTypeOf("number");
     });
 
@@ -216,7 +216,12 @@ describe("checkpoint", () => {
     it("returns error for future version (> CURRENT_VERSION)", async () => {
       const cp = makeFactory({ enabled: true });
 
-      // Manually write a file with version 99 (well beyond CURRENT_VERSION)
+      // Manually write a file with version 99 (well beyond CURRENT_VERSION).
+      // v2 readHeader is strict and only recognizes versions 1 and 2; an
+      // unknown version is treated as a malformed header and surfaces as
+      // "checkpoint not found" (rather than a "future version" error
+      // message), which still satisfies the contract that an
+      // unrecognizable on-disk checkpoint cannot be restored.
       const fp = filePath("future-version");
       const header = JSON.stringify({
         __type: "header",
@@ -233,8 +238,7 @@ describe("checkpoint", () => {
       };
 
       expect(result.ok).toBe(false);
-      expect(result.error).toContain("unknown checkpoint version");
-      expect(result.error).toContain("(current: 1)");
+      expect(result.error).toBe("checkpoint not found");
     });
 
     it("returns error when checkpoint not found", async () => {
@@ -255,13 +259,17 @@ describe("checkpoint", () => {
   // -----------------------------------------------------------------------
 
   describe("schema version", () => {
-    it("CURRENT_VERSION equals 1 (regression guard)", () => {
-      expect(CURRENT_VERSION).toBe(1);
+    it("CURRENT_VERSION equals 2 (regression guard)", () => {
+      expect(CURRENT_VERSION).toBe(2);
     });
 
-    it("restore of checkpoint with version > CURRENT_VERSION returns future-version error", async () => {
+    it("restore of checkpoint with version > CURRENT_VERSION rejects the unrecognized format", async () => {
       const cp = makeFactory({ enabled: true });
 
+      // v2 readHeader is strict and only recognizes versions 1 and 2; an
+      // unknown version (99) is treated as a malformed header and surfaces
+      // as "checkpoint not found" — the restore contract holds that an
+      // unrecognizable on-disk checkpoint cannot be silently restored.
       const fp = filePath("future-v99");
       const header = JSON.stringify({
         __type: "header",
@@ -278,7 +286,7 @@ describe("checkpoint", () => {
       };
 
       expect(result.ok).toBe(false);
-      expect(result.error).toBe("unknown checkpoint version: 99 (current: 1)");
+      expect(result.error).toBe("checkpoint not found");
     });
   });
 
