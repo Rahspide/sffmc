@@ -44,7 +44,7 @@ describe("v0.14.3 D-1: __setWorkflowConfig test escape hatch migration", () => {
     // Dynamic import of the production module — __setWorkflowConfig should
     // NOT be reachable from the production `src/constants.ts` surface.
     //
-    // Council review (R3): this test was tautological in v1 — it accepted
+    // Cleanup review: this test was tautological in v1 — it accepted
     // either undefined or function. The real invariant is: production
     // paths don't get this function. The test file's NODE_ENV is "test"
     // (bun:test sets it), so a NODE_ENV-gated export would still appear.

@@ -162,7 +162,7 @@ describe("@sffmc/extra — initial release migration", () => {
       maxEntries: 1000,
     });
     expect(d.tool).toBeDefined();
-    expect(d.tool.description).toContain("F8 Dream");
+    expect(d.tool.description).toContain("Dream");
   });
 });
 

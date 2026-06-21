@@ -56,7 +56,7 @@ export function buildRecon(
     `## AGENTS.md (${RECON_AGENTS_BUDGET} chars)\n${truncate(agents, RECON_AGENTS_BUDGET)}`,
   );
 
-  return `[Context Recon 8K — injected by F4' Memory]\n\n${sections.join("\n\n")}`;
+  return `[Context Recon 8K — injected by Memory]\n\n${sections.join("\n\n")}`;
 }
 
 function truncate(text: string, maxChars: number): string {

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/workflow — see ../../LICENSE
 
-// P1 coverage for runtime.spawnChildWorkflow() — specifically the journal
+// coverage for runtime.spawnChildWorkflow() — specifically the journal
 // replay branch (runtime.ts:690-695) that fires when a parent workflow
 // invokes `workflow(spec, args)` with a (spec, args) hash it has already
 // produced in a previous call within the same run. The hash key is
@@ -40,7 +40,7 @@ afterAll(() => {
   rmSync(tmpDir, { recursive: true, force: true })
 })
 
-// ── P1 #10: spawnChildWorkflow() journal-hit branch ───────────────────────
+// ── #10: spawnChildWorkflow() journal-hit branch ───────────────────────
 // runtime.ts:691-695 — when entry.journalResults.has(key) is true on a
 // subsequent identical workflow() call, spawnChildWorkflow returns the
 // cached value, bumps succeeded, and NEVER launches a child. We pre-seed

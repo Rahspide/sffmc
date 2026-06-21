@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/workflow — see ../../LICENSE
 
-// R3 (audit b27): clearJournal previously truncated to 0 bytes. A child
+// Audit: clearJournal previously truncated to 0 bytes. A child
 // workflow that called appendJournalSync within the 50ms fsync coalesce
 // window would land a raw event as the first line of the file, which
 // loadJournal would then treat as a torn header and silently skip.
@@ -39,8 +39,8 @@ function readRawJournalLines(runID: string): string[] {
     .filter((l) => l.length > 0)
 }
 
-describe("persistence.clearJournal v1-header preservation (R3)", () => {
-  test("clearJournal writes v1 header as first line (#R3-1)", async () => {
+describe("persistence.clearJournal v1-header preservation", () => {
+  test("clearJournal writes v1 header as first line (1)", async () => {
     const runID = makeRun("clr-v1hdr")
     await p.clearJournal(runID)
     const lines = readRawJournalLines(runID)
@@ -48,7 +48,7 @@ describe("persistence.clearJournal v1-header preservation (R3)", () => {
     expect(JSON.parse(lines[0])).toEqual({ v: 1 })
   })
 
-  test("clearJournal followed by appendJournalSync preserves the event (#R3-2)", async () => {
+  test("clearJournal followed by appendJournalSync preserves the event (2)", async () => {
     const runID = makeRun("clr-then-append")
     await p.clearJournal(runID)
     // Synchronous append — exactly the race the audit flagged: a child
@@ -72,7 +72,7 @@ describe("persistence.clearJournal v1-header preservation (R3)", () => {
     expect(results.get("k")).toBe("after-clear")
   })
 
-  test("clearJournal followed by multiple appends yields a valid journal (#R3-3)", async () => {
+  test("clearJournal followed by multiple appends yields a valid journal (3)", async () => {
     const runID = makeRun("clr-multi-append")
     await p.clearJournal(runID)
 
@@ -117,7 +117,7 @@ describe("persistence.clearJournal v1-header preservation (R3)", () => {
     }
   })
 
-  test("clearJournal on nonexistent runID creates an empty journal with header (#R3-4)", async () => {
+  test("clearJournal on nonexistent runID creates an empty journal with header (4)", async () => {
     // Sanity: clearJournal must be safe to call when no journal exists yet.
     const runID = makeRun("clr-fresh")
     // Confirm file does not exist yet

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// @sffmc/extra — F5' Checkpoint
+// @sffmc/extra — Checkpoint
 // Real implementation: session state capture, persistence to JSONL, restore.
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync } from "node:fs";
@@ -699,7 +699,7 @@ export function createCheckpointTool(config: {
   };
 
   const tool: CheckpointTool = {
-    description: `F5' Checkpoint — session snapshot and resumability.
+    description: `Checkpoint — session snapshot and resumability.
 Status: ${config.enabled ? "enabled" : "disabled"}.
 Actions: list (show checkpointed sessions), restore (reconstruct messages), delete (remove checkpoint).
 Auto-restore: inject <!-- EXTRA_RESTORE: <sessionID> --> in a message to auto-load checkpoint.`,

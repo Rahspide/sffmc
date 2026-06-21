@@ -1,0 +1,42 @@
+#!/usr/bin/env sh
+# SFFMC commit-msg hook (managed by husky).
+# Verifies commit message doesn't mention internal tooling or project IDs.
+# Bypass with: git commit --no-verify
+set -euo pipefail
+
+cd "$(git rev-parse --show-toplevel)"
+
+commit_msg_file="$1"
+commit_msg=$(cat "$commit_msg_file")
+
+# Allowlist for false positives in commit messages.
+ALLOWLIST_REGEX='\b(HTTP/[12]|V[12]\.0|D1|L[12]|X11|X86|X64|ARM64|API|SDK|UI|UX|CI|CD|CLI|GUI|REPL|ASCII|UTF-?8|URL|URI|UUID|MD5|SHA|HMAC|XSS|CSRF|DOM|V8|JIT|AOT|FIFO|LIFO|OOPS|OOP|TLS|SSL|RPC|gRPC|CORS|CDN|ORM|ODM|ETL|ELT|TDD|BDD|SLA|SLO|SLI|CSP|JSON|YAML|CSV|TSV|JS|TS|SQL)\b'
+
+# Generic ID pattern.
+GENERIC_ID_REGEX='\b[A-Z][0-9]+(\.[0-9]+)?(\x27[a-z]?)?\b'
+
+# Check explicit banned terms.
+BANNED_TERMS_FILE="scripts/cleanroom-terms.txt"
+if [ ! -f "$BANNED_TERMS_FILE" ]; then
+  echo "[commit-msg][FAIL] banned-terms file missing: $BANNED_TERMS_FILE"
+  exit 1
+fi
+
+while IFS= read -r term; do
+  [[ -z "$term" || "$term" =~ ^# ]] && continue
+  if echo "$commit_msg" | grep -qE "\b${term}\b"; then
+    echo "[commit-msg][FAIL] commit message mentions banned term '${term}'"
+    echo "  remove internal tooling/ID references from commit message"
+    exit 1
+  fi
+done < "$BANNED_TERMS_FILE"
+
+# Check generic ID pattern.
+GENERIC_HIT=$(echo "$commit_msg" | grep -E "$GENERIC_ID_REGEX" | grep -vE "$ALLOWLIST_REGEX" || true)
+if [ -n "$GENERIC_HIT" ]; then
+  echo "[commit-msg][FAIL] commit message has generic ID pattern (likely internal project ID):"
+  echo "$GENERIC_HIT"
+  exit 1
+fi
+
+echo "[commit-msg] ✓ clean"

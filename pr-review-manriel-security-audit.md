@@ -36,7 +36,7 @@ Defensive cap is good, but error handling is inconsistent: `readHeader()` return
 
 Pick one pattern (probably `null` + warning, or a typed error like `CheckpointTooLargeError`). Same Medium reclassification argument as skills directory override (config)/skills directory override (filesystem).
 
-**C4 — Reject oversized AGENTS.md (>100KB)** · ✅ Accept
+**Reject oversized AGENTS.md (>100KB)** · ✅ Accept
 
 Best-justified Critical of the four — `AGENTS.md` is auto-discovered in every project root, so a maliciously-large file in a cloned repo can OOM us without any other write access.
 
@@ -44,21 +44,21 @@ Minor UX nit: legit AGENTS.md files in the 100KB–8KB-truncation range will get
 
 ## HIGH
 
-**H1 — Jail workflow file path resolution** · ✅ Accept
+**Jail workflow file path resolution** · ✅ Accept
 
 True path traversal. Scenario: a workflow with `{ name: "/etc/passwd" }` would otherwise read any host file.
 
 Could you add a regression test asserting that `../../etc/passwd` is rejected at the jail boundary? That way the behavior is locked in.
 
-**H2 — Jail `input.file` in resolveScript** · ✅ Accept
+**Jail `input.file` in resolveScript** · ✅ Accept
 
-Symmetric protection with H1. Same test request for `input.file` traversal.
+Symmetric protection with the workflow file path resolution jail. Same test request for `input.file` traversal.
 
 **H3 — `http.extraHeader` instead of token in git URL** · ✅ Accept (unconditional)
 
 Clean win — token in URL leaks to `/proc/<pid>/cmdline`, `~/.git/config`, shell history. No notes, ship it.
 
-**H4 — GPG signature verification after clone/pull** · ✅ Accept
+**GPG signature verification after clone/pull** · ✅ Accept
 
 Solid defense-in-depth. One thing to flag: by default verification is soft-warn (no abort on failure), and if `gpg` isn't installed (common in Alpine containers), it's silently skipped. Strict mode requires `SFFMC_STRICT_GPG=1` (which you added in the supply-chain commit).
 
@@ -105,13 +105,13 @@ Risk of overcomplicating the journal format. **Could you share the proposed Zod 
 
 **Raw tool output stored in checkpoint** · 🟡 Needs refactor
 
-Great catch — if a tool returns `cat ~/.ssh/id_rsa`, the raw output lands in checkpoint and stays there. But this **overlaps with L1/L2 sensitive-pattern coverage**.
+Great catch — if a tool returns `cat ~/.ssh/id_rsa`, the raw output lands in checkpoint and stays there. But this **overlaps with filename and source-path rule coverage**.
 
-Request: combine raw tool output + dream archive unredacted content + L1/L2 into a single shared `redact-secrets` helper at `shared/src/redact-secrets.ts`. One source of truth for what counts as sensitive — three separate regex lists will drift and someone will forget to apply one.
+Request: combine raw tool output + dream archive unredacted content + filename and source-path rules into a single shared `redact-secrets` helper at `shared/src/redact-secrets.ts`. One source of truth for what counts as sensitive — three separate regex lists will drift and someone will forget to apply one.
 
 **Dream archive stores unredacted content** · 🟡 Same as above
 
-Overlaps with raw tool output + L1/L2. Unify via shared helper.
+Overlaps with raw tool output + filename and source-path rules. Unify via shared helper.
 
 **Data directory permissions** · ✅ Accept (follow-up required)
 
@@ -131,7 +131,7 @@ Good cap, but note: the slice happens **after** `reconstructMessages` processes 
 
 ## LOW
 
-**L1 — Skip sensitive filenames in memory indexing** · 🟡 Needs regex tightening
+**filename rule — Skip sensitive filenames in memory indexing** · 🟡 Needs regex tightening
 
 The `/private/i` pattern is **too aggressive**. It would match:
 
@@ -141,31 +141,31 @@ The `/private/i` pattern is **too aggressive**. It would match:
 
 All my own notes, not secrets — would be silently blocked from memory. Could you drop `/private/i` or tighten to path-anchored regex (e.g., `(^|/)private($|-)`)?
 
-**L2 — Filter sensitive source paths in LLM recon** · 🟡 Same as L1, plus full-path over-broad
+**source-path rule — Filter sensitive source paths in LLM recon** · 🟡 Same as filename rule, plus full-path over-broad
 
-Same pattern issues. Plus this checks the **full path**, so `/home/user/projects/credentials-checklist.md` would also get filtered. Let's combine L1 + L2 into a shared `sensitive-patterns.ts` after we fix both.
+Same pattern issues. Plus this checks the **full path**, so `/home/user/projects/credentials-checklist.md` would also get filtered. Let's combine filename rule and source-path rule into a shared `sensitive-patterns.ts` after we fix both.
 
-**L3 — Log only error message in event bus** · ✅ Accept (with note)
+**Log only Log only error message in event bus** · ✅ Accept (with note)
 
 Nice cleanup. **Ask**: preserve stack trace at **trace**-level logging for debugging — current `e.message` only loses context for real event-bus errors.
 
-**L4 — Document `panicMode` as shared mutable state + `resetPanicMode()`** · ✅ Accept
+**Document Document `panicMode` as shared mutable state + `resetPanicMode()`** · ✅ Accept
 
-**L5 — `lockMap` grows without bound** · ✅ Already on main
+**lockMap `lockMap` grows without bound** · ✅ Already on main
 
-Fixed in `b616eb5` (R3 clearJournal race + R4 lockMap leak + semaphore underflow). Thanks for the find — closing.
+Fixed in `b616eb5` (clearJournal race + lockMap leak + semaphore underflow). Thanks for the find — closing.
 
-**L6 — TOCTOU race in WorkspaceJail** · ✅ Already on main
+**TOCTOU TOCTOU race in WorkspaceJail** · ✅ Already on main
 
-Fixed in `05909b8` (R5 symlink-aware WorkspaceJail via `realpath`). Thanks — closing.
+Fixed in `05909b8` (symlink-aware WorkspaceJail via `realpath`). Thanks — closing.
 
 **L7 — Validate `WORKFLOW_LIMITS` before SQL DDL interpolation** · ✅ Accept
 
-**L8 — Fsync timer not cleaned up on shutdown** · ⚠️ Partially on main
+**Fsync Fsync timer not cleaned up on shutdown** · ⚠️ Partially on main
 
 Partially addressed in `9a908c7` (checkpoint flush coalescing — 50ms debounce + exported `flushJournalSync`). Will monitor for shutdown issues; if they recur, more investigation needed.
 
-**L9 — Log warnings on legacy migration failures** · ✅ Accept
+**Log Log warnings on legacy migration failures** · ✅ Accept
 
 ## SUPPLY CHAIN (`d1d9c8c`)
 
@@ -216,8 +216,8 @@ Looking forward to the revisions — let's get this merged cleanly. 🙌
 | oversize checkpoint typed error — Typed `CheckpointTooLargeError` | 🟡 → ✅ | v0.14.2 | `packages/extra/src/checkpoint.ts` — exported class, both readers throw, callers degrade gracefully |
 | Unified redact helper | 🟡 → ✅ | v0.14.0 | `shared/src/redact-secrets.ts` — single source of truth |
 | Split listRuns LIMIT | 🟡 → ✅ | v0.14.0 | separate commit per Manriel's request |
-| L1 + L2 — Narrow sensitive patterns | 🟡 → ✅ | v0.14.0 | `(^\|/)private($\|-)` anchored; path-anchored for L2 |
-| L3 — Log error message + trace stack | 🟡 → ✅ | v0.14.0 | `e.message` at info, stack at trace |
+| Filename and source-path rules — Narrow sensitive patterns | 🟡 → ✅ | v0.14.0 | `(^\|/)private($\|-)` anchored; path-anchored for source-path rule |
+| Log error message + trace stack | 🟡 → ✅ | v0.14.0 | `e.message` at info, stack at trace |
 | workflow recovery grace period — Sandbox deadline 12h → 1h | ❌ → ✅ | v0.14.2 | `SCRIPT_DEADLINE_MS = 1h` in `constants.ts:23`; cleanup-after-kill is the workflow recovery grace period grace period, not the sandbox deadline |
 | parallel LLM candidates cap — Parallel candidates cap = 10 | ❌ → ✅ | v0.14.2 | `MAX_CANDIDATES = 10` retained; 45-line rationale comment in `candidates.ts` |
 | dream module state | 🔍 → ✅ | v0.14.2 | `_activeDreamState` documented with race risk + migration path; concurrent test passes |

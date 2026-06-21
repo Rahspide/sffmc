@@ -31,7 +31,7 @@ afterAll(() => {
   rmSync(ws, { recursive: true, force: true })
 })
 
-// ── Symlink-aware jail (R5 from forward audit b27) ────────────────────────
+// ── Symlink-aware jail (symlink-aware jail) ────────────────────────
 
 describe("WorkspaceJail: symlink-aware jail", () => {
   test("readFile blocks symlink to outside root", async () => {

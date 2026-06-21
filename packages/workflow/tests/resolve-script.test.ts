@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/workflow — see ../../LICENSE
 
-// P1 coverage for runtime.resolveScript() — the dispatch table at
+// coverage for runtime.resolveScript() — the dispatch table at
 // runtime.ts:429-454 picks one of: builtin, saved workflow, inline script,
 // file path, or throws. Each test exercises one branch of that dispatch.
 
@@ -36,7 +36,7 @@ afterAll(() => {
   rmSync(tmpDir, { recursive: true, force: true })
 })
 
-// ── P1 #11a: start({name: "tdd"}) → builtin registry hit ───────────────────
+// ── #11a: start({name: "tdd"}) → builtin registry hit ───────────────────
 // runtime.ts:431-436 — when input.name is set and input.script is not, the
 // dispatcher first tries getBuiltin(); the "tdd" builtin always exists
 // (registered in builtin-registry.ts). We pass args.feature so the tdd
@@ -58,7 +58,7 @@ describe("resolveScript: builtin by name", () => {
   })
 })
 
-// ── P1 #11b: start({name: "my-wf"}) → saved workflow file ─────────────────
+// ── #11b: start({name: "my-wf"}) → saved workflow file ─────────────────
 // runtime.ts:438-440 — when getBuiltin(name) returns undefined the dispatcher
 // falls back to resolveWorkflow(name, workspace), which walks .sffmc/workflows/
 // upward. We plant a saved workflow at <tmpDir>/.sffmc/workflows/my-wf.ts.
@@ -86,7 +86,7 @@ describe("resolveScript: saved workflow file by name", () => {
   })
 })
 
-// ── P1 #11c: start({script: "..."}) → inline script branch ─────────────────
+// ── #11c: start({script: "..."}) → inline script branch ─────────────────
 // runtime.ts:443-446 — when input.script starts with `export const meta`,
 // isInlineScript() returns true and the script is used as-is.
 
@@ -104,7 +104,7 @@ describe("resolveScript: inline script", () => {
   })
 })
 
-// ── P1 #12: start() with no meta block → throws ────────────────────────────
+// ── #12: start() with no meta block → throws ────────────────────────────
 // runtime.ts:444-446 — `if (input.script)` only returns the script when
 // `isInlineScript(input.script)` is true. A bare script without
 // `export const meta` falls through to "File path" branch (input.file is
@@ -125,7 +125,7 @@ describe("resolveScript: rejects script with no meta block", () => {
   })
 })
 
-// ── H2: input.file path traversal ────────────────────────────────────────────
+// ── input.file path traversal guard ───────────────────────────────────────────
 // runtime.ts:450-458 — when input.file is set, the resolved path must stay
 // within the workspace root. Paths like ../../etc/passwd or /etc/shadow are
 // rejected with an error.

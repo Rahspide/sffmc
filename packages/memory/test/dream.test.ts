@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// @sffmc/extra — F8 Dream tests
+// @sffmc/extra — Dream tests
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "bun:test";
 import { Database } from "bun:sqlite";
@@ -103,7 +103,7 @@ function cleanup(): void {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe("F8 Dream", () => {
+describe("Dream", () => {
   beforeEach(() => {
     clearCronTimer();
     cleanup();
@@ -713,7 +713,7 @@ describe("F8 Dream", () => {
     db2.close();
   });
 
-  // ── v0.13.0 P1 #14: jaccard() returns 0 for two empty strings ─────────
+  // ── #14: jaccard() returns 0 for two empty strings ─────────
   // dream.ts:67-74 — jaccard returns 0 when both token sets are empty (the
   // early `if (setA.size === 0 && setB.size === 0) return 0` guard). jaccard
   // is intentionally NOT exported (private), so we test it indirectly: insert
@@ -752,7 +752,7 @@ describe("F8 Dream", () => {
     expect(result.summarized).toBe(0);
   });
 
-  // ── v0.13.0 P1 #15: archiveEntry() — UTF-8 + all 7 fields preserved ────
+  // ── #15: archiveEntry() — UTF-8 + all 7 fields preserved ────
   // dream.ts:123-137 — archiveEntry() writes a JSONL line containing the
   // original 7 fields (id, source_path, section, content,
   // importance_score, last_accessed, created_at) plus archived_at_ms and
@@ -821,7 +821,7 @@ describe("F8 Dream", () => {
     try { unlinkSync(realArchivePath); } catch {}
   });
 
-  // ── v0.13.0 P1 #16: runDream() recovers gracefully when DB throws ──────
+  // ── #16: runDream() recovers gracefully when DB throws ──────
   // dream.ts:414-427 — runDream's catch block captures the error into
   // result.errors and returns ok:false (errors.length === 0 check). We
   // trigger the catch by dropping the memory_entries table AFTER seeding
@@ -854,7 +854,7 @@ describe("F8 Dream", () => {
     expect(result.errors[0]).toMatch(/no such table|memory_entries/i);
   });
 
-  // ── v0.13.0 P3 #17: jaccardSets refactor — correctness equivalence ──────
+  // ── #17: jaccardSets refactor — correctness equivalence ──────
   // dream.ts:79-88 — jaccardSets(a, b) is the pre-tokenized twin of the
   // legacy jaccard(a, b) string API. The refactor MUST be behavior-preserving:
   // same input → same output. This regression guard inserts 50 entries with
@@ -1005,7 +1005,7 @@ describe("F8 Dream", () => {
     db2.close();
   });
 
-  // ── v0.13.0 P3 #18: jaccardSets performance benchmark (it.skip) ────────
+  // ── #18: jaccardSets performance benchmark (it.skip) ────────
   // dream.ts:265-268 + 278-281 + 374-378 — pre-tokenizing once turns the
   // O(n²) re-tokenize storm into O(n²) Set.has() lookups. Goal: 3-5x
   // speedup vs the legacy jaccard() string API on 1000+ entry workloads.

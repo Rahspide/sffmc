@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// @sffmc/extra — F6' Judge
+// @sffmc/extra — Judge
 // Real LLM-judge implementation: scores 3+ candidates on 3 criteria, picks winner.
 
 import { createLogger, type RichPluginContext } from "@sffmc/shared";
@@ -335,7 +335,7 @@ export function createJudgeTool(
   );
 
   const tool: JudgeTool = {
-    description: `F6' Judge — multi-criteria LLM judge for evaluating candidate outputs.
+    description: `Judge — multi-criteria LLM judge for evaluating candidate outputs.
 Status: ${config.enabled ? "enabled" : "disabled"}.
 When enabled, scores candidates 0-10 on correctness, completeness, conciseness, picks winner with reasoning. Model: ${config.model}.
 Set stream: true to receive partial results as they become available (useful for ${maxCandidates}+ candidates).`,
@@ -458,7 +458,7 @@ Set stream: true to receive partial results as they become available (useful for
         );
 
         const verdictMsg = [
-          `--- F6' Judge Verdict ---`,
+          `--- Judge Verdict ---`,
           `Winner: Candidate #${response.winner}`,
           `Reasoning: ${response.reasoning}`,
           `Scores: ${response.scores.map((s, i) => `#${i}: C=${s.correctness} M=${s.completeness} N=${s.conciseness}`).join(" | ")}`,

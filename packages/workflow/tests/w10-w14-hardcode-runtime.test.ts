@@ -1,21 +1,21 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/workflow — see ../../LICENSE
 //
-// Tests for the deferred HIGH hardcode findings W10–W14 (v0.14.2):
+// Tests for the deferred HIGH hardcode findings (v0.14.2):
 //
-//   W10  runtime.ts:47  — local `MAX_LIFECYCLE_AGENTS` shadow removed
-//   W11  runtime.ts:49  — `DEFAULT_MAX_CONCURRENT` reads from SFFMC config
+//   runtime.ts:47  — local `MAX_LIFECYCLE_AGENTS` shadow removed
+//   runtime.ts:49  — `DEFAULT_MAX_CONCURRENT` reads from SFFMC config
 //                         (config override > CPU-derived default)
-//   W12  runtime.ts:50  — local `MAX_DEPTH_DEFAULT` shadow removed
-//   W13  runtime.ts:550 — `memoryMB: 64` reads from SFFMC config
+//   runtime.ts:50  — local `MAX_DEPTH_DEFAULT` shadow removed
+//   runtime.ts:550 — `memoryMB: 64` reads from SFFMC config
 //                         (workflow.yaml `sandboxMemoryMB`)
-//   W14  runtime.ts:997 — `resolveConfig()` reads from SFFMC config, not
+//   runtime.ts:997 — `resolveConfig()` reads from SFFMC config, not
 //                         `ctx.config`
 //
 // These tests exercise the runtime directly and verify the config-aware
 // resolution path. They use `__setWorkflowConfig()` from constants.ts
-// for the extended config (W10/W11/W12) and the new
-// `RuntimeOpts.configOverride` for the `WorkflowConfig` (W14). For W13
+// for the extended config and the new
+// ``RuntimeOpts.configOverride` for the `WorkflowConfig`. Also
 // the memory value is read at sandbox invocation time, so we spy on
 // `runSandboxed`.
 
@@ -68,10 +68,10 @@ const SIMPLE_SCRIPT = `export const meta = { name: "w10-14", description: "t", p
   async function main() { return "ok"; }`
 
 // ---------------------------------------------------------------------------
-// W10 — local MAX_LIFECYCLE_AGENTS shadow removed
+// local MAX_LIFECYCLE_AGENTS shadow removed
 // ---------------------------------------------------------------------------
 
-describe("W10 — resolveConfig uses SFFMC config maxLifecycleAgents", () => {
+describe(" resolveConfig uses SFFMC config maxLifecycleAgents", () => {
   it("default maxLifecycleAgents is 1000 when no YAML override", () => {
     // Clear the extended config cache so we read defaults.
     __setWorkflowConfig(DEFAULT_WORKFLOW_EXTENDED_CONFIG)
@@ -115,10 +115,10 @@ describe("W10 — resolveConfig uses SFFMC config maxLifecycleAgents", () => {
 })
 
 // ---------------------------------------------------------------------------
-// W11 — DEFAULT_MAX_CONCURRENT reads from SFFMC config
+// DEFAULT_MAX_CONCURRENT reads from SFFMC config
 // ---------------------------------------------------------------------------
 
-describe("W11 — DEFAULT_MAX_CONCURRENT reads from SFFMC config", () => {
+describe(" DEFAULT_MAX_CONCURRENT reads from SFFMC config", () => {
   it("default 16 is used when no YAML override is present", () => {
     __setWorkflowConfig(DEFAULT_WORKFLOW_EXTENDED_CONFIG)
     const runtime = new WorkflowRuntime(baseCtx, { persistence })
@@ -126,7 +126,7 @@ describe("W11 — DEFAULT_MAX_CONCURRENT reads from SFFMC config", () => {
       globalSem: { max: number }
     }).globalSem
     // The default is 16, not the CPU-derived `min(16, 2*cpus)`. This
-    // matches the pre-W11 hardcoded value on 8+ core systems.
+    // matches the pre-fix hardcoded value on 8+ core systems.
     expect(sem.max).toBe(16)
   })
 
@@ -145,7 +145,7 @@ describe("W11 — DEFAULT_MAX_CONCURRENT reads from SFFMC config", () => {
   it("YAML override of 0 is honored literally as zero concurrency", () => {
     // Edge case: if a user sets maxConcurrentAgents: 0 in YAML, the
     // resolver returns 0 directly. There is no CPU-derived fallback
-    // (that was removed in v0.14.2 by the W11 fix — commit 4064ad3).
+    // (that was removed in v0.14.2 by the config fix — commit 4064ad3).
     // Verify the "0 means zero concurrency" path is the only path.
     __setWorkflowConfig({
       ...DEFAULT_WORKFLOW_EXTENDED_CONFIG,
@@ -160,10 +160,10 @@ describe("W11 — DEFAULT_MAX_CONCURRENT reads from SFFMC config", () => {
 })
 
 // ---------------------------------------------------------------------------
-// W12 — local MAX_DEPTH_DEFAULT shadow removed
+// local MAX_DEPTH_DEFAULT shadow removed
 // ---------------------------------------------------------------------------
 
-describe("W12 — resolveConfig uses SFFMC config maxDepth", () => {
+describe(" resolveConfig uses SFFMC config maxDepth", () => {
   it("default maxDepth is 8 when no YAML override", () => {
     __setWorkflowConfig(DEFAULT_WORKFLOW_EXTENDED_CONFIG)
     const runtime = new WorkflowRuntime(baseCtx, { persistence })
@@ -218,10 +218,10 @@ describe("W12 — resolveConfig uses SFFMC config maxDepth", () => {
 })
 
 // ---------------------------------------------------------------------------
-// W13 — memoryMB reads from SFFMC config
+// memoryMB reads from SFFMC config
 // ---------------------------------------------------------------------------
 
-describe("W13 — launchScript memoryMB reads from SFFMC config", () => {
+describe(" launchScript memoryMB reads from SFFMC config", () => {
   it("default memoryMB is 64 when no YAML override", () => {
     __setWorkflowConfig(DEFAULT_WORKFLOW_EXTENDED_CONFIG)
     // The runtime reads `getSandboxMemoryMB()` at launchScript() time.
@@ -271,10 +271,10 @@ describe("W13 — launchScript memoryMB reads from SFFMC config", () => {
 })
 
 // ---------------------------------------------------------------------------
-// W14 — resolveConfig reads from SFFMC config, not ctx.config
+// resolveConfig reads from SFFMC config, not ctx.config
 // ---------------------------------------------------------------------------
 
-describe("W14 — resolveConfig uses SFFMC config, ctx.config is fallback only", () => {
+describe(" resolveConfig uses SFFMC config, ctx.config is fallback only", () => {
   it("configOverride.maxSteps is used when set (SFFMC config wins)", () => {
     const runtime = new WorkflowRuntime(baseCtx, {
       persistence,
@@ -307,7 +307,7 @@ describe("W14 — resolveConfig uses SFFMC config, ctx.config is fallback only",
   })
 
   it("ctx.config is the fallback when no configOverride is set", async () => {
-    // W14 — when configOverride is absent, loadWorkflowConfig() runs
+    // when configOverride is absent, loadWorkflowConfig() runs
     // and loads from workflow.yaml. If the YAML file doesn't exist
     // (the test default), the runtime falls back to ctx.config.
     const ctx: PluginContext = {

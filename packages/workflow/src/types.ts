@@ -107,7 +107,7 @@ export interface SandboxConstraints {
 
 /** Tool whitelist for an agent call. The string literal `"INHERIT"` resolves
  *  against the parent OpenCode session's available MCP tools (the MiMo-Code
- *  INHERIT pattern — w5-6-dynamic-workflow.md §Q7); an array pins the agent to
+ *  INHERIT pattern — dynamic-workflow design doc); an array pins the agent to
  *  an explicit subset. See `mcp.ts` `ToolWhitelist`. */
 export type ToolWhitelist = readonly string[] | "INHERIT"
 

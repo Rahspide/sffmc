@@ -424,7 +424,7 @@ export class WorkflowPersistence {
    *  Writes `{"v":1}\n` instead of "" so that a concurrent appendJournalSync
    *  within the 50ms fsync coalesce window does not land a raw event as the
    *   line of the file (which loadJournal would treat as a torn header
-   *  and silently skip). See R3 in audit b27. */
+   *  and silently skip). See journal audit. */
   async clearJournal(runID: string): Promise<void> {
     safeRunID(runID)
     await mkdir(this.dir, { recursive: true })

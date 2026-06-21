@@ -40,7 +40,7 @@ afterAll(() => {
   rmSync(tmpDir, { recursive: true, force: true })
 })
 
-// ── P0 #2: acquireLock() concurrent resume() serialization ─────────────────
+// ── #2: acquireLock() concurrent resume() serialization ─────────────────
 // runtime.ts:101-112 — acquireLock chains lockMap entries. Two parallel
 // resume() calls must serialize; the in-process live guard makes the second
 // observe the live entry from the first and return {resumed:false}.
@@ -74,7 +74,7 @@ describe("acquireLock serialization in resume()", () => {
   })
 })
 
-// ── P0 #3: spawnAgent() abort check inside semaphore ──────────────────────
+// ── #3: spawnAgent() abort check inside semaphore ──────────────────────
 // runtime.ts:544-546 — when controller.signal.aborted is set, the callback
 // inside globalSem.run() returns null WITHOUT calling the LLM or incrementing
 // counters. We verify by firing more agents than DEFAULT_MAX_CONCURRENT and
@@ -132,7 +132,7 @@ describe("spawnAgent abort check inside semaphore", () => {
   })
 })
 
-// ── P0 #4: spawnAgent() depth check ────────────────────────────────────────
+// ── #4: spawnAgent() depth check ────────────────────────────────────────
 // runtime.ts:549-552 — depth > maxDepth throws. The throw propagates through
 // the host bridge as a promise rejection in the sandbox; the user's try/catch
 // can intercept it.
@@ -164,7 +164,7 @@ describe("spawnAgent depth check", () => {
   })
 })
 
-// ── P0 #5: failRun() budget/deadline pattern matching ──────────────────────
+// ── #5: failRun() budget/deadline pattern matching ──────────────────────
 // runtime.ts:837-846 — when error includes "budget_exceeded" or
 // "deadline exceeded", entry.status becomes "budget_exceeded" (otherwise
 // "failed"). failRun is private, so we drive it via reflection.
@@ -234,7 +234,7 @@ describe("failRun() budget_exceeded pattern matching", () => {
   })
 })
 
-// ── P0 #6: scheduleFlush() debounced DB counter flush ─────────────────────
+// ── #6: scheduleFlush() debounced DB counter flush ─────────────────────
 // runtime.ts:928-936 — multiple scheduleFlush() calls within 250 ms collapse
 // into a single setTimeout. flushNow() updates running/succeeded/failed in
 // the DB. We verify by checking the DB row after the debounce window elapses.
@@ -316,7 +316,7 @@ describe("scheduleFlush / flushNow DB counter flush", () => {
   })
 })
 
-// ── P0 #7: spawnChildWorkflow() structural error propagation ───────────────
+// ── #7: spawnChildWorkflow() structural error propagation ───────────────
 // runtime.ts:685-696 — unknown workflow spec causes a throw with
 // WORKFLOW_STRUCTURAL_ERROR prefix; the bridge delivers it as a rejection
 // to the parent sandbox where try/catch can observe the error message.
@@ -349,7 +349,7 @@ describe("spawnChildWorkflow structural error propagation", () => {
   })
 })
 
-// ── P1 #8: callLLM() fallback when no LLM client ──────────────────────────
+// ── #8: callLLM() fallback when no LLM client ──────────────────────────
 // runtime.ts:790-804 — when ctx.client?.session?.message is undefined,
 // callLLM returns the fallback text "workflow: no LLM client available"
 // instead of throwing. The deliverable extraction in executeAgentCall then
@@ -389,7 +389,7 @@ describe("callLLM fallback when no LLM client", () => {
   })
 })
 
-// ── P1 #9: executeAgentCall() structured extract on schema ────────────────
+// ── #9: executeAgentCall() structured extract on schema ────────────────
 // runtime.ts:612-614 — when opts.schema is set, deliverable is
 // result.structured (not result.finalText). We mock session.message to
 // return both .structured and .finalText and assert the structured value
@@ -460,7 +460,7 @@ describe("executeAgentCall schema-based structured extract", () => {
   })
 })
 
-// ── P1 #13a/b: callLLM() tools field forwarding ───────────────────────────
+// ── #13a/b: callLLM() tools field forwarding ───────────────────────────
 // runtime.ts:794 — `tools: opts.tools ? [...opts.tools] as string[] : "INHERIT"`.
 // Two cases: undefined → literal string "INHERIT"; defined array → shallow
 // copy as string[]. Tested via reflection on callLLM + a spy ctx.
@@ -511,7 +511,7 @@ describe("callLLM tools forwarding", () => {
   })
 })
 
-// ── P1 #17: completeRun() — undefined main() return ────────────────────────
+// ── #17: completeRun() — undefined main() return ────────────────────────
 // runtime.ts:840-850, settleEntry() — when main() returns nothing the
 // outcome carries `result: undefined` (not the string "undefined"). Status
 // still flips to "completed". Drives the full pipeline through start().

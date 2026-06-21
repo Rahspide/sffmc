@@ -6,7 +6,7 @@
  * no module-level mutable state except the rules cache (reset via
  * `__resetRedactionCache()` in tests).
  *
- * Design: `docs/slim/v0-14-redaction-grace-design.md` §2 (L1 + L2).
+ * Design: `docs/slim/v0-14-redaction-grace-design.md` §2 (filename + source-path checks).
  *
  * Composite-pattern compliance: helper is pure, has no dependencies on any
  * plugin package. The redaction-rule callers (extra/checkpoint and
@@ -72,7 +72,7 @@ interface RedactionRule {
 const BUILTIN_RULES: ReadonlyArray<RedactionRule> = [
   // A — env files (filename-only)
   { id: "env-file", pattern: /^(?:\.env|\.env\.[\w-]+)$/i, filenameOnly: true, description: ".env and .env.*" },
-  // B — credential filenames (replaces L1's over-broad list).
+  // B — credential filenames (replaces filename-check over-broad list).
   // Pattern rewritten as `^(?:X|X\.[\w-]+)$` instead of `^X(\.[\w-]+)?$` to
   // satisfy safe-regex's star-height-1 check (the nested `+` inside the
   // optional group was a known false positive). Match set is identical.
@@ -82,7 +82,7 @@ const BUILTIN_RULES: ReadonlyArray<RedactionRule> = [
   { id: "filename-token", pattern: /^(?:tokens?|tokens?\.[\w-]+)$/i, filenameOnly: true, description: "token / tokens" },
   { id: "filename-api-key", pattern: /^(?:api[_-]?keys?|api[_-]?keys?\.[\w-]+)$/i, filenameOnly: true, description: "api_key / apikey / api-key" },
   { id: "filename-private-key", pattern: /^(?:private[_-]?keys?|private[_-]?keys?\.[\w-]+)$/i, filenameOnly: true, description: "private_key / private-key" },
-  // B' — source-path rules (L2 preserved behavior). Match sensitive
+  // B' — source-path rules (source-path check preserved behavior). Match sensitive
   // directory names anywhere in the path. A file inside a `secrets/`
   // directory leaks context regardless of the file's basename.
   { id: "sourcepath-rule", pattern: /(^|\/)secrets?(\/|$)/i, description: "paths containing /secrets/" },
@@ -203,12 +203,12 @@ function getCachedRulesSync(): ReadonlyArray<RedactionRule> {
 
 /**
  * Return true if `filePath`'s basename matches a built-in or user-added
- * filename rule. Used by file watchers that skip indexing (L1: memory/watcher).
+ * filename rule. Used by file watchers that skip indexing (filename check: memory/watcher).
  *
  * Anchored to basename — `/api_keys.md` is caught, `/docs/api-keys.md` is
  * caught, `/docs/api-keys-overview.md` is caught (per rule), but
  * `/keys-overview.md` is not. The `private` rule is path-anchored to avoid
- * the false-positive documented in the v0.12.1 audit (L1 false positive:
+ * the false-positive documented in the v0.12.1 audit (filename check false positive:
  * `my-private-notes.md` was being filtered out).
  */
 export function isSensitiveFilename(filePath: string): boolean {
@@ -220,7 +220,7 @@ export function isSensitiveFilename(filePath: string): boolean {
 
 /**
  * Return true if `sourcePath` (full path or relative path) matches a built-in
- * or user-added source-path rule. Used by recon injection (L2: memory/recon).
+ * or user-added source-path rule. Used by recon injection (source-path check: memory/recon).
  *
  * Matches against the full path — `/home/user/projects/credentials-checklist.md`
  * is caught. This is intentional: a recon entry whose source path itself

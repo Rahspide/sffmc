@@ -42,16 +42,16 @@ import { resolveInheritedTools, McpBridge, DEFAULT_MAX_MCP_CALLS, discoverParent
 // ---------------------------------------------------------------------------
 // Constants
 //
-// W10/W11/W12 — these values used to be hardcoded shadows of constants.ts.
+// these values used to be hardcoded shadows of constants.ts.
 // They now read from the SFFMC workflow config (`getWorkflowConfigSync()`)
 // so user YAML overrides take effect. The prior hardcoded values (1000 / 16)
 // are preserved as the defaults in DEFAULT_WORKFLOW_EXTENDED_CONFIG.
 // ---------------------------------------------------------------------------
 
 const log = createLogger("workflow")
-// W11 — global agent-concurrency cap. Reads `maxConcurrentAgents` from the
+// global agent-concurrency cap. Reads `maxConcurrentAgents` from the
 // SFFMC config (overrideable via `workflow.yaml`). The default is 16 (matches
-// the pre-W11 hardcoded value). Called in the constructor (not at module
+// the pre-fix value). Called in the constructor (not at module
 // init) so a test that mutates the config cache via `__setWorkflowConfig()`
 // between constructions picks up the updated value.
 function resolveMaxConcurrentAgents(): number {
@@ -172,7 +172,7 @@ export interface RuntimeOpts {
    *  over both the user YAML config and the default. Used by tests to
    *  inject a tighter window without round-tripping through the YAML. */
   gracePeriodMsOverride?: number
-  /** W14 — synchronous config override for tests. Skips the async YAML
+  /**  synchronous config override for tests. Skips the async YAML
    *  load. When set, the runtime uses these values for maxSteps / maxTokens /
    *  maxWallClockMs / perStepTimeoutMs in `resolveConfig()`. The SFFMC
    *  extended config (maxDepth, maxLifecycleAgents, maxConcurrentAgents)
@@ -199,16 +199,16 @@ export class WorkflowRuntime {
    *  the runtime (not the plugin context) so `recoverOrphanedWorkflows()`
    *  can read it synchronously. */
   private gracePeriodMs: number = DEFAULT_GRACE_PERIOD_MS
-  /** W14 — SFFMC-loaded workflow config (maxSteps / maxTokens /
+  /**  SFFMC-loaded workflow config (maxSteps / maxTokens /
    *  maxWallClockMs / perStepTimeoutMs). Populated lazily by
    *  `loadWorkflowConfig()` on the  `start()` or `resume()` call.
    *  Tests inject via `RuntimeOpts.configOverride` (sync, no YAML).
    *  Resolved values: prefer this cache → ctx.config (OpenCode provider) →
    *  DEFAULT_WORKFLOW_CONFIG. */
   private workflowConfig: Required<WorkflowConfig> | null = null
-  /** W14 — flag to skip async YAML load when the test override is set. */
+  /**  flag to skip async YAML load when the test override is set. */
   private workflowConfigInjected: boolean = false
-  /** W14 — in-flight promise cache for `loadWorkflowConfig()`. Prevents the
+  /**  in-flight promise cache for `loadWorkflowConfig()`. Prevents the
    *  TOCTOU race when `start()` and `resume()` are called concurrently:
    *  both pass the `if (this.workflowConfig) return` guard while the
    *  cache is `null`, then race to invoke `loadConfig()`. With this
@@ -228,7 +228,7 @@ export class WorkflowRuntime {
 
   constructor(ctx: PluginContext, opts?: RuntimeOpts) {
     this.ctx = ctx
-    // W11 — resolve at constructor time (not module init) so the
+    //  resolve at constructor time (not module init) so the
     // semaphore respects a config the caller may set via
     // `__setWorkflowConfig()` before constructing the runtime.
     this.globalSem = makeSemaphore(resolveMaxConcurrentAgents())
@@ -253,7 +253,7 @@ export class WorkflowRuntime {
     this.gracePeriodMs = ms
   }
 
-  /** W14 — synchronously inject a workflow config. Used by tests via
+  /**  synchronously inject a workflow config. Used by tests via
    *  `RuntimeOpts.configOverride` to skip the async YAML load. Merges
    *  onto `DEFAULT_WORKFLOW_CONFIG` via spread so missing keys fall back
    *  to defaults, and new fields added to `WorkflowConfig` are auto-
@@ -276,7 +276,7 @@ export class WorkflowRuntime {
     this.workflowConfigInjected = true
   }
 
-  /** W14 — lazily load the SFFMC workflow config from `workflow.yaml`.
+  /**  lazily load the SFFMC workflow config from `workflow.yaml`.
    *  Idempotent — concurrent callers all await the same in-flight promise
    *  (no TOCTOU race when `start()` and `resume()` run concurrently).
    *  No-op when the config was already injected (test override path).
@@ -289,7 +289,7 @@ export class WorkflowRuntime {
     return this.loadWorkflowConfigPromise
   }
 
-  /** W14 — internal YAML loader. Cached via `loadWorkflowConfigPromise`
+  /**  internal YAML loader. Cached via `loadWorkflowConfigPromise`
    *  so concurrent callers share the same promise. Uses spread to
    *  populate every `WorkflowConfig` field from defaults, so new fields
    *  added to the interface are auto-included (no manual mapping list
@@ -309,7 +309,7 @@ export class WorkflowRuntime {
 
   async start(input: WorkflowStartInput & { sessionID?: string; name?: string }): Promise<{ runID: string }> {
 
-    // W14 — lazily load the SFFMC workflow config from `workflow.yaml`
+    // Workflow config — lazily load the SFFMC workflow config from `workflow.yaml`
     // before `resolveConfig()` reads it. Idempotent; no-op for tests
     // that injected a config via `RuntimeOpts.configOverride`.
     await this.loadWorkflowConfig()
@@ -463,7 +463,7 @@ export class WorkflowRuntime {
   }
 
   async resume(input: { runID: string; agentTimeoutMs?: number }): Promise<{ runID: string; resumed: boolean }> {
-    // W14 — same lazy load as `start()` so resume() picks up the YAML
+    // Workflow config — same lazy load as `start()` so resume() picks up the YAML
     // config on  call.
     await this.loadWorkflowConfig()
     const lock = await acquireLock("workflow-resume:" + input.runID)
@@ -677,9 +677,9 @@ export class WorkflowRuntime {
     const source = body + "\n;return typeof main === 'function' ? await main() : undefined"
 
     const result = await runSandboxed(source, primitives, {
-      // W13 — sandbox memory now reads from SFFMC config
+      // sandbox memory now reads from SFFMC config
       // (workflow.yaml key: \`sandboxMemoryMB\`). Default 64 MiB matches
-      // the pre-W13 hardcoded value.
+      // the pre-fix value.
       memoryMB: getSandboxMemoryMB(),
       deadlineMs: SCRIPT_DEADLINE_MS, // 12h wall-clock for the sandbox
       seed,
@@ -1144,12 +1144,12 @@ export class WorkflowRuntime {
   // ── Private: helpers ───────────────────────────────────────────────────
 
   private resolveConfig(perStepTimeoutMsOverride?: number): Required<WorkflowConfig> & { maxDepth: number; maxLifecycleAgents: number } {
-    // W10/W12 — read maxDepth / maxLifecycleAgents from the SFFMC-loaded
+    // read maxDepth / maxLifecycleAgents from the SFFMC-loaded
     // extended config (workflow.yaml). The local MAX_DEPTH_DEFAULT /
     // MAX_LIFECYCLE_AGENTS constants previously shadowed the values in
     // constants.ts; those shadows are removed.
     const ext = getWorkflowConfigSync()
-    // W14 — read maxSteps / maxTokens / maxWallClockMs / perStepTimeoutMs
+    // Workflow config — read maxSteps / maxTokens / maxWallClockMs / perStepTimeoutMs
     // from the SFFMC-loaded workflow config (this.workflowConfig), NOT from
     // this.ctx.config which is the OpenCode provider's plugin config.
     // The lookup order is: runtime-cached (YAML or test override) →

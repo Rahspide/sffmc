@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/auto-max — see ../../LICENSE
 //
-// F2.5' Auto-Max: Watches tool failures and triggers Max Mode after a
+// Auto-Max: Watches tool failures and triggers Max Mode after a
 // configurable threshold of consecutive same-tool errors. Mirrors the
 // safety/watchdog pattern but auto-resolves to Max Mode generation
-// (F4') instead of single-tool retry, and re-arms /max escape.
+// instead of single-tool retry, and re-arms /max escape.
 
 import {
   createSessionState,

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/workflow — see ../../LICENSE
 //
-// v0.14.3 — Test scaffolding for `this.runs` map cleanup (C-2 from W10-W13 concerns).
+// v0.14.3 — Test scaffolding for `this.runs` map cleanup (cleanup).
 //
 // These tests DEFINE the desired v0.14.3 behavior. They will FAIL on the
 // v0.14.2 baseline and PASS after the C-2 fix ships.

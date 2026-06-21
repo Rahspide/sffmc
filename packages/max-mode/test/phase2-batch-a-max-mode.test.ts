@@ -21,7 +21,7 @@
 //         and optional 4th arg to `judgeCandidates(..., max)`,
 //         default 8000. Configured via MaxModeConfig.judgeDraftMaxChars.
 //
-// Reference pattern: `packages/watchdog/test/d2-config.test.ts` (D2
+// Reference pattern: `packages/watchdog/test/d2-config.test.ts` (
 // migration). All checks use an isolated temp configHome so the user's
 // real `~/.config/SFFMC/max-mode.yaml` is never touched.
 

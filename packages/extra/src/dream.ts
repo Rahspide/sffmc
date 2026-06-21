@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// @sffmc/extra — F8 Dream
+// @sffmc/extra — Dream
 // Real background memory-cleaning service. Multi-trigger (count threshold,
 // cron, manual tool), Jaccard dedup, stale removal >30d, cluster summarization.
 
@@ -394,7 +394,7 @@ async function runDream(
     // Pre-tokenize all rows once. The dedup + cluster loops would otherwise
     // call tokenize() on the same content O(n) times each — O(n²) total
     // regex + Set allocations. With tokenCache, tokenize runs O(n) times
-    // and every comparison is O(1) (jaccardSets). v0.14.x P3: 3-5x speedup
+    // and every comparison is O(1) (jaccardSets). v0.14.x: 3-5x speedup
     // observed on 1000+ entry workloads.
     const tokenCache = new Map<number, Set<string>>();
     for (const row of rows) {
@@ -756,7 +756,7 @@ export function createDreamTool(config: DreamConfig): {
 
   // ── Tool definition ─────────────────────────────────────────────
   const tool: DreamTool = {
-    description: `F8 Dream — background memory cleaning.
+    description: `Dream — background memory cleaning.
 Triggers: count>${config.threshold} OR ${config.intervalHours}h cron OR manual.
 Actions: dedup (Jaccard > ${DREAM_DEDUP_THRESHOLD}), stale removal (>${STALE_DAYS}d), cluster summarization (5+ similar).`,
 

@@ -9,7 +9,7 @@
 //   1) `tools: "INHERIT"` (or omit `tools`) on `agent()` opts — the workflow's
 //      host forwards the parent's MCP tool list to the LLM, so any tool_use the
 //      LLM emits is dispatched via the parent SDK's MCP layer. This is the
-//      MiMo-Code INHERIT pattern (Q7 in w5-6-dynamic-workflow.md).
+//      MiMo-Code INHERIT pattern (dynamic-workflow design doc).
 //
 //   2) The `mcp.*` host functions (`mcp.list()`, `mcp.call(name, args)`)
 //      injected as guest globals so a script can invoke an MCP tool DIRECTLY

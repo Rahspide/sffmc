@@ -84,7 +84,7 @@ export const server = async (ctx: PluginContext) => {
     ) => {
       if (isPanicMode()) {
         throw new Error(
-          "[F2 Rules] PANIC MODE: all tool calls denied. Fix ~/.config/SFFMC/rules.yaml syntax.",
+          "[Rules] PANIC MODE: all tool calls denied. Fix ~/.config/SFFMC/rules.yaml syntax.",
         );
       }
 
@@ -96,12 +96,12 @@ export const server = async (ctx: PluginContext) => {
       );
 
       if (result.action === "deny") {
-        throw new Error(`[F2 Rules] DENIED: ${result.reason}`);
+        throw new Error(`[Rules] DENIED: ${result.reason}`);
       }
 
       if (result.action === "ask") {
         log.warn(
-          `[F2 Rules] WARNING: ${result.reason} — user confirmation needed`,
+          `[Rules] WARNING: ${result.reason} — user confirmation needed`,
         );
       }
     },

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// @sffmc/extra — F6' Judge tests
+// @sffmc/extra — Judge tests
 
 import { describe, it, expect } from "bun:test";
 import {

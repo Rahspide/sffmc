@@ -131,7 +131,7 @@ describe("isSensitiveSourcePath — audit fix negatives", () => {
 
   it("catches secrets/notes.md (intentional — dir name leaks context) (12)", async () => {
     await ensureRedactionRules()
-    // L2 preserved behavior: a file inside a `secrets/` directory leaks
+    // source-path check preserved behavior: a file inside a `secrets/` directory leaks
     // context regardless of the file's basename. The `sourcepath-rule`
     // catches `^/secrets?/` and `secrets/`. notes.md basename itself
     // doesn't match any filename rule, so this isolates the path rule.

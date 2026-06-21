@@ -160,8 +160,8 @@ describe("v0.14.3 schema journal validation initial release: journal event schem
         // Phase event uses `title` field (matches runtime.ts:942-946 setPhase
         // and types.ts:57 JournalEventPhase). The phase event's pass=3 is
         // deliberately higher than other events — if the validator
-        // incorrectly rejects phase events (CRIT-1 regression), maxPass
-        // stays at 1 and journal.pass = 2. After CRIT-1 fix, maxPass=3
+        // incorrectly rejects phase events (regression), maxPass
+        // stays at 1 and journal.pass = 2. After the fix, maxPass=3
         // and journal.pass=4.
         JSON.stringify({ t: "phase", title: "execute", pass: 3 }),
       ].join("\n")
@@ -173,7 +173,7 @@ describe("v0.14.3 schema journal validation initial release: journal event schem
       // Valid events loaded; torn line silently skipped.
       expect(journal.results.has("k1")).toBe(true)
       expect(journal.results.has("k2")).toBe(false) // torn → skipped
-      // CRIT-1 regression guard: phase event must be accepted (pass=3 →
+      // regression guard: phase event must be accepted (pass=3 →
       // maxPass=3 → journal.pass=4). If validator rejects phase events,
       // maxPass stays at 1 → journal.pass=2 → this assertion fails.
       expect(journal.pass).toBe(4)

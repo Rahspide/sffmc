@@ -387,7 +387,7 @@ describe("private helpers: resolveConfig", () => {
   })
 
   test("custom maxSteps via configOverride propagates to outcome.stepsTotal", async () => {
-    // W14 — `configOverride` is the synchronous test path for injecting
+    // `configOverride` is the synchronous test path for injecting
     // a workflow config (skips the YAML load). The OpenCode provider's
     // `ctx.config` is the LEGACY fallback only — the runtime prefers the
     // SFFMC-loaded config from `loadWorkflowConfig()` or the test override.
@@ -409,7 +409,7 @@ describe("private helpers: resolveConfig", () => {
   })
 
   test("custom maxTokens via configOverride caps agent calls", async () => {
-    // W14 — same as the maxSteps test above; the override path is now
+    // same as the maxSteps test above; the override path is now
     // the documented way to inject a config in tests. ctx.config remains
     // a fallback for code paths that haven't migrated yet.
     // Each mock call uses 10+5=15 tokens. Cap at 100 → ~6 calls max.
@@ -439,7 +439,7 @@ describe("private helpers: resolveConfig", () => {
   }, 20000)
 
   test("resume() re-resolves config from new runtime's configOverride", async () => {
-    // W14 — same idea as the original test, but uses `configOverride`
+    // same idea as the original test, but uses `configOverride`
     // (the new sync test API) to inject the runtime's config.
     // Start with runtime1 (maxSteps=30)
     const runtime1 = new WorkflowRuntime(
