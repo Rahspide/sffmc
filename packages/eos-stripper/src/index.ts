@@ -5,13 +5,11 @@ const log = createLogger("eos-stripper");
 
 interface EosConfig {
   patterns: string[];
-  strip_from_end_only: boolean;
   log_stripped_count: boolean;
 }
 
 const defaultConfig: EosConfig = {
   patterns: [],
-  strip_from_end_only: true,
   log_stripped_count: true,
 };
 

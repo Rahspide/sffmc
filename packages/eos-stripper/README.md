@@ -33,7 +33,6 @@ patterns:                        # leave empty to use DEFAULT_EOS_PATTERNS
   - '<|endoftext|>'
   - '<|im_end|>'
   - '<|eot_id|>'
-strip_from_end_only: true        # safety: don't strip from middle (might be intentional)
 log_stripped_count: true
 ```
 
@@ -50,7 +49,7 @@ log_stripped_count: true
 bun test packages/eos-stripper/
 ```
 
-17 tests in `src/index.test.ts`.
+31 tests in `packages/safety/test/eos-stripper.test.ts`.
 
 ## License
 

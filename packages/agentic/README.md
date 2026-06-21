@@ -37,7 +37,7 @@ Provides parallel candidate generation with judge-model evaluation, sandboxed JS
 |---|---|---|
 | `workflow` | workflow | Execute a sandboxed multi-step workflow by topology name |
 | `compose_skill` | compose | Load a compose-mode skill (verify, tdd, plan, etc.) by name |
-| `sffmc_health` | health | Run 12 cross-plugin health checks (hook conflicts, integrity, presence) |
+| `sffmc_health` | health | Run 13 cross-plugin health checks (hook conflicts, integrity, presence) |
 
 ## Skills
 

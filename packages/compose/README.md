@@ -23,7 +23,7 @@ This plugin is loaded by the SFFMC monorepo's sandbox config. To use standalone:
 
 ## Configuration
 
-None — `compose` takes no config. Skills are loaded directly from `packages/compose/skills/`. To add a new skill, drop a `<name>.md` file there and add the name to the `VALID_SKILLS` array in `src/index.ts`.
+Optional. The default skill set is loaded from `packages/compose/skills/`. To use a custom directory, set `compose.skillsDir` in `~/.config/sffmc/compose.yaml` — the plugin will then read all `*.md` files from that directory at startup and accept any markdown filename (not just the default 18 names) as a valid `compose_skill` argument. To add a new skill to the default set, drop a `<name>.md` file under `packages/compose/skills/` and append the name to `DEFAULT_SKILLS` in `src/index.ts`.
 
 ## Hooks registered
 

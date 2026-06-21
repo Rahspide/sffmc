@@ -1,6 +1,6 @@
 ---
 name: agentic:health-check
-description: "Use when the user asks for plugin health, when something seems off, or before a major version bump. Runs sffmc_health: 12 checks covering SFFMC_PACKAGES (all 12 expected), TOOL_FILES (12 expected), config files, git state, load order, version consistency, and more."
+description: "Use when the user asks for plugin health, when something seems off, or before a major version bump. Runs sffmc_health: 13 checks covering SFFMC_PACKAGES, TOOL_FILES, config files, git state, load order, version consistency, and more."
 hidden: true
 ---
 
@@ -8,9 +8,9 @@ hidden: true
 
 ## The Rule
 
-When something is broken and you don't know why, run `sffmc_health` first. It checks 12 invariants and reports which failed. Don't guess — instrument.
+When something is broken and you don't know why, run `sffmc_health` first. It checks 13 invariants and reports which failed. Don't guess — instrument.
 
-## The 12 Checks
+## The 13 Checks
 
 1. **SFFMC_PACKAGES** — 12 expected packages present
 2. **TOOL_FILES** — 12 expected tool files present
