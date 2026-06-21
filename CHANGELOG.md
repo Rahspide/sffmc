@@ -1,5 +1,37 @@
 # SFFMC Changelog
 
+## v0.14.6 (2026-06-21)
+
+### Changed
+
+- **Checkpoint file format v2** — adds indexed random access and CRC32 integrity to the on-disk JSONL layout. v2 files include per-line byte offsets in the header and a CRC32 of the body bytes; each body line also carries a per-line CRC. v1 files remain readable; existing v1 data is migrated to v2 via `migrateV1ToV2(sessionID, dir?)` (explicit call in v0.14.6; auto on first v2 write is planned for v0.14.7).
+
+### Added
+
+- **`migrateV1ToV2(sessionID, dir?)`** — explicit migration from v1 to v2 checkpoint format. Reads v1, writes v2, backs up v1 as `<sessionID>.jsonl.v1.bak`. Returns `MigrationResult { ok, sourceVersion, targetVersion, lines, error? }`.
+- **`crc32(data)`** — exported CRC32 (IEEE 802.3 polynomial) helper for callers that need to recompute integrity values.
+- **`packages/extra/tests/checkpoint-v2.test.ts`** — covers v1 backward compat, v2 write/read, offset accuracy, CRC32 correctness, migration, and a 100-call stress case.
+
+### Migration
+
+v1 to v2 is one-way. Once a file is v2, the reader does not rewrite it as v1. v1 readers continue to work on v1 files. Auto-migration on first v2 write is planned for v0.14.7, which will drop v1 reader support.
+
+## v0.14.6 (2026-06-21)
+
+### Изменено
+
+- **Формат файла checkpoint v2** — добавляет индексированный произвольный доступ и контроль целостности CRC32 к дисковой компоновке JSONL. Файлы v2 содержат побайтовые смещения каждой строки в заголовке и CRC32 байтов тела; каждая строка тела также несёт собственный CRC. Файлы v1 остаются читаемыми; существующие данные v1 мигрируются в v2 через `migrateV1ToV2(sessionID, dir?)` (явный вызов в v0.14.6; авто-миграция при первой записи v2 запланирована на v0.14.7).
+
+### Добавлено
+
+- **`migrateV1ToV2(sessionID, dir?)`** — явная миграция с формата v1 на v2. Читает v1, записывает v2, резервирует v1 как `<sessionID>.jsonl.v1.bak`. Возвращает `MigrationResult { ok, sourceVersion, targetVersion, lines, error? }`.
+- **`crc32(data)`** — экспортируемый помощник CRC32 (полином IEEE 802.3) для вызывающего кода, которому нужно пересчитать значения целостности.
+- **`packages/extra/tests/checkpoint-v2.test.ts`** — покрывает обратную совместимость с v1, запись/чтение v2, точность смещений, корректность CRC32, миграцию и стресс-тест на 100 вызовов.
+
+### Миграция
+
+v1 в v2 — односторонняя. После того как файл стал v2, reader не перезаписывает его обратно в v1. Reader'ы v1 продолжают работать с файлами v1. Авто-миграция при первой записи v2 запланирована на v0.14.7, в этом релизе поддержка чтения v1 будет удалена.
+
 ## v0.14.5 (2026-06-21)
 
 ### Changed
