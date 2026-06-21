@@ -1,6 +1,6 @@
 # @sffmc/log-whitelist
 
-> **Part of `@sffmc/safety` composite.** This package is a sub-feature of the safety bundle. Load via `@sffmc/safety` for the full set (log-whitelist + watchdog + rules + auto-max + eos-stripper), or standalone if you only need log-whitelist.
+> **Part of `@sffmc/safety` composite.** This package is a module of the safety bundle. Load via `@sffmc/safety` for the full set (log-whitelist + watchdog + rules + auto-max + eos-stripper), or standalone if you only need log-whitelist.
 
 
 

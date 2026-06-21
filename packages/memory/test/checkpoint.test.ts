@@ -695,7 +695,7 @@ describe("checkpoint", () => {
   });
 
   // -----------------------------------------------------------------------
-  // C2 (Manriel audit, v0.14.2) — LRU eviction regression tests.
+  // skills directory override (filesystem) (Manriel audit, v0.14.2) — LRU eviction regression tests.
   //
   // Verifies that `_findLRUVictim` (the new LRU scanner) and the
   // `_getOrCreateBuffer` eviction path both honor a true least-recently-
@@ -703,7 +703,7 @@ describe("checkpoint", () => {
   // with the smallest `lastAccessMs`; tie-break by `insertionOrder`.
   // -----------------------------------------------------------------------
 
-  describe("C2 — LRU eviction", () => {
+  describe("skills directory override (filesystem) — LRU eviction", () => {
     /** Build a SessionBufferEntry with explicit LRU metadata. */
     function entry(
       lastAccessMs: number,
@@ -732,8 +732,8 @@ describe("checkpoint", () => {
       expect(_findLRUVictim(buffers)).toBe("A");
     });
 
-    it("touching the middle entry B makes A the LRU victim (C2 spec)", () => {
-      // C2 spec: insert 3 entries, "touch" the middle one, evict, verify
+    it("touching the middle entry B makes A the LRU victim (skills directory override (filesystem) spec)", () => {
+      // skills directory override (filesystem) spec: insert 3 entries, "touch" the middle one, evict, verify
       // the FIRST-inserted survives. The current code should make A the
       // victim because B was touched (its lastAccessMs advanced past A's
       // and C's), and A is now the oldest.
@@ -873,7 +873,7 @@ describe("checkpoint", () => {
   });
 
   // -----------------------------------------------------------------------
-  // C3 (Manriel audit, v0.14.2) — typed error for oversize checkpoint.
+  // oversize checkpoint typed error (Manriel audit, v0.14.2) — typed error for oversize checkpoint.
   //
   // Verifies that readHeader() and readToolCalls() throw
   // CheckpointTooLargeError (not return null/[]) when the file exceeds
@@ -881,7 +881,7 @@ describe("checkpoint", () => {
   // hook catch the error and convert to { ok: false, error: ... }.
   // -----------------------------------------------------------------------
 
-  describe("C3 — CheckpointTooLargeError", () => {
+  describe("oversize checkpoint typed error — CheckpointTooLargeError", () => {
     /** Create an oversize JSONL file for the given sessionID. */
     function makeOversizeFile(sessionID: string, dir: string, sizeBytes: number): string {
       const fp = filePath(sessionID, dir);
@@ -946,7 +946,7 @@ describe("checkpoint", () => {
     });
 
     it("readToolCalls still returns [] for missing file (oversize is distinct)", () => {
-      // C3: oversize and missing must be distinguishable. Missing file
+      // oversize checkpoint typed error: oversize and missing must be distinguishable. Missing file
       // returns [] (and no error). Oversize throws.
       const missingDir = mkdtempSync(join(tmpdir(), "sffmc-c3-missing-"));
       try {
@@ -958,7 +958,7 @@ describe("checkpoint", () => {
     });
 
     it("restore action returns { ok: false, error: ... } for oversize (external API unchanged)", async () => {
-      // C3: the public tool API must still return
+      // oversize checkpoint typed error: the public tool API must still return
       // { ok: false, error: "..." } for the oversize case — the
       // typed error is internal; callers translate to the existing
       // response shape.
@@ -982,7 +982,7 @@ describe("checkpoint", () => {
     });
 
     it("auto-restore hook strips the marker and skips on oversize (no crash)", async () => {
-      // C3: the auto-restore hook is best-effort. An oversize
+      // oversize checkpoint typed error: the auto-restore hook is best-effort. An oversize
       // checkpoint must not crash the chat pipeline — the marker is
       // stripped and the original (non-restored) content is left in
       // place.

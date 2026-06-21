@@ -4,8 +4,8 @@ import { RECON_AGENTS_BUDGET, RECON_TASKTREE_BUDGET } from "./constants.ts";
 
 export { RECON_AGENTS_BUDGET, RECON_TASKTREE_BUDGET };
 
-// Phase-1 (v0.14.2) HIGH-severity migration — see
-// .slim/deepwork/hardcode-audit-2026-06.md (M2).
+// Initial release (v0.14.2) HIGH-severity migration — see
+// .slim/deepwork/hardcode-audit-2026-06.md.
 //
 // `memory` and `checkpoint` were hardcoded at 6144 chars each. They are
 // now configurable via `MemoryConfig.reconMemoryBudget` and
@@ -22,9 +22,9 @@ export function buildRecon(
   taskTree: string,
   tail: string,
   agents: string,
-  /** M2 — character budget for the memory section. Defaults to 6144. */
+  /** Character budget for the memory section. Defaults to 6144. */
   reconMemoryBudget: number = DEFAULT_RECON_MEMORY_BUDGET,
-  /** M2 — character budget for the checkpoint section. Defaults to 6144. */
+  /** Character budget for the checkpoint section. Defaults to 6144. */
   reconCheckpointBudget: number = DEFAULT_RECON_CHECKPOINT_BUDGET,
 ): string {
   const sections: string[] = [];

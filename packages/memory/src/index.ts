@@ -2,7 +2,7 @@
 // @sffmc/memory — see ../../LICENSE
 //
 // SFFMC memory MSP — composes memory + checkpoint + judge + dream.
-// Phase 2: replaces prior standalone memory impl with mergeHooks() of 4 sub-features.
+// second release: replaces prior standalone memory impl with mergeHooks() of 4 sub-features.
 
 import { server as memoryServer, defaultConfig as memoryDefaultConfig, type MemoryConfig } from "./plugin.ts"
 import { checkpointServer, judgeServer, dreamServer } from "../../extra/src/index.ts"
@@ -21,7 +21,7 @@ export const server = async (ctx: PluginContext): Promise<PluginServer> => {
 }
 
 // ---------------------------------------------------------------------------
-// Phase-2 MEDIUM migration (M4, M5a, M5b) — config getters.
+// second release migration (schema journal validation, chokidar awaitWriteFinish.stabilityThreshold, chokidar awaitWriteFinish.pollInterval) — config getters.
 // Exported so callers (other plugins, tests, tooling) can read the active
 // value without bootstrapping a full plugin instance. Internally the plugin
 // loads the same config into state.config during server().
@@ -41,19 +41,19 @@ function ensureMemoryConfig(configHome?: string): Promise<MemoryConfig> {
   return _memoryConfigPromise
 }
 
-/** M4 — max memories to include in recon injection (default 20). */
+/** schema journal validation — max memories to include in recon injection (default 20). */
 export async function getMemoryReconTopN(configHome?: string): Promise<number> {
   const cfg = await ensureMemoryConfig(configHome)
   return cfg.reconTopN
 }
 
-/** M5a — chokidar awaitWriteFinish.stabilityThreshold in ms (default 300). */
+/** chokidar awaitWriteFinish.stabilityThreshold — chokidar awaitWriteFinish.stabilityThreshold in ms (default 300). */
 export async function getWatchStabilityMs(configHome?: string): Promise<number> {
   const cfg = await ensureMemoryConfig(configHome)
   return cfg.watchStabilityMs
 }
 
-/** M5b — chokidar awaitWriteFinish.pollInterval in ms (default 100). */
+/** chokidar awaitWriteFinish.pollInterval — chokidar awaitWriteFinish.pollInterval in ms (default 100). */
 export async function getWatchPollIntervalMs(configHome?: string): Promise<number> {
   const cfg = await ensureMemoryConfig(configHome)
   return cfg.watchPollIntervalMs

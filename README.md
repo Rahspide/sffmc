@@ -5,7 +5,6 @@
 **OpenCode plugin suite — 3 composite packages, 10 sub-features, MIT licensed.**
 
 [![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
-[![Bun >= 1.0](https://img.shields.io/badge/Bun-%E2%89%A51.0-f9f1e1?logo=bun)](https://bun.sh)
 [![Version 0.14.3](https://img.shields.io/badge/version-0.14.3-success)](https://github.com/Rahspide/sffmc/releases)
 [![Tests](https://img.shields.io/badge/tests-811%20passing-brightgreen)](./packages/health)
 
@@ -271,7 +270,6 @@ See each package's README for its full config reference and defaults.
 - **[Load order audit](./docs/load-order-audit.md)** — hook registration order and rationale
 - **[Workflow reference](./docs/dynamic-workflow.md)** — sandbox internals, budgets, error model
 - **[Workflow examples](./docs/workflow-examples.md)** — five ready-to-copy workflows
-- **[Long agent test report](./docs/long-agent-test-v090-report.md)** — v0.9.0 benchmark results
 - **[v0.9.0 restructure decision](./CHANGELOG.md)** — see the v0.9.0 entry
   for why the 3-composite composition pattern replaced the per-feature
   install

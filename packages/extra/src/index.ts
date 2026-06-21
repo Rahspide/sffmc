@@ -6,7 +6,7 @@
 // three can be loaded together via this package's default export
 // (standalone usage).
 //
-// Phase 2 (v0.9.0): factory pattern replaced with named server
+// second release (v0.9.0): factory pattern replaced with named server
 // exports so the memory MSP can compose them via runtime hook().
 
 import { loadConfig, mergeHooks, type PluginContext, createLogger, type PluginServer } from "@sffmc/shared";
@@ -32,35 +32,35 @@ export interface ExtraConfig {
   judge_rubric: string;
   judge_auto: boolean;
   checkpoint_dir: string;
-  // Phase-1 (v0.14.2) HIGH-severity migration — see .slim/deepwork/hardcode-audit-2026-06.md
-  /** E1 — max checkpoint file size in bytes (default 10 MiB). */
+  // initial release migration (v0.14.2) — see .slim/deepwork/hardcode-audit-2026-06.md
+  /** max checkpoint file size — max checkpoint file size in bytes (default 10 MiB). */
   checkpoint_max_file_size: number;
-  /** E2 — max messages restored from a single checkpoint (default 50). */
+  /** max restored messages — max messages restored from a single checkpoint (default 50). */
   checkpoint_max_restored_messages: number;
-  // Phase-2 (v0.14.3) MEDIUM-severity migration — see
+  // second release migration (v0.14.3) — see
   // .slim/deepwork/phase-2-3-hardcode-migration-plan.md §2.3
-  /** E3 — buffer flush threshold (tool calls buffered before disk flush). */
+  /** buffer flush threshold — buffer flush threshold (tool calls buffered before disk flush). */
   checkpoint_flush_threshold: number;
-  /** E4 — periodic flush interval in ms. */
+  /** periodic flush interval — periodic flush interval in ms. */
   checkpoint_flush_interval_ms: number;
-  /** E5 — max in-memory session buffers (LRU eviction when exceeded). */
+  /** max in-memory session buffers — max in-memory session buffers (LRU eviction when exceeded). */
   checkpoint_max_buffered_sessions: number;
-  /** E7 — Jaccard dedup threshold for dream (default 0.9). */
+  /** Jaccard dedup threshold — Jaccard dedup threshold for dream (default 0.9). */
   dream_dedup_threshold: number;
-  /** E8 — Jaccard cluster threshold for dream (default 0.3). */
+  /** Jaccard cluster threshold — Jaccard cluster threshold for dream (default 0.3). */
   dream_cluster_threshold: number;
-  /** E9 — max entries processed per dream cycle (default 5000). */
+  /** dream max entries — max entries processed per dream cycle (default 5000). */
   dream_max_entries: number;
-  /** E10 — JSONL path for archived dream entries. Empty string means
+  /** dream archive path — JSONL path for archived dream entries. Empty string means
    *  "use the homedir default" (`~/.local/share/sffmc/extra/dream-archive.jsonl`). */
   dream_archive_path: string;
-  /** E12 — max characters per entry in the concatenated dream summary
+  /** dream snippet length — max characters per entry in the concatenated dream summary
    *  (also used by `nameClusterViaLLM`). Recommended range: 20 ≤ x ≤ 1000. */
   dream_snippet_length: number;
-  /** E13 — max characters per entry in the LLM summarization prompt.
+  /** dream LLM snippet length — max characters per entry in the LLM summarization prompt.
    *  Recommended range: 50 ≤ x ≤ 4000. */
   dream_llm_snippet_length: number;
-  /** E15 — max candidates per judge call. Validated to the 2-20 range. */
+  /** judge prompt — max candidates per judge call. Validated to the 2-20 range. */
   judge_max_candidates: number;
 }
 
@@ -75,18 +75,18 @@ const defaultConfig: ExtraConfig = {
   judge_auto: false,
   checkpoint_dir: "", // resolved at server time if empty
   // Defaults match the prior hardcoded values — behavior unchanged.
-  checkpoint_max_file_size: 10 * 1024 * 1024, // E1: 10 MiB
-  checkpoint_max_restored_messages: 50,        // E2
-  checkpoint_flush_threshold: 50,              // E3
-  checkpoint_flush_interval_ms: 5_000,         // E4
-  checkpoint_max_buffered_sessions: 50,        // E5
-  dream_dedup_threshold: 0.9,                  // E7
-  dream_cluster_threshold: 0.3,                // E8
-  dream_max_entries: 5000,                     // E9
-  dream_archive_path: "",                      // E10: empty → DEFAULT_ARCHIVE_PATH
-  dream_snippet_length: 100,                   // E12
-  dream_llm_snippet_length: 200,               // E13
-  judge_max_candidates: 8,                     // E15
+  checkpoint_max_file_size: 10 * 1024 * 1024, // max checkpoint file size: 10 MiB
+  checkpoint_max_restored_messages: 50,        // max restored messages
+  checkpoint_flush_threshold: 50,              // buffer flush threshold
+  checkpoint_flush_interval_ms: 5_000,         // periodic flush interval
+  checkpoint_max_buffered_sessions: 50,        // max in-memory session buffers
+  dream_dedup_threshold: 0.9,                  // Jaccard dedup threshold
+  dream_cluster_threshold: 0.3,                // Jaccard cluster threshold
+  dream_max_entries: 5000,                     // dream max entries
+  dream_archive_path: "",                      // dream archive path: empty → DEFAULT_ARCHIVE_PATH
+  dream_snippet_length: 100,                   // dream snippet length
+  dream_llm_snippet_length: 200,               // dream LLM snippet length
+  judge_max_candidates: 8,                     // judge prompt
 };
 
 const DEFAULT_CHECKPOINT_DIR = join(
@@ -104,7 +104,7 @@ const DEFAULT_CHECKPOINT_DIR = join(
 
 export const id = "@sffmc/extra";
 
-// Cache the config once so the three sub-feature servers don't each re-parse
+// Cache the config once so the three module servers don't each re-parse
 // the same file. They share the same ExtraConfig and call factories with
 // overlapping fields — a single read is enough.
 let _sharedConfig: ExtraConfig | undefined;
@@ -115,7 +115,7 @@ export const checkpointServer = async (ctx: PluginContext): Promise<PluginServer
   log.info(
     `checkpoint: ${config.checkpoint ? "enabled" : "disabled"}`,
   );
-  // Phase-1 HIGH migration (E1, E2) + Phase-2 MEDIUM migration (E3, E4, E5):
+  // initial release migration (max checkpoint file size, max restored messages) + second release migration (buffer flush threshold, periodic flush interval, max in-memory session buffers):
   // forward YAML-configurable limits to the checkpoint factory. Defaults
   // match the previous hardcoded values, so behavior is unchanged when no
   // YAML is present.
@@ -142,7 +142,7 @@ export const judgeServer = async (ctx: PluginContext): Promise<PluginServer> => 
     rubric: config.judge_rubric,
     judge_auto: config.judge_auto,
     ctx,
-    // Phase-2 MEDIUM migration (E15): forward the YAML-configurable cap.
+    // second release migration (judge prompt): forward the YAML-configurable cap.
     // The factory clamps to 2-20, so an out-of-range YAML will not crash.
     maxCandidates: config.judge_max_candidates,
   });
@@ -154,8 +154,8 @@ export const dreamServer = async (ctx: PluginContext): Promise<PluginServer> => 
   log.info(
     `dream: ${config.dream ? "enabled" : "disabled"}`,
   );
-  // Phase-1 HIGH migration (E7, E8, E9) + Phase-2 MEDIUM migration (E10)
-  // + Phase-3 LOW migration (E12, E13): forward YAML-configurable
+  // initial release migration (Jaccard dedup threshold, Jaccard cluster threshold, dream max entries) + second release migration (dream archive path)
+  // + third release migration (dream snippet length, dream LLM snippet length): forward YAML-configurable
   // thresholds/caps/paths/sizes to the dream factory. Defaults match the
   // previous hardcoded values, so behavior is unchanged when no YAML is
   // present. The factory falls back to `DEFAULT_ARCHIVE_PATH` when

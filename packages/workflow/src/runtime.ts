@@ -193,7 +193,7 @@ export class WorkflowRuntime {
   private persistence: WorkflowPersistence
   /** Event bus for observability listeners. */
   readonly events = createEventBus()
-  /** H5 — grace period in ms, populated by the index.ts config hook
+  /** workflow recovery grace period — grace period in ms, populated by the index.ts config hook
    *  via `loadConfig<WorkflowConfig>("workflow", ...)`. Tests may also
    *  inject a value via `RuntimeOpts.gracePeriodMsOverride`. Stored on
    *  the runtime (not the plugin context) so `recoverOrphanedWorkflows()`
@@ -241,7 +241,7 @@ export class WorkflowRuntime {
     }
   }
 
-  /** H5 — set the grace period at runtime. Used by the index.ts config
+  /** workflow recovery grace period — set the grace period at runtime. Used by the index.ts config
    *  hook after `loadConfig` returns. Validates the value (integer,
    *  0..24h) and throws on out-of-range. */
   setGracePeriodMs(ms: number): void {
@@ -561,7 +561,7 @@ export class WorkflowRuntime {
    *  there is no on-disk lock. After this method returns, all orphaned
    *  runs are either marked 'paused' (resumable) or 'crashed' (no journal).
    *
-   *  H5 — grace period: a row with `time_created` within `gracePeriodMs`
+   *  workflow recovery grace period — grace period: a row with `time_created` within `gracePeriodMs`
    *  of now is always marked 'paused' (regardless of journal presence);
    *  rows past the grace use the legacy journal-presence check.
    *  See v0.14 design §3.2. */

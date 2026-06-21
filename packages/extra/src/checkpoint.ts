@@ -25,7 +25,7 @@ export interface CheckpointState {
   version: number;
 }
 
-/** C3 (Manriel audit, v0.14.2): typed error thrown by `readHeader()` and
+/** Manriel audit finding (v0.14.2): typed error thrown by `readHeader()` and
  *  `readToolCalls()` when the on-disk file exceeds `maxFileSize`.
  *  Previously, `readHeader()` returned `null` and `readToolCalls()`
  *  returned `[]` for the oversize case, which made it impossible for
@@ -77,8 +77,8 @@ export interface CheckpointHooks {
 // Constants
 // ---------------------------------------------------------------------------
 //
-// Phase-1 (v0.14.2) HIGH-severity migration — see
-// .slim/deepwork/hardcode-audit-2026-06.md (E1, E2).
+// Initial release (v0.14.2) HIGH-severity migration — see
+// .slim/deepwork/hardcode-audit-2026-06.md.
 //
 // `MAX_CHECKPOINT_FILE_SIZE` and `MAX_RESTORED_MESSAGES` were hardcoded
 // module-level constants. They are now configurable via the factory's
@@ -87,16 +87,16 @@ export interface CheckpointHooks {
 // provided). The original values are preserved as `DEFAULT_*` so callers
 // that omit the new fields still see the prior behavior.
 
-/** Default max checkpoint file size in bytes (E1). Overridable via
+/** Default max checkpoint file size in bytes. Overridable via
  *  `ExtraConfig.checkpoint_max_file_size`. */
 const DEFAULT_MAX_CHECKPOINT_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 
-/** Default max restored messages per checkpoint (E2). Overridable via
+/** Default max restored messages per checkpoint. Overridable via
  *  `ExtraConfig.checkpoint_max_restored_messages`. */
 const DEFAULT_MAX_RESTORED_MESSAGES = 50;
 
 //
-// Phase-2 (v0.14.3) MEDIUM-severity migration — see
+// Second release (v0.14.3) MEDIUM-severity migration — see
 // .slim/deepwork/phase-2-3-hardcode-migration-plan.md §2.3
 //
 // `FLUSH_THRESHOLD`, `FLUSH_INTERVAL_MS`, and `MAX_BUFFER_SESSIONS` were
@@ -107,17 +107,17 @@ const DEFAULT_MAX_RESTORED_MESSAGES = 50;
 // behavior.
 //
 
-/** Default buffer flush threshold (E3). Overridable via
+/** Default buffer flush threshold. Overridable via
  *  `ExtraConfig.checkpoint_flush_threshold`. */
 export const DEFAULT_FLUSH_THRESHOLD = 50;
 
-/** Default periodic flush interval in ms (E4). Overridable via
+/** Default periodic flush interval in ms. Overridable via
  *  `ExtraConfig.checkpoint_flush_interval_ms`. */
 export const DEFAULT_FLUSH_INTERVAL_MS = 5_000;
 
 export const CURRENT_VERSION = 1;
 
-/** Default max in-memory session buffers (E5). Overridable via
+/** Default max in-memory session buffers. Overridable via
  *  `ExtraConfig.checkpoint_max_buffered_sessions`. */
 export const DEFAULT_MAX_BUFFER_SESSIONS = 50;
 
@@ -187,8 +187,8 @@ function readHeader(
       log.warn(
         `checkpoint: skipping ${sessionID} — file size ${(st.size / 1024 / 1024).toFixed(1)}MB exceeds limit (${maxFileSize / 1024 / 1024}MB)`,
       );
-      // C3: throw a typed error so callers can distinguish "oversize"
-      // from "missing file" (which still returns null).
+      // Oversize error: throw a typed error so callers can distinguish
+      // "oversize" from "missing file" (which still returns null).
       throw new CheckpointTooLargeError(sessionID, st.size, maxFileSize);
     }
   } catch (e) {
@@ -227,8 +227,8 @@ export function readToolCalls(
       log.warn(
         `checkpoint: skipping ${sessionID} — file size ${(st.size / 1024 / 1024).toFixed(1)}MB exceeds limit (${maxFileSize / 1024 / 1024}MB)`,
       );
-      // C3: throw a typed error so callers can distinguish "oversize"
-      // from "missing file" (which still returns []).
+      // Oversize error: throw a typed error so callers can distinguish
+      // "oversize" from "missing file" (which still returns []).
       throw new CheckpointTooLargeError(sessionID, st.size, maxFileSize);
     }
   } catch (e) {
@@ -302,9 +302,9 @@ function deleteCheckpoint(sessionID: string, dir?: string): boolean {
 
 /** Per-session buffer entry with explicit LRU metadata.
  *
- *  C2 (Manriel audit, v0.14.2): the prior implementation relied on
- *  `Map.keys().next().value` + a `delete; set` touch to implement LRU
- *  via Map's iteration order. That worked but was implicit — the
+ *  Manriel LRU-eviction audit finding (v0.14.2): the prior implementation
+ *  relied on `Map.keys().next().value` + a `delete; set` touch to implement
+ *  LRU via Map's iteration order. That worked but was implicit — the
  *  eviction logic depended on Map's internal ordering, not on a
  *  tracked access timestamp. This struct makes the LRU policy
  *  explicit: `lastAccessMs` is the value compared for eviction, and
@@ -324,11 +324,11 @@ interface CheckpointBufferState {
   headersWritten: Set<string>;
   flushTimer: ReturnType<typeof setInterval> | null;
   dir: string;
-  /** E3 — buffer flush threshold (tool calls buffered before disk flush). */
+  /** Buffer flush threshold (tool calls buffered before disk flush). */
   flushThreshold: number;
-  /** E4 — periodic flush interval in ms. */
+  /** Periodic flush interval in ms. */
   flushIntervalMs: number;
-  /** E5 — max in-memory session buffers (LRU eviction when exceeded). */
+  /** Max in-memory session buffers (LRU eviction when exceeded). */
   maxBufferedSessions: number;
 }
 
@@ -383,7 +383,7 @@ function _stopFlushTimer(state: CheckpointBufferState): void {
  *  smallest `lastAccessMs`; ties are broken by `insertionOrder` (the
  *  older insertion wins). Returns `null` when the map is empty.
  *
- *  Exported (with underscore prefix) for the C2 regression test. */
+ *  Exported (with underscore prefix) for the LRU eviction regression test. */
 export function _findLRUVictim(buffers: Map<string, SessionBufferEntry>): string | null {
   let victimKey: string | null = null;
   let victimAccess = Number.POSITIVE_INFINITY;
@@ -415,7 +415,7 @@ function _getOrCreateBuffer(state: CheckpointBufferState, sessionID: string): To
     state.sessionBuffers.set(sessionID, entry);
     return entry.buf;
   }
-  // Evict LRU when the cap is reached. C2: the victim is determined
+  // Evict LRU when the cap is reached. The victim is determined
   // by the explicit timestamp scan, not by Map iteration order.
   if (state.sessionBuffers.size >= state.maxBufferedSessions) {
     const victim = _findLRUVictim(state.sessionBuffers);
@@ -473,8 +473,8 @@ function _executeRestoreAction(
   try {
     header = readHeader(sessionID, dir, maxFileSize);
   } catch (e) {
-    // C3: translate the typed error into the existing response shape
-    // so the public tool API is unchanged. Callers see
+    // Oversize error: translate the typed error into the existing
+    // response shape so the public tool API is unchanged. Callers see
     // { ok: false, error: "<message>" }.
     if (e instanceof CheckpointTooLargeError) {
       return { ok: false, error: e.message };
@@ -515,9 +515,9 @@ function _executeRestoreAction(
 /** Create the tool.execute.after hook that buffers tool calls. */
 /** Recursively walk an unknown value, redacting any string leaves via
  *  `redactSecrets`. Non-string primitives pass through unchanged. Arrays and
- *  plain objects are walked element-by-element. Used by M5 (checkpoint
- *  write) so secrets embedded in tool output are replaced with
- *  `[REDACTED:<category>]` markers BEFORE the JSONL line is written. */
+ *  plain objects are walked element-by-element. Used by the redaction rule
+ *  for checkpoint writes so secrets embedded in tool output are replaced
+ *  with `[REDACTED:<category>]` markers BEFORE the JSONL line is written. */
 function sanitizeResult(result: unknown): unknown {
   if (typeof result === "string") {
     return redactSecrets(result).redacted
@@ -582,8 +582,8 @@ function _createAutoRestoreHook(
             `[extra] checkpoint auto-restore: loading session ${sessionID}`,
           );
 
-          // C3: catch the typed error and degrade gracefully — the
-          // auto-restore hook is best-effort and must not break the
+          // Oversize error: catch the typed error and degrade gracefully
+          // — the auto-restore hook is best-effort and must not break the
           // chat pipeline. Strip the marker and continue.
           let header: CheckpointHeader | null;
           try {
@@ -614,7 +614,7 @@ function _createAutoRestoreHook(
             continue;
           }
 
-          // C3: same catch for readToolCalls.
+          // Oversize error: same catch for readToolCalls.
           let calls: ToolCall[];
           try {
             calls = readToolCalls(sessionID, dir, maxFileSize);
@@ -652,21 +652,21 @@ function _createAutoRestoreHook(
 export function createCheckpointTool(config: {
   enabled: boolean;
   dir?: string;
-  /** Phase-1 HIGH migration (E1): max checkpoint file size in bytes.
+  /** Initial release migration: max checkpoint file size in bytes.
    *  Files larger than this are rejected. Defaults to 10 MiB. */
   maxFileSize?: number;
-  /** Phase-1 HIGH migration (E2): max messages restored per checkpoint.
+  /** Initial release migration: max messages restored per checkpoint.
    *  Defaults to 50. */
   maxRestoredMessages?: number;
-  /** Phase-2 MEDIUM migration (E3): buffer flush threshold. The buffer
+  /** Second release migration: buffer flush threshold. The buffer
    *  is flushed to disk when this many tool calls accumulate for a
    *  single session. Defaults to 50. */
   flushThreshold?: number;
-  /** Phase-2 MEDIUM migration (E4): periodic flush interval in ms. A
+  /** Second release migration: periodic flush interval in ms. A
    *  background timer flushes all buffered sessions at this interval.
    *  Defaults to 5_000 (5 seconds). */
   flushIntervalMs?: number;
-  /** Phase-2 MEDIUM migration (E5): max in-memory session buffers. When
+  /** Second release migration: max in-memory session buffers. When
    *  the cap is reached, the LRU session is flushed to disk and evicted.
    *  Defaults to 50. */
   maxBufferedSessions?: number;
@@ -681,9 +681,9 @@ export function createCheckpointTool(config: {
   cleanup: () => void;
 } {
   const dir = config.dir || getCheckpointDir();
-  // Phase-1 HIGH migration (E1, E2) + Phase-2 MEDIUM migration (E3, E4,
-  // E5): defaults match the prior hardcoded values, so behavior is
-  // unchanged when no YAML is provided.
+  // Initial release migration + Second release migration: defaults match
+  // the prior hardcoded values, so behavior is unchanged when no YAML is
+  // provided.
   const maxFileSize = config.maxFileSize ?? DEFAULT_MAX_CHECKPOINT_FILE_SIZE;
   const maxRestoredMessages = config.maxRestoredMessages ?? DEFAULT_MAX_RESTORED_MESSAGES;
   const flushThreshold = config.flushThreshold ?? DEFAULT_FLUSH_THRESHOLD;

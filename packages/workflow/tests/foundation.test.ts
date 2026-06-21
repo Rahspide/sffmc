@@ -354,8 +354,8 @@ describe("meta.ts", () => {
       description: "A test workflow",
       whenToUse: 'For testing',
       phases: [
-        { title: 'Phase 1', detail: 'First' },
-        { title: 'Phase 2' },
+        { title: 'Step 1', detail: 'First' },
+        { title: 'Step 2' },
       ],
       model: 'gpt4',
     }`
@@ -366,7 +366,7 @@ describe("meta.ts", () => {
       expect(result.meta.description).toBe("A test workflow")
       expect(result.meta.whenToUse).toBe("For testing")
       expect(result.meta.phases).toHaveLength(2)
-      expect(result.meta.phases![0].title).toBe("Phase 1")
+      expect(result.meta.phases![0].title).toBe("Step 1")
       expect(result.meta.phases![1].detail).toBeUndefined()
       expect(result.meta.model).toBe("gpt4")
     }
@@ -606,7 +606,7 @@ describe("builtin-registry.ts", () => {
   test("register and load custom builtin", async () => {
     registerBuiltin("test-builtin", async () => ({
       source: "// test script",
-      meta: { name: "test-builtin", description: "A test built-in", phases: [{ title: "Phase A" }] },
+      meta: { name: "test-builtin", description: "A test built-in", phases: [{ title: "Stage A" }] },
     }))
     expect(listBuiltins()).toContain("test-builtin")
     expect(getBuiltin("test-builtin")).toBeDefined()

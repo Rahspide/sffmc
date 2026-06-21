@@ -4,7 +4,7 @@
 
 - **builtin/deep-research.ts**: 6-phase research orchestrator (JURY_SIZE=3, REJECT_QUORUM=2, SOURCE_BUDGET=15, FACT_CAP=25). Ported from MiMo-Code @ 42e7da3 — plan → search → extract → group → crosscheck → report. Full source runs in quickjs-emscripten sandbox.
 - **tests/e2e-200-steps.test.ts**: 5 tests — 200 sequential agents, lifecycle cap (1000) trip, token cap (2M) trip, parallel correctness, pipeline chain correctness
-- **docs/w5-6-dynamic-workflow.md**: 500-line design doc — what/why/quickstart, 3 primitives with signatures, workflow file structure, side-channel primitives, error handling, 5-layer budgets, resume, MCP integration, sandbox isolation, 5 examples, MiMo comparison, known limitations, roadmap
+- **docs/w5-6-dynamic-workflow.md**: 500-line design doc — what/why/quickstart, 3 primitives with signatures, workflow file structure, side-channel primitives, error handling, 5-layer budgets, resume, MCP integration, sandbox isolation, 5 examples, MiMo comparison, known limitations, future work
 - **docs/workflow-examples.md**: 5 copy-pasteable examples — hello world, API migration, security audit, daily report, deep research. Each with code, expected runtime, what to check, common gotchas
 - Registered in builtin-registry.ts as "deep-research" with lazy-load
 - Total: 91 → 96 tests passing

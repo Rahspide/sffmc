@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/max-mode — see ../../LICENSE
 //
-// Phase-2 MEDIUM migration test (v0.14.3) — max-mode X1 + X2.
+// second release migration test (v0.14.3) — max-mode max-mode checkpoint integration + max-mode chokidar migration.
 // See .slim/deepwork/phase-2-3-hardcode-migration-plan.md §2.6.
 //
 // Verifies the two new YAML-configurable fields on MaxModeConfig:
 //
-//   - X1  maxMode.maxCandidates         (default 10, range 1-50)
+//   - max-mode checkpoint integration  maxMode.maxCandidates         (default 10, range 1-50)
 //         Safety cap on parallel LLM candidates.
 //         Was: `export const MAX_CANDIDATES = 10` in candidates.ts:6,
 //         enforced at `Math.min(config.n, MAX_CANDIDATES)`.
@@ -14,7 +14,7 @@
 //         enforced at `Math.min(config.n, config.maxCandidates ?? 10)`
 //         in candidates.ts:114.
 //
-//   - X2  maxMode.judgeDraftMaxChars    (default 8000, range 500-32000)
+//   - max-mode chokidar migration  maxMode.judgeDraftMaxChars    (default 8000, range 500-32000)
 //         Max chars of each candidate draft sent to the judge.
 //         Was: literal `c.draft.slice(0, 8000)` in judge.ts:14.
 //         Now: optional 2nd arg to `buildJudgePrompt(candidates, max)`
@@ -67,10 +67,10 @@ function writeMaxModeYaml(contents: string): void {
 }
 
 // ===========================================================================
-// X1 — maxMode.maxCandidates (safety cap)
+// max-mode checkpoint integration — maxMode.maxCandidates (safety cap)
 // ===========================================================================
 
-describe("X1 — maxMode.maxCandidates", () => {
+describe("max-mode checkpoint integration — maxMode.maxCandidates", () => {
   it("(a) defaultConfig.maxCandidates === 10 (matches v0.14.2 module-level const)", () => {
     expect(defaultConfig.maxCandidates).toBe(10);
   });
@@ -197,7 +197,7 @@ describe("X1 — maxMode.maxCandidates", () => {
     expect(calls).toBe(10);
   });
 
-  it("(c) module-level MAX_CANDIDATES export is removed (X1 migration complete)", async () => {
+  it("(c) module-level MAX_CANDIDATES export is removed (max-mode checkpoint integration migration complete)", async () => {
     // The prior `export const MAX_CANDIDATES = 10` constant must be gone.
     const mod = await import("../../max-mode/src/candidates");
     expect((mod as Record<string, unknown>).MAX_CANDIDATES).toBeUndefined();
@@ -205,10 +205,10 @@ describe("X1 — maxMode.maxCandidates", () => {
 });
 
 // ===========================================================================
-// X2 — maxMode.judgeDraftMaxChars (per-candidate draft truncation)
+// max-mode chokidar migration — maxMode.judgeDraftMaxChars (per-candidate draft truncation)
 // ===========================================================================
 
-describe("X2 — maxMode.judgeDraftMaxChars", () => {
+describe("max-mode chokidar migration — maxMode.judgeDraftMaxChars", () => {
   const mkCandidate = (draft: string) => ({
     id: "c-0",
     temperature: 1.0,
@@ -296,10 +296,10 @@ describe("X2 — maxMode.judgeDraftMaxChars", () => {
 });
 
 // ===========================================================================
-// Integration — X1 and X2 together (maxCandidates + judgeDraftMaxChars)
+// Integration — max-mode checkpoint integration and max-mode chokidar migration together (maxCandidates + judgeDraftMaxChars)
 // ===========================================================================
 
-describe("X1+X2 integration — full MaxModeConfig surface", () => {
+describe("max-mode checkpoint integration+max-mode chokidar migration integration — full MaxModeConfig surface", () => {
   it("YAML overrides both fields at once", async () => {
     writeMaxModeYaml([
       "maxCandidates: 30",

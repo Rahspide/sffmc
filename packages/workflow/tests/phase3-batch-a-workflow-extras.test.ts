@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/workflow — see ../../LICENSE
 //
-// Phase-3 LOW migration tests (v0.14.3) — workflow extras (W21, W23, W24).
+// third release migration tests (v0.14.3) — workflow extras (extra checkpoint migration, extra dream migration, extra llm-snippet migration).
 //
 // Verifies the new YAML-config fields and getter for three workflow
 // persistence knobs:
-//   - W21: dbFilename  (default "state.sqlite") → getDbFilename()
-//   - W23: scriptExt   (default ".js")          → consumed directly in persistence.ts via getWorkflowConfigSync().scriptExt
-//   - W24: journalExt  (default ".jsonl")       → consumed directly in persistence.ts via getWorkflowConfigSync().journalExt
+//   - extra checkpoint migration: dbFilename  (default "state.sqlite") → getDbFilename()
+//   - extra dream migration: scriptExt   (default ".js")          → consumed directly in persistence.ts via getWorkflowConfigSync().scriptExt
+//   - extra llm-snippet migration: journalExt  (default ".jsonl")       → consumed directly in persistence.ts via getWorkflowConfigSync().journalExt
 //
 // Defaults match the prior hardcoded values exactly so behavior is
 // unchanged when no `~/.config/SFFMC/workflow.yaml` is present:
@@ -38,7 +38,7 @@ import { WorkflowPersistence } from "../src/persistence.ts"
 
 const RUN_ID = "wf_" + "a".repeat(26)
 
-describe("@sffmc/workflow — Phase-3 W21 dbFilename + W23 scriptExt + W24 journalExt", () => {
+describe("@sffmc/workflow — third release extra checkpoint migration dbFilename + extra dream migration scriptExt + extra llm-snippet migration journalExt", () => {
   let tmpDir: string
 
   beforeEach(() => {
@@ -55,20 +55,20 @@ describe("@sffmc/workflow — Phase-3 W21 dbFilename + W23 scriptExt + W24 journ
     }
   })
 
-  // ── W21 — dbFilename ─────────────────────────────────────────────────
+  // ── extra checkpoint migration — dbFilename ─────────────────────────────────────────────────
 
-  it("W21: DEFAULT_WORKFLOW_EXTENDED_CONFIG.dbFilename matches prior hardcoded 'state.sqlite'", () => {
+  it("extra checkpoint migration: DEFAULT_WORKFLOW_EXTENDED_CONFIG.dbFilename matches prior hardcoded 'state.sqlite'", () => {
     // The prior hardcoded value was `path.join(dir, "state.sqlite")` in
     // persistence.ts:132. A drift here would mean the YAML override
     // unintentionally changes the on-disk DB filename.
     expect(DEFAULT_WORKFLOW_EXTENDED_CONFIG.dbFilename).toBe("state.sqlite")
   })
 
-  it("W21: getDbFilename() returns 'state.sqlite' when no YAML override is set", () => {
+  it("extra checkpoint migration: getDbFilename() returns 'state.sqlite' when no YAML override is set", () => {
     expect(getDbFilename()).toBe("state.sqlite")
   })
 
-  it("W21: YAML override of dbFilename propagates to getDbFilename()", () => {
+  it("extra checkpoint migration: YAML override of dbFilename propagates to getDbFilename()", () => {
     __setWorkflowConfig({
       ...DEFAULT_WORKFLOW_EXTENDED_CONFIG,
       dbFilename: "workflow-v2.sqlite",
@@ -76,7 +76,7 @@ describe("@sffmc/workflow — Phase-3 W21 dbFilename + W23 scriptExt + W24 journ
     expect(getDbFilename()).toBe("workflow-v2.sqlite")
   })
 
-  it("W21: WorkflowPersistence.dbPath uses the YAML-overridden dbFilename", () => {
+  it("extra checkpoint migration: WorkflowPersistence.dbPath uses the YAML-overridden dbFilename", () => {
     // Persistence dbPath getter must use getDbFilename() (not the literal).
     __setWorkflowConfig({
       ...DEFAULT_WORKFLOW_EXTENDED_CONFIG,
@@ -88,7 +88,7 @@ describe("@sffmc/workflow — Phase-3 W21 dbFilename + W23 scriptExt + W24 journ
     p.close()
   })
 
-  it("W21: __setWorkflowConfig(null) restores default dbFilename", () => {
+  it("extra checkpoint migration: __setWorkflowConfig(null) restores default dbFilename", () => {
     __setWorkflowConfig({
       ...DEFAULT_WORKFLOW_EXTENDED_CONFIG,
       dbFilename: "ephemeral.sqlite",
@@ -100,14 +100,14 @@ describe("@sffmc/workflow — Phase-3 W21 dbFilename + W23 scriptExt + W24 journ
     expect(getDbFilename()).toBe("state.sqlite")
   })
 
-  // ── W23 — scriptExt ──────────────────────────────────────────────────
+  // ── extra dream migration — scriptExt ──────────────────────────────────────────────────
 
-  it("W23: DEFAULT_WORKFLOW_EXTENDED_CONFIG.scriptExt matches prior hardcoded '.js'", () => {
+  it("extra dream migration: DEFAULT_WORKFLOW_EXTENDED_CONFIG.scriptExt matches prior hardcoded '.js'", () => {
     // The prior hardcoded value was `${runID}.js` in persistence.ts:315.
     expect(DEFAULT_WORKFLOW_EXTENDED_CONFIG.scriptExt).toBe(".js")
   })
 
-  it("W23: writeScript() lands at ${runID}.js by default", async () => {
+  it("extra dream migration: writeScript() lands at ${runID}.js by default", async () => {
     const p = new WorkflowPersistence({ dataDir: tmpDir })
     await p.writeScript(RUN_ID, "// hello")
     const expected = path.join(tmpDir, `${RUN_ID}.js`)
@@ -117,7 +117,7 @@ describe("@sffmc/workflow — Phase-3 W21 dbFilename + W23 scriptExt + W24 journ
     p.close()
   })
 
-  it("W23: YAML override of scriptExt flows into writeScript() path", async () => {
+  it("extra dream migration: YAML override of scriptExt flows into writeScript() path", async () => {
     __setWorkflowConfig({
       ...DEFAULT_WORKFLOW_EXTENDED_CONFIG,
       scriptExt: ".mjs",
@@ -130,7 +130,7 @@ describe("@sffmc/workflow — Phase-3 W21 dbFilename + W23 scriptExt + W24 journ
     p.close()
   })
 
-  it("W23: readScript() reads back from the overridden extension", async () => {
+  it("extra dream migration: readScript() reads back from the overridden extension", async () => {
     __setWorkflowConfig({
       ...DEFAULT_WORKFLOW_EXTENDED_CONFIG,
       scriptExt: ".cjs",
@@ -142,7 +142,7 @@ describe("@sffmc/workflow — Phase-3 W21 dbFilename + W23 scriptExt + W24 journ
     p.close()
   })
 
-  it("W23: __setWorkflowConfig(null) restores default scriptExt", () => {
+  it("extra dream migration: __setWorkflowConfig(null) restores default scriptExt", () => {
     __setWorkflowConfig({
       ...DEFAULT_WORKFLOW_EXTENDED_CONFIG,
       scriptExt: ".tmp",
@@ -153,21 +153,21 @@ describe("@sffmc/workflow — Phase-3 W21 dbFilename + W23 scriptExt + W24 journ
     // override check.
   })
 
-  // ── W24 — journalExt ─────────────────────────────────────────────────
+  // ── extra llm-snippet migration — journalExt ─────────────────────────────────────────────────
 
-  it("W24: DEFAULT_WORKFLOW_EXTENDED_CONFIG.journalExt matches prior hardcoded '.jsonl'", () => {
+  it("extra llm-snippet migration: DEFAULT_WORKFLOW_EXTENDED_CONFIG.journalExt matches prior hardcoded '.jsonl'", () => {
     // The prior hardcoded value was `${runID}.jsonl` in persistence.ts:337.
     expect(DEFAULT_WORKFLOW_EXTENDED_CONFIG.journalExt).toBe(".jsonl")
   })
 
-  it("W24: appendJournalSync() creates ${runID}.jsonl by default", () => {
+  it("extra llm-snippet migration: appendJournalSync() creates ${runID}.jsonl by default", () => {
     const p = new WorkflowPersistence({ dataDir: tmpDir })
     p.appendJournalSync(RUN_ID, { t: "log", msg: "default ext", pass: 1 })
     expect(existsSync(path.join(tmpDir, `${RUN_ID}.jsonl`))).toBe(true)
     p.close()
   })
 
-  it("W24: YAML override of journalExt flows into appendJournalSync() path", () => {
+  it("extra llm-snippet migration: YAML override of journalExt flows into appendJournalSync() path", () => {
     __setWorkflowConfig({
       ...DEFAULT_WORKFLOW_EXTENDED_CONFIG,
       journalExt: ".ndjson",
@@ -179,7 +179,7 @@ describe("@sffmc/workflow — Phase-3 W21 dbFilename + W23 scriptExt + W24 journ
     p.close()
   })
 
-  it("W24: YAML override of journalExt flows into loadJournal() path (round-trip)", async () => {
+  it("extra llm-snippet migration: YAML override of journalExt flows into loadJournal() path (round-trip)", async () => {
     __setWorkflowConfig({
       ...DEFAULT_WORKFLOW_EXTENDED_CONFIG,
       journalExt: ".log",
@@ -191,7 +191,7 @@ describe("@sffmc/workflow — Phase-3 W21 dbFilename + W23 scriptExt + W24 journ
     p.close()
   })
 
-  it("W24: hasJournalEvents() respects the overridden journalExt", async () => {
+  it("extra llm-snippet migration: hasJournalEvents() respects the overridden journalExt", async () => {
     __setWorkflowConfig({
       ...DEFAULT_WORKFLOW_EXTENDED_CONFIG,
       journalExt: ".jrnl",
@@ -204,7 +204,7 @@ describe("@sffmc/workflow — Phase-3 W21 dbFilename + W23 scriptExt + W24 journ
 
   // ── Cross-field isolation ────────────────────────────────────────────
 
-  it("W21/W23/W24 do not collide: sibling defaults remain stable when only one is overridden", () => {
+  it("extra checkpoint migration/extra dream migration/extra llm-snippet migration do not collide: sibling defaults remain stable when only one is overridden", () => {
     __setWorkflowConfig({
       ...DEFAULT_WORKFLOW_EXTENDED_CONFIG,
       dbFilename: "isolated.sqlite",
@@ -216,9 +216,9 @@ describe("@sffmc/workflow — Phase-3 W21 dbFilename + W23 scriptExt + W24 journ
     expect(DEFAULT_WORKFLOW_EXTENDED_CONFIG.journalExt).toBe(".jsonl")
   })
 
-  it("W21/W23/W24 do not regress v0.14.2 W17a-c/W19/W22 defaults", () => {
+  it("extra checkpoint migration/extra dream migration/extra llm-snippet migration do not regress v0.14.2 first prior hardcode batch-c/scheduleFlush debounce window/fsync coalescing window defaults", () => {
     // Guard against accidental edit of sibling fields when adding the
-    // three new ones. The Phase-2 fields keep their established defaults.
+    // three new ones. The second release fields keep their established defaults.
     expect(DEFAULT_WORKFLOW_EXTENDED_CONFIG.sandboxFastMs).toBe(1)
     expect(DEFAULT_WORKFLOW_EXTENDED_CONFIG.sandboxSlowMs).toBe(50)
     expect(DEFAULT_WORKFLOW_EXTENDED_CONFIG.sandboxFastWindow).toBe(50)

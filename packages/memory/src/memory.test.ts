@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// @sffmc/memory — DB layer tests (preserved from pre-Phase-2 index.test.ts)
+// @sffmc/memory — DB layer tests (preserved from pre-second-release index.test.ts)
 
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import {
@@ -116,7 +116,7 @@ describe("buildRecon", () => {
         id: 1,
         source_path: "memory-bank/progress.md",
         section: "progress",
-        content: "Phase 1 complete",
+        content: "initial release complete",
         importance_score: 0.9,
         last_accessed: null,
         created_at: 1000,
@@ -156,7 +156,7 @@ describe("buildRecon", () => {
     expect(result).toContain("[...truncated]");
   });
 
-  // Phase-1 HIGH migration (M2) — verifies the new configurable budgets.
+  // initial release migration (memory section budget) — verifies the new configurable budgets.
   it("honors custom reconMemoryBudget and reconCheckpointBudget", () => {
     const memory = [
       {
@@ -179,7 +179,7 @@ describe("buildRecon", () => {
     expect(memSection.length).toBeLessThanOrEqual(100 + 50);
   });
 
-  // Phase-1 HIGH migration (M2) — defaults match the prior hardcoded values.
+  // initial release migration (memory section budget) — defaults match the prior hardcoded values.
   it("default recon budgets remain 6144 chars (no behavior change)", () => {
     const memory = [
       {

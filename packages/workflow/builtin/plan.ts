@@ -122,7 +122,7 @@ if (!goal) {
   throw new Error("plan builtin requires args.goal (string, non-empty)");
 }
 
-// Phase 1: Scope
+// Step 1: Scope
 const scopeRaw = await agent(
   "Read the goal and produce a scope clarification.\n\n" +
   "GOAL: " + goal + "\n\n" +
@@ -139,7 +139,7 @@ const scopeRaw = await agent(
 
 const scope = scopeRaw || { clarification: "Unable to produce scope clarification.", success_criteria: ["Goal completed"] };
 
-// Phase 2: Decompose (parallel: one agent per major work area, OR single agent for simple goals)
+// Step 2: Decompose (parallel: one agent per major work area, OR single agent for simple goals)
 const decomposeRaw = await agent(
   "Break the goal into 5-15 concrete, ordered steps.\n\n" +
   "GOAL: " + goal + "\n\n" +
@@ -181,7 +181,7 @@ if (!decomposed.steps || decomposed.steps.length === 0) {
   throw new Error("plan builtin: Decompose phase produced no steps even after retry");
 }
 
-// Phase 3: Estimate (deps + parallel groups + cost)
+// Step 3: Estimate (deps + parallel groups + cost)
 const estimateRaw = await agent(
   "Take the following steps and add deps, est_minutes, and parallel_group to each.\n\n" +
   "GOAL: " + goal + "\n\n" +
@@ -216,7 +216,7 @@ for (const e of estimated.steps) {
   }
 }
 
-// Phase 4: Output
+// Step 4: Output
 const totalMinutes = estimated.steps.reduce((sum, s) => sum + (s.est_minutes || 0), 0);
 const maxParallelGroup = estimated.steps.reduce((max, s) => Math.max(max, s.parallel_group || 0), 0);
 

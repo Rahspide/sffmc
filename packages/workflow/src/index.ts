@@ -40,7 +40,7 @@ export { WorkflowRuntime, type RuntimeOpts } from "./runtime.ts"
 
 export const id = "@sffmc/workflow"
 export const server = async (ctx: PluginContext) => {
-  // H5 — load user YAML config (gracePeriodMs + other workflow limits)
+  // workflow recovery grace period — load user YAML config (gracePeriodMs + other workflow limits)
   // once at startup. The runtime reads `this.gracePeriodMs` directly so
   // `recoverOrphanedWorkflows()` can be called synchronously without
   // hitting disk. Tests inject via `RuntimeOpts.gracePeriodMsOverride`

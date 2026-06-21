@@ -128,7 +128,7 @@ const ASSEMBLE_SHAPE = {
   },
 };
 
-// ── Phase 1: Inventory ─────────────────────────────────────────────────────
+// ── Step 1: Inventory ─────────────────────────────────────────────────────
 
 phase("Inventory");
 
@@ -223,7 +223,7 @@ if (apis.length === 0) {
   };
 }
 
-// ── Phase 2: Generate (parallel batches) ───────────────────────────────────
+// ── Step 2: Generate (parallel batches) ───────────────────────────────────
 
 phase("Generate");
 
@@ -271,7 +271,7 @@ for (var bi = 0; bi < batches.length; bi++) {
 
 log("Generated docs for " + documented.length + "/" + apis.length + " APIs");
 
-// ── Phase 3: Assemble ──────────────────────────────────────────────────────
+// ── Step 3: Assemble ──────────────────────────────────────────────────────
 
 phase("Assemble");
 

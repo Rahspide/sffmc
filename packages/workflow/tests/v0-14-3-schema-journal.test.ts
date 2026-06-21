@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/workflow — see ../../LICENSE
 //
-// v0.14.3 — M4 schema refactor Phase 1 (MVP).
+// v0.14.3 — schema journal validation schema refactor initial release.
 //
-// Closes Manriel audit M4 ("Journal JSON parsed without schema validation"):
+// Closes Manriel audit schema journal validation ("Journal JSON parsed without schema validation"):
 // declares `JournalEvent` types and validates each parsed JSONL line
 // against the schema before admitting it to the journal results map.
 //
 // These tests DEFINE the desired v0.14.3 behavior. They will FAIL on the
 // v0.14.2 baseline (where `validateJournalEvent` and the schema-journal.ts
-// module do not exist yet) and PASS after M4 Phase 1 ships.
+// module do not exist yet) and PASS after schema journal validation initial release ships.
 //
-// Implementation shape (per ora-1's M4 roadmap):
+// Implementation shape (schema journal validation future work):
 //   - new file `packages/workflow/src/schema-journal.ts`:
 //     - declares `JournalEventType = "agent" | "log" | "phase"`
 //     - declares `JournalEvent` discriminated union (agent/log/phase shapes)
@@ -36,7 +36,7 @@ import { validateJournalEvent } from "../src/schema-journal.ts"
 // The expected 3 event types:
 const EXPECTED_TYPES: ReadonlyArray<string> = ["agent", "log", "phase"]
 
-describe("v0.14.3 M4 Phase 1: journal event schema validation", () => {
+describe("v0.14.3 schema journal validation initial release: journal event schema validation", () => {
   test("valid agent event returns ok:true with discriminated event", () => {
     const raw = JSON.stringify({
       t: "agent",

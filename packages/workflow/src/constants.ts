@@ -14,14 +14,14 @@ import { loadConfig } from "@sffmc/shared"
 /** 1h wall-clock for the sandbox. Matches maxWallClockMs to prevent
  *  mismatches where the sandbox runs 12x longer than the workflow.
  *
- *  Manriel H5 design rationale (2026-06-19): the 12h → 1h reduction is
+ *  Manriel workflow-recovery audit finding (2026-06-19): the 12h → 1h reduction is
  *  deliberate. The 12h value was NOT chosen for cleanup-after-kill;
- *  cleanup happens via `recoverOrphanedWorkflows()` + the H5 grace
- *  period above (5 min default, 24h ceiling), which is the right
+ *  cleanup happens via `recoverOrphanedWorkflows()` + the workflow
+ *  recovery grace period above (5 min default, 24h ceiling), which is the right
  *  abstraction for post-kill recovery. A 12h sandbox deadline would
  *  only mask runaway workflows and delay their failure signal.
  *
- *  Phase-1 HIGH migration (W1): the runtime value can be overridden via
+ *  Initial release migration: the runtime value can be overridden via
  *  `WorkflowConfig.scriptDeadlineMs`. The exported constant remains the
  *  default (and is still used directly by `runtime.ts` per the v0.14.1
  *  hotfix policy — runtime.ts is off-limits to this migration, so the
@@ -41,7 +41,7 @@ export const DEFAULT_SANDBOX_CONSTRAINTS: SandboxConstraints = {
  *  hazard — changing one without the other silently changes effective
  *  caps based on whether rows pre-existed.
  *
- *  Phase-1 HIGH migration (W4, W5, W6, W7): the values can be overridden
+ *  Initial release migration: the values can be overridden
  *  via `WorkflowConfig.maxSteps`, `maxTokens`, `maxWallClockMs`,
  *  `perStepTimeoutMs`. The exported constants remain the defaults and
  *  are still used directly by `runtime.ts` (off-limits). The overrides
@@ -59,7 +59,7 @@ export const WORKFLOW_LIMITS = {
  *  `.sffmc/workflows` namespace is SFFMC's own; `.claude/workflows`
  *  is the legacy Claude convention for backward compatibility.
  *
- *  Phase-1 HIGH migration (W25): the runtime value can be overridden via
+ *  Initial release migration: the runtime value can be overridden via
  *  `WorkflowConfig.searchDirs`. The exported constant remains the default;
  *  `resolve.ts` reads the active value via `getWorkflowSearchDirs()`.
  */
@@ -69,7 +69,7 @@ export const WORKFLOW_SEARCH_DIRS = [".sffmc/workflows", ".claude/workflows"] as
  *  its entire lifetime. Bounded so a buggy recursive workflow can't
  *  exhaust host resources.
  *
- *  Phase-1 HIGH migration (W8): runtime.ts uses its own local copy of
+ *  Initial release migration: runtime.ts uses its own local copy of
  *  this constant (off-limits in v0.14.2 per the v0.14.1 hotfix policy).
  *  The override via `WorkflowConfig.maxLifecycleAgents` will take effect
  *  once runtime.ts is updated to read from config (tracked separately).
@@ -80,13 +80,13 @@ export const MAX_LIFECYCLE_AGENTS = 1000
  *  the call graph becomes too deep to reason about; users can override
  *  via the per-run config.
  *
- *  Phase-1 HIGH migration (W9): same situation as MAX_LIFECYCLE_AGENTS
+ *  Initial release migration: same situation as MAX_LIFECYCLE_AGENTS
  *  — runtime.ts has a local copy (off-limits); override tracked
  *  separately.
  */
 export const MAX_DEPTH_DEFAULT = 8
 
-/** H5 — grace period for `recoverOrphanedWorkflows()`. A workflow row left
+/** Grace period for `recoverOrphanedWorkflows()`. A workflow row left
  *  in 'running' status with `time_created` within this window is treated as
  *  "process restarted, possibly recoverable" → marked 'paused' regardless
  *  of journal presence. Past the window, the journal-presence check
@@ -100,10 +100,9 @@ export const DEFAULT_GRACE_PERIOD_MS = 5 * 60 * 1000
 export const MAX_GRACE_PERIOD_MS = 24 * 60 * 60 * 1000
 
 // ---------------------------------------------------------------------------
-// Phase-1 HIGH migration (W1, W2, W3, W4, W5, W6, W7, W8, W9, W11, W15, W16,
-// W20, W25) — YAML-configurable workflow limits.
+// Initial release migration — YAML-configurable workflow limits.
 //
-// Phase-2 MEDIUM migration (W17a, W17b, W17c) — sandbox pump timings.
+// Second release migration (sandbox pump fast interval, sandbox pump slow interval, sandbox pump decay window) — sandbox pump timings.
 //
 // The schema below is loaded lazily via `loadConfig<>("workflow", …)` from
 // `@sffmc/shared`. Defaults match the exported constants above so behavior
@@ -112,7 +111,7 @@ export const MAX_GRACE_PERIOD_MS = 24 * 60 * 60 * 1000
 // `getSandboxMemoryMB`, …) — they prefer the YAML override and fall back to
 // the hardcoded constant.
 //
-// Phase 2 sandbox pump timings (W17a-c): defaults match the prior hardcoded
+// Second release sandbox pump timings (sandbox pump timings): defaults match the prior hardcoded
 // values in `sandbox.ts` (FAST_MS=1, SLOW_MS=50, FAST_WINDOW=50). The pump
 // is the BACKSTOP that drains guest microtasks while we await the guest
 // promise — adaptive cadence to avoid idle CPU churn. A too-fast pump
@@ -121,51 +120,51 @@ export const MAX_GRACE_PERIOD_MS = 24 * 60 * 60 * 1000
 // ---------------------------------------------------------------------------
 
 export interface WorkflowExtendedConfig {
-  /** W1 — sandbox wall-clock deadline (ms). */
+  /** Sandbox wall-clock deadline (ms). */
   scriptDeadlineMs: number
-  /** W2 / W13 / W15 — default sandbox memory (MiB). */
+  /** Default sandbox memory (MiB). */
   sandboxMemoryMB: number
-  /** W3 — QuickJS max instructions per sandbox run. */
+  /** QuickJS max instructions per sandbox run. */
   maxInstructions: number
-  /** W4 — max agents per workflow run. */
+  /** Max agents per workflow run. */
   maxSteps: number
-  /** W5 — token budget per workflow run. */
+  /** Token budget per workflow run. */
   maxTokens: number
-  /** W6 — wall-clock deadline per workflow run (ms). */
+  /** Wall-clock deadline per workflow run (ms). */
   maxWallClockMs: number
-  /** W7 — per-agent timeout (ms). */
+  /** Per-agent timeout (ms). */
   perStepTimeoutMs: number
-  /** W8 / W10 — total agents over workflow lifecycle. (runtime.ts uses
+  /** Total agents over workflow lifecycle. (runtime.ts uses
    *  a local copy; the override takes effect once runtime.ts is updated.) */
   maxLifecycleAgents: number
-  /** W9 / W12 — max nested workflow depth. (runtime.ts uses a local copy.) */
+  /** Max nested workflow depth. (runtime.ts uses a local copy.) */
   maxDepth: number
-  /** W11 — global agent-concurrency cap. (runtime.ts uses a local
+  /** Global agent-concurrency cap. (runtime.ts uses a local
    *  `Math.min(16, 2 * cpus)` default; the override takes effect once
    *  runtime.ts is updated to read from config.) */
   maxConcurrentAgents: number
-  /** W16 — QuickJS max stack size (bytes). */
+  /** QuickJS max stack size (bytes). */
   sandboxStackSize: number
-  /** W25 — saved-workflow search dirs (under workspace, walked upward). */
+  /** Saved-workflow search dirs (under workspace, walked upward). */
   searchDirs: readonly string[]
-  /** W20 — data directory override (default: XDG_DATA_HOME or
+  /** Data directory override (default: XDG_DATA_HOME or
    *  ~/.local/share/SFFMC/workflow). Empty string means "use default". */
   dataDir: string
-  /** W17a — sandbox pump fast interval (ms). Adaptive pump cadence that
+  /** sandbox pump fast interval — sandbox pump fast interval (ms). Adaptive pump cadence that
    *  drains guest microtasks; stays FAST right after finding work, decays
    *  to SLOW when idle. Expert-only. Default: 1. */
   sandboxFastMs: number
-  /** W17b — sandbox pump slow interval (ms). Idle pump cadence; worst
+  /** sandbox pump slow interval — sandbox pump slow interval (ms). Idle pump cadence; worst
    *  case adds ≤ SLOW_MS latency when no work is found. Expert-only.
    *  Default: 50. */
   sandboxSlowMs: number
-  /** W17c — number of idle ticks before the pump decays from FAST to
+  /** sandbox pump decay window — number of idle ticks before the pump decays from FAST to
    *  SLOW cadence. Expert-only. Default: 50. */
   sandboxFastWindow: number
-  /** W19 — scheduleFlush debounce window (ms). Coalesces frequent
+  /** scheduleFlush debounce window (ms). Coalesces frequent
    *  flushNow calls (one DB UPDATE per run) within this window.
    *
-   *  v0.14.3 hardcode Phase 2: getter + field added NOW (per the W17a-c
+   *  v0.14.3 hardcode second release: getter + field added NOW (per the sandbox pump timings
    *  pattern), but the consumer wiring in `runtime.ts:scheduleFlush`
    *  (replacing `setTimeout(..., 250)` with `getFlushDebounceMs()`) is
    *  DEFERRED — runtime.ts is off-limits per the v0.14.1 hotfix policy.
@@ -175,13 +174,13 @@ export interface WorkflowExtendedConfig {
    *
    *  Default: 250 (matches the prior hardcoded value in runtime.ts). */
   flushDebounceMs: number
-  /** W22 — fsync coalescing window (ms). High-frequency
+  /** fsync coalescing window (ms). High-frequency
    *  appendJournalSync callers (100+ events per workflow) would otherwise
    *  fsync per append, costing O(n) syscalls. Coalesce fsync calls
    *  within this window: each append schedules a deferred fsync that
    *  fires once per window across all tracked paths.
    *
-   *  Note: unlike W17a-c/W19, the consumer wiring in `persistence.ts`
+   *  Note: unlike sandbox pump timings, the consumer wiring in `persistence.ts`
    *  is NOT off-limits — this commit replaces the literal
    *  `setTimeout(flushFsync, FSYNC_COALESCE_MS)` with
    *  `setTimeout(flushFsync, getFsyncCoalesceMs())`. The default
@@ -305,7 +304,7 @@ export function getMaxConcurrentAgents(): number {
   return getWorkflowConfigSync().maxConcurrentAgents
 }
 
-// W17a-c — sandbox pump timings. The defaults match the prior hardcoded
+// sandbox pump timings — sandbox pump timings. The defaults match the prior hardcoded
 // values in `sandbox.ts` (FAST_MS=1, SLOW_MS=50, FAST_WINDOW=50). These
 // getters prefer the YAML override and fall back to the defaults above.
 
@@ -321,7 +320,7 @@ export function getSandboxFastWindow(): number {
   return getWorkflowConfigSync().sandboxFastWindow
 }
 
-// W19 — scheduleFlush debounce window. The default matches the prior
+// scheduleFlush debounce window. The default matches the prior
 // hardcoded value in `runtime.ts:scheduleFlush` (`setTimeout(..., 250)`).
 //
 // IMPORTANT: runtime.ts is off-limits per the v0.14.1 hotfix policy.
@@ -335,7 +334,7 @@ export function getFlushDebounceMs(): number {
   return getWorkflowConfigSync().flushDebounceMs
 }
 
-// W22 — journal fsync coalescing window. The default matches the
+// Journal fsync coalescing window. The default matches the
 // prior hardcoded `const FSYNC_COALESCE_MS = 50` in `persistence.ts`.
 // This getter is used by `persistence.ts:scheduleFsync` (replacing
 // the local const with `getFsyncCoalesceMs()`).

@@ -6,7 +6,7 @@
 // recent chat tail) at the start of every new session via
 // experimental.chat.messages.transform.
 //
-// Extracted from index.ts (Phase 2) so the MSP can compose it via runtime hook().
+// Extracted from index.ts (second release split) so the MSP can compose it via runtime hook().
 
 import { init, topByImportance, type MemoryDB } from "./memory"
 import { buildRecon, tailFromMessages, RECON_AGENTS_BUDGET } from "./recon"
@@ -27,28 +27,28 @@ import { AGENTS_FILE } from "./constants.ts";
 export interface MemoryConfig {
   storagePath: string
   tailChars: number
-  // Phase-1 HIGH migration (M2, M3) — see
+  // Initial release HIGH migration — see
   // .slim/deepwork/hardcode-audit-2026-06.md
-  /** M2 — character budget for the memory section in recon injection.
+  /** Character budget for the memory section in recon injection.
    *  Defaults to 6144 (matches the prior hardcoded value). */
   reconMemoryBudget: number
-  /** M2 — character budget for the checkpoint section in recon injection.
+  /** Character budget for the checkpoint section in recon injection.
    *  Defaults to 6144 (matches the prior hardcoded value). */
   reconCheckpointBudget: number
-  /** M3 — safety cap for AGENTS.md size in bytes. Files larger than this
+  /** Safety cap for AGENTS.md size in bytes. Files larger than this
    *  are skipped (with a warn log) to prevent OOM from large crafted
    *  AGENTS.md files. Defaults to 100 KiB. */
   agentsMaxSize: number
-  // Phase-2 MEDIUM migration (M4, M5a, M5b) — see
+  // Second release MEDIUM migration — see
   // .slim/deepwork/phase-2-3-hardcode-migration-plan.md §2.2
-  /** M4 — max memories to include in recon injection (defaults to 20,
+  /** Max memories to include in recon injection (defaults to 20,
    *  the prior hardcoded value). Raising this directly increases LLM
    *  context consumption. */
   reconTopN: number
-  /** M5a — chokidar `awaitWriteFinish.stabilityThreshold` in ms. Defaults
+  /** Chokidar `awaitWriteFinish.stabilityThreshold` in ms. Defaults
    *  to 300 (the prior hardcoded value). */
   watchStabilityMs: number
-  /** M5b — chokidar `awaitWriteFinish.pollInterval` in ms. Defaults to
+  /** Chokidar `awaitWriteFinish.pollInterval` in ms. Defaults to
    *  100 (the prior hardcoded value). */
   watchPollIntervalMs: number
 }
@@ -59,12 +59,12 @@ export const defaultConfig: MemoryConfig = {
   storagePath: DEFAULT_MEMORY_DB_PATH(),
   tailChars: RECON_AGENTS_BUDGET,
   // Defaults match the prior hardcoded values — behavior unchanged.
-  reconMemoryBudget: 6144,    // M2
-  reconCheckpointBudget: 6144, // M2
-  agentsMaxSize: 100 * 1024,  // M3: 100 KiB
-  reconTopN: 20,               // M4
-  watchStabilityMs: 300,      // M5a
-  watchPollIntervalMs: 100,    // M5b
+  reconMemoryBudget: 6144,
+  reconCheckpointBudget: 6144,
+  agentsMaxSize: 100 * 1024,  // 100 KiB
+  reconTopN: 20,
+  watchStabilityMs: 300,
+  watchPollIntervalMs: 100,
 }
 
 interface PluginState {

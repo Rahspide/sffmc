@@ -22,7 +22,7 @@ export type { RichPluginContext } from "@sffmc/shared";
  *  Tuned for prose-style entries — 0.9 keeps near-verbatim repeats while
  *  avoiding false positives on "same topic, different angle".
  *
- *  Phase-1 HIGH migration (E7): this default is now configurable via
+ *  Initial release HIGH migration: this default is now configurable via
  *  `ExtraConfig.dream_dedup_threshold`. The exported constant retains the
  *  prior value so any out-of-tree consumers (e.g. tests) still see 0.9. */
 export const DREAM_DEDUP_THRESHOLD = 0.9;
@@ -31,7 +31,7 @@ export const DREAM_DEDUP_THRESHOLD = 0.9;
  *  during summarization. Lower than the dedup threshold so a cluster can
  *  hold entries that share a topic without being near-duplicates.
  *
- *  Phase-1 HIGH migration (E8): this default is now configurable via
+ *  Initial release HIGH migration: this default is now configurable via
  *  `ExtraConfig.dream_cluster_threshold`. */
 export const DREAM_CLUSTER_THRESHOLD = 0.3;
 
@@ -39,7 +39,7 @@ export const DREAM_CLUSTER_THRESHOLD = 0.3;
  *  dedup/cluster loops from consuming unbounded CPU and memory when the DB
  *  grows large. Entries beyond this limit are skipped with a warning.
  *
- *  Phase-1 HIGH migration (E9): this default is now configurable via
+ *  Initial release HIGH migration: this default is now configurable via
  *  `ExtraConfig.dream_max_entries`. */
 export const MAX_DREAM_ENTRIES = 5000;
 
@@ -48,7 +48,7 @@ export const MAX_DREAM_ENTRIES = 5000;
  *  a brief preview of each entry). 100 chars is enough to surface the topic
  *  without bloating the prompt.
  *
- *  Phase-3 LOW migration (E12): this default is now configurable via
+ *  Third release LOW migration: this default is now configurable via
  *  `ExtraConfig.dream_snippet_length`. */
 export const DREAM_SNIPPET_LENGTH = 100;
 
@@ -56,7 +56,7 @@ export const DREAM_SNIPPET_LENGTH = 100;
  *  summarization prompt. Larger than `DREAM_SNIPPET_LENGTH` because the
  *  summarizer needs more context to produce a 1-3 sentence summary.
  *
- *  Phase-3 LOW migration (E13): this default is now configurable via
+ *  Third release LOW migration: this default is now configurable via
  *  `ExtraConfig.dream_llm_snippet_length`. */
 export const DREAM_LLM_SNIPPET_LENGTH = 200;
 
@@ -89,29 +89,29 @@ export interface DreamConfig {
   ctx?: RichPluginContext;
   /** Model for LLM summarization. Defaults to "". */
   summaryModel?: string;
-  // Phase-1 HIGH migration (E7, E8, E9) — see
+  // Initial release HIGH migration — see
   // .slim/deepwork/hardcode-audit-2026-06.md
-  /** E7 — Jaccard dedup threshold. Defaults to `DREAM_DEDUP_THRESHOLD` (0.9). */
+  /** Jaccard dedup threshold. Defaults to `DREAM_DEDUP_THRESHOLD` (0.9). */
   dedupThreshold?: number;
-  /** E8 — Jaccard cluster threshold. Defaults to `DREAM_CLUSTER_THRESHOLD` (0.3). */
+  /** Jaccard cluster threshold. Defaults to `DREAM_CLUSTER_THRESHOLD` (0.3). */
   clusterThreshold?: number;
-  /** E9 — max entries processed per dream cycle. Defaults to `MAX_DREAM_ENTRIES` (5000). */
+  /** Max entries processed per dream cycle. Defaults to `MAX_DREAM_ENTRIES` (5000). */
   maxEntries?: number;
-  // Phase-2 MEDIUM migration (E10) — see
+  // Second release MEDIUM migration — see
   // .slim/deepwork/phase-2-3-hardcode-migration-plan.md §2.4
-  /** E10 — JSONL path for archived memory entries. When empty, the
+  /** JSONL path for archived memory entries. When empty, the
    *  default `DEFAULT_ARCHIVE_PATH` (`~/.local/share/sffmc/extra/dream-archive.jsonl`)
    *  is used. Set this to relocate the archive (e.g. on a different volume).
    *  Changing it mid-session after dream has already archived entries will
    *  split the archive across two files — set it before the first dream run. */
   archivePath?: string;
-  // Phase-3 LOW migration (E12, E13) — see
+  // Third release LOW migration — see
   // .slim/deepwork/phase-2-3-hardcode-migration-plan.md §3.3
-  /** E12 — max characters per entry in the concatenated summary (also used
+  /** Max characters per entry in the concatenated summary (also used
    *  by `nameClusterViaLLM` to build the topic-naming prompt). Defaults to
    *  `DREAM_SNIPPET_LENGTH` (100). Recommended range: 20 ≤ x ≤ 1000. */
   snippetLength?: number;
-  /** E13 — max characters per entry in the LLM summarization prompt
+  /** Max characters per entry in the LLM summarization prompt
    *  (`summarizeViaLLM`). Defaults to `DREAM_LLM_SNIPPET_LENGTH` (200).
    *  Recommended range: 50 ≤ x ≤ 4000. */
   llmSnippetLength?: number;
@@ -168,7 +168,7 @@ function jaccardSets(a: Set<string>, b: Set<string>): number {
 // ---------------------------------------------------------------------------
 
 const DEFAULT_STORAGE_PATH = DEFAULT_MEMORY_DB_PATH();
-/** Default JSONL path for archived memory entries (E10). Overridable via
+/** Default JSONL path for archived memory entries. Overridable via
  *  `ExtraConfig.dream_archive_path` (forwarded to `DreamConfig.archivePath`). */
 export const DEFAULT_ARCHIVE_PATH = resolve(
   homedir(),
@@ -215,7 +215,7 @@ function ensureArchiveDir(archivePath: string): void {
 
 function archiveEntry(entry: MemoryRow, archivePath: string): void {
   ensureArchiveDir(archivePath);
-  // M6 — redact content before writing to the dream archive. The archive
+  // Redact content before writing to the dream archive. The archive
   // is on-disk JSONL; if a memory row embedded a raw credential, the
   // archive would persist it forever. `redactSecrets` returns the redacted
   // text plus categories + count for forensic visibility.
@@ -237,7 +237,7 @@ function archiveEntry(entry: MemoryRow, archivePath: string): void {
 }
 
 /** Fallback summarization: concatenate first `snippetLength` chars of each entry.
- *  Phase-3 LOW migration (E12): `snippetLength` is now configurable via
+ *  Third release LOW migration: `snippetLength` is now configurable via
  *  `DreamConfig.snippetLength`; defaults to `DREAM_SNIPPET_LENGTH` (100). */
 function concatenateSummary(
   entries: MemoryRow[],
@@ -252,7 +252,7 @@ function concatenateSummary(
 }
 
 /** LLM-based cluster naming: generates a 3-5 word topic phrase for a cluster.
- *  Phase-3 LOW migration (E12): the per-entry preview length is now
+ *  Third release LOW migration: the per-entry preview length is now
  *  configurable via `snippetLength` (defaults to `DREAM_SNIPPET_LENGTH` = 100). */
 export async function nameClusterViaLLM(
   cluster: MemoryRow[],
@@ -290,7 +290,7 @@ export async function nameClusterViaLLM(
 }
 
 /** LLM-based summarization: sends cluster entries to the model for a concise summary.
- *  Phase-3 LOW migration (E13): the per-entry length is now configurable via
+ *  Third release LOW migration: the per-entry length is now configurable via
  *  `llmSnippetLength` (defaults to `DREAM_LLM_SNIPPET_LENGTH` = 200). */
 async function summarizeViaLLM(
   cluster: MemoryRow[],
@@ -334,17 +334,17 @@ async function summarizeViaLLM(
  * Run the full dream cycle: scan → dedup → stale removal → summarization.
  * Returns DreamResult with counts and any errors.
  *
- * Phase-1 HIGH migration (E7, E8, E9): `dedupThreshold`, `clusterThreshold`,
+ * Initial release HIGH migration: `dedupThreshold`, `clusterThreshold`,
  * and `maxEntries` are now configurable (via DreamConfig). The exported
  * module-level constants (`DREAM_DEDUP_THRESHOLD`, `DREAM_CLUSTER_THRESHOLD`,
  * `MAX_DREAM_ENTRIES`) remain as the defaults — behavior is unchanged when
  * the caller omits the new fields.
  *
- * Phase-2 MEDIUM migration (E10): `archivePath` is now configurable. The
+ * Second release MEDIUM migration: `archivePath` is now configurable. The
  * default `DEFAULT_ARCHIVE_PATH` (`~/.local/share/sffmc/extra/dream-archive.jsonl`)
  * is used when the caller omits the field.
  *
- * Phase-3 LOW migration (E12, E13): `snippetLength` (default
+ * Third release LOW migration: `snippetLength` (default
  * `DREAM_SNIPPET_LENGTH` = 100, used by `concatenateSummary` and
  * `nameClusterViaLLM`) and `llmSnippetLength` (default
  * `DREAM_LLM_SNIPPET_LENGTH` = 200, used by `summarizeViaLLM`) are now
@@ -622,8 +622,8 @@ interface DreamInstanceState {
 /** Reference to the most recently created factory instance's state.
  *  Module-level wrapper functions delegate to this for backward compatibility with tests.
  *
- *  M9 (Manriel audit, v0.14.2): the only module-level mutable state in
- *  this file is `_activeDreamState` (declared below). It is a singleton
+ *  Dream module state (Manriel audit, v0.14.2): the only module-level mutable
+ *  state in this file is `_activeDreamState` (declared below). It is a singleton
  *  reference to the most-recently-created `DreamInstanceState`. The
  *  race risk is bounded:
  *
@@ -675,17 +675,17 @@ export function createDreamTool(config: DreamConfig): {
   const dbPath = config.storagePath ?? DEFAULT_STORAGE_PATH;
   let db: Database | null = null;
 
-  // Phase-1 HIGH migration (E7, E8, E9): resolve the configurable
+  // Initial release HIGH migration: resolve the configurable
   // thresholds/cap up front so they are stable across the lifetime of
   // this factory instance. Defaults preserve prior behavior.
   const dedupThreshold = config.dedupThreshold ?? DREAM_DEDUP_THRESHOLD;
   const clusterThreshold = config.clusterThreshold ?? DREAM_CLUSTER_THRESHOLD;
   const maxEntries = config.maxEntries ?? MAX_DREAM_ENTRIES;
-  // Phase-2 MEDIUM migration (E10): resolve the archive path up front.
+  // Second release MEDIUM migration: resolve the archive path up front.
   // Empty string / undefined falls back to the homedir default. This
   // replaces the previous module-level `ARCHIVE_PATH` constant.
   const archivePath = config.archivePath || DEFAULT_ARCHIVE_PATH;
-  // Phase-3 LOW migration (E12, E13): resolve snippet lengths up front so
+  // Third release LOW migration: resolve snippet lengths up front so
   // they are stable across the lifetime of this factory instance. Defaults
   // preserve prior behavior.
   const snippetLength = config.snippetLength ?? DREAM_SNIPPET_LENGTH;

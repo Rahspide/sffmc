@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/workflow — see ../../LICENSE
 //
-// Phase-2 MEDIUM migration tests (v0.14.3) — sandbox pump timings (W17a-c).
+// second release migration tests (v0.14.3) — sandbox pump timings (sandbox pump timings).
 //
 // Verifies the new YAML-config getters for the concurrent pump in
 // `sandbox.ts`:
@@ -29,7 +29,7 @@ import {
   getSandboxFastWindow,
 } from "./_test-helpers/config-cache.ts"
 
-describe("@sffmc/workflow — Phase-2 W17a-c sandbox pump timings", () => {
+describe("@sffmc/workflow — second release sandbox pump timings sandbox pump timings", () => {
   beforeEach(() => {
     __setWorkflowConfig(null)
   })
@@ -38,19 +38,19 @@ describe("@sffmc/workflow — Phase-2 W17a-c sandbox pump timings", () => {
     __setWorkflowConfig(null)
   })
 
-  it("W17a: DEFAULT_WORKFLOW_EXTENDED_CONFIG.sandboxFastMs matches prior hardcoded 1", () => {
+  it("sandbox pump fast interval: DEFAULT_WORKFLOW_EXTENDED_CONFIG.sandboxFastMs matches prior hardcoded 1", () => {
     // The prior hardcoded value was `const FAST_MS = 1` in sandbox.ts:248.
     // A drift here would mean the YAML override unintentionally changes
     // default behavior.
     expect(DEFAULT_WORKFLOW_EXTENDED_CONFIG.sandboxFastMs).toBe(1)
   })
 
-  it("W17b: DEFAULT_WORKFLOW_EXTENDED_CONFIG.sandboxSlowMs matches prior hardcoded 50", () => {
+  it("sandbox pump slow interval: DEFAULT_WORKFLOW_EXTENDED_CONFIG.sandboxSlowMs matches prior hardcoded 50", () => {
     // The prior hardcoded value was `const SLOW_MS = 50` in sandbox.ts:249.
     expect(DEFAULT_WORKFLOW_EXTENDED_CONFIG.sandboxSlowMs).toBe(50)
   })
 
-  it("W17c: DEFAULT_WORKFLOW_EXTENDED_CONFIG.sandboxFastWindow matches prior hardcoded 50", () => {
+  it("sandbox pump decay window: DEFAULT_WORKFLOW_EXTENDED_CONFIG.sandboxFastWindow matches prior hardcoded 50", () => {
     // The prior hardcoded value was `const FAST_WINDOW = 50` in sandbox.ts:250.
     expect(DEFAULT_WORKFLOW_EXTENDED_CONFIG.sandboxFastWindow).toBe(50)
   })

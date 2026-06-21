@@ -110,7 +110,7 @@ describe("@sffmc/extra plugin", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Phase-1 HIGH migration (E1, E2, E7, E8, E9) — config-loading path tests
+// initial release migration (max checkpoint file size, max restored messages, Jaccard dedup threshold, Jaccard cluster threshold, dream max entries) — config-loading path tests
 // ---------------------------------------------------------------------------
 //
 // Verifies that the YAML-configurable thresholds/caps reach the factory
@@ -118,8 +118,8 @@ describe("@sffmc/extra plugin", () => {
 // values, so behavior is unchanged when no YAML is present) and that
 // overrides flow through unchanged.
 
-describe("@sffmc/extra — Phase-1 HIGH migration", () => {
-  it("checkpoint defaults match prior hardcoded values (E1, E2)", async () => {
+describe("@sffmc/extra — initial release migration", () => {
+  it("checkpoint defaults match prior hardcoded values (max checkpoint file size, max restored messages)", async () => {
     const { createCheckpointTool } = await import("../../extra/src/checkpoint");
     // Call without optional fields — must match prior 10 MiB / 50 behavior.
     const cp = createCheckpointTool({ enabled: false });
@@ -133,7 +133,7 @@ describe("@sffmc/extra — Phase-1 HIGH migration", () => {
     expect(readToolCalls("nonexistent-session-xyz")).toEqual([]);
   });
 
-  it("checkpoint accepts explicit maxFileSize + maxRestoredMessages overrides (E1, E2)", async () => {
+  it("checkpoint accepts explicit maxFileSize + maxRestoredMessages overrides (max checkpoint file size, max restored messages)", async () => {
     const { createCheckpointTool } = await import("../../extra/src/checkpoint");
     // Non-default values; verify the factory accepts them without throwing.
     const cp = createCheckpointTool({
@@ -145,7 +145,7 @@ describe("@sffmc/extra — Phase-1 HIGH migration", () => {
     expect(cp.tool.description).toContain("disabled");
   });
 
-  it("dream factory accepts dedupThreshold/clusterThreshold/maxEntries overrides (E7, E8, E9)", async () => {
+  it("dream factory accepts dedupThreshold/clusterThreshold/maxEntries overrides (Jaccard dedup threshold, Jaccard cluster threshold, dream max entries)", async () => {
     const { createDreamTool, DREAM_DEDUP_THRESHOLD, DREAM_CLUSTER_THRESHOLD, MAX_DREAM_ENTRIES } = await import("../../extra/src/dream");
     // Verify the exported constants still match the prior hardcoded values.
     expect(DREAM_DEDUP_THRESHOLD).toBe(0.9);
@@ -168,7 +168,7 @@ describe("@sffmc/extra — Phase-1 HIGH migration", () => {
 
 
 // ---------------------------------------------------------------------------
-// Phase-2 MEDIUM migration (E3, E4, E5) — config-loading path tests
+// second release migration (buffer flush threshold, periodic flush interval, max in-memory session buffers) — config-loading path tests
 // ---------------------------------------------------------------------------
 //
 // Verifies that the YAML-configurable buffer/flush fields reach the
@@ -176,7 +176,7 @@ describe("@sffmc/extra — Phase-1 HIGH migration", () => {
 //   (a) defaults match v0.14.2 hardcoded values (50 / 5_000 / 50)
 //   (b) overrides change observable behavior
 
-describe("@sffmc/extra — Phase-2 MEDIUM migration (checkpoint E3, E4, E5)", () => {
+describe("@sffmc/extra — second release migration (checkpoint buffer flush threshold, periodic flush interval, max in-memory session buffers)", () => {
   it("default constants exported by checkpoint.ts match v0.14.2 values", async () => {
     const {
       DEFAULT_FLUSH_THRESHOLD,
@@ -188,7 +188,7 @@ describe("@sffmc/extra — Phase-2 MEDIUM migration (checkpoint E3, E4, E5)", ()
     expect(DEFAULT_MAX_BUFFER_SESSIONS).toBe(50);
   });
 
-  it("factory accepts flushThreshold / flushIntervalMs / maxBufferedSessions overrides (E3, E4, E5)", async () => {
+  it("factory accepts flushThreshold / flushIntervalMs / maxBufferedSessions overrides (buffer flush threshold, periodic flush interval, max in-memory session buffers)", async () => {
     const { createCheckpointTool } = await import("../../extra/src/checkpoint");
     const cp = createCheckpointTool({
       enabled: true,
@@ -200,7 +200,7 @@ describe("@sffmc/extra — Phase-2 MEDIUM migration (checkpoint E3, E4, E5)", ()
     cp.cleanup();
   });
 
-  it("flushThreshold override changes buffer-flush behavior (E3, b-1)", async () => {
+  it("flushThreshold override changes buffer-flush behavior (buffer flush threshold, b-1)", async () => {
     const { createCheckpointTool, filePath, __setCheckpointDir, readToolCalls } = await import(
       "../../extra/src/checkpoint"
     );
@@ -228,7 +228,7 @@ describe("@sffmc/extra — Phase-2 MEDIUM migration (checkpoint E3, E4, E5)", ()
     }
   });
 
-  it("maxBufferedSessions override changes LRU eviction behavior (E5, b-2)", async () => {
+  it("maxBufferedSessions override changes LRU eviction behavior (max in-memory session buffers, b-2)", async () => {
     const { createCheckpointTool, filePath, __setCheckpointDir, readToolCalls } = await import(
       "../../extra/src/checkpoint"
     );
@@ -258,7 +258,7 @@ describe("@sffmc/extra — Phase-2 MEDIUM migration (checkpoint E3, E4, E5)", ()
     }
   });
 
-  it("flushIntervalMs override is reflected in the periodic timer (E4, b-3)", async () => {
+  it("flushIntervalMs override is reflected in the periodic timer (periodic flush interval, b-3)", async () => {
     const { createCheckpointTool, filePath, __setCheckpointDir, readToolCalls } = await import(
       "../../extra/src/checkpoint"
     );

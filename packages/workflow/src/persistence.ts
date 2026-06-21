@@ -105,14 +105,14 @@ export function journalKey(
 // Default paths (used when no explicit dataDir provided)
 // ---------------------------------------------------------------------------
 //
-// Phase-1 HIGH migration (W20): the data directory can be overridden via
+// Initial release migration: the data directory can be overridden via
 // `WorkflowConfig.dataDir`. The override (via `getWorkflowDataDir()`) wins
 // over the XDG / `~/.local/share` default. The override is empty string by
 // default — the empty case falls through to the original XDG lookup so
 // behavior is unchanged when no YAML is provided.
 
 function defaultDataDir(): string {
-  // Phase-1 HIGH migration (W20): prefer the YAML-config override if set.
+  // Initial release migration: prefer the YAML-config override if set.
   const override = getWorkflowDataDir()
   if (override && override.trim().length > 0) return override
   const xdg = process.env.XDG_DATA_HOME
@@ -390,7 +390,7 @@ export class WorkflowPersistence {
       for await (const line of rl) {
         lineNo++
         if (!line) continue
-        // v0.14.3 M4 Phase 1 — validate every parsed event against the
+        // v0.14.3 — validate every parsed event against the
         // JournalEvent discriminated union. Torn JSON lines (truncated by
         // a crash mid-append), unknown event types, and missing required
         // fields are all skipped silently with a structured debug log,

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/max-mode — see ../../LICENSE
 //
-// Phase-3 LOW migration test (v0.14.3) — max-mode X3.
+// third release migration test (v0.14.3) — max-mode max-mode dream integration.
 // See .slim/deepwork/phase-2-3-hardcode-migration-plan.md §3.6.
 //
 // Verifies the new YAML-configurable field on MaxModeConfig:
 //
-//   - X3  maxMode.fallbackConfidence    (default 0.3, range 0.0-1.0 float)
+//   - max-mode dream integration  maxMode.fallbackConfidence    (default 0.3, range 0.0-1.0 float)
 //         Confidence assigned by `fallbackVerdict()` when the judge LLM
 //         is unavailable, throws, or returns unparseable output.
 //         Was: literal `confidence: 0.3` in judge.ts:88 (pre-migration).
@@ -14,7 +14,7 @@
 //         default 0.3. Configured via MaxModeConfig.fallbackConfidence.
 //
 // Reference pattern: `packages/max-mode/test/phase2-batch-a-max-mode.test.ts`
-// (X1/X2 migration). All checks use an isolated temp configHome so the
+// (max-mode checkpoint integration/max-mode chokidar migration migration). All checks use an isolated temp configHome so the
 // user's real `~/.config/SFFMC/max-mode.yaml` is never touched.
 
 import { describe, it, expect, beforeAll, afterAll } from "bun:test";
@@ -78,10 +78,10 @@ const candidates = [
 ];
 
 // ===========================================================================
-// X3 (a) — defaultConfig + loadConfig baseline
+// max-mode dream integration (a) — defaultConfig + loadConfig baseline
 // ===========================================================================
 
-describe("X3 — maxMode.fallbackConfidence (default + loadConfig)", () => {
+describe("max-mode dream integration — maxMode.fallbackConfidence (default + loadConfig)", () => {
   it("(a) defaultConfig.fallbackConfidence === 0.3 (matches v0.14.3 literal)", () => {
     expect(defaultConfig.fallbackConfidence).toBe(0.3);
   });
@@ -106,10 +106,10 @@ describe("X3 — maxMode.fallbackConfidence (default + loadConfig)", () => {
 });
 
 // ===========================================================================
-// X3 (b) — YAML override
+// max-mode dream integration (b) — YAML override
 // ===========================================================================
 
-describe("X3 — maxMode.fallbackConfidence (YAML override)", () => {
+describe("max-mode dream integration — maxMode.fallbackConfidence (YAML override)", () => {
   it("(b) YAML override changes the value (mid-range: 0.5)", async () => {
     writeMaxModeYaml("fallbackConfidence: 0.5\n");
     const { loadConfig } = await import("@sffmc/shared");
@@ -140,10 +140,10 @@ describe("X3 — maxMode.fallbackConfidence (YAML override)", () => {
 });
 
 // ===========================================================================
-// X3 (c) — judgeCandidates uses fallbackConfidence in fallbackVerdict()
+// max-mode dream integration (c) — judgeCandidates uses fallbackConfidence in fallbackVerdict()
 // ===========================================================================
 
-describe("X3 — judgeCandidates uses configured fallbackConfidence", () => {
+describe("max-mode dream integration — judgeCandidates uses configured fallbackConfidence", () => {
   it("(c) SDK unavailable → verdict.confidence === fallbackConfidence (0.5)", async () => {
     // Pass 0.5 explicitly as the 5th arg to verify the value flows through
     // to `fallbackVerdict()` when the SDK is absent.
@@ -152,8 +152,8 @@ describe("X3 — judgeCandidates uses configured fallbackConfidence", () => {
       "test-model",
       // ctx without client.session.message → triggers early fallback path.
       {} as unknown as Parameters<typeof judgeCandidates>[2],
-      8000,    // judgeDraftMaxChars (X2)
-      0.5,     // fallbackConfidence (X3)
+      8000,    // judgeDraftMaxChars (max-mode chokidar migration)
+      0.5,     // fallbackConfidence (max-mode dream integration)
     );
     expect(verdict.winner).toBe(1); // longest-draft heuristic unchanged
     expect(verdict.confidence).toBe(0.5);
@@ -226,12 +226,12 @@ describe("X3 — judgeCandidates uses configured fallbackConfidence", () => {
 });
 
 // ===========================================================================
-// X3 (d) — backward compatibility: default fallbackConfidence = 0.3
+// max-mode dream integration (d) — backward compatibility: default fallbackConfidence = 0.3
 // ===========================================================================
 
-describe("X3 — judgeCandidates default fallbackConfidence (backward compat)", () => {
+describe("max-mode dream integration — judgeCandidates default fallbackConfidence (backward compat)", () => {
   it("(d) omitting the 5th arg falls back to 0.3 (matches v0.14.3 pre-migration)", async () => {
-    // Same 3-arg call shape used in agentic/test/max-mode.test.ts (pre-X3).
+    // Same 3-arg call shape used in agentic/test/max-mode.test.ts (pre-max-mode dream integration).
     // The 4th and 5th args are optional with sensible defaults.
     const verdict = await judgeCandidates(
       candidates,
@@ -255,10 +255,10 @@ describe("X3 — judgeCandidates default fallbackConfidence (backward compat)", 
 });
 
 // ===========================================================================
-// X3 (e) — integration: X1+X2+X3 together
+// max-mode dream integration (e) — integration: max-mode checkpoint integration+max-mode chokidar migration+max-mode dream integration together
 // ===========================================================================
 
-describe("X3 — integration with X1 and X2 in full MaxModeConfig", () => {
+describe("max-mode dream integration — integration with max-mode checkpoint integration and max-mode chokidar migration in full MaxModeConfig", () => {
   it("(e) YAML can override all three fields at once without disturbing defaults", async () => {
     writeMaxModeYaml([
       "maxCandidates: 25",
@@ -273,7 +273,7 @@ describe("X3 — integration with X1 and X2 in full MaxModeConfig", () => {
     expect(cfg.fallbackConfidence).toBe(0.6);
   });
 
-  it("(e) YAML override of one field does NOT disturb X3 fallbackConfidence", async () => {
+  it("(e) YAML override of one field does NOT disturb max-mode dream integration fallbackConfidence", async () => {
     // Override only maxCandidates — fallbackConfidence should stay default 0.3.
     writeMaxModeYaml("maxCandidates: 7\n");
     const { loadConfig } = await import("@sffmc/shared");

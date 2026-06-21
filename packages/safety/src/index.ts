@@ -2,7 +2,7 @@
 // @sffmc/safety — see ../../LICENSE
 //
 // SFFMC safety MSP — composes watchdog, rules, auto-max, eos-stripper, log-whitelist.
-// Phase 2: wires all 5 sub-features via mergeHooks().
+// second release: wires all 5 modules via mergeHooks().
 
 import { server as watchdogServer } from "../../watchdog/src/index.ts"
 import { server as rulesServer } from "../../rules/src/index.ts"

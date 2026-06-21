@@ -62,7 +62,7 @@ describe("isSensitiveFilename — positive cases", () => {
 
 describe("redactSecrets — positive cases", () => {
   it("catches BEGIN RSA PRIVATE KEY blocks (header + body + footer) (4)", () => {
-    // M5.2 (v0.14.1): the PEM rule now redacts the FULL armored block —
+    // PEM block redaction (v0.14.1): the PEM rule now redacts the FULL armored block —
     // header line, base64-encoded key material body, and footer line — so
     // the private key cannot be reconstructed from the body alone.
     const input = [
@@ -296,10 +296,10 @@ describe("performance", () => {
 })
 
 // ---------------------------------------------------------------------------
-// M5.2 — PEM body redaction (v0.14.1 hotfix) — 7 tests
+// PEM block redaction — PEM body redaction (v0.14.1 hotfix) — 7 tests
 // ---------------------------------------------------------------------------
 
-describe("redactSecrets — PEM body redaction (M5.2)", () => {
+describe("redactSecrets — PEM body redaction (PEM block redaction)", () => {
   it("redacts the base64 body of an RSA PRIVATE KEY block (29)", () => {
     const body = "MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQ"
     const input = `-----BEGIN RSA PRIVATE KEY-----\n${body}==\n-----END RSA PRIVATE KEY-----`
@@ -358,7 +358,7 @@ describe("redactSecrets — PEM body redaction (M5.2)", () => {
   })
 
   it("PEM header without matching footer is NOT redacted (33)", () => {
-    // M5.2 scopes the regex to require both BEGIN and END markers. A bare
+    // PEM block redaction scopes the regex to require both BEGIN and END markers. A bare
     // header (e.g. a truncated dump, or a snippet with the END cut off) is
     // intentionally left alone — partial redaction of a PEM block would
     // still leak the body. This is the documented fallback behavior.

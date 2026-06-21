@@ -4,7 +4,7 @@ import { type RichPluginContext } from "@sffmc/shared";
  *  from setting n_candidates to very high values (e.g. 100) which would
  *  fire that many simultaneous API calls, exhausting quotas and budget.
  *
- *  H6 (Manriel audit, v0.14.2) — decision and rationale:
+ *  parallel LLM candidates cap (Manriel audit, v0.14.2) — decision and rationale:
  *
  *  Manriel's original design used a cap of 50 candidates. The current
  *  code uses 10. Manriel's audit pushed back: "50 is intentional API
@@ -13,7 +13,7 @@ import { type RichPluginContext } from "@sffmc/shared";
  *
  *  Decision: KEEP the default at 10 (now configurable via
  *  `MaxModeConfig.maxCandidates`, see .slim/deepwork/phase-2-3-
- *  hardcode-migration-plan.md §2.6 — X1). Rationale:
+ *  hardcode-migration-plan.md §2.6 — max-mode checkpoint integration). Rationale:
  *
  *  1. Budget protection is the primary constraint. Each candidate is
  *     a separate `session.message()` call — the LLM API charges per
@@ -40,7 +40,7 @@ import { type RichPluginContext } from "@sffmc/shared";
  *     them; the runtime clamps to the configured cap (default 10).
  *     This is a deliberate budget guard, not a bug.
  *
- *  v0.14.3 (Phase 2 — X1): the prior module-level `MAX_CANDIDATES = 10`
+ *  v0.14.3 (second release — max-mode checkpoint integration): the prior module-level `MAX_CANDIDATES = 10`
  *  was replaced with a `MaxModeConfig.maxCandidates` field. The default
  *  of 10 is preserved in `defaultConfig.maxCandidates`, so behavior is
  *  unchanged when no `~/.config/SFFMC/max-mode.yaml` is present.
@@ -67,7 +67,7 @@ interface GenerateConfig {
   n: number;
   models: string[];
   temperature: number;
-  /** X1 — Phase-2 MEDIUM migration. Hard cap on parallel LLM
+  /** max-mode checkpoint integration — second release migration. Hard cap on parallel LLM
    *  candidates. Optional so callers can omit it; safety cap falls
    *  back to 10 (matching the v0.14.2 module-level const). Callers
    *  built on `MaxModeConfig` always pass `config.maxCandidates`. */
@@ -108,7 +108,7 @@ export async function generateCandidates(
 
   const model = config.models[0] || String(ctx.config?.model || "");
   const candidates: Candidate[] = [];
-  // X1 — Phase-2 MEDIUM migration. Safety cap: clamp requested n to the
+  // max-mode checkpoint integration — second release migration. Safety cap: clamp requested n to the
   // configured maxCandidates (default 10, matching v0.14.2 const). This
   // is the deliberate budget guard — see block comment above.
   const n = Math.min(config.n, config.maxCandidates ?? 10);

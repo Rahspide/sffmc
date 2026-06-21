@@ -17,7 +17,7 @@ import {
 export type { CheckResult, HealthResult, CheckFn } from "./check-factory.ts";
 
 // ---------------------------------------------------------------------------
-// Phase-2 MEDIUM migration (H1, H2, H3) — YAML-configurable health checks.
+// second release migration (composite file list, safeMultiHooks flag, expected composite list) — YAML-configurable health checks.
 //
 // The health package historically had three module-level `const` arrays
 // (TOOL_FILES, safeMultiHooks, EXPECTED_COMPOSITES) that pinned the behavior
@@ -33,23 +33,23 @@ export type { CheckResult, HealthResult, CheckFn } from "./check-factory.ts";
 // per-test reset (`__setHealthConfig`) takes effect immediately.
 // ---------------------------------------------------------------------------
 
-/** H1 — repo-relative paths of files that register a tool (used by
+/** composite file list — repo-relative paths of files that register a tool (used by
  *  `checkToolRegistration` to scan for the fix-17 `name` field bug). */
 export interface HealthConfig {
-  /** H1 — tool-registration scan targets (fix-17 regression guard). */
+  /** composite file list — tool-registration scan targets (fix-17 regression guard). */
   toolFiles: readonly string[]
-  /** H2 — hook names that are SAFE for multiple plugins to register
+  /** safeMultiHooks flag — hook names that are SAFE for multiple plugins to register
    *  (`checkHookConflicts` whitelists these and treats all others as
    *  real conflicts). */
   safeMultiHooks: readonly string[]
-  /** H3 — composites the monorepo is expected to ship (used by
+  /** expected composite list — composites the monorepo is expected to ship (used by
    *  `checkCompositeStructure` for forward-validation of the
    *  safety/memory/agentic layout). */
   expectedComposites: readonly string[]
 }
 
 export const DEFAULT_HEALTH_CONFIG: HealthConfig = {
-  // H1 — matches the v0.14.2 hardcoded TOOL_FILES at src/index.ts:280-287
+  // composite file list — matches the v0.14.2 hardcoded TOOL_FILES at src/index.ts:280-287
   toolFiles: [
     "packages/compose/src/index.ts",       // compose_skill
     "packages/workflow/src/tool.ts",       // workflow
@@ -58,7 +58,7 @@ export const DEFAULT_HEALTH_CONFIG: HealthConfig = {
     "packages/extra/src/judge.ts",         // extra_judge
     "packages/extra/src/dream.ts",         // extra_dream
   ],
-  // H2 — matches the v0.14.2 hardcoded `new Set([...])` at src/index.ts:133-149
+  // safeMultiHooks flag — matches the v0.14.2 hardcoded `new Set([...])` at src/index.ts:133-149
   safeMultiHooks: [
     "config",
     "event",
@@ -76,7 +76,7 @@ export const DEFAULT_HEALTH_CONFIG: HealthConfig = {
     "chat.params",
     "chat.system",
   ],
-  // H3 — matches the v0.14.2 hardcoded EXPECTED_COMPOSITES at src/index.ts:693
+  // expected composite list — matches the v0.14.2 hardcoded EXPECTED_COMPOSITES at src/index.ts:693
   expectedComposites: ["safety", "memory", "agentic"],
 }
 
@@ -246,7 +246,7 @@ export const checkHookConflicts = createCheck("hook_conflicts", async (repoRoot)
     // Most OpenCode hooks are designed for multiple plugins to chain/aggregate.
     // Only a few hooks are truly exclusive (where multiple registrations would conflict).
     // The known-safe hooks for multi-registration come from
-    // `getHealthConfigSync().safeMultiHooks` (H2 Phase-2 migration) — defaults
+    // `getHealthConfigSync().safeMultiHooks` (safeMultiHooks flag second release migration) — defaults
     // match the v0.14.2 hardcoded list verbatim.
     const safeMultiHooks = new Set(getHealthConfigSync().safeMultiHooks);
 
@@ -278,7 +278,7 @@ export const checkHookConflicts = createCheck("hook_conflicts", async (repoRoot)
 
 // Check 2: Test presence
 export const checkTestPresence = createCheck("test_presence", async (repoRoot) => {
-  // After Phase 4 (v0.9.0), sub-feature packages are "code-only" — their
+  // After fourth release (v0.9.0), module packages are "code-only" — their
   // tests live in the owning composite's test/ dir. Only check packages that
   // are themselves test owners: composites (have role) and shared (infra).
   const pkgs = await packageNames(repoRoot);
@@ -379,7 +379,7 @@ export const checkTypeCheck = createCheck("type_check", async (repoRoot) => {
 });
 
 // Check 5: Tool registration sanity (fix-17 regression guard)
-// H1 Phase-2 migration — the file list now comes from
+// composite file list second release migration — the file list now comes from
 // `getHealthConfigSync().toolFiles` (default matches the v0.14.2 hardcoded
 // list). We resolve it once at the start of the check to keep the inner
 // loop allocation-free.
@@ -788,7 +788,7 @@ export const checkCategorySplit = createCheck("category_split", async (repoRoot)
 });
 
 // Check 13: Composite structure (v0.9.0)
-// H3 Phase-2 migration — the expected composite list now comes from
+// expected composite list second release migration — the expected composite list now comes from
 // `getHealthConfigSync().expectedComposites` (default matches the v0.14.2
 // hardcoded `["safety", "memory", "agentic"]` list verbatim).
 export const checkCompositeStructure = createCheck("composite_structure", async (repoRoot) => {
@@ -848,7 +848,7 @@ export const checkCompositeStructure = createCheck("composite_structure", async 
     }
   }
 
-  // 5. No sub-feature claims to be a composite (inverse check)
+  // 5. No module claims to be a composite (inverse check)
   for (const pkg of await packageNames(repoRoot)) {
     if (expectedComposites.includes(pkg)) continue;
     const pkgJsonPath = join(repoRoot, "packages", pkg, "package.json");

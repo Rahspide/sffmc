@@ -8,7 +8,7 @@ import { loadConfig, type PluginContext } from "@sffmc/shared";
 // ---------------------------------------------------------------------------
 // v0.14.2 hardcoded values (kept verbatim for backward compatibility).
 //
-// v0.14.3 Phase-2 MEDIUM migration (C1, C2) makes the skills directory
+// v0.14.3 second release migration (skills directory override (config), skills directory override (filesystem)) makes the skills directory
 // configurable via `compose.skillsDir` and discovers the valid skill list
 // from the filesystem when the directory is overridden. When the config
 // value is empty (the default), both the directory and the skill list fall
@@ -54,19 +54,19 @@ export const DEFAULT_SKILLS = [
 export type DefaultSkillName = (typeof DEFAULT_SKILLS)[number]
 
 // ---------------------------------------------------------------------------
-// Phase-2 MEDIUM migration (C1, C2) — YAML-configurable compose plugin.
+// second release migration (skills directory override (config), skills directory override (filesystem)) — YAML-configurable compose plugin.
 //
 // Pattern precedent: `packages/workflow/src/constants.ts`
 // (`ensureWorkflowConfig`, `getWorkflowConfigSync`, `__setWorkflowConfig`).
 // Same shape: a single `let _composeConfig` caches the merged config and
 // the sync getter falls back to defaults when no load has happened.
 //
-// C1 (`compose.skillsDir`) — directory containing `.md` skill files.
+// skills directory override (config) (`compose.skillsDir`) — directory containing `.md` skill files.
 //     When empty (default), the bundled `DEFAULT_SKILLS_DIR` is used.
 //     When set, the directory is used as the skills root and the valid
-//     skill list is discovered from `*.md` basenames (C2).
+//     skill list is discovered from `*.md` basenames (skills directory override (filesystem)).
 //
-// C2 — `VALID_SKILLS` becomes **filesystem-discovered** when `skillsDir`
+// skills directory override (filesystem) — `VALID_SKILLS` becomes **filesystem-discovered** when `skillsDir`
 //     is set, falling back to the hardcoded `DEFAULT_SKILLS` list when
 //     the config value is empty. The risk note in the migration plan
 //     (phase-2-3-hardcode-migration-plan.md §2.9) is preserved: skill
@@ -76,7 +76,7 @@ export type DefaultSkillName = (typeof DEFAULT_SKILLS)[number]
 // ---------------------------------------------------------------------------
 
 export interface ComposeConfig {
-  /** C1 — skills directory override. Empty string (the default) means
+  /** skills directory override (config) — skills directory override. Empty string (the default) means
    *  "use the bundled `DEFAULT_SKILLS_DIR`". When set to a non-empty
    *  path, the value is used as the skills root and the valid skill
    *  list is discovered from `*.md` basenames in that directory. */
@@ -84,7 +84,7 @@ export interface ComposeConfig {
 }
 
 export const DEFAULT_COMPOSE_CONFIG: ComposeConfig = {
-  // C1 — empty string preserves the v0.14.2 behavior
+  // skills directory override (config) — empty string preserves the v0.14.2 behavior
   // (`join(import.meta.dirname, "..", "skills")` resolved at module load).
   skillsDir: "",
 }
@@ -131,7 +131,7 @@ export function getComposeConfigSync(): ComposeConfig {
 // the exported module-level constant (the prior hardcoded value).
 // ---------------------------------------------------------------------------
 
-/** C1 — resolved skills directory. When `compose.skillsDir` is empty
+/** skills directory override (config) — resolved skills directory. When `compose.skillsDir` is empty
  *  (the default), returns the bundled `DEFAULT_SKILLS_DIR`. Otherwise
  *  returns the configured path. */
 export function getComposeSkillsDir(): string {
@@ -139,7 +139,7 @@ export function getComposeSkillsDir(): string {
   return cfg && cfg.length > 0 ? cfg : DEFAULT_SKILLS_DIR
 }
 
-/** C2 — resolved list of valid skill names. When `compose.skillsDir` is
+/** skills directory override (filesystem) — resolved list of valid skill names. When `compose.skillsDir` is
  *  empty (the default), returns the hardcoded `DEFAULT_SKILLS` list
  *  (preserves v0.14.2 behavior). Otherwise reads the directory and
  *  returns the basenames of every `*.md` file in alphabetical order.
@@ -193,9 +193,9 @@ const __SET_COMPOSE_CONFIG_SYMBOL = Symbol.for("@sffmc/compose.__setComposeConfi
 
 export const id = "@sffmc/compose"
 
-/** v0.14.3 Phase-2 C1/C2: `server()` now resolves the skills directory
- *  and the valid skill list from config (C1 = `getComposeSkillsDir()`,
- *  C2 = `getComposeValidSkills()`). Both fall back to the v0.14.2
+/** v0.14.3 second release: `server()` now resolves the skills directory
+ *  and the valid skill list from config (`getComposeSkillsDir()` and
+ *  `getComposeValidSkills()`). Both fall back to the v0.14.2
  *  hardcoded values when no `compose.skillsDir` is set in YAML, so the
  *  default behavior is unchanged. The `server()` function was already
  *  `async` in v0.14.2 (returned `Promise<…>`), so the `await

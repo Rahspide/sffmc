@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/workflow — see ../../LICENSE
 //
-// M4 schema refactor Phase 1 (MVP) — journal event validation.
+// schema journal validation — journal event validation.
 //
-// Closes Manriel audit M4 ("Journal JSON parsed without schema validation").
+// Closes Manriel audit finding "Journal JSON parsed without schema validation".
 // Every parsed JSONL line is now validated against the discriminated union
 // below before being admitted to the in-memory journal map. This catches
 // malformed events (corrupted on disk, unknown `t` from a future version,
@@ -19,7 +19,7 @@
 //   - Errors are structured: `{ line, raw, error }` so callers can log
 //     the exact line and the parser-reported reason.
 //
-// Limits (out of scope for Phase 1):
+// Limits (out of scope for initial release):
 //   - No nested validation of `args` / `result` / `msg` content (those are
 //     opaque from the journal's perspective; they're asserted on use, not
 //     on store).

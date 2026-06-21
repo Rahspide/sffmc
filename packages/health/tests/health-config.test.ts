@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
-// @sffmc/health — Phase-2 MEDIUM migration tests (H1, H2, H3)
+// @sffmc/health — second release migration tests (composite file list, safeMultiHooks flag, expected composite list)
 //
 // Verifies the new YAML-configurable fields on HealthConfig:
-//   - H1  toolFiles           (default 6-entry list, fix-17 regression scan targets)
-//   - H2  safeMultiHooks      (default 15-entry list, hook-conflict whitelist)
-//   - H3  expectedComposites  (default ["safety", "memory", "agentic"])
+//   - composite file list  toolFiles           (default 6-entry list, fix-17 regression scan targets)
+//   - safeMultiHooks flag  safeMultiHooks      (default 15-entry list, hook-conflict whitelist)
+//   - expected composite list  expectedComposites  (default ["safety", "memory", "agentic"])
 //
 // Two checks per item:
 //   (a) default matches v0.14.2 hardcoded value (no behavior change)
@@ -61,10 +61,10 @@ afterEach(() => {
 });
 
 // ---------------------------------------------------------------------------
-// H1 — toolFiles
+// composite file list — toolFiles
 // ---------------------------------------------------------------------------
 
-describe("H1 — health.toolFiles", () => {
+describe("composite file list — health.toolFiles", () => {
   it("(a) default matches the v0.14.2 hardcoded 6-entry list", () => {
     expect(DEFAULT_HEALTH_CONFIG.toolFiles).toEqual([
       "packages/compose/src/index.ts",
@@ -96,10 +96,10 @@ describe("H1 — health.toolFiles", () => {
 });
 
 // ---------------------------------------------------------------------------
-// H2 — safeMultiHooks
+// safeMultiHooks flag — safeMultiHooks
 // ---------------------------------------------------------------------------
 
-describe("H2 — health.safeMultiHooks", () => {
+describe("safeMultiHooks flag — health.safeMultiHooks", () => {
   it("(a) default matches the v0.14.2 hardcoded 15-entry list", () => {
     expect(DEFAULT_HEALTH_CONFIG.safeMultiHooks).toEqual([
       "config",
@@ -139,10 +139,10 @@ describe("H2 — health.safeMultiHooks", () => {
 });
 
 // ---------------------------------------------------------------------------
-// H3 — expectedComposites
+// expected composite list — expectedComposites
 // ---------------------------------------------------------------------------
 
-describe("H3 — health.expectedComposites", () => {
+describe("expected composite list — health.expectedComposites", () => {
   it("(a) default matches the v0.14.2 hardcoded ['safety', 'memory', 'agentic']", () => {
     expect(DEFAULT_HEALTH_CONFIG.expectedComposites).toEqual([
       "safety",
@@ -170,7 +170,7 @@ describe("H3 — health.expectedComposites", () => {
 // Combined — all three fields can be set at once, none clash with each other.
 // ---------------------------------------------------------------------------
 
-describe("H1/H2/H3 — combined", () => {
+describe("composite file list/safeMultiHooks flag/expected composite list — combined", () => {
   it("all three values flow through when set in the same YAML", async () => {
     writeHealthYaml(
       [

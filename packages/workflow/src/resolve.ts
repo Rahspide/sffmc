@@ -82,7 +82,7 @@ export async function resolveWorkflow(
     throw new Error(`invalid workflow name: ${JSON.stringify(nameOrPath)}`)
   }
 
-  // Phase-1 HIGH migration (W25): search dirs are now read from the
+  // initial release migration (W25): search dirs are now read from the
   // YAML-config (`WorkflowConfig.searchDirs`), defaulting to the prior
   // `[".sffmc/workflows", ".claude/workflows"]` array. The sync getter
   // returns the cached value or the default if `ensureWorkflowConfig()`

@@ -417,7 +417,7 @@ memory-core + extra's 3 named servers via `mergeHooks()`.
 
 ### Migration from v0.8.2
 
-v0.8.2 configs work without changes — all 10 sub-feature packages still
+v0.8.2 configs work without changes — all 10 module packages still
 load as standalone plugins. To use the new composites (recommended):
 
 ```diff

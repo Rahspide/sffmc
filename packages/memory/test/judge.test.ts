@@ -495,7 +495,7 @@ describe("createJudgeTool shape", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Phase-2 (v0.14.3) MEDIUM migration — E15 maxCandidates
+// second release migration (v0.14.3) — judge prompt maxCandidates
 // ---------------------------------------------------------------------------
 // judge.ts:115 — DEFAULT_MAX_CANDIDATES is exported (= 8). MIN/MAX bounds
 // (2-20) are also exported. The factory clamps `config.maxCandidates` to
@@ -514,7 +514,7 @@ describe("createJudgeTool shape", () => {
 //   6. Non-integer values are floored.
 //   7. Lower bound check still rejects 1 candidate regardless of cap.
 
-describe("E15 maxCandidates config", () => {
+describe("judge prompt maxCandidates config", () => {
   it("exports the documented default and bounds", () => {
     expect(DEFAULT_MAX_CANDIDATES).toBe(8);
     expect(MIN_MAX_CANDIDATES).toBe(2);

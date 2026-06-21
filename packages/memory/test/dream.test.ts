@@ -376,9 +376,9 @@ describe("F8 Dream", () => {
     expect(isDreamLocked()).toBe(false); // lock released after completion
   });
 
-  // ── M9 (Manriel audit, v0.14.2) — concurrent dream() calls under
+  // ── Manriel audit, v0.14.2 — concurrent dream() calls under
   //    the module-level _activeDreamState singleton. ────────────────
-  it("M9: 10 concurrent dream() calls — exactly 1 succeeds, 9 skipped, no state corruption", async () => {
+  it("dream module state: 10 concurrent dream() calls — exactly 1 succeeds, 9 skipped, no state corruption", async () => {
     const db = openTestDB();
     seedDB(db, 100);
     db.close();
@@ -408,7 +408,7 @@ describe("F8 Dream", () => {
     }
 
     // State is clean after the burst — the lock was released and
-    // isDreamLocked() reports false. This catches the M9 race: if
+    // isDreamLocked() reports false. This catches the race: if
     // _activeDreamState were mishandled, the lock pointer could be
     // left dangling and a subsequent call would see a stale lock.
     expect(isDreamLocked()).toBe(false);
@@ -1010,7 +1010,7 @@ describe("F8 Dream", () => {
   // O(n²) re-tokenize storm into O(n²) Set.has() lookups. Goal: 3-5x
   // speedup vs the legacy jaccard() string API on 1000+ entry workloads.
   // To enable this benchmark, change `it.skip` to `it` and run:
-  //   cd /data/projects/SFFMC && bun test -t "jaccardSets performance"
+  //   cd <repo-root> && bun test -t "jaccardSets performance"
   // Actual wall time depends on machine; this is for manual inspection,
   // not a CI gate. The log line includes the timing + counts.
 
@@ -1045,7 +1045,7 @@ describe("F8 Dream", () => {
     );
   });
 
-  // ── Phase-2 (v0.14.3) MEDIUM migration — E10 archivePath ──────────────
+  // ── Second release (v0.14.3) MEDIUM migration — archivePath config ─────
   // dream.ts:146 — DEFAULT_ARCHIVE_PATH is exported. The factory resolves
   // `config.archivePath || DEFAULT_ARCHIVE_PATH` and uses that single path
   // for the entire factory instance. Empty string is a falsy "use default"
@@ -1064,7 +1064,7 @@ describe("F8 Dream", () => {
   //   5. Two factories with different `archivePath` values write to
   //      independent files — confirms the per-instance resolution.
 
-  describe("E10 archivePath config", () => {
+  describe("archivePath config", () => {
     it("DEFAULT_ARCHIVE_PATH equals the documented homedir location", () => {
       const expected = resolve(
         homedir(),
@@ -1246,7 +1246,7 @@ describe("F8 Dream", () => {
     });
   });
 
-  // ── Phase-3 (v0.14.3) LOW migration — E12/E13 snippetLength ───────────
+  // ── Third release (v0.14.3) LOW migration — snippetLength ───────────
   // dream.ts — the `100` and `200` literals in `concatenateSummary`,
   // `nameClusterViaLLM`, and `summarizeViaLLM` are now configurable via
   // `DreamConfig.snippetLength` and `DreamConfig.llmSnippetLength`.
@@ -1271,7 +1271,7 @@ describe("F8 Dream", () => {
   //      current contract and would surface any future change to
   //      add clamping.
 
-  describe("E12/E13 snippetLength config", () => {
+  describe("snippetLength config", () => {
     it("DREAM_SNIPPET_LENGTH and DREAM_LLM_SNIPPET_LENGTH constants match documented defaults", () => {
       expect(DREAM_SNIPPET_LENGTH).toBe(100);
       expect(DREAM_LLM_SNIPPET_LENGTH).toBe(200);

@@ -36,14 +36,17 @@
     "typecheck": "for p in packages/* shared; do (cd \"$p\" && bun build --target=bun --no-bundle src/index.ts 2>&1) | grep -v 'bun build' || true; done",
     "audit:public": "bash scripts/audit-public-content.sh",
     "audit:redos": "bun run scripts/check-redos.ts",
-    "precommit": "bun run typecheck && bun run test && python3 scripts/audit-load-order.py && bun run audit:public && bun run audit:redos && bun run scripts/run-health.ts",
+    "check:cleanroom": "bash scripts/check-cleanroom.sh",
+    "precommit": "bun run typecheck && bun run test && python3 scripts/audit-load-order.py && bun run audit:public && bun run audit:redos && bun run check:cleanroom && bun run scripts/run-health.ts",
     "publish:dry-run": "scripts/release.sh --dry-run",
     "publish:shared": "cd shared && bun publish --dry-run",
     "publish:packages": "for p in packages/*/package.json; do d=$(dirname \"$p\"); (cd \"$d\" && bun publish --dry-run) || exit 1; done",
     "publish:actual": "scripts/release.sh --actual",
-    "version:list": "for p in packages/*/package.json shared/package.json; do echo -n \"$p: \"; jq -r .version \"$p\"; done"
+    "version:list": "for p in packages/*/package.json shared/package.json; do echo -n \"$p: \"; jq -r .version \"$p\"; done",
+    "prepare": "husky"
   },
   "devDependencies": {
+    "husky": "^9.1.7",
     "safe-regex": "^2.1.1"
   },
   "engines": {

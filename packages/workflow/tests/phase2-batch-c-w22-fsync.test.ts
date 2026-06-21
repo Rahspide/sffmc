@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/workflow — see ../../LICENSE
 //
-// Phase-2 MEDIUM migration tests (v0.14.3) — journal fsync coalescing (W22).
+// second release migration tests (v0.14.3) — journal fsync coalescing (fsync coalescing window).
 //
 // Verifies the new YAML-config getter for the journal fsync coalesce
 // window in `persistence.ts:scheduleFsync`:
@@ -11,9 +11,9 @@
 // (`const FSYNC_COALESCE_MS = 50` in persistence.ts:171) so behavior is
 // unchanged when no `~/.config/SFFMC/workflow.yaml` is present.
 //
-// Unlike W19, the consumer wiring in `persistence.ts` is NOT off-limits
+// Unlike scheduleFlush debounce window, the consumer wiring in `persistence.ts` is NOT off-limits
 // (persistence.ts is not runtime.ts). The follow-up hotfix that touches
-// runtime.ts for W19 should also touch persistence.ts to replace
+// runtime.ts for scheduleFlush debounce window should also touch persistence.ts to replace
 // `setTimeout(flushFsync, FSYNC_COALESCE_MS)` with
 // `setTimeout(flushFsync, getFsyncCoalesceMs())`. This commit only adds
 // the config field + getter + tests; the wiring update is tracked
@@ -31,7 +31,7 @@ import {
   getFsyncCoalesceMs,
 } from "./_test-helpers/config-cache.ts"
 
-describe("@sffmc/workflow — Phase-2 W22 journal fsync coalescing", () => {
+describe("@sffmc/workflow — second release fsync coalescing", () => {
   beforeEach(() => {
     __setWorkflowConfig(null)
   })
@@ -40,7 +40,7 @@ describe("@sffmc/workflow — Phase-2 W22 journal fsync coalescing", () => {
     __setWorkflowConfig(null)
   })
 
-  it("W22: DEFAULT_WORKFLOW_EXTENDED_CONFIG.fsyncCoalesceMs matches prior hardcoded 50", () => {
+  it("fsync coalescing window: DEFAULT_WORKFLOW_EXTENDED_CONFIG.fsyncCoalesceMs matches prior hardcoded 50", () => {
     // The prior hardcoded value was `const FSYNC_COALESCE_MS = 50` in
     // persistence.ts:171. A drift here would mean the YAML override
     // unintentionally changes default behavior.
@@ -75,7 +75,7 @@ describe("@sffmc/workflow — Phase-2 W22 journal fsync coalescing", () => {
     expect(getFsyncCoalesceMs()).toBe(500)
   })
 
-  it("W22 does not collide with W17a-c pump or W19 debounce defaults", () => {
+  it("fsync coalescing window does not collide with sandbox pump timings pump or scheduleFlush debounce window debounce defaults", () => {
     // Sibling fields remain at their respective defaults when only
     // fsyncCoalesceMs is overridden.
     __setWorkflowConfig({

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/watchdog — see ../../LICENSE
 //
-// Phase-2 MEDIUM migration test (D2) — see
+// second release migration test (watchdog log file) — see
 // .slim/deepwork/phase-2-3-hardcode-migration-plan.md §2.7
 //
 // Verifies the new YAML-configurable field on WatchdogConfig:
-//   - D2  recentFailuresLimit   (default 5, limit passed to FailureCounter.getRecentFailures)
+//   - watchdog log file  recentFailuresLimit   (default 5, limit passed to FailureCounter.getRecentFailures)
 //
 // Three checks:
 //   (a) default matches v0.14.2 hardcoded value (5)
@@ -25,7 +25,7 @@ import { loadConfig } from "@sffmc/shared";
 // Isolated configHome so we don't pick up the user's real
 // ~/.config/SFFMC/watchdog.yaml. Note: the existing loaded-log.test.ts uses
 // ~/.config/SFFMC/watchdog.yaml directly — we use a temp dir here to keep
-// the D2 tests hermetic and not interfere with that other suite.
+// the watchdog log file tests hermetic and not interfere with that other suite.
 // ---------------------------------------------------------------------------
 
 let tempHome: string | undefined;
@@ -55,10 +55,10 @@ function writeWatchdogYaml(contents: string): void {
 }
 
 // ---------------------------------------------------------------------------
-// D2 — recentFailuresLimit
+// watchdog log file — recentFailuresLimit
 // ---------------------------------------------------------------------------
 
-describe("D2 — watchdog.recentFailuresLimit", () => {
+describe("watchdog log file — watchdog.recentFailuresLimit", () => {
   it("(a) defaultConfig.recentFailuresLimit === 5 (matches v0.14.2 hardcoded value)", () => {
     expect(defaultConfig.recentFailuresLimit).toBe(5);
   });

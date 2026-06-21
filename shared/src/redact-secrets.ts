@@ -6,12 +6,12 @@
  * no module-level mutable state except the rules cache (reset via
  * `__resetRedactionCache()` in tests).
  *
- * Design: `docs/slim/v0-14-redaction-grace-design.md` §2 (M5 + M6 + L1 + L2).
+ * Design: `docs/slim/v0-14-redaction-grace-design.md` §2 (L1 + L2).
  *
  * Composite-pattern compliance: helper is pure, has no dependencies on any
- * plugin package. The M5 caller (extra/checkpoint) and M6 caller
- * (extra/dream) and L1/L2 callers (memory/watcher, memory/recon) all
- * import from here.
+ * plugin package. The redaction-rule callers (extra/checkpoint and
+ * extra/dream) and the sensitive-path callers (memory/watcher and
+ * memory/recon) all import from here.
  */
 
 import { basename } from "node:path"
@@ -88,7 +88,7 @@ const BUILTIN_RULES: ReadonlyArray<RedactionRule> = [
   { id: "sourcepath-rule", pattern: /(^|\/)secrets?(\/|$)/i, description: "paths containing /secrets/" },
   { id: "sourcepath-credentials", pattern: /(^|\/)credentials(\/|$|\.)/i, description: "paths containing /credentials/" },
   { id: "sourcepath-private", pattern: /(^|\/)private(\/|$|\.)/i, description: "paths containing /private/" },
-  // C — PEM private keys (M5.2 v0.14.1: full block — header, body, footer)
+  // C — PEM private keys (v0.14.1: full block — header, body, footer)
   // The base64-encoded key material between BEGIN and END markers leaks the
   // private key even after the header line is redacted, so the regex matches
   // the entire armored block (non-greedy body) and `redactSecrets()` replaces
@@ -235,7 +235,7 @@ export function isSensitiveSourcePath(sourcePath: string): boolean {
 
 /**
  * Replace sensitive substrings in `content` with `[REDACTED:<category>]`.
- * Used by M5 (checkpoint write) and M6 (dream archive).
+ * Used by the redaction rule for checkpoint writes and the dream archive.
  *
  * Returns the original string with replacements applied in-place. The
  * replacement marker preserves the category so downstream tools (e.g., a

@@ -156,7 +156,7 @@ const hostFromURL = function (u) {
   catch (_e) { return "unknown"; }
 };
 
-// ── Phase 1: Plan ──────────────────────────────────────────────────────────
+// ── Step 1: Plan ──────────────────────────────────────────────────────────
 
 phase("Plan");
 
@@ -243,7 +243,7 @@ const crosscheckPrompt = function (fact, n) {
     "When genuinely unsure, reject. Your reason MUST be concrete.\\n\\nReturn structured output only.";
 };
 
-// ── Phase 2 + 3: Search → de-dup → read (pipeline with two stages) ─────────
+// ── Step 2 + 3: Search → de-dup → read (pipeline with two stages) ─────────
 
 const perLine = await pipeline(
   plan.lines,
@@ -336,7 +336,7 @@ if (topFacts.length === 0) {
   };
 }
 
-// ── Phase 4: Group ─────────────────────────────────────────────────────────
+// ── Step 4: Group ─────────────────────────────────────────────────────────
 
 phase("Group");
 
@@ -353,7 +353,7 @@ const groups = (grouped && grouped.groups && grouped.groups.length)
 
 log("Folded " + topFacts.length + " facts \\u2192 " + groups.length + " groups");
 
-// ── Phase 5: Crosscheck ────────────────────────────────────────────────────
+// ── Step 5: Crosscheck ────────────────────────────────────────────────────
 
 phase("Crosscheck");
 
@@ -405,7 +405,7 @@ if (upheld.length === 0) {
   };
 }
 
-// ── Phase 6: Report ────────────────────────────────────────────────────────
+// ── Step 6: Report ────────────────────────────────────────────────────────
 
 phase("Report");
 

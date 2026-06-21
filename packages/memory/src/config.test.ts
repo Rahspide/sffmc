@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
-// @sffmc/memory — Phase-2 MEDIUM migration tests (M4, M5a, M5b)
+// @sffmc/memory — second release migration tests (schema journal validation, chokidar awaitWriteFinish.stabilityThreshold, chokidar awaitWriteFinish.pollInterval)
 //
 // Verifies the new YAML-configurable fields on MemoryConfig:
-//   - M4  reconTopN          (default 20, topByImportance limit)
-//   - M5a watchStabilityMs   (default 300, chokidar stabilityThreshold)
-//   - M5b watchPollIntervalMs (default 100, chokidar pollInterval)
+//   - schema journal validation  reconTopN          (default 20, topByImportance limit)
+//   - chokidar awaitWriteFinish.stabilityThreshold watchStabilityMs   (default 300, chokidar stabilityThreshold)
+//   - chokidar awaitWriteFinish.pollInterval watchPollIntervalMs (default 100, chokidar pollInterval)
 //
 // Two checks per item:
 //   (a) default matches v0.14.2 hardcoded value (no behavior change)
@@ -58,10 +58,10 @@ function clearMemoryYaml(): void {
 }
 
 // ---------------------------------------------------------------------------
-// M4 — reconTopN
+// schema journal validation — reconTopN
 // ---------------------------------------------------------------------------
 
-describe("M4 — memory.reconTopN", () => {
+describe("schema journal validation — memory.reconTopN", () => {
   it("(a) default returns 20 (matches v0.14.2 hardcoded value)", async () => {
     __resetMemoryConfig();
     clearMemoryYaml();
@@ -82,10 +82,10 @@ describe("M4 — memory.reconTopN", () => {
 });
 
 // ---------------------------------------------------------------------------
-// M5a — watchStabilityMs
+// chokidar awaitWriteFinish.stabilityThreshold — watchStabilityMs
 // ---------------------------------------------------------------------------
 
-describe("M5a — memory.watchStabilityMs", () => {
+describe("chokidar awaitWriteFinish.stabilityThreshold — memory.watchStabilityMs", () => {
   it("(a) default returns 300 (matches v0.14.2 hardcoded value)", async () => {
     __resetMemoryConfig();
     clearMemoryYaml();
@@ -107,10 +107,10 @@ describe("M5a — memory.watchStabilityMs", () => {
 });
 
 // ---------------------------------------------------------------------------
-// M5b — watchPollIntervalMs
+// chokidar awaitWriteFinish.pollInterval — watchPollIntervalMs
 // ---------------------------------------------------------------------------
 
-describe("M5b — memory.watchPollIntervalMs", () => {
+describe("chokidar awaitWriteFinish.pollInterval — memory.watchPollIntervalMs", () => {
   it("(a) default returns 100 (matches v0.14.2 hardcoded value)", async () => {
     __resetMemoryConfig();
     clearMemoryYaml();
@@ -132,7 +132,7 @@ describe("M5b — memory.watchPollIntervalMs", () => {
 // Combined — all three fields can be set at once, none clash with each other.
 // ---------------------------------------------------------------------------
 
-describe("M4/M5a/M5b — combined", () => {
+describe("schema journal validation/chokidar awaitWriteFinish.stabilityThreshold/chokidar awaitWriteFinish.pollInterval — combined", () => {
   it("all three values flow through when set in the same YAML", async () => {
     __resetMemoryConfig();
     writeMemoryYaml(

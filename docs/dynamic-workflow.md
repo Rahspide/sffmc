@@ -176,7 +176,7 @@ export const meta = {
   description: "What it does",   // required, non-empty
   whenToUse: "When to pick it",  // optional, LLM hint
   phases: [                      // optional, for progress bar
-    { title: "Phase 1", detail: "What happens in phase 1" },
+    { title: "Step 1", detail: "What happens in step 1" },
     { title: "Stage 2", detail: "What happens in stage 2" },
   ],
   model: "your-model-id",      // optional, default model

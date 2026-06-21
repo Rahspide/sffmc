@@ -138,7 +138,7 @@ const REPORT_SHAPE = {
   },
 };
 
-// ── Phase 1: Scope ─────────────────────────────────────────────────────────
+// ── Step 1: Scope ─────────────────────────────────────────────────────────
 
 phase("Scope");
 
@@ -172,7 +172,7 @@ const scope = scopeRaw || { targets: [root], files_scanned: scopeFiles.length, d
 
 log("Auditing: " + root + " — " + scope.files_scanned + " files, " + scope.dependencies_found + " deps");
 
-// ── Phase 2: Scan (parallel agents) ────────────────────────────────────────
+// ── Step 2: Scan (parallel agents) ────────────────────────────────────────
 
 phase("Scan");
 
@@ -265,7 +265,7 @@ if (rawFindings.length === 0) {
   };
 }
 
-// ── Phase 3: Triage ────────────────────────────────────────────────────────
+// ── Step 3: Triage ────────────────────────────────────────────────────────
 
 phase("Triage");
 
@@ -289,7 +289,7 @@ const triageRaw = await agent(
 const triaged = triageRaw || { findings: [] };
 const findings = triaged.findings || [];
 
-// ── Phase 4: Report ────────────────────────────────────────────────────────
+// ── Step 4: Report ────────────────────────────────────────────────────────
 
 phase("Report");
 

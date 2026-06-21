@@ -175,7 +175,7 @@ const REPORT_SHAPE = {
   },
 };
 
-// ── Phase 1: Detect ────────────────────────────────────────────────────────
+// ── Step 1: Detect ────────────────────────────────────────────────────────
 
 phase("Detect");
 
@@ -272,7 +272,7 @@ if (imports.length === 0) {
   };
 }
 
-// ── Phase 2: Map ───────────────────────────────────────────────────────────
+// ── Step 2: Map ───────────────────────────────────────────────────────────
 
 phase("Map");
 
@@ -319,7 +319,7 @@ log("Built " + mappings.length + " API mappings (" +
   mappings.filter(function (m) { return m.confidence === "manual"; }).length +
   " manual)");
 
-// ── Phase 3: Transform ─────────────────────────────────────────────────────
+// ── Step 3: Transform ─────────────────────────────────────────────────────
 
 phase("Transform");
 
@@ -369,7 +369,7 @@ const patches = (transformRaw && transformRaw.patches) ? transformRaw.patches : 
 log("Generated " + patches.length + " patches (" +
   patches.filter(function (p) { return p.auto_applicable; }).length + " auto-applicable)");
 
-// ── Phase 4: Verify ────────────────────────────────────────────────────────
+// ── Step 4: Verify ────────────────────────────────────────────────────────
 
 phase("Verify");
 
@@ -403,7 +403,7 @@ for (var vi = 0; vi < verResults.length; vi++) {
 
 log("Verification: " + (allPassed ? "ALL PASSED" : "SOME FAILURES"));
 
-// ── Phase 5: Report ────────────────────────────────────────────────────────
+// ── Step 5: Report ────────────────────────────────────────────────────────
 
 phase("Report");
 

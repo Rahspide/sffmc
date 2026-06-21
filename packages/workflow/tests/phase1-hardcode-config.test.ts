@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/workflow — see ../../LICENSE
 //
-// Phase-1 HIGH migration tests (v0.14.2). Verifies the new YAML-config
+// initial release HIGH migration tests (v0.14.2). Verifies the new YAML-config
 // getters in the workflow-constants module:
 //   - DEFAULT_WORKFLOW_EXTENDED_CONFIG has the prior hardcoded values
 //   - getWorkflowConfigSync() returns defaults before any YAML load
@@ -59,7 +59,7 @@ import {
   getMaxConcurrentAgents,
 } from "./_test-helpers/config-cache.ts"
 
-describe("@sffmc/workflow — Phase-1 HIGH migration config-loading path", () => {
+describe("@sffmc/workflow — initial release HIGH migration config-loading path", () => {
   beforeEach(() => {
     // Reset cache between tests so each test sees a clean config.
     __setWorkflowConfig(null)
@@ -71,7 +71,7 @@ describe("@sffmc/workflow — Phase-1 HIGH migration config-loading path", () =>
 
   it("DEFAULT_WORKFLOW_EXTENDED_CONFIG matches prior hardcoded values (no behavior change)", () => {
     // Each of these defaults must match the values that were hardcoded
-    // in constants.ts / sandbox.ts before Phase-1. A drift here would
+    // in constants.ts / sandbox.ts before initial release. A drift here would
     // mean the YAML override unintentionally changes behavior.
     expect(DEFAULT_WORKFLOW_EXTENDED_CONFIG.scriptDeadlineMs).toBe(SCRIPT_DEADLINE_MS)
     expect(DEFAULT_WORKFLOW_EXTENDED_CONFIG.scriptDeadlineMs).toBe(60 * 60 * 1000)

@@ -209,7 +209,7 @@ describe("persistence.loadJournal format compat", () => {
 })
 
 // ── §1c: recoverOrphanedWorkflows ──────────────────────────────────────────
-// Note: tests #12 and #13 use `gracePeriodMsOverride: 0` to bypass the H5
+// Note: tests #12 and #13 use `gracePeriodMsOverride: 0` to bypass the workflow recovery grace period
 // grace check (added in v0.14). They exercise the legacy journal-presence
 // branch — the new grace behavior is covered by tests #24-#30 below.
 
@@ -469,7 +469,7 @@ describe("v0.13.0 workspace persistence", () => {
   })
 })
 
-// ── v0.14 §3.8: H5 grace period tests (#24-#35) ────────────────────────────
+// ── v0.14 §3.8: workflow recovery grace period grace period tests (#24-#35) ────────────────────────────
 // Helper: backdate a row's time_created so it appears old. The schema's
 // time_created is in seconds (SQLite strftime('%s','now') convention).
 function ageRun(runID: string, ageMs: number): void {
@@ -482,7 +482,7 @@ function ageRun(runID: string, ageMs: number): void {
   )
 }
 
-describe("v0.14 H5 grace period — positive cases", () => {
+describe("v0.14 workflow recovery grace period grace period — positive cases", () => {
   test("within grace + journal → paused (#24)", async () => {
     const runID = makeRun("g5-journal", true)
     ageRun(runID, 30_000) // 30s old
@@ -534,7 +534,7 @@ describe("v0.14 H5 grace period — positive cases", () => {
   })
 })
 
-describe("v0.14 H5 grace period — edge cases", () => {
+describe("v0.14 workflow recovery grace period grace period — edge cases", () => {
   test("cancelled runs not touched (#29)", async () => {
     const runID = makeRun("g5-cancelled")
     ageRun(runID, 30_000) // even within grace
@@ -580,7 +580,7 @@ describe("v0.14 H5 grace period — edge cases", () => {
   })
 })
 
-describe("v0.14 H5 grace period — resume integration", () => {
+describe("v0.14 workflow recovery grace period grace period — resume integration", () => {
   test("resume on paused-within-grace → resumed:true, wasStatus='paused' (#33)", async () => {
     const runID = makeRun("g5-resume-paused")
     ageRun(runID, 30_000)

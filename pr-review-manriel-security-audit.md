@@ -14,7 +14,7 @@ Quick mental model: I'm trying to balance two things — (1) accept real securit
 
 ## CRITICAL
 
-**C1 — Cap dream dedup entries to prevent O(n²) blowup** · ✅ Accept, but reclassify to **Medium**
+**skills directory override (config) — Cap dream dedup entries to prevent O(n²) blowup** · ✅ Accept, but reclassify to **Medium**
 
 Scenario: if memory grows to 50k entries, the Jaccard loop does ~1.25B comparisons and pegs CPU. The 5000-entry cap is a sensible safety net.
 
@@ -22,19 +22,19 @@ Why Medium not Critical: exploitation requires someone with write access to `~/.
 
 One UX nit: when the cap triggers, the user gets a `warn` in logs but no UI message. They might wonder why dedup isn't working. A one-time chat notice would help.
 
-**C2 — Cap checkpoint session buffer map (max 50)** · 🟡 Needs a tweak
+**skills directory override (filesystem) — Cap checkpoint session buffer map (max 50)** · 🟡 Needs a tweak
 
 Love the cap, but I think there's a bug in the eviction logic. The comment says LRU, but the implementation uses `Map.keys().next().value` which returns the **first-inserted** key (FIFO), not the least-recently-used.
 
 Scenario: imagine a 3-hour analysis workflow running, and concurrently 49 quick workflows. With FIFO eviction, the long-running session could get evicted mid-flight and lose buffered tool calls. With proper LRU, the idle sessions get evicted first.
 
-Could you implement a real LRU (track last-access timestamp per entry, evict the oldest)? Also, like C1, this is Medium severity given the local-only threat model.
+Could you implement a real LRU (track last-access timestamp per entry, evict the oldest)? Also, like skills directory override (config), this is Medium severity given the local-only threat model.
 
-**C3 — Reject oversized checkpoint files (>10MB)** · 🟡 Needs a tweak
+**oversize checkpoint typed error — Reject oversized checkpoint files (>10MB)** · 🟡 Needs a tweak
 
 Defensive cap is good, but error handling is inconsistent: `readHeader()` returns `null` on oversize, `readToolCalls()` returns `[]` with a warning. Callers can't distinguish "oversize" from "missing file" → confusing downstream behavior.
 
-Pick one pattern (probably `null` + warning, or a typed error like `CheckpointTooLargeError`). Same Medium reclassification argument as C1/C2.
+Pick one pattern (probably `null` + warning, or a typed error like `CheckpointTooLargeError`). Same Medium reclassification argument as skills directory override (config)/skills directory override (filesystem).
 
 **C4 — Reject oversized AGENTS.md (>100KB)** · ✅ Accept
 
@@ -64,7 +64,7 @@ Solid defense-in-depth. One thing to flag: by default verification is soft-warn 
 
 Question: should we make strict mode the default for installs? Or document that operators should set it explicitly?
 
-**H5 — Sandbox deadline 12h → 1h** · ❌ Hold on this
+**workflow recovery grace period — Sandbox deadline 12h → 1h** · ❌ Hold on this
 
 I'm worried this is a regression. Scenario: a user runs a multi-hour data analysis workflow. With the 1h cap, it would now fail mid-way.
 
@@ -72,13 +72,13 @@ The 12h value might be intentional as a grace period after workflow timeout — 
 
 If yes → keep it. If no → propose a compromise (3h, 6h). Also: no integration test for actual deadline behavior exists, only the constant assertion was updated. Could you add one?
 
-**H6 — Cap parallel LLM candidates at 10** · 🟡 Needs discussion
+**parallel LLM candidates cap — Cap parallel LLM candidates at 10** · 🟡 Needs discussion
 
 Want to push back here. The 50-candidate count in mimo-code max-mode is **intentional API behavior**, not a user-input cap. The mode is designed to spawn up to 50 parallel LLM candidates per task, and `generateCandidates()` is only called once or twice per workflow invocation. So `MAX_CANDIDATES = 10` would actually break the design.
 
 Suggest reclassifying to Medium. If there's a budget-burn concern beyond self-inflicted, happy to discuss a separate budget guard rather than capping the candidate count.
 
-**H7 — `try/catch` around `JSON.parse` for corrupted DB data** · ✅ Accept (with conditions)
+**JSON.parse try/catch for corrupted DB — `try/catch` around `JSON.parse` for corrupted DB data** · ✅ Accept (with conditions)
 
 Nice defensive parsing. Two asks:
 
@@ -89,45 +89,45 @@ Severity-wise: robustness against corruption, not security boundary. Reclassify 
 
 ## MEDIUM
 
-**M1 — `Schema.JSON` for YAML parsing in rules** · ✅ Accept
+**YAML schema validation** · ✅ Accept
 
 Defense-in-depth against future schema regressions. Ship it.
 
-**M2 — ReDoS check for user-supplied regex** · ⏸ Deferred to v0.14.0 (already in beta)
+**ReDoS check for user-supplied regex** · ⏸ Deferred to v0.14.0 (already in beta)
 
-**M3 — Use parent workspace for child workflow resolution** · ✅ Accept (reclassify to **Low**)
+**Use parent workspace for child workflow resolution** · ✅ Accept (reclassify to **Low**)
 
-Good catch, but this is **correctness**, not security. Scenario: parent workflow at `/data/projects/foo` spawns child named `bar` → child looks for `bar` in CWD rather than `/data/projects/foo/`. That's a bug, but it doesn't cross a trust boundary. Reclassify to Low.
+Good catch, but this is **correctness**, not security. Scenario: parent workflow at `<project-root>` spawns child named `bar` → child looks for `bar` in CWD rather than `<project-root>/`. That's a bug, but it doesn't cross a trust boundary. Reclassify to Low.
 
-**M4 — Journal JSON parsed without schema validation** · ❌ Want to see schema first
+**Journal JSON parsed without schema validation** · ❌ Want to see schema first
 
 Risk of overcomplicating the journal format. **Could you share the proposed Zod schema (or equivalent) before implementation?** That way we align on shape and avoid divergence from the existing v1 header (`{"v":1}`).
 
-**M5 — Raw tool output stored in checkpoint** · 🟡 Needs refactor
+**Raw tool output stored in checkpoint** · 🟡 Needs refactor
 
 Great catch — if a tool returns `cat ~/.ssh/id_rsa`, the raw output lands in checkpoint and stays there. But this **overlaps with L1/L2 sensitive-pattern coverage**.
 
-Request: combine M5 + M6 + L1/L2 into a single shared `redact-secrets` helper at `shared/src/redact-secrets.ts`. One source of truth for what counts as sensitive — three separate regex lists will drift and someone will forget to apply one.
+Request: combine raw tool output + dream archive unredacted content + L1/L2 into a single shared `redact-secrets` helper at `shared/src/redact-secrets.ts`. One source of truth for what counts as sensitive — three separate regex lists will drift and someone will forget to apply one.
 
-**M6 — Dream archive stores unredacted content** · 🟡 Same as M5
+**Dream archive stores unredacted content** · 🟡 Same as above
 
-Overlaps with M5 + L1/L2. Unify via shared helper.
+Overlaps with raw tool output + L1/L2. Unify via shared helper.
 
-**M7 — Restrictive file permissions on data directories** · ✅ Accept (follow-up required)
+**Data directory permissions** · ✅ Accept (follow-up required)
 
 Defensive perms are good. **Important limitation**: `mode: 0o700` applies only to `mkdirSync` — **existing data directories created before this fix will remain world-readable**. Could you add a separate follow-up commit with `chmodSync` for existing dirs? Also, new files inside the dir inherit umask 022 (not 077), so file-level perms still need addressing.
 
-**M8 — `listRuns()` without LIMIT/OFFSET** · ✅ Accept
+**`listRuns()` pagination** · ✅ Accept
 
 Simple and safe. **Could you split this into its own commit?** Keeps `security-audit-fixes` focused on its scope.
 
-**M9 — Module-level mutable state in dream.ts** · 🔍 Need to verify
+**dream module state** · 🔍 Need to verify
 
 Will dig into dream.ts myself to confirm the state in question. Will get back to you with a verdict.
 
-**M10 — Cap restored messages from checkpoint to 50** · ✅ Accept (with note)
+**Restored message cap** · ✅ Accept (with note)
 
-Good cap, but note: the slice happens **after** `reconstructMessages` processes all calls — so O(n) work still happens. The cap only limits downstream LLM context pollution. Recommend combining with **C3's 10MB file cap** for full DoS protection.
+Good cap, but note: the slice happens **after** `reconstructMessages` processes all calls — so O(n) work still happens. The cap only limits downstream LLM context pollution. Recommend combining with **oversize checkpoint typed error's 10MB file cap** for full DoS protection.
 
 ## LOW
 
@@ -212,15 +212,15 @@ Looking forward to the revisions — let's get this merged cleanly. 🙌
 
 | Item | Disposition | Closed in | Commit / Note |
 |---|---|---|---|
-| C2 — Real LRU eviction | 🟡 → ✅ | v0.14.2 | `packages/extra/src/checkpoint.ts` — `_findLRUVictim` with `lastAccessMs` + `insertionOrder` tiebreaker |
-| C3 — Typed `CheckpointTooLargeError` | 🟡 → ✅ | v0.14.2 | `packages/extra/src/checkpoint.ts` — exported class, both readers throw, callers degrade gracefully |
-| M5 + M6 — Unified redact helper | 🟡 → ✅ | v0.14.0 | `shared/src/redact-secrets.ts` — single source of truth |
-| M8 — Split listRuns LIMIT | 🟡 → ✅ | v0.14.0 | separate commit per Manriel's request |
+| skills directory override (filesystem) — Real LRU eviction | 🟡 → ✅ | v0.14.2 | `packages/extra/src/checkpoint.ts` — `_findLRUVictim` with `lastAccessMs` + `insertionOrder` tiebreaker |
+| oversize checkpoint typed error — Typed `CheckpointTooLargeError` | 🟡 → ✅ | v0.14.2 | `packages/extra/src/checkpoint.ts` — exported class, both readers throw, callers degrade gracefully |
+| Unified redact helper | 🟡 → ✅ | v0.14.0 | `shared/src/redact-secrets.ts` — single source of truth |
+| Split listRuns LIMIT | 🟡 → ✅ | v0.14.0 | separate commit per Manriel's request |
 | L1 + L2 — Narrow sensitive patterns | 🟡 → ✅ | v0.14.0 | `(^\|/)private($\|-)` anchored; path-anchored for L2 |
 | L3 — Log error message + trace stack | 🟡 → ✅ | v0.14.0 | `e.message` at info, stack at trace |
-| H5 — Sandbox deadline 12h → 1h | ❌ → ✅ | v0.14.2 | `SCRIPT_DEADLINE_MS = 1h` in `constants.ts:23`; cleanup-after-kill is the H5 grace period, not the sandbox deadline |
-| H6 — Parallel candidates cap = 10 | ❌ → ✅ | v0.14.2 | `MAX_CANDIDATES = 10` retained; 45-line rationale comment in `candidates.ts` |
-| M9 — Module-level mutable state | 🔍 → ✅ | v0.14.2 | `_activeDreamState` documented with race risk + migration path; concurrent test passes |
+| workflow recovery grace period — Sandbox deadline 12h → 1h | ❌ → ✅ | v0.14.2 | `SCRIPT_DEADLINE_MS = 1h` in `constants.ts:23`; cleanup-after-kill is the workflow recovery grace period grace period, not the sandbox deadline |
+| parallel LLM candidates cap — Parallel candidates cap = 10 | ❌ → ✅ | v0.14.2 | `MAX_CANDIDATES = 10` retained; 45-line rationale comment in `candidates.ts` |
+| dream module state | 🔍 → ✅ | v0.14.2 | `_activeDreamState` documented with race risk + migration path; concurrent test passes |
 | (Deferred item) | ⏸ → ✅ | v0.14.0 | see `CHANGELOG.md` v0.14.0 release notes |
 
 **Final test count:** 721 pass / 1 skip / 0 fail (was 710 in v0.14.1; +11 new from this round).

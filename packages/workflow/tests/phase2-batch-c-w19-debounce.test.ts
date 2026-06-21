@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/workflow — see ../../LICENSE
 //
-// Phase-2 MEDIUM migration tests (v0.14.3) — scheduleFlush debounce (W19).
+// second release migration tests (v0.14.3) — scheduleFlush debounce (scheduleFlush debounce window).
 //
 // Verifies the new YAML-config getter for the scheduleFlush debounce
 // window in `runtime.ts:scheduleFlush`:
@@ -33,7 +33,7 @@ import {
   getFlushDebounceMs,
 } from "./_test-helpers/config-cache.ts"
 
-describe("@sffmc/workflow — Phase-2 W19 scheduleFlush debounce", () => {
+describe("@sffmc/workflow — second release scheduleFlush debounce", () => {
   beforeEach(() => {
     __setWorkflowConfig(null)
   })
@@ -42,7 +42,7 @@ describe("@sffmc/workflow — Phase-2 W19 scheduleFlush debounce", () => {
     __setWorkflowConfig(null)
   })
 
-  it("W19: DEFAULT_WORKFLOW_EXTENDED_CONFIG.flushDebounceMs matches prior hardcoded 250", () => {
+  it("scheduleFlush debounce window: DEFAULT_WORKFLOW_EXTENDED_CONFIG.flushDebounceMs matches prior hardcoded 250", () => {
     // The prior hardcoded value was `setTimeout(..., 250)` in
     // runtime.ts:1247 (`scheduleFlush` method).
     expect(DEFAULT_WORKFLOW_EXTENDED_CONFIG.flushDebounceMs).toBe(250)
@@ -81,7 +81,7 @@ describe("@sffmc/workflow — Phase-2 W19 scheduleFlush debounce", () => {
   })
 
   it("Documented: runtime.ts still uses the hardcoded 250 — deferred wiring per v0.14.1 policy", () => {
-    // This test asserts the CURRENT (v0.14.3 Phase 2 Batch C) state.
+    // This test asserts the CURRENT (v0.14.3 second release Batch C) state.
     // It will need to be updated when runtime.ts is migrated in a
     // follow-up hotfix commit.
     //

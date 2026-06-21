@@ -11,9 +11,9 @@ interface WatchdogConfig {
   promote_model: string | null;
   error_class_filter: string[];
   log_failures: boolean;
-  // Phase-2 MEDIUM migration (D2) — see
+  // second release migration (watchdog log file) — see
   // .slim/deepwork/phase-2-3-hardcode-migration-plan.md §2.7
-  /** D2 — how many recent failures to include in the promotion fragment
+  /** watchdog log file — how many recent failures to include in the promotion fragment
    *  injected into the system prompt when a tool gets stuck. Defaults to
    *  5 (matches the prior hardcoded value). Validation: 1 ≤ x ≤ 50. */
   recentFailuresLimit: number;
@@ -26,7 +26,7 @@ export const defaultConfig: WatchdogConfig = {
   error_class_filter: ["fetch_429", "playwright_timeout", "EAGAIN"],
   log_failures: true,
   // Defaults match the prior hardcoded values — behavior unchanged.
-  recentFailuresLimit: 5,   // D2
+  recentFailuresLimit: 5,   // watchdog log file
 };
 
 interface PluginState {

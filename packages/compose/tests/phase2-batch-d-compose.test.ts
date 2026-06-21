@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/compose — see ../../LICENSE
 //
-// Phase-2 MEDIUM migration tests (v0.14.3) — compose plugin config
-// plumbing + skills directory override (C1, C2).
+// second release migration tests (v0.14.3) — compose plugin config
+// plumbing + skills directory override (skills directory override (config), skills directory override (filesystem)).
 //
 // Verifies the new YAML-config getters for the compose plugin in
 // `packages/compose/src/index.ts`:
@@ -38,7 +38,7 @@ import {
   getComposeValidSkills,
 } from "./_test-helpers/config-cache.ts"
 
-describe("@sffmc/compose — Phase-2 C1, C2 skills directory override", () => {
+describe("@sffmc/compose — second release skills directory override (config + filesystem)", () => {
   beforeEach(() => {
     __setComposeConfig(null)
   })
@@ -47,9 +47,9 @@ describe("@sffmc/compose — Phase-2 C1, C2 skills directory override", () => {
     __setComposeConfig(null)
   })
 
-  // ---- C1: skillsDir default matches the v0.14.2 hardcoded value ----
+  // ---- skills directory override (config): skillsDir default matches the v0.14.2 hardcoded value ----
 
-  it("C1: DEFAULT_COMPOSE_CONFIG.skillsDir is the empty string", () => {
+  it("skills directory override (config): DEFAULT_COMPOSE_CONFIG.skillsDir is the empty string", () => {
     // The v0.14.2 hardcoded value was a module-level const resolved at
     // load time:
     //   `const SKILLS_DIR = join(import.meta.dirname, "..", "skills")`
@@ -59,7 +59,7 @@ describe("@sffmc/compose — Phase-2 C1, C2 skills directory override", () => {
     expect(DEFAULT_COMPOSE_CONFIG.skillsDir).toBe("")
   })
 
-  it("C1: DEFAULT_SKILLS_DIR matches the v0.14.2 hardcoded SKILLS_DIR path", () => {
+  it("skills directory override (config): DEFAULT_SKILLS_DIR matches the v0.14.2 hardcoded SKILLS_DIR path", () => {
     // The v0.14.2 hardcoded value was
     //   `join(import.meta.dirname, "..", "skills")`
     // resolved at module load. `DEFAULT_SKILLS_DIR` is computed the
@@ -69,7 +69,7 @@ describe("@sffmc/compose — Phase-2 C1, C2 skills directory override", () => {
     )
   })
 
-  it("C1: DEFAULT_SKILLS_DIR is a real directory containing the 18 bundled .md files", () => {
+  it("skills directory override (config): DEFAULT_SKILLS_DIR is a real directory containing the 18 bundled .md files", () => {
     expect(existsSync(DEFAULT_SKILLS_DIR)).toBe(true)
     // Sanity: the bundled directory should be the one shipped in
     // packages/compose/skills/. If this drifts, the plugin is loading
@@ -77,19 +77,19 @@ describe("@sffmc/compose — Phase-2 C1, C2 skills directory override", () => {
     expect(DEFAULT_SKILLS_DIR.endsWith(`${path.sep}skills`)).toBe(true)
   })
 
-  it("C1: getComposeSkillsDir() returns DEFAULT_SKILLS_DIR when no YAML override is set", () => {
+  it("skills directory override (config): getComposeSkillsDir() returns DEFAULT_SKILLS_DIR when no YAML override is set", () => {
     // Default case — no override, no config load. The getter must
     // fall back to the bundled directory.
     expect(getComposeSkillsDir()).toBe(DEFAULT_SKILLS_DIR)
   })
 
-  it("C1: getComposeSkillsDir() honors a YAML override of skillsDir", () => {
+  it("skills directory override (config): getComposeSkillsDir() honors a YAML override of skillsDir", () => {
     const customDir = "/tmp/sffmc-compose-custom-skills"
     __setComposeConfig({ skillsDir: customDir })
     expect(getComposeSkillsDir()).toBe(customDir)
   })
 
-  it("C1: getComposeSkillsDir() treats a non-empty override as authoritative even if it does not exist", () => {
+  it("skills directory override (config): getComposeSkillsDir() treats a non-empty override as authoritative even if it does not exist", () => {
     // The plan does not require the path to be validated; the getter
     // returns the configured value verbatim. The server() function
     // surfaces the read error at execute time. This test documents
@@ -99,13 +99,13 @@ describe("@sffmc/compose — Phase-2 C1, C2 skills directory override", () => {
     expect(getComposeSkillsDir()).toBe(fakeDir)
   })
 
-  it("C1: getComposeConfigSync() returns DEFAULT_COMPOSE_CONFIG when no YAML override is set", () => {
+  it("skills directory override (config): getComposeConfigSync() returns DEFAULT_COMPOSE_CONFIG when no YAML override is set", () => {
     expect(getComposeConfigSync()).toEqual(DEFAULT_COMPOSE_CONFIG)
   })
 
-  // ---- C2: VALID_SKILLS behavior (hardcoded vs filesystem-discovered) ----
+  // ---- skills directory override (filesystem): VALID_SKILLS behavior (hardcoded vs filesystem-discovered) ----
 
-  it("C2: DEFAULT_SKILLS matches the v0.14.2 hardcoded VALID_SKILLS list (18 entries)", () => {
+  it("skills directory override (filesystem): DEFAULT_SKILLS matches the v0.14.2 hardcoded VALID_SKILLS list (18 entries)", () => {
     // The v0.14.2 hardcoded list — 18 entries in alphabetical order.
     // A drift here (e.g., entry added/removed) would silently change
     // which skills the agent can invoke in the default case.
@@ -132,7 +132,7 @@ describe("@sffmc/compose — Phase-2 C1, C2 skills directory override", () => {
     expect(DEFAULT_SKILLS.length).toBe(18)
   })
 
-  it("C2: getComposeValidSkills() returns the hardcoded list when no YAML override is set", async () => {
+  it("skills directory override (filesystem): getComposeValidSkills() returns the hardcoded list when no YAML override is set", async () => {
     // Default case — no override. The getter must return the v0.14.2
     // list verbatim. This is the path exercised by the existing 42
     // agentic integration tests.
@@ -140,7 +140,7 @@ describe("@sffmc/compose — Phase-2 C1, C2 skills directory override", () => {
     expect(skills).toEqual(DEFAULT_SKILLS)
   })
 
-  it("C2: getComposeValidSkills() falls back to DEFAULT_SKILLS when the configured directory is unreadable", async () => {
+  it("skills directory override (filesystem): getComposeValidSkills() falls back to DEFAULT_SKILLS when the configured directory is unreadable", async () => {
     // If the user sets a custom skillsDir that does not exist (or
     // is not readable), the plugin should still serve the bundled
     // skills via the hardcoded fallback. This protects against
@@ -150,7 +150,7 @@ describe("@sffmc/compose — Phase-2 C1, C2 skills directory override", () => {
     expect(skills).toEqual(DEFAULT_SKILLS)
   })
 
-  it("C2: getComposeValidSkills() discovers *.md basenames from the configured directory", async () => {
+  it("skills directory override (filesystem): getComposeValidSkills() discovers *.md basenames from the configured directory", async () => {
     // Use the bundled directory but force the override path. The
     // resolved list should be the alphabetical basenames of every
     // .md file in the directory. Since the bundled directory is
