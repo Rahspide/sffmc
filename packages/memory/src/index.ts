@@ -2,7 +2,7 @@
 // @sffmc/memory — see ../../LICENSE
 //
 // SFFMC memory MSP — composes memory + checkpoint + judge + dream.
-// second release: replaces prior standalone memory impl with mergeHooks() of 4 sub-features.
+//  release: replaces prior standalone memory impl with mergeHooks() of 4 sub-features.
 
 import { server as memoryServer, defaultConfig as memoryDefaultConfig, type MemoryConfig } from "./plugin.ts"
 import { checkpointServer, judgeServer, dreamServer } from "../../extra/src/index.ts"
@@ -21,7 +21,6 @@ export const server = async (ctx: PluginContext): Promise<PluginServer> => {
 }
 
 // ---------------------------------------------------------------------------
-// second release migration (schema journal validation, chokidar awaitWriteFinish.stabilityThreshold, chokidar awaitWriteFinish.pollInterval) — config getters.
 // Exported so callers (other plugins, tests, tooling) can read the active
 // value without bootstrapping a full plugin instance. Internally the plugin
 // loads the same config into state.config during server().

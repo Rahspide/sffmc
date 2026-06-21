@@ -12,23 +12,20 @@ interface MaxModeConfig {
   judge_model: string;
   budget_cap_multiplier: number;
   dry_run: boolean;
-  // second release migration (max-mode checkpoint integration) — see
-  // .slim/deepwork/phase-2-3-hardcode-migration-plan.md §2.6
+    // .slim/deepwork/phase-2-3-hardcode-migration-plan.md §2.6
   /** max-mode checkpoint integration — hard cap on the number of parallel LLM candidates. Safety
    *  limit: prevents accidental bursts (e.g. `n_candidates: 100` firing
    *  100 parallel API calls). Enforced at runtime as
    *  `Math.min(config.n, maxCandidates)`. Default 10 matches the prior
    *  module-level const. Validation: 1 ≤ x ≤ 50. */
   maxCandidates: number;
-  // second release migration (max-mode chokidar migration) — see
-  // .slim/deepwork/phase-2-3-hardcode-migration-plan.md §2.6
+    // .slim/deepwork/phase-2-3-hardcode-migration-plan.md §2.6
   /** max-mode chokidar migration — max chars of each candidate draft sent to the judge. Truncates
    *  long drafts before they enter the judge prompt so a 50-candidate
    *  batch × 8k draft stays under the model's context window. Default
    *  8000 matches the prior literal. Validation: 500 ≤ x ≤ 32000. */
   judgeDraftMaxChars: number;
-  // third release migration (max-mode dream integration) — see
-  // .slim/deepwork/phase-2-3-hardcode-migration-plan.md §3.max-mode dream integration
+    // .slim/deepwork/phase-2-3-hardcode-migration-plan.md §3.max-mode dream integration
   /** max-mode dream integration — confidence value stamped on the verdict whenever the judge path
    *  falls back (SDK offline, parse error, or empty/invalid response).
    *  Semantically distinct from a judge-reported confidence: a verdict
@@ -64,7 +61,7 @@ interface PluginState {
   restore: ReturnType<typeof createRestoreState>;
   maxUsedThisSession: boolean;
   /** Pending one-shot verdict per session. Consumed (and deleted) by whichever
-   *  chat transform fires first (system or messages) for that session.
+   *  chat transform fires  (system or messages) for that session.
    *  Per-instance — was previously stashed on ctx (`_maxModeResult`), which
    *  leaked across sessions in long-running processes. */
   _maxModeResult: Map<string, MaxModeResult>;
@@ -173,7 +170,7 @@ export const server = async (ctx: RichPluginContext) => {
             n: config.n_candidates,
             models: config.candidate_models,
             temperature: config.candidate_temperature,
-            // max-mode checkpoint integration — second release migration. Safety cap on parallel
+            // max-mode checkpoint integration —  release migration. Safety cap on parallel
             // candidates. candidates.ts enforces
             // `Math.min(config.n, config.maxCandidates ?? 10)`.
             maxCandidates: config.maxCandidates,
@@ -188,11 +185,11 @@ export const server = async (ctx: RichPluginContext) => {
           candidates,
           config.judge_model,
           ctx,
-          // max-mode chokidar migration — second release migration. Max chars of each draft sent
+          // max-mode chokidar migration —  release migration. Max chars of each draft sent
           // to the judge. judge.ts truncates each draft before it enters
           // the judge prompt.
           config.judgeDraftMaxChars,
-          // max-mode dream integration — third release migration. Confidence stamped on fallback
+          // max-mode dream integration —  release migration. Confidence stamped on fallback
           // verdicts (SDK offline / parse failure / empty response).
           // Distinct from judge-reported confidence.
           config.fallbackConfidence,

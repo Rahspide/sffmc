@@ -4,7 +4,7 @@ import { type RichPluginContext } from "@sffmc/shared";
  *  from setting n_candidates to very high values (e.g. 100) which would
  *  fire that many simultaneous API calls, exhausting quotas and budget.
  *
- *  parallel LLM candidates cap (Manriel audit, v0.14.2) — decision and rationale:
+ *  parallel LLM candidates cap (Manriel audit, v0.14.x) — decision and rationale:
  *
  *  Manriel's original design used a cap of 50 candidates. The current
  *  code uses 10. Manriel's audit pushed back: "50 is intentional API
@@ -20,7 +20,7 @@ import { type RichPluginContext } from "@sffmc/shared";
  *     call AND per token. With 50 candidates on a 1k-token prompt,
  *     one dream cycle burns ~50k tokens plus the multiplier for
  *     `temperature` variance. Most users run max-mode interactively
- *     and want a fast first response; 10 candidates at
+ *     and want a fast  response; 10 candidates at
  *     `temperature=1.0` already produces 10 distinct drafts to judge
  *     from.
  *
@@ -33,14 +33,14 @@ import { type RichPluginContext } from "@sffmc/shared";
  *  3. The 50-candidate design assumes an offline / batch workflow
  *     with relaxed latency. The interactive workflow (which is the
  *     primary use case for max-mode in MiMo-Code) cannot wait for
- *     50 sequential LLM round-trips before showing the first result.
+ *     50 sequential LLM round-trips before showing the  result.
  *
  *  4. The cap is enforced at `Math.min(config.n, config.maxCandidates
  *     ?? 10)` (below). Callers that want more candidates can request
  *     them; the runtime clamps to the configured cap (default 10).
  *     This is a deliberate budget guard, not a bug.
  *
- *  v0.14.3 (second release — max-mode checkpoint integration): the prior module-level `MAX_CANDIDATES = 10`
+ *  v0.14.x ( release — max-mode checkpoint integration): the prior module-level `MAX_CANDIDATES = 10`
  *  was replaced with a `MaxModeConfig.maxCandidates` field. The default
  *  of 10 is preserved in `defaultConfig.maxCandidates`, so behavior is
  *  unchanged when no `~/.config/SFFMC/max-mode.yaml` is present.
@@ -67,9 +67,9 @@ interface GenerateConfig {
   n: number;
   models: string[];
   temperature: number;
-  /** max-mode checkpoint integration — second release migration. Hard cap on parallel LLM
+  /** max-mode checkpoint integration —  release migration. Hard cap on parallel LLM
    *  candidates. Optional so callers can omit it; safety cap falls
-   *  back to 10 (matching the v0.14.2 module-level const). Callers
+   *  back to 10 (matching the v0.14.x module-level const). Callers
    *  built on `MaxModeConfig` always pass `config.maxCandidates`. */
   maxCandidates?: number;
 }
@@ -108,8 +108,8 @@ export async function generateCandidates(
 
   const model = config.models[0] || String(ctx.config?.model || "");
   const candidates: Candidate[] = [];
-  // max-mode checkpoint integration — second release migration. Safety cap: clamp requested n to the
-  // configured maxCandidates (default 10, matching v0.14.2 const). This
+  // max-mode checkpoint integration —  release migration. Safety cap: clamp requested n to the
+  // configured maxCandidates (default 10, matching v0.14.x const). This
   // is the deliberate budget guard — see block comment above.
   const n = Math.min(config.n, config.maxCandidates ?? 10);
 

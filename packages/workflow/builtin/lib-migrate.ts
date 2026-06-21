@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/workflow — see ../../LICENSE
 //
-// `lib-migrate` builtin workflow: 5-phase library migration assistant.
 //
 // Phases: Detect → Map → Transform → Verify → Report.
 // Finds all imports of a target library, builds old→new API mapping,
@@ -175,7 +174,7 @@ const REPORT_SHAPE = {
   },
 };
 
-// ── Step 1: Detect ────────────────────────────────────────────────────────
+// ── Detect ────
 
 phase("Detect");
 
@@ -272,7 +271,7 @@ if (imports.length === 0) {
   };
 }
 
-// ── Step 2: Map ───────────────────────────────────────────────────────────
+// ── Map ────
 
 phase("Map");
 
@@ -319,7 +318,7 @@ log("Built " + mappings.length + " API mappings (" +
   mappings.filter(function (m) { return m.confidence === "manual"; }).length +
   " manual)");
 
-// ── Step 3: Transform ─────────────────────────────────────────────────────
+// ── Transform ────
 
 phase("Transform");
 
@@ -369,7 +368,7 @@ const patches = (transformRaw && transformRaw.patches) ? transformRaw.patches : 
 log("Generated " + patches.length + " patches (" +
   patches.filter(function (p) { return p.auto_applicable; }).length + " auto-applicable)");
 
-// ── Step 4: Verify ────────────────────────────────────────────────────────
+// ── Verify ────
 
 phase("Verify");
 
@@ -403,7 +402,7 @@ for (var vi = 0; vi < verResults.length; vi++) {
 
 log("Verification: " + (allPassed ? "ALL PASSED" : "SOME FAILURES"));
 
-// ── Step 5: Report ────────────────────────────────────────────────────────
+// ── Report ────
 
 phase("Report");
 
@@ -475,7 +474,7 @@ return {
   verification: verification,
   phases_completed: ["Detect", "Map", "Transform", "Verify", "Report"],
   next_steps: [
-    "Apply auto-applicable patches first",
+    "Apply auto-applicable patches ",
     "Review and apply manual patches one at a time",
     "Run full test suite after all patches are applied",
     "Run typecheck to catch any remaining type errors",

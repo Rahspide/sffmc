@@ -4,7 +4,6 @@ import { RECON_AGENTS_BUDGET, RECON_TASKTREE_BUDGET } from "./constants.ts";
 
 export { RECON_AGENTS_BUDGET, RECON_TASKTREE_BUDGET };
 
-// Initial release (v0.14.2) HIGH-severity migration — see
 // .slim/deepwork/hardcode-audit-2026-06.md.
 //
 // `memory` and `checkpoint` were hardcoded at 6144 chars each. They are

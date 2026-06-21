@@ -156,7 +156,7 @@ const hostFromURL = function (u) {
   catch (_e) { return "unknown"; }
 };
 
-// ── Step 1: Plan ──────────────────────────────────────────────────────────
+// ── Plan ────
 
 phase("Plan");
 
@@ -336,7 +336,7 @@ if (topFacts.length === 0) {
   };
 }
 
-// ── Step 4: Group ─────────────────────────────────────────────────────────
+// ── Group ────
 
 phase("Group");
 
@@ -353,7 +353,7 @@ const groups = (grouped && grouped.groups && grouped.groups.length)
 
 log("Folded " + topFacts.length + " facts \\u2192 " + groups.length + " groups");
 
-// ── Step 5: Crosscheck ────────────────────────────────────────────────────
+// ── Crosscheck ────
 
 phase("Crosscheck");
 
@@ -405,7 +405,7 @@ if (upheld.length === 0) {
   };
 }
 
-// ── Step 6: Report ────────────────────────────────────────────────────────
+// ── Report ────
 
 phase("Report");
 

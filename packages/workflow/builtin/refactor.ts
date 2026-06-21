@@ -139,7 +139,7 @@ if (!workspace) {
   throw new Error("refactor builtin requires args.workspace (jail directory)");
 }
 
-// Step 1: Scan
+// Scan
 const scanRaw = await agent(
   "Scan the target and report file structure.\n\n" +
   "TARGET: " + target + "\n" +
@@ -165,7 +165,7 @@ if (!scan.picked || scan.picked.length === 0) {
   throw new Error("refactor builtin: Scan phase found no files to analyze at " + target);
 }
 
-// Step 2: Diagnose (read picked files, list smells)
+// Diagnose (read picked files, list smells)
 let pickedContents = "";
 for (const f of (scan.picked || []).slice(0, MAX_FILES_READ)) {
   if (!exists(f)) continue;
@@ -197,7 +197,7 @@ if (!diagnose.smells || diagnose.smells.length === 0) {
   throw new Error("refactor builtin: Diagnose phase found no smells");
 }
 
-// Step 3: Propose (1-5 patches targeting the worst smells)
+// Propose (1-5 patches targeting the worst smells)
 const proposeRaw = await agent(
   "Propose 1-5 refactor patches for the following code.\n\n" +
   "GOAL: " + goal + "\n\n" +
@@ -212,7 +212,7 @@ const proposeRaw = await agent(
   "  - reason: 1-2 sentences, what improves and why\n" +
   "  - risk: 'low' | 'medium' | 'high' (low = same behavior, high = subtle behavior change)\n" +
   "  - addresses_smell: which smell this fixes (kind:location)\n\n" +
-  "Order proposals by impact (highest first). Skip trivial changes — focus on real wins.",
+  "Order proposals by impact (highest ). Skip trivial changes — focus on real wins.",
   {
     agentType: "general",
     label: "refactor:propose",
@@ -226,7 +226,7 @@ if (!propose.proposals || propose.proposals.length === 0) {
   throw new Error("refactor builtin: Propose phase produced no proposals");
 }
 
-// Step 4: Output (return everything for user review)
+// Output (return everything for user review)
 const result = {
   target: target,
   goal: goal,

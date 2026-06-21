@@ -105,15 +105,13 @@ export function journalKey(
 // Default paths (used when no explicit dataDir provided)
 // ---------------------------------------------------------------------------
 //
-// Initial release migration: the data directory can be overridden via
 // `WorkflowConfig.dataDir`. The override (via `getWorkflowDataDir()`) wins
 // over the XDG / `~/.local/share` default. The override is empty string by
 // default — the empty case falls through to the original XDG lookup so
 // behavior is unchanged when no YAML is provided.
 
 function defaultDataDir(): string {
-  // Initial release migration: prefer the YAML-config override if set.
-  const override = getWorkflowDataDir()
+    const override = getWorkflowDataDir()
   if (override && override.trim().length > 0) return override
   const xdg = process.env.XDG_DATA_HOME
   if (xdg) return path.join(xdg, "SFFMC", "workflow")
@@ -122,7 +120,7 @@ function defaultDataDir(): string {
 
 /** Eagerly populate the workflow config cache at module-load time so
  *  `getWorkflowDataDir()` returns the YAML override (if any) on the
- *  first call to `defaultDataDir()`. Failure is non-fatal: the sync
+ *   call to `defaultDataDir()`. Failure is non-fatal: the sync
  *  getter falls back to the hardcoded XDG default. */
 void ensureWorkflowConfig().catch(() => {
   // Best-effort — the sync getter's fallback handles the failure case.
@@ -221,7 +219,7 @@ export class WorkflowPersistence {
    *
    * @param opts.db      Optional external Database (e.g. `:memory:` for tests).
    *                     When provided, the schema is NOT applied — caller is
-   *                     responsible for calling `applySchema()` first.
+   *                     responsible for calling `applySchema()` .
    * @param opts.dataDir Optional data directory for file-based artifacts
    *                     (scripts, journals). Defaults to XDG_DATA_HOME or
    *                     ~/.local/share/SFFMC/workflow.
@@ -352,7 +350,7 @@ export class WorkflowPersistence {
   /** Synchronous journal append — durable before the sandbox pump can be starved.
    *  fsync is coalesced via a 50ms timer; call flushJournalSync() for explicit
    *  durability at workflow lifecycle boundaries.
-   *  Writes a v1 header (`{"v":1}`) on the first append to a new journal
+   *  Writes a v1 header (`{"v":1}`) on the  append to a new journal
    *  file. v0 journals (no header) remain backward-compatible — loadJournal
    *  distinguishes header lines by the absence of a `t` field. */
   appendJournalSync(runID: string, event: JournalEvent): void {
@@ -360,7 +358,7 @@ export class WorkflowPersistence {
     mkdirSync(this.dir, { recursive: true })
     const jpath = this.journalPath(runID)
     if (!existsSync(jpath)) {
-      // First append: write v1 header so future readers can detect format
+      //  append: write v1 header so future readers can detect format
       appendFileSync(jpath, JSON.stringify({ v: 1 }) + "\n")
     }
     appendFileSync(jpath, JSON.stringify(event) + "\n")
@@ -390,7 +388,7 @@ export class WorkflowPersistence {
       for await (const line of rl) {
         lineNo++
         if (!line) continue
-        // v0.14.3 — validate every parsed event against the
+        // v0.14.x — validate every parsed event against the
         // JournalEvent discriminated union. Torn JSON lines (truncated by
         // a crash mid-append), unknown event types, and missing required
         // fields are all skipped silently with a structured debug log,
@@ -425,7 +423,7 @@ export class WorkflowPersistence {
   /** Clear the journal (truncate to v1 header). Used on sha-mismatch resume.
    *  Writes `{"v":1}\n` instead of "" so that a concurrent appendJournalSync
    *  within the 50ms fsync coalesce window does not land a raw event as the
-   *  first line of the file (which loadJournal would treat as a torn header
+   *   line of the file (which loadJournal would treat as a torn header
    *  and silently skip). See R3 in audit b27. */
   async clearJournal(runID: string): Promise<void> {
     safeRunID(runID)

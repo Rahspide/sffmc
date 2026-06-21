@@ -6,7 +6,7 @@
 // three can be loaded together via this package's default export
 // (standalone usage).
 //
-// second release (v0.9.0): factory pattern replaced with named server
+//  release (v0.9.0): factory pattern replaced with named server
 // exports so the memory MSP can compose them via runtime hook().
 
 import { loadConfig, mergeHooks, type PluginContext, createLogger, type PluginServer } from "@sffmc/shared";
@@ -32,13 +32,11 @@ export interface ExtraConfig {
   judge_rubric: string;
   judge_auto: boolean;
   checkpoint_dir: string;
-  // initial release migration (v0.14.2) — see .slim/deepwork/hardcode-audit-2026-06.md
-  /** max checkpoint file size — max checkpoint file size in bytes (default 10 MiB). */
+    /** max checkpoint file size — max checkpoint file size in bytes (default 10 MiB). */
   checkpoint_max_file_size: number;
   /** max restored messages — max messages restored from a single checkpoint (default 50). */
   checkpoint_max_restored_messages: number;
-  // second release migration (v0.14.3) — see
-  // .slim/deepwork/phase-2-3-hardcode-migration-plan.md §2.3
+    // .slim/deepwork/phase-2-3-hardcode-migration-plan.md §2.3
   /** buffer flush threshold — buffer flush threshold (tool calls buffered before disk flush). */
   checkpoint_flush_threshold: number;
   /** periodic flush interval — periodic flush interval in ms. */
@@ -115,8 +113,7 @@ export const checkpointServer = async (ctx: PluginContext): Promise<PluginServer
   log.info(
     `checkpoint: ${config.checkpoint ? "enabled" : "disabled"}`,
   );
-  // initial release migration (max checkpoint file size, max restored messages) + second release migration (buffer flush threshold, periodic flush interval, max in-memory session buffers):
-  // forward YAML-configurable limits to the checkpoint factory. Defaults
+    // forward YAML-configurable limits to the checkpoint factory. Defaults
   // match the previous hardcoded values, so behavior is unchanged when no
   // YAML is present.
   const cp = createCheckpointTool({
@@ -142,8 +139,7 @@ export const judgeServer = async (ctx: PluginContext): Promise<PluginServer> => 
     rubric: config.judge_rubric,
     judge_auto: config.judge_auto,
     ctx,
-    // second release migration (judge prompt): forward the YAML-configurable cap.
-    // The factory clamps to 2-20, so an out-of-range YAML will not crash.
+        // The factory clamps to 2-20, so an out-of-range YAML will not crash.
     maxCandidates: config.judge_max_candidates,
   });
   return { id: "extra-judge", tool: { extra_judge: j.tool }, ...j.hooks };
@@ -154,8 +150,7 @@ export const dreamServer = async (ctx: PluginContext): Promise<PluginServer> => 
   log.info(
     `dream: ${config.dream ? "enabled" : "disabled"}`,
   );
-  // initial release migration (Jaccard dedup threshold, Jaccard cluster threshold, dream max entries) + second release migration (dream archive path)
-  // + third release migration (dream snippet length, dream LLM snippet length): forward YAML-configurable
+    // +  release migration (dream snippet length, dream LLM snippet length): forward YAML-configurable
   // thresholds/caps/paths/sizes to the dream factory. Defaults match the
   // previous hardcoded values, so behavior is unchanged when no YAML is
   // present. The factory falls back to `DEFAULT_ARCHIVE_PATH` when

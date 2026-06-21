@@ -11,8 +11,7 @@ interface WatchdogConfig {
   promote_model: string | null;
   error_class_filter: string[];
   log_failures: boolean;
-  // second release migration (watchdog log file) — see
-  // .slim/deepwork/phase-2-3-hardcode-migration-plan.md §2.7
+    // .slim/deepwork/phase-2-3-hardcode-migration-plan.md §2.7
   /** watchdog log file — how many recent failures to include in the promotion fragment
    *  injected into the system prompt when a tool gets stuck. Defaults to
    *  5 (matches the prior hardcoded value). Validation: 1 ≤ x ≤ 50. */
@@ -65,7 +64,7 @@ export const server = async (ctx: PluginContext) => {
   //                            an empty value so operators can confirm whether
   //                            a fallback is actually configured)
   //
-  // Bug fix v0.14.1: production logs showed `model=` (empty) when both
+  // Bug fix v0.14.x: production logs showed `model=` (empty) when both
   // promote_model was null (default) AND ctx.config.model was undefined.
   // The empty value made it impossible to tell whether the configured
   // fallback had loaded correctly or the chain had silently degraded.

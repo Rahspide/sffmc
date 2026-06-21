@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// @sffmc/memory — second release migration tests (schema journal validation, chokidar awaitWriteFinish.stabilityThreshold, chokidar awaitWriteFinish.pollInterval)
+// @sffmc/memory —  release migration tests (schema journal validation, chokidar awaitWriteFinish.stabilityThreshold, chokidar awaitWriteFinish.pollInterval)
 //
 // Verifies the new YAML-configurable fields on MemoryConfig:
 //   - schema journal validation  reconTopN          (default 20, topByImportance limit)
@@ -7,7 +7,7 @@
 //   - chokidar awaitWriteFinish.pollInterval watchPollIntervalMs (default 100, chokidar pollInterval)
 //
 // Two checks per item:
-//   (a) default matches v0.14.2 hardcoded value (no behavior change)
+//   (a) default matches v0.14.x hardcoded value (no behavior change)
 //   (b) YAML override flows through the getter
 
 import { describe, it, expect, beforeAll, afterAll } from "bun:test";
@@ -62,7 +62,7 @@ function clearMemoryYaml(): void {
 // ---------------------------------------------------------------------------
 
 describe("schema journal validation — memory.reconTopN", () => {
-  it("(a) default returns 20 (matches v0.14.2 hardcoded value)", async () => {
+  it("(a) default returns 20 (matches v0.14.x hardcoded value)", async () => {
     __resetMemoryConfig();
     clearMemoryYaml();
     expect(await getMemoryReconTopN(configHome)).toBe(20);
@@ -86,7 +86,7 @@ describe("schema journal validation — memory.reconTopN", () => {
 // ---------------------------------------------------------------------------
 
 describe("chokidar awaitWriteFinish.stabilityThreshold — memory.watchStabilityMs", () => {
-  it("(a) default returns 300 (matches v0.14.2 hardcoded value)", async () => {
+  it("(a) default returns 300 (matches v0.14.x hardcoded value)", async () => {
     __resetMemoryConfig();
     clearMemoryYaml();
     expect(await getWatchStabilityMs(configHome)).toBe(300);
@@ -99,7 +99,7 @@ describe("chokidar awaitWriteFinish.stabilityThreshold — memory.watchStability
   });
 
   it("watcher DEFAULT_WATCHER_CONFIG preserves 300 (regression guard)", () => {
-    // The exported fallback constant must match the v0.14.2 behaviour so
+    // The exported fallback constant must match the v0.14.x behaviour so
     // direct callers of startWatcher(rootDir, db) (no WatcherConfig arg)
     // still see the same chokidar timings.
     expect(DEFAULT_WATCHER_CONFIG.stabilityMs).toBe(300);
@@ -111,7 +111,7 @@ describe("chokidar awaitWriteFinish.stabilityThreshold — memory.watchStability
 // ---------------------------------------------------------------------------
 
 describe("chokidar awaitWriteFinish.pollInterval — memory.watchPollIntervalMs", () => {
-  it("(a) default returns 100 (matches v0.14.2 hardcoded value)", async () => {
+  it("(a) default returns 100 (matches v0.14.x hardcoded value)", async () => {
     __resetMemoryConfig();
     clearMemoryYaml();
     expect(await getWatchPollIntervalMs(configHome)).toBe(100);
@@ -143,7 +143,7 @@ describe("schema journal validation/chokidar awaitWriteFinish.stabilityThreshold
     expect(await getWatchPollIntervalMs(configHome)).toBe(200);
   });
 
-  it("DEFAULT_WATCHER_CONFIG matches the v0.14.2 baseline shape", () => {
+  it("DEFAULT_WATCHER_CONFIG matches the v0.14.x baseline shape", () => {
     // Compile-time type assertion via the runtime cast.
     const cfg: WatcherConfig = DEFAULT_WATCHER_CONFIG;
     expect(Object.keys(cfg).sort()).toEqual(["pollIntervalMs", "stabilityMs"]);

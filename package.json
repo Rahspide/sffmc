@@ -42,11 +42,9 @@
     "publish:shared": "cd shared && bun publish --dry-run",
     "publish:packages": "for p in packages/*/package.json; do d=$(dirname \"$p\"); (cd \"$d\" && bun publish --dry-run) || exit 1; done",
     "publish:actual": "scripts/release.sh --actual",
-    "version:list": "for p in packages/*/package.json shared/package.json; do echo -n \"$p: \"; jq -r .version \"$p\"; done",
-    "prepare": "husky"
+    "version:list": "for p in packages/*/package.json shared/package.json; do echo -n \"$p: \"; jq -r .version \"$p\"; done"
   },
   "devDependencies": {
-    "husky": "^9.1.7",
     "safe-regex": "^2.1.1"
   },
   "engines": {

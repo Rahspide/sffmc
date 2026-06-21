@@ -17,13 +17,12 @@ import {
 export type { CheckResult, HealthResult, CheckFn } from "./check-factory.ts";
 
 // ---------------------------------------------------------------------------
-// second release migration (composite file list, safeMultiHooks flag, expected composite list) — YAML-configurable health checks.
 //
 // The health package historically had three module-level `const` arrays
 // (TOOL_FILES, safeMultiHooks, EXPECTED_COMPOSITES) that pinned the behavior
 // of three checks. We now load them from `~/.config/SFFMC/health.yaml` via
 // `loadConfig<>("health", …)`. When no YAML exists the merged defaults
-// exactly match the v0.14.2 hardcoded values, so behavior is unchanged.
+// exactly match the v0.14.x hardcoded values, so behavior is unchanged.
 //
 // Pattern precedent: `packages/workflow/src/constants.ts` (`ensureWorkflowConfig`,
 // `getWorkflowConfigSync`, `__setWorkflowConfig`). The same shape works here
@@ -49,7 +48,7 @@ export interface HealthConfig {
 }
 
 export const DEFAULT_HEALTH_CONFIG: HealthConfig = {
-  // composite file list — matches the v0.14.2 hardcoded TOOL_FILES at src/index.ts:280-287
+  // composite file list — matches the v0.14.x hardcoded TOOL_FILES at src/index.ts:280-287
   toolFiles: [
     "packages/compose/src/index.ts",       // compose_skill
     "packages/workflow/src/tool.ts",       // workflow
@@ -58,7 +57,7 @@ export const DEFAULT_HEALTH_CONFIG: HealthConfig = {
     "packages/extra/src/judge.ts",         // extra_judge
     "packages/extra/src/dream.ts",         // extra_dream
   ],
-  // safeMultiHooks flag — matches the v0.14.2 hardcoded `new Set([...])` at src/index.ts:133-149
+  // safeMultiHooks flag — matches the v0.14.x hardcoded `new Set([...])` at src/index.ts:133-149
   safeMultiHooks: [
     "config",
     "event",
@@ -76,7 +75,7 @@ export const DEFAULT_HEALTH_CONFIG: HealthConfig = {
     "chat.params",
     "chat.system",
   ],
-  // expected composite list — matches the v0.14.2 hardcoded EXPECTED_COMPOSITES at src/index.ts:693
+  // expected composite list — matches the v0.14.x hardcoded EXPECTED_COMPOSITES at src/index.ts:693
   expectedComposites: ["safety", "memory", "agentic"],
 }
 
@@ -132,7 +131,7 @@ export function getHealthConfigSync(): HealthConfig {
   return _healthConfig ?? DEFAULT_HEALTH_CONFIG
 }
 
-// homedir() may cache at module load in Bun; use process.env.HOME first so
+// homedir() may cache at module load in Bun; use process.env.HOME  so
 // tests can override it.
 function userHome(): string {
   return process.env.HOME || homedir();
@@ -246,8 +245,8 @@ export const checkHookConflicts = createCheck("hook_conflicts", async (repoRoot)
     // Most OpenCode hooks are designed for multiple plugins to chain/aggregate.
     // Only a few hooks are truly exclusive (where multiple registrations would conflict).
     // The known-safe hooks for multi-registration come from
-    // `getHealthConfigSync().safeMultiHooks` (safeMultiHooks flag second release migration) — defaults
-    // match the v0.14.2 hardcoded list verbatim.
+    // `getHealthConfigSync().safeMultiHooks` (safeMultiHooks flag  release migration) — defaults
+    // match the v0.14.x hardcoded list verbatim.
     const safeMultiHooks = new Set(getHealthConfigSync().safeMultiHooks);
 
     const realConflicts: string[] = [];
@@ -278,7 +277,7 @@ export const checkHookConflicts = createCheck("hook_conflicts", async (repoRoot)
 
 // Check 2: Test presence
 export const checkTestPresence = createCheck("test_presence", async (repoRoot) => {
-  // After fourth release (v0.9.0), module packages are "code-only" — their
+  // After  release (v0.9.0), module packages are "code-only" — their
   // tests live in the owning composite's test/ dir. Only check packages that
   // are themselves test owners: composites (have role) and shared (infra).
   const pkgs = await packageNames(repoRoot);
@@ -379,8 +378,8 @@ export const checkTypeCheck = createCheck("type_check", async (repoRoot) => {
 });
 
 // Check 5: Tool registration sanity (fix-17 regression guard)
-// composite file list second release migration — the file list now comes from
-// `getHealthConfigSync().toolFiles` (default matches the v0.14.2 hardcoded
+// composite file list  release migration — the file list now comes from
+// `getHealthConfigSync().toolFiles` (default matches the v0.14.x hardcoded
 // list). We resolve it once at the start of the check to keep the inner
 // loop allocation-free.
 export const checkToolRegistration = createCheck("tool_registration", async (repoRoot) => {
@@ -788,8 +787,8 @@ export const checkCategorySplit = createCheck("category_split", async (repoRoot)
 });
 
 // Check 13: Composite structure (v0.9.0)
-// expected composite list second release migration — the expected composite list now comes from
-// `getHealthConfigSync().expectedComposites` (default matches the v0.14.2
+// expected composite list  release migration — the expected composite list now comes from
+// `getHealthConfigSync().expectedComposites` (default matches the v0.14.x
 // hardcoded `["safety", "memory", "agentic"]` list verbatim).
 export const checkCompositeStructure = createCheck("composite_structure", async (repoRoot) => {
   const expectedComposites = getHealthConfigSync().expectedComposites

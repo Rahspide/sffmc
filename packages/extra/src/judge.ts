@@ -99,8 +99,7 @@ export interface JudgeConfig {
   judge_auto?: boolean;
   /** PluginContext for LLM calls. Required for real judging. */
   ctx?: RichPluginContext;
-  // second release migration (judge prompt) — see
-  // .slim/deepwork/phase-2-3-hardcode-migration-plan.md §2.5
+    // .slim/deepwork/phase-2-3-hardcode-migration-plan.md §2.5
   /** judge prompt — max number of candidates the judge will accept per call. Also
    *  used as the JSON-Schema `maxItems` for the `candidates` parameter.
    *  Defaults to `DEFAULT_MAX_CANDIDATES` (8). Validated to the 2-20 range
@@ -163,7 +162,7 @@ export function buildJudgePrompt(candidates: string[], rubric: string): { system
 export function parseJudgeResponse(raw: string, n: number): JudgeResponse | null {
   try {
     const trimmed = raw.trim();
-    // Extract the first JSON object from the response (handles markdown fences,
+    // Extract the  JSON object from the response (handles markdown fences,
     // leading text, trailing text)
     const jsonMatch = trimmed.match(/\{[\s\S]*\}/);
     if (!jsonMatch) return null;
@@ -325,8 +324,7 @@ export function createJudgeTool(
   config: JudgeConfig,
 ): { tool: JudgeTool; hooks: JudgeHooks } {
   const rubric = config.rubric || DEFAULT_RUBRIC;
-  // second release migration (judge prompt): resolve the configurable max
-  // candidates cap up front. Clamp to the documented 2-20 range so
+    // candidates cap up front. Clamp to the documented 2-20 range so
   // out-of-range YAML cannot crash the LLM or blow context. This
   // replaces the previous hardcoded `maxItems: 8` and the matching
   // runtime check `candidates.length > 8`.

@@ -122,7 +122,7 @@ if (!goal) {
   throw new Error("plan builtin requires args.goal (string, non-empty)");
 }
 
-// Step 1: Scope
+// Scope
 const scopeRaw = await agent(
   "Read the goal and produce a scope clarification.\n\n" +
   "GOAL: " + goal + "\n\n" +
@@ -139,14 +139,14 @@ const scopeRaw = await agent(
 
 const scope = scopeRaw || { clarification: "Unable to produce scope clarification.", success_criteria: ["Goal completed"] };
 
-// Step 2: Decompose (parallel: one agent per major work area, OR single agent for simple goals)
+// Decompose (parallel: one agent per major work area, OR single agent for simple goals)
 const decomposeRaw = await agent(
   "Break the goal into 5-15 concrete, ordered steps.\n\n" +
   "GOAL: " + goal + "\n\n" +
   "SCOPE: " + scope.clarification + "\n\n" +
   "SUCCESS CRITERIA:\n" + scope.success_criteria.map((c) => "  - " + c).join("\\n") + "\n\n" +
   "Each step has an id (kebab-case), title (1-5 words), and description (1 sentence). " +
-  "Steps should be ordered by what needs to happen first. " +
+  "Steps should be ordered by what needs to happen . " +
   "If a step depends on another, note it in the description — the next phase will formalize deps.",
   {
     agentType: "general",
@@ -181,16 +181,16 @@ if (!decomposed.steps || decomposed.steps.length === 0) {
   throw new Error("plan builtin: Decompose phase produced no steps even after retry");
 }
 
-// Step 3: Estimate (deps + parallel groups + cost)
+// Estimate (deps + parallel groups + cost)
 const estimateRaw = await agent(
   "Take the following steps and add deps, est_minutes, and parallel_group to each.\n\n" +
   "GOAL: " + goal + "\n\n" +
   "STEPS:\n" + decomposed.steps.map((s) => "  " + s.id + " — " + s.title + ": " + s.description).join("\\n") + "\n\n" +
   "For each step, output:\n" +
   "  - id (same as input)\n" +
-  "  - deps: array of step ids this depends on (can be empty for the first step)\n" +
+  "  - deps: array of step ids this depends on (can be empty for the  step)\n" +
   "  - est_minutes: rough estimate (single digit for tiny, 2-3 digits for big)\n" +
-  "  - parallel_group: 0 for the first wave, 1 for the next wave that can run in parallel, etc. Steps in the same group have no inter-dependencies and can be done concurrently.\n\n" +
+  "  - parallel_group: 0 for the  wave, 1 for the next wave that can run in parallel, etc. Steps in the same group have no inter-dependencies and can be done concurrently.\n\n" +
   "Also output validation.no_cycles (true if the dep graph has no cycles) and validation.all_deps_exist (true if every dep id is in the step list).",
   {
     agentType: "general",
@@ -216,7 +216,7 @@ for (const e of estimated.steps) {
   }
 }
 
-// Step 4: Output
+// Output
 const totalMinutes = estimated.steps.reduce((sum, s) => sum + (s.est_minutes || 0), 0);
 const maxParallelGroup = estimated.steps.reduce((max, s) => Math.max(max, s.parallel_group || 0), 0);
 

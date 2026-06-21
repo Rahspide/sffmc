@@ -6,7 +6,7 @@
 // recent chat tail) at the start of every new session via
 // experimental.chat.messages.transform.
 //
-// Extracted from index.ts (second release split) so the MSP can compose it via runtime hook().
+// Extracted from index.ts ( release split) so the MSP can compose it via runtime hook().
 
 import { init, topByImportance, type MemoryDB } from "./memory"
 import { buildRecon, tailFromMessages, RECON_AGENTS_BUDGET } from "./recon"
@@ -27,8 +27,7 @@ import { AGENTS_FILE } from "./constants.ts";
 export interface MemoryConfig {
   storagePath: string
   tailChars: number
-  // Initial release HIGH migration — see
-  // .slim/deepwork/hardcode-audit-2026-06.md
+    // .slim/deepwork/hardcode-audit-2026-06.md
   /** Character budget for the memory section in recon injection.
    *  Defaults to 6144 (matches the prior hardcoded value). */
   reconMemoryBudget: number
@@ -39,8 +38,7 @@ export interface MemoryConfig {
    *  are skipped (with a warn log) to prevent OOM from large crafted
    *  AGENTS.md files. Defaults to 100 KiB. */
   agentsMaxSize: number
-  // Second release MEDIUM migration — see
-  // .slim/deepwork/phase-2-3-hardcode-migration-plan.md §2.2
+    // .slim/deepwork/phase-2-3-hardcode-migration-plan.md §2.2
   /** Max memories to include in recon injection (defaults to 20,
    *  the prior hardcoded value). Raising this directly increases LLM
    *  context consumption. */

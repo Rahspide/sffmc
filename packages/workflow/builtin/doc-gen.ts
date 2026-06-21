@@ -128,7 +128,7 @@ const ASSEMBLE_SHAPE = {
   },
 };
 
-// ── Step 1: Inventory ─────────────────────────────────────────────────────
+// ── Inventory ────
 
 phase("Inventory");
 
@@ -201,7 +201,7 @@ const inventoryRaw = await agent(
   "  - name: the exported name\n" +
   "  - kind: 'function' | 'class' | 'type' | 'interface' | 'const' | 'enum' | 'namespace'\n" +
   "  - file: relative path to the source file\n" +
-  "  - signature: the full declaration line (first line of the signature)\n" +
+  "  - signature: the full declaration line ( line of the signature)\n" +
   "  - exported: true\n\n" +
   "Exclude: internal/private items, test files, build artifacts.\n" +
   "Limit to " + MAX_APIS + " most important APIs.\n" +
@@ -223,7 +223,7 @@ if (apis.length === 0) {
   };
 }
 
-// ── Step 2: Generate (parallel batches) ───────────────────────────────────
+// ── Generate (parallel batches) ────
 
 phase("Generate");
 
@@ -271,7 +271,7 @@ for (var bi = 0; bi < batches.length; bi++) {
 
 log("Generated docs for " + documented.length + "/" + apis.length + " APIs");
 
-// ── Step 3: Assemble ──────────────────────────────────────────────────────
+// ── Assemble ────
 
 phase("Assemble");
 

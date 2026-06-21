@@ -20,7 +20,6 @@ import {
 // Defaults
 // ---------------------------------------------------------------------------
 //
-// initial release migration (W15, W16): the QuickJS memory limit and
 // max-stack-size now defer to `getSandboxMemoryMB()` /
 // `getSandboxStackSize()` from `./constants.ts`, which read from
 // `~/.config/SFFMC/workflow.yaml` (default 64 MiB / 1 MiB). When no
@@ -149,15 +148,13 @@ export async function runSandboxed(
 
   // --- Create runtime + context ---
   const rt = QJS.newRuntime()
-  // initial release migration (W15): sandbox memory now defaults to the
-  // YAML-configured value (via `getSandboxMemoryMB()`), which falls back
+    // YAML-configured value (via `getSandboxMemoryMB()`), which falls back
   // to 64 MiB when no override is set. The previous hardcoded `DEFAULT_MEMORY`
   // constant is preserved as `DEFAULT_MEMORY_BYTES` for any code paths
   // that still need to compute byte counts directly.
   const memoryMB = opts?.memoryMB ?? getSandboxMemoryMB()
   rt.setMemoryLimit(memoryMB * 1024 * 1024)
-  // initial release migration (W16): QuickJS max stack size now reads from
-  // the YAML config via `getSandboxStackSize()` (default 1 MiB).
+    // the YAML config via `getSandboxStackSize()` (default 1 MiB).
   rt.setMaxStackSize(getSandboxStackSize())
   rt.setInterruptHandler(
     shouldInterruptAfterDeadline(Date.now() + (opts?.deadlineMs ?? SCRIPT_DEADLINE_MS)),

@@ -6,7 +6,7 @@
 //   types.ts  <->  runtime.ts
 // circular import, which caused a TDZ ReferenceError on
 // `SCRIPT_DEADLINE_MS` in user environments (5 tests failing in
-// `bun test` whenever runtime.ts happened to load first).
+// `bun test` whenever runtime.ts happened to load ).
 
 import type { SandboxConstraints } from "./types.ts"
 import { loadConfig } from "@sffmc/shared"
@@ -23,7 +23,7 @@ import { loadConfig } from "@sffmc/shared"
  *
  *  Initial release migration: the runtime value can be overridden via
  *  `WorkflowConfig.scriptDeadlineMs`. The exported constant remains the
- *  default (and is still used directly by `runtime.ts` per the v0.14.1
+ *  default (and is still used directly by `runtime.ts` per the v0.14.x
  *  hotfix policy — runtime.ts is off-limits to this migration, so the
  *  override only takes effect through the getter `getScriptDeadlineMs()`).
  */
@@ -55,7 +55,7 @@ export const WORKFLOW_LIMITS = {
 } as const
 
 /** Directories (under the workspace, walked upward) where saved workflows
- *  may be looked up by name. Order matters — first match wins. The
+ *  may be looked up by name. Order matters —  match wins. The
  *  `.sffmc/workflows` namespace is SFFMC's own; `.claude/workflows`
  *  is the legacy Claude convention for backward compatibility.
  *
@@ -70,7 +70,7 @@ export const WORKFLOW_SEARCH_DIRS = [".sffmc/workflows", ".claude/workflows"] as
  *  exhaust host resources.
  *
  *  Initial release migration: runtime.ts uses its own local copy of
- *  this constant (off-limits in v0.14.2 per the v0.14.1 hotfix policy).
+ *  this constant (off-limits in v0.14.x per the v0.14.x hotfix policy).
  *  The override via `WorkflowConfig.maxLifecycleAgents` will take effect
  *  once runtime.ts is updated to read from config (tracked separately).
  */
@@ -100,9 +100,7 @@ export const DEFAULT_GRACE_PERIOD_MS = 5 * 60 * 1000
 export const MAX_GRACE_PERIOD_MS = 24 * 60 * 60 * 1000
 
 // ---------------------------------------------------------------------------
-// Initial release migration — YAML-configurable workflow limits.
 //
-// Second release migration (sandbox pump fast interval, sandbox pump slow interval, sandbox pump decay window) — sandbox pump timings.
 //
 // The schema below is loaded lazily via `loadConfig<>("workflow", …)` from
 // `@sffmc/shared`. Defaults match the exported constants above so behavior
@@ -111,7 +109,6 @@ export const MAX_GRACE_PERIOD_MS = 24 * 60 * 60 * 1000
 // `getSandboxMemoryMB`, …) — they prefer the YAML override and fall back to
 // the hardcoded constant.
 //
-// Second release sandbox pump timings (sandbox pump timings): defaults match the prior hardcoded
 // values in `sandbox.ts` (FAST_MS=1, SLOW_MS=50, FAST_WINDOW=50). The pump
 // is the BACKSTOP that drains guest microtasks while we await the guest
 // promise — adaptive cadence to avoid idle CPU churn. A too-fast pump
@@ -164,10 +161,10 @@ export interface WorkflowExtendedConfig {
   /** scheduleFlush debounce window (ms). Coalesces frequent
    *  flushNow calls (one DB UPDATE per run) within this window.
    *
-   *  v0.14.3 hardcode second release: getter + field added NOW (per the sandbox pump timings
+   *  v0.14.x hardcode  release: getter + field added NOW (per the sandbox pump timings
    *  pattern), but the consumer wiring in `runtime.ts:scheduleFlush`
    *  (replacing `setTimeout(..., 250)` with `getFlushDebounceMs()`) is
-   *  DEFERRED — runtime.ts is off-limits per the v0.14.1 hotfix policy.
+   *  DEFERRED — runtime.ts is off-limits per the v0.14.x hotfix policy.
    *  The override takes effect once runtime.ts is updated in a follow-up
    *  hotfix commit. Until then, the runtime uses the hardcoded 250
    *  regardless of YAML.
@@ -215,7 +212,7 @@ export const DEFAULT_WORKFLOW_EXTENDED_CONFIG: WorkflowExtendedConfig = {
   journalExt: ".jsonl",
 }
 
-// Module-level cache for the loaded config. Populated on first call to
+// Module-level cache for the loaded config. Populated on  call to
 // `ensureWorkflowConfig()`. Sync getters fall back to defaults until then.
 let _workflowConfig: WorkflowExtendedConfig | null = null
 let _workflowConfigPromise: Promise<WorkflowExtendedConfig> | null = null
@@ -259,7 +256,7 @@ function __setWorkflowConfig(cfg: WorkflowExtendedConfig | null): void {
   _workflowConfigPromise = null
 }
 
-/** v0.14.3 D-1 — Symbol-keyed registration so the test shim can find
+/** v0.14.x D-1 — Symbol-keyed registration so the test shim can find
  *  `__setWorkflowConfig` without `src/constants.ts` having to export it
  *  publicly. Registered at module load; the shim looks it up via
  *  `Symbol.for("@sffmc/workflow.__setWorkflowConfig")`. */
@@ -323,7 +320,7 @@ export function getSandboxFastWindow(): number {
 // scheduleFlush debounce window. The default matches the prior
 // hardcoded value in `runtime.ts:scheduleFlush` (`setTimeout(..., 250)`).
 //
-// IMPORTANT: runtime.ts is off-limits per the v0.14.1 hotfix policy.
+// IMPORTANT: runtime.ts is off-limits per the v0.14.x hotfix policy.
 // This getter is defined NOW so the consumer wiring (replacing the
 // literal `250` in runtime.ts with `getFlushDebounceMs()`) can be done
 // in a follow-up hotfix commit. Until then, the runtime ignores YAML

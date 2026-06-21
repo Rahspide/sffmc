@@ -25,7 +25,7 @@ export interface CheckpointState {
   version: number;
 }
 
-/** Manriel audit finding (v0.14.2): typed error thrown by `readHeader()` and
+/** Manriel audit finding: typed error thrown by `readHeader()` and
  *  `readToolCalls()` when the on-disk file exceeds `maxFileSize`.
  *  Previously, `readHeader()` returned `null` and `readToolCalls()`
  *  returned `[]` for the oversize case, which made it impossible for
@@ -77,7 +77,6 @@ export interface CheckpointHooks {
 // Constants
 // ---------------------------------------------------------------------------
 //
-// Initial release (v0.14.2) HIGH-severity migration — see
 // .slim/deepwork/hardcode-audit-2026-06.md.
 //
 // `MAX_CHECKPOINT_FILE_SIZE` and `MAX_RESTORED_MESSAGES` were hardcoded
@@ -96,7 +95,6 @@ const DEFAULT_MAX_CHECKPOINT_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 const DEFAULT_MAX_RESTORED_MESSAGES = 50;
 
 //
-// Second release (v0.14.3) MEDIUM-severity migration — see
 // .slim/deepwork/phase-2-3-hardcode-migration-plan.md §2.3
 //
 // `FLUSH_THRESHOLD`, `FLUSH_INTERVAL_MS`, and `MAX_BUFFER_SESSIONS` were
@@ -198,10 +196,10 @@ function readHeader(
 
   try {
     const raw = readFileSync(fp, "utf-8");
-    const firstLine = raw.split("\n")[0]?.trim();
-    if (!firstLine) return null;
+    const Line = raw.split("\n")[0]?.trim();
+    if (!Line) return null;
 
-    const parsed = JSON.parse(firstLine) as Record<string, unknown>;
+    const parsed = JSON.parse(Line) as Record<string, unknown>;
     if (parsed.__type !== "header") return null;
     return parsed as unknown as CheckpointHeader;
   } catch {
@@ -302,7 +300,7 @@ function deleteCheckpoint(sessionID: string, dir?: string): boolean {
 
 /** Per-session buffer entry with explicit LRU metadata.
  *
- *  Manriel LRU-eviction audit finding (v0.14.2): the prior implementation
+ *  Manriel LRU-eviction audit finding: the prior implementation
  *  relied on `Map.keys().next().value` + a `delete; set` touch to implement
  *  LRU via Map's iteration order. That worked but was implicit — the
  *  eviction logic depended on Map's internal ordering, not on a
@@ -658,15 +656,15 @@ export function createCheckpointTool(config: {
   /** Initial release migration: max messages restored per checkpoint.
    *  Defaults to 50. */
   maxRestoredMessages?: number;
-  /** Second release migration: buffer flush threshold. The buffer
+  /**  release migration: buffer flush threshold. The buffer
    *  is flushed to disk when this many tool calls accumulate for a
    *  single session. Defaults to 50. */
   flushThreshold?: number;
-  /** Second release migration: periodic flush interval in ms. A
+  /**  release migration: periodic flush interval in ms. A
    *  background timer flushes all buffered sessions at this interval.
-   *  Defaults to 5_000 (5 seconds). */
+   *  Defaults to 5_000 (5 s). */
   flushIntervalMs?: number;
-  /** Second release migration: max in-memory session buffers. When
+  /**  release migration: max in-memory session buffers. When
    *  the cap is reached, the LRU session is flushed to disk and evicted.
    *  Defaults to 50. */
   maxBufferedSessions?: number;
@@ -681,8 +679,7 @@ export function createCheckpointTool(config: {
   cleanup: () => void;
 } {
   const dir = config.dir || getCheckpointDir();
-  // Initial release migration + Second release migration: defaults match
-  // the prior hardcoded values, so behavior is unchanged when no YAML is
+    // the prior hardcoded values, so behavior is unchanged when no YAML is
   // provided.
   const maxFileSize = config.maxFileSize ?? DEFAULT_MAX_CHECKPOINT_FILE_SIZE;
   const maxRestoredMessages = config.maxRestoredMessages ?? DEFAULT_MAX_RESTORED_MESSAGES;

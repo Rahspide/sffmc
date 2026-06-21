@@ -10,7 +10,7 @@ export interface Verdict {
 /**
  * Build the judge prompt from a list of candidates.
  *
- * max-mode chokidar migration — second release migration (v0.14.3). The per-candidate draft
+ * max-mode chokidar migration —  release migration. The per-candidate draft
  * truncation length was a hardcoded `c.draft.slice(0, 8000)` literal; it
  * is now `judgeDraftMaxChars` (default 8000, matches the prior literal).
  * Configurable via `MaxModeConfig.judgeDraftMaxChars` in
@@ -93,11 +93,11 @@ export async function judgeCandidates(
   candidates: Candidate[],
   judgeModel: string,
   ctx: RichPluginContext,
-  // max-mode chokidar migration — second release migration. Optional 4th arg so existing callers
+  // max-mode chokidar migration —  release migration. Optional 4th arg so existing callers
   // (3-arg signature used in agentic/test/max-mode.test.ts) keep working
   // without modification. Default 8000 matches the prior literal.
   judgeDraftMaxChars: number = 8000,
-  // max-mode dream integration — third release migration. Optional 5th arg for fallback confidence.
+  // max-mode dream integration —  release migration. Optional 5th arg for fallback confidence.
   // Default 0.3 matches the prior literal. Configurable via
   // MaxModeConfig.fallbackConfidence in ~/.config/SFFMC/max-mode.yaml.
   fallbackConfidence: number = 0.3,

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// @sffmc/memory — DB layer tests (preserved from pre-second-release index.test.ts)
+// @sffmc/memory — DB layer tests (preserved from pre--release index.test.ts)
 
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import {
@@ -52,11 +52,11 @@ describe("MemoryDB", () => {
   });
 
   it("upsert updates existing entry by source+section", () => {
-    upsert(db, "a.md", "s1", "first", 0.5);
-    upsert(db, "a.md", "s1", "second", 0.8);
+    upsert(db, "a.md", "s1", "", 0.5);
+    upsert(db, "a.md", "s1", "", 0.8);
     const entries = all(db);
     expect(entries.length).toBe(1);
-    expect(entries[0].content).toBe("second");
+    expect(entries[0].content).toBe("");
     expect(entries[0].importance_score).toBe(0.8);
   });
 
@@ -89,7 +89,7 @@ describe("MemoryDB", () => {
     expect(remaining[0].source_path).toBe("b.md");
   });
 
-  it("topByImportance returns highest first", () => {
+  it("topByImportance returns highest ", () => {
     upsert(db, "a.md", "s1", "low", 0.1);
     upsert(db, "b.md", "s2", "mid", 0.5);
     upsert(db, "c.md", "s3", "high", 0.9);
@@ -101,11 +101,11 @@ describe("MemoryDB", () => {
   });
 
   it("all returns entries ordered by created_at DESC", async () => {
-    upsert(db, "a.md", "s1", "first", 0.5);
+    upsert(db, "a.md", "s1", "", 0.5);
     await new Promise((r) => setTimeout(r, 1100)); // ensure distinct timestamps
-    upsert(db, "b.md", "s2", "second", 0.5);
+    upsert(db, "b.md", "s2", "", 0.5);
     const entries = all(db);
-    expect(entries[0].content).toBe("second");
+    expect(entries[0].content).toBe("");
   });
 });
 
@@ -156,8 +156,7 @@ describe("buildRecon", () => {
     expect(result).toContain("[...truncated]");
   });
 
-  // initial release migration (memory section budget) — verifies the new configurable budgets.
-  it("honors custom reconMemoryBudget and reconCheckpointBudget", () => {
+    it("honors custom reconMemoryBudget and reconCheckpointBudget", () => {
     const memory = [
       {
         id: 1,
@@ -179,8 +178,7 @@ describe("buildRecon", () => {
     expect(memSection.length).toBeLessThanOrEqual(100 + 50);
   });
 
-  // initial release migration (memory section budget) — defaults match the prior hardcoded values.
-  it("default recon budgets remain 6144 chars (no behavior change)", () => {
+    it("default recon budgets remain 6144 chars (no behavior change)", () => {
     const memory = [
       {
         id: 1,

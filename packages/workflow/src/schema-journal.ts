@@ -195,7 +195,7 @@ export function validateJournalEvent(
   // t === "phase"
   // Field name is `title` (matches runtime.ts:942-946 setPhase() call site
   // and types.ts:57 JournalEventPhase definition). Was previously `name` here
-  // in error — fixed in v0.14.3 CRIT-1 verification by oracle.
+  // in error — fixed in v0.14.x CRIT-1 verification by oracle.
   if (typeof obj.title !== "string" || obj.title.length === 0) {
     return {
       ok: false,

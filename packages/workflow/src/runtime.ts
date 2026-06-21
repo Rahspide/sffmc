@@ -201,7 +201,7 @@ export class WorkflowRuntime {
   private gracePeriodMs: number = DEFAULT_GRACE_PERIOD_MS
   /** W14 — SFFMC-loaded workflow config (maxSteps / maxTokens /
    *  maxWallClockMs / perStepTimeoutMs). Populated lazily by
-   *  `loadWorkflowConfig()` on the first `start()` or `resume()` call.
+   *  `loadWorkflowConfig()` on the  `start()` or `resume()` call.
    *  Tests inject via `RuntimeOpts.configOverride` (sync, no YAML).
    *  Resolved values: prefer this cache → ctx.config (OpenCode provider) →
    *  DEFAULT_WORKFLOW_CONFIG. */
@@ -216,7 +216,7 @@ export class WorkflowRuntime {
    *  `setConfig(null)` so a subsequent YAML load can re-fire after an
    *  override is cleared. */
   private loadWorkflowConfigPromise: Promise<void> | null = null
-  /** v0.14.3 C-2 — cached resolved outcomes for settled runs. The
+  /** v0.14.x C-2 — cached resolved outcomes for settled runs. The
    *  `completeRun` / `failRun` / `cancel` paths delete the entry from
    *  `this.runs` so its McpBridge / journalResults / AbortController /
    *  closures are GC-eligible, but `wait()` may still be called after
@@ -329,7 +329,7 @@ export class WorkflowRuntime {
 
     // Persist — createRun generates its own runID, use that as ours
     const scriptSha = computeScriptSha(script)
-    // Resolve workspace first so it persists alongside the run row (v0.13.0).
+    // Resolve workspace  so it persists alongside the run row.
     // resume() restores from this column instead of falling back to cwd.
     const workspace = input.workspace ?? process.cwd()
     const runID = this.persistence.createRun(name, name, scriptSha, undefined, workspace)
@@ -397,7 +397,7 @@ export class WorkflowRuntime {
   async wait(input: { runID: string; timeoutMs?: number }): Promise<WorkflowOutcome> {
     const entry = this.runs.get(input.runID)
     if (!entry) {
-      // v0.14.3 C-2 — settled runs are removed from `this.runs` (so their
+      // v0.14.x C-2 — settled runs are removed from `this.runs` (so their
       // McpBridge / journalResults / AbortController are GC-eligible). A
       // late `wait()` for a settled runID returns the cached outcome
       // instead of a synthetic "unknown runID" failure.
@@ -440,7 +440,7 @@ export class WorkflowRuntime {
     this.persistence.updateRunStatus(entry.runID, "cancelled")
     flushJournalSync()
     this.events.emit("workflow:finished", { runID: entry.runID, status: "cancelled" })
-    // v0.14.3 C-2 — cache the resolved outcome (late wait() callers still
+    // v0.14.x C-2 — cache the resolved outcome (late wait() callers still
     // need it) then drop the entry from `this.runs` so the McpBridge,
     // journalResults Map, AbortController, and closures are GC-eligible.
     this.completedOutcomes.set(entry.runID, outcome)
@@ -464,7 +464,7 @@ export class WorkflowRuntime {
 
   async resume(input: { runID: string; agentTimeoutMs?: number }): Promise<{ runID: string; resumed: boolean }> {
     // W14 — same lazy load as `start()` so resume() picks up the YAML
-    // config on first call.
+    // config on  call.
     await this.loadWorkflowConfig()
     const lock = await acquireLock("workflow-resume:" + input.runID)
     try {
@@ -495,7 +495,7 @@ export class WorkflowRuntime {
 
       const cfg = this.resolveConfig(input.agentTimeoutMs ?? row.agentTimeoutMs ?? undefined)
 
-      // Restore the original lexical jail root from the DB (v0.13.0). Pre-v0.13.0
+      // Restore the original lexical jail root from the DB. Pre-v0.13.0
       // rows have workspace=NULL — fall back to cwd with an info log so users
       // notice the legacy behavior (any pre-resume file ops hit cwd, not the
       // original workspace).
@@ -534,11 +534,11 @@ export class WorkflowRuntime {
         entry.status = "cancelled"
       }
     }
-    // v0.14.3 C-2 — clear `this.runs` after cancel loop. Without this,
+    // v0.14.x C-2 — clear `this.runs` after cancel loop. Without this,
     // every entry — completed/failed/cancelled/crashed — holds an
     // mcpBridge (McpBridge with up to 1000 records), journalResults Map,
     // childRunIDs Set, AbortController, and closures for the lifetime of
-    // the runtime. close() is the second line of defense after the
+    // the runtime. close() is the  line of defense after the
     // per-settle deletes in completeRun/failRun/cancel.
     this.runs.clear()
     // Also drop the completed-outcomes cache — the runtime is going away
@@ -1082,7 +1082,7 @@ export class WorkflowRuntime {
     const parsed = parseMeta(script)
 
     const scriptSha = computeScriptSha(script)
-    // Child inherits parent's workspace (v0.13.0) so the whole workflow tree
+    // Child inherits parent's workspace so the whole workflow tree
     // stays jailed to the same directory. Persisted so child resume also
     // restores the same root.
     const childWorkspace = parent.workspace
@@ -1113,7 +1113,7 @@ export class WorkflowRuntime {
     this.persistence.updateRunStatus(entry.runID, "completed")
     flushJournalSync()
     this.events.emit("workflow:finished", { runID: entry.runID, status: "completed" })
-    // v0.14.3 C-2 — cache the resolved outcome (late wait() callers still
+    // v0.14.x C-2 — cache the resolved outcome (late wait() callers still
     // need it) then drop the entry from `this.runs` so the McpBridge,
     // journalResults Map, childRunIDs Set, AbortController, and closures
     // are GC-eligible. Without this, every completed run leaks its
@@ -1132,7 +1132,7 @@ export class WorkflowRuntime {
     this.persistence.updateRunStatus(entry.runID, entry.status, error)
     flushJournalSync()
     this.events.emit("workflow:finished", { runID: entry.runID, status: entry.status, error })
-    // v0.14.3 C-2 — cache the resolved outcome (late wait() callers still
+    // v0.14.x C-2 — cache the resolved outcome (late wait() callers still
     // need it) then drop the entry from `this.runs` so the McpBridge,
     // journalResults Map, childRunIDs Set, AbortController, and closures
     // are GC-eligible. Without this, every failed run leaks its entry

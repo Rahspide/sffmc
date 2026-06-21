@@ -6,7 +6,7 @@ import { relative, basename } from "path";
 import { ensureRedactionRules, isSensitiveFilename } from "@sffmc/shared";
 import { AGENTS_FILE, MEMORY_BANK_DIR } from "./constants.ts";
 
-/** Watcher tuning parameters (second release migration chokidar awaitWriteFinish.stabilityThreshold, chokidar awaitWriteFinish.pollInterval).
+/** Watcher tuning parameters ( release migration chokidar awaitWriteFinish.stabilityThreshold, chokidar awaitWriteFinish.pollInterval).
  *  Defaults match the prior hardcoded values (300ms / 100ms). */
 export interface WatcherConfig {
   /** Chokidar `awaitWriteFinish.stabilityThreshold` in ms. */

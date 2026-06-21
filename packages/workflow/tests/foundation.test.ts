@@ -354,8 +354,8 @@ describe("meta.ts", () => {
       description: "A test workflow",
       whenToUse: 'For testing',
       phases: [
-        { title: 'Step 1', detail: 'First' },
-        { title: 'Step 2' },
+        { title: 'Stage 1', detail: '' },
+        { title: 'Stage 2' },
       ],
       model: 'gpt4',
     }`
@@ -366,7 +366,7 @@ describe("meta.ts", () => {
       expect(result.meta.description).toBe("A test workflow")
       expect(result.meta.whenToUse).toBe("For testing")
       expect(result.meta.phases).toHaveLength(2)
-      expect(result.meta.phases![0].title).toBe("Step 1")
+      expect(result.meta.phases![0].title).toBe("Stage 1")
       expect(result.meta.phases![1].detail).toBeUndefined()
       expect(result.meta.model).toBe("gpt4")
     }

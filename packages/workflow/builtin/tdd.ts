@@ -126,7 +126,7 @@ if (!feature) {
 const language = String(args.language || "typescript");
 const testFramework = String(args.testFramework || "bun test");
 
-// Step 1: Spec
+// Spec
 const specRaw = await agent(
   "Write 3-5 acceptance criteria as test names for the following feature.\n\n" +
   "FEATURE: " + feature + "\n\n" +
@@ -148,7 +148,7 @@ if (!spec.criteria || spec.criteria.length < CRITERIA_MIN) {
   throw new Error("tdd builtin: Spec phase produced fewer than " + CRITERIA_MIN + " criteria");
 }
 
-// Step 2: Red (write failing tests)
+// Red (write failing tests)
 const redRaw = await agent(
   "Write the failing test file for the following feature.\n\n" +
   "FEATURE: " + feature + "\n\n" +
@@ -171,7 +171,7 @@ if (!redRaw || !redRaw.test_file_path || !redRaw.test_file_content) {
   throw new Error("tdd builtin: Red phase did not produce test file content");
 }
 
-// Step 3: Green (minimal implementation)
+// Green (minimal implementation)
 const greenRaw = await agent(
   "Write the MINIMAL implementation that makes the following tests pass.\n\n" +
   "FEATURE: " + feature + "\n\n" +
@@ -193,7 +193,7 @@ if (!greenRaw || !greenRaw.impl_file_path || !greenRaw.impl_file_content) {
   throw new Error("tdd builtin: Green phase did not produce implementation file content");
 }
 
-// Step 4: Refactor (notes + optional patches, NOT auto-applied)
+// Refactor (notes + optional patches, NOT auto-applied)
 const refactorRaw = await agent(
   "Suggest refactor notes for the following implementation. Do NOT change behavior.\n\n" +
   "TEST FILE:\n" + redRaw.test_file_content + "\n\n" +
@@ -211,7 +211,7 @@ const refactorRaw = await agent(
 
 const refactor = refactorRaw || { notes: [], optional_patches: [] };
 
-// Step 5: Verify (output artifacts)
+// Verify (output artifacts)
 const result = {
   feature: feature,
   language: language,

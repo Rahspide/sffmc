@@ -441,7 +441,7 @@ describe("private helpers: resolveConfig", () => {
   test("resume() re-resolves config from new runtime's configOverride", async () => {
     // W14 — same idea as the original test, but uses `configOverride`
     // (the new sync test API) to inject the runtime's config.
-    // Step 1: Start with runtime1 (maxSteps=30)
+    // Start with runtime1 (maxSteps=30)
     const runtime1 = new WorkflowRuntime(
       {
         config: { maxSteps: 30, maxTokens: 2_000_000, maxWallClockMs: 3_600_000, perStepTimeoutMs: 120_000 },
@@ -451,7 +451,7 @@ describe("private helpers: resolveConfig", () => {
     )
     const { runID } = await runtime1.start({
       script: `export const meta = { name: "resume-cfg", description: "test", phases: [] }
-        async function main() { return "first-run"; }`,
+        async function main() { return "-run"; }`,
       workspace: tmpDir,
     })
     const o1 = await runtime1.wait({ runID, timeoutMs: 5000 })
@@ -459,7 +459,7 @@ describe("private helpers: resolveConfig", () => {
     expect(o1.stepsTotal).toBe(30)
     runtime1.close()
 
-    // Step 2: Runtime2 with maxSteps=80 resumes same runID
+    // Runtime2 with maxSteps=80 resumes same runID
     const runtime2 = new WorkflowRuntime(
       {
         config: { maxSteps: 80, maxTokens: 2_000_000, maxWallClockMs: 3_600_000, perStepTimeoutMs: 120_000 },

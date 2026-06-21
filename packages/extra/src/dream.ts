@@ -48,7 +48,7 @@ export const MAX_DREAM_ENTRIES = 5000;
  *  a brief preview of each entry). 100 chars is enough to surface the topic
  *  without bloating the prompt.
  *
- *  Third release LOW migration: this default is now configurable via
+ *   release LOW migration: this default is now configurable via
  *  `ExtraConfig.dream_snippet_length`. */
 export const DREAM_SNIPPET_LENGTH = 100;
 
@@ -56,7 +56,7 @@ export const DREAM_SNIPPET_LENGTH = 100;
  *  summarization prompt. Larger than `DREAM_SNIPPET_LENGTH` because the
  *  summarizer needs more context to produce a 1-3 sentence summary.
  *
- *  Third release LOW migration: this default is now configurable via
+ *   release LOW migration: this default is now configurable via
  *  `ExtraConfig.dream_llm_snippet_length`. */
 export const DREAM_LLM_SNIPPET_LENGTH = 200;
 
@@ -89,24 +89,21 @@ export interface DreamConfig {
   ctx?: RichPluginContext;
   /** Model for LLM summarization. Defaults to "". */
   summaryModel?: string;
-  // Initial release HIGH migration — see
-  // .slim/deepwork/hardcode-audit-2026-06.md
+    // .slim/deepwork/hardcode-audit-2026-06.md
   /** Jaccard dedup threshold. Defaults to `DREAM_DEDUP_THRESHOLD` (0.9). */
   dedupThreshold?: number;
   /** Jaccard cluster threshold. Defaults to `DREAM_CLUSTER_THRESHOLD` (0.3). */
   clusterThreshold?: number;
   /** Max entries processed per dream cycle. Defaults to `MAX_DREAM_ENTRIES` (5000). */
   maxEntries?: number;
-  // Second release MEDIUM migration — see
-  // .slim/deepwork/phase-2-3-hardcode-migration-plan.md §2.4
+    // .slim/deepwork/phase-2-3-hardcode-migration-plan.md §2.4
   /** JSONL path for archived memory entries. When empty, the
    *  default `DEFAULT_ARCHIVE_PATH` (`~/.local/share/sffmc/extra/dream-archive.jsonl`)
    *  is used. Set this to relocate the archive (e.g. on a different volume).
    *  Changing it mid-session after dream has already archived entries will
-   *  split the archive across two files — set it before the first dream run. */
+   *  split the archive across two files — set it before the  dream run. */
   archivePath?: string;
-  // Third release LOW migration — see
-  // .slim/deepwork/phase-2-3-hardcode-migration-plan.md §3.3
+    // .slim/deepwork/phase-2-3-hardcode-migration-plan.md §3.3
   /** Max characters per entry in the concatenated summary (also used
    *  by `nameClusterViaLLM` to build the topic-naming prompt). Defaults to
    *  `DREAM_SNIPPET_LENGTH` (100). Recommended range: 20 ≤ x ≤ 1000. */
@@ -236,8 +233,8 @@ function archiveEntry(entry: MemoryRow, archivePath: string): void {
   appendFileSync(archivePath, JSON.stringify(record) + "\n");
 }
 
-/** Fallback summarization: concatenate first `snippetLength` chars of each entry.
- *  Third release LOW migration: `snippetLength` is now configurable via
+/** Fallback summarization: concatenate  `snippetLength` chars of each entry.
+ *   release LOW migration: `snippetLength` is now configurable via
  *  `DreamConfig.snippetLength`; defaults to `DREAM_SNIPPET_LENGTH` (100). */
 function concatenateSummary(
   entries: MemoryRow[],
@@ -252,7 +249,7 @@ function concatenateSummary(
 }
 
 /** LLM-based cluster naming: generates a 3-5 word topic phrase for a cluster.
- *  Third release LOW migration: the per-entry preview length is now
+ *   release LOW migration: the per-entry preview length is now
  *  configurable via `snippetLength` (defaults to `DREAM_SNIPPET_LENGTH` = 100). */
 export async function nameClusterViaLLM(
   cluster: MemoryRow[],
@@ -290,7 +287,7 @@ export async function nameClusterViaLLM(
 }
 
 /** LLM-based summarization: sends cluster entries to the model for a concise summary.
- *  Third release LOW migration: the per-entry length is now configurable via
+ *   release LOW migration: the per-entry length is now configurable via
  *  `llmSnippetLength` (defaults to `DREAM_LLM_SNIPPET_LENGTH` = 200). */
 async function summarizeViaLLM(
   cluster: MemoryRow[],
@@ -340,11 +337,11 @@ async function summarizeViaLLM(
  * `MAX_DREAM_ENTRIES`) remain as the defaults — behavior is unchanged when
  * the caller omits the new fields.
  *
- * Second release MEDIUM migration: `archivePath` is now configurable. The
+ *  release MEDIUM migration: `archivePath` is now configurable. The
  * default `DEFAULT_ARCHIVE_PATH` (`~/.local/share/sffmc/extra/dream-archive.jsonl`)
  * is used when the caller omits the field.
  *
- * Third release LOW migration: `snippetLength` (default
+ *  release LOW migration: `snippetLength` (default
  * `DREAM_SNIPPET_LENGTH` = 100, used by `concatenateSummary` and
  * `nameClusterViaLLM`) and `llmSnippetLength` (default
  * `DREAM_LLM_SNIPPET_LENGTH` = 200, used by `summarizeViaLLM`) are now
@@ -397,7 +394,7 @@ async function runDream(
     // Pre-tokenize all rows once. The dedup + cluster loops would otherwise
     // call tokenize() on the same content O(n) times each — O(n²) total
     // regex + Set allocations. With tokenCache, tokenize runs O(n) times
-    // and every comparison is O(1) (jaccardSets). v0.13.0 P3: 3-5x speedup
+    // and every comparison is O(1) (jaccardSets). v0.14.x P3: 3-5x speedup
     // observed on 1000+ entry workloads.
     const tokenCache = new Map<number, Set<string>>();
     for (const row of rows) {
@@ -418,7 +415,7 @@ async function runDream(
           );
           if (sim > dedupThreshold) {
             // Keep newer (by last_accessed or created_at); delete older.
-            // Timestamps are in seconds (SQLite strftime('%s','now')).
+            // Timestamps are in s (SQLite strftime('%s','now')).
             const timeI = rows[i].last_accessed ?? rows[i].created_at;
             const timeJ = rows[j].last_accessed ?? rows[j].created_at;
             if (timeI >= timeJ) {
@@ -439,7 +436,7 @@ async function runDream(
     deduped = dedupSet.size;
 
     // ── 3. Stale removal: last_accessed < now - 30 days ───────────────
-    // created_at / last_accessed are Unix timestamps in seconds.
+    // created_at / last_accessed are Unix timestamps in s.
     const staleThresholdSec = unixNow() - SECONDS_PER_STALE_WINDOW;
 
     const staleAccessed = db
@@ -622,7 +619,7 @@ interface DreamInstanceState {
 /** Reference to the most recently created factory instance's state.
  *  Module-level wrapper functions delegate to this for backward compatibility with tests.
  *
- *  Dream module state (Manriel audit, v0.14.2): the only module-level mutable
+ *  Dream module state (Manriel audit, v0.14.x): the only module-level mutable
  *  state in this file is `_activeDreamState` (declared below). It is a singleton
  *  reference to the most-recently-created `DreamInstanceState`. The
  *  race risk is bounded:
@@ -675,18 +672,15 @@ export function createDreamTool(config: DreamConfig): {
   const dbPath = config.storagePath ?? DEFAULT_STORAGE_PATH;
   let db: Database | null = null;
 
-  // Initial release HIGH migration: resolve the configurable
-  // thresholds/cap up front so they are stable across the lifetime of
+    // thresholds/cap up front so they are stable across the lifetime of
   // this factory instance. Defaults preserve prior behavior.
   const dedupThreshold = config.dedupThreshold ?? DREAM_DEDUP_THRESHOLD;
   const clusterThreshold = config.clusterThreshold ?? DREAM_CLUSTER_THRESHOLD;
   const maxEntries = config.maxEntries ?? MAX_DREAM_ENTRIES;
-  // Second release MEDIUM migration: resolve the archive path up front.
-  // Empty string / undefined falls back to the homedir default. This
+    // Empty string / undefined falls back to the homedir default. This
   // replaces the previous module-level `ARCHIVE_PATH` constant.
   const archivePath = config.archivePath || DEFAULT_ARCHIVE_PATH;
-  // Third release LOW migration: resolve snippet lengths up front so
-  // they are stable across the lifetime of this factory instance. Defaults
+    // they are stable across the lifetime of this factory instance. Defaults
   // preserve prior behavior.
   const snippetLength = config.snippetLength ?? DREAM_SNIPPET_LENGTH;
   const llmSnippetLength = config.llmSnippetLength ?? DREAM_LLM_SNIPPET_LENGTH;
