@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+# SFFMC pre-commit hook (managed by husky).
+# Runs the full precommit chain: typecheck, test, audits, cleanroom check, health.
+# Bypass with: git commit --no-verify
+bun run precommit
