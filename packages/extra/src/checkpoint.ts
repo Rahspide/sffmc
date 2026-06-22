@@ -226,25 +226,85 @@ function makeV2Header(
 /** Serialize a v2 body line (one ToolCall) with stable key order
  *  `tool, args, result, timestamp, callID, __crc`. The per-line CRC is
  *  computed over the JSON WITHOUT `__crc`, then `__crc` is appended. */
-function buildV2BodyLine(tc: ToolCall): { line: string; crc: number } {
-  const lineNoCrc = {
+function buildV2BodyLine(tc: ToolCall): string {
+  const lineNoCrc = JSON.stringify({
     tool: tc.tool,
     args: tc.args,
     result: tc.result,
     timestamp: tc.timestamp,
     callID: tc.callID,
-  };
-  const lineNoCrcStr = JSON.stringify(lineNoCrc);
-  const crc = crc32(lineNoCrcStr);
-  const lineWithCrc = {
+  });
+  const crc = crc32(lineNoCrc);
+  return JSON.stringify({
     tool: tc.tool,
     args: tc.args,
     result: tc.result,
     timestamp: tc.timestamp,
     callID: tc.callID,
     __crc: crc,
-  };
-  return { line: JSON.stringify(lineWithCrc), crc };
+  });
+}
+
+/** Build the v2 body bytes and per-line byte lengths from a list of
+ *  ToolCalls. The returned `bodyConcat` is the on-disk body (lines
+ *  joined by "\n", trailing "\n" included); `bodyBytes` is the UTF-8
+ *  encoding used to compute the file-level CRC32; `bodyLineBytes` is
+ *  the per-line byte length consumed by the offset-iteration loop. */
+function buildV2Body(calls: ToolCall[]): {
+  bodyConcat: string;
+  bodyBytes: Uint8Array;
+  bodyLineBytes: number[];
+} {
+  const lines: string[] = [];
+  const lineBytes: number[] = [];
+  for (const tc of calls) {
+    const line = buildV2BodyLine(tc);
+    lines.push(line);
+    lineBytes.push(Buffer.byteLength(line, "utf-8"));
+  }
+  const bodyConcat = lines.join("\n") + "\n";
+  const bodyBytes = new TextEncoder().encode(bodyConcat);
+  return { bodyConcat, bodyBytes, bodyLineBytes: lineBytes };
+}
+
+/** Compute the final v2 header string with converged line offsets.
+ *  The header size depends on the offsets it contains (digit counts
+ *  grow with offset values), so we iterate to a fixed point — typically
+ *  ≤3 iterations for realistic session sizes. The caller MUST hold
+ *  `updatedAt` constant across the call so that the returned header
+ *  string and its serialized offsets agree byte-for-byte. */
+function computeV2HeaderStr(
+  sessionID: string,
+  bodyLineBytes: number[],
+  fileCrc32: number,
+  createdAt: number,
+  updatedAt: number,
+): string {
+  let offsets: number[] = [];
+  for (let iter = 0; iter < 10; iter++) {
+    const headerStr =
+      JSON.stringify(makeV2Header(sessionID, offsets, fileCrc32, createdAt, updatedAt)) + "\n";
+    const headerLen = Buffer.byteLength(headerStr, "utf-8");
+
+    const newOffsets: number[] = [];
+    let p = headerLen;
+    for (let i = 0; i < bodyLineBytes.length; i++) {
+      newOffsets.push(p);
+      p += bodyLineBytes[i] + 1; // +1 for "\n"
+    }
+
+    if (
+      newOffsets.length === offsets.length &&
+      newOffsets.every((v, i) => v === offsets[i])
+    ) {
+      return headerStr;
+    }
+    offsets = newOffsets;
+  }
+  // Fallback after the iteration cap: build the header from the last
+  // (not-yet-converged) offsets. In practice the loop converges within
+  // ≤3 iterations for any realistic session size.
+  return JSON.stringify(makeV2Header(sessionID, offsets, fileCrc32, createdAt, updatedAt)) + "\n";
 }
 
 function writeHeader(sessionID: string, dir?: string): void {
@@ -373,10 +433,8 @@ export function readToolCalls(
       const start = lineOffsets[i];
       if (start < 0 || start >= fileBuf.length) continue;
       // Locate the line terminator (LF) starting at `start`.
-      let lineEnd = start;
-      while (lineEnd < fileBuf.length && fileBuf[lineEnd] !== 0x0a) {
-        lineEnd++;
-      }
+      let lineEnd = fileBuf.indexOf(0x0a, start);
+      if (lineEnd < 0) lineEnd = fileBuf.length;
       const lineBytes = fileBuf.subarray(start, lineEnd);
       try {
         const obj = JSON.parse(lineBytes.toString("utf-8")) as Record<string, unknown>;
@@ -477,45 +535,35 @@ export function migrateV1ToV2(
   const d = dir ?? getCheckpointDir();
   const fp = filePath(sessionID, dir);
 
+  // Build a failure result with the given source version (1 when we
+  // never read the header, the header's own version otherwise).
+  const fail = (sourceVersion: 1 | 2, lines: number, error: string): MigrationResult => ({
+    ok: false,
+    sourceVersion,
+    targetVersion: 2,
+    lines,
+    error,
+  });
+
   if (!existsSync(fp)) {
-    return {
-      ok: false,
-      sourceVersion: 1,
-      targetVersion: 2,
-      lines: 0,
-      error: "checkpoint not found",
-    };
+    return fail(1, 0, "checkpoint not found");
   }
 
   let header: CheckpointHeader | null;
   try {
     header = readHeader(sessionID, dir, DEFAULT_MAX_CHECKPOINT_FILE_SIZE);
   } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    return { ok: false, sourceVersion: 1, targetVersion: 2, lines: 0, error: message };
+    return fail(1, 0, e instanceof Error ? e.message : String(e));
   }
   if (!header) {
-    return {
-      ok: false,
-      sourceVersion: 1,
-      targetVersion: 2,
-      lines: 0,
-      error: "checkpoint not found",
-    };
+    return fail(1, 0, "checkpoint not found");
   }
 
   let calls: ToolCall[];
   try {
     calls = readToolCalls(sessionID, dir, DEFAULT_MAX_CHECKPOINT_FILE_SIZE);
   } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    return {
-      ok: false,
-      sourceVersion: header.version as 1 | 2,
-      targetVersion: 2,
-      lines: 0,
-      error: message,
-    };
+    return fail(header.version as 1 | 2, 0, e instanceof Error ? e.message : String(e));
   }
 
   // No-op when already on v2.
@@ -534,78 +582,29 @@ export function migrateV1ToV2(
   try {
     copyFileSync(fp, backupPath);
   } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    return {
-      ok: false,
-      sourceVersion: 1,
-      targetVersion: 2,
-      lines: calls.length,
-      error: `backup failed: ${message}`,
-    };
+    return fail(1, calls.length, `backup failed: ${e instanceof Error ? e.message : String(e)}`);
   }
 
-  // Build the v2 file: per-line CRC + offsets + file CRC. Same iteration
-  // strategy as `_flushSession` — converges in ≤3 iterations for typical
-  // session sizes.
-  const bodyLines: string[] = [];
-  const bodyLineBytes: number[] = [];
-  for (const tc of calls) {
-    const { line } = buildV2BodyLine(tc);
-    bodyLines.push(line);
-    bodyLineBytes.push(Buffer.byteLength(line, "utf-8"));
-  }
-  const bodyConcat = bodyLines.join("\n") + "\n";
-  const bodyBytes = new TextEncoder().encode(bodyConcat);
+  // Build the v2 file: per-line CRC + offsets + file CRC. The header
+  // size depends on the offsets it contains (digit counts grow with
+  // offset values), so we iterate to a fixed point — typically ≤3
+  // iterations for typical session sizes. `updatedAt` is captured once
+  // and held constant across the iteration so the returned header
+  // string and its serialized offsets agree byte-for-byte.
+  const { bodyConcat, bodyBytes, bodyLineBytes } = buildV2Body(calls);
   const fileCrc32 = crc32(bodyBytes);
-
-  let offsets: number[] = [];
-  for (let iter = 0; iter < 10; iter++) {
-    const headerObj = makeV2Header(sessionID, offsets, fileCrc32, header.createdAt, Date.now());
-    const headerStr = JSON.stringify(headerObj) + "\n";
-    const headerLen = Buffer.byteLength(headerStr, "utf-8");
-    const newOffsets: number[] = [];
-    let p = headerLen;
-    for (let i = 0; i < bodyLines.length; i++) {
-      newOffsets.push(p);
-      p += bodyLineBytes[i] + 1;
-    }
-    if (
-      newOffsets.length === offsets.length &&
-      newOffsets.every((v, i) => v === offsets[i])
-    ) {
-      offsets = newOffsets;
-      break;
-    }
-    offsets = newOffsets;
-  }
-
-  let finalHeaderObj = makeV2Header(sessionID, offsets, fileCrc32, header.createdAt, Date.now());
-  let finalHeaderStr = JSON.stringify(finalHeaderObj) + "\n";
-  // Re-derive offsets if the real fileCrc32 shifted header length vs. the
-  // iteration above (uses placeholder CRC).
-  {
-    const headerLen = Buffer.byteLength(finalHeaderStr, "utf-8");
-    offsets = [];
-    let p = headerLen;
-    for (let i = 0; i < bodyLines.length; i++) {
-      offsets.push(p);
-      p += bodyLineBytes[i] + 1;
-    }
-    finalHeaderObj = makeV2Header(sessionID, offsets, fileCrc32, header.createdAt, Date.now());
-    finalHeaderStr = JSON.stringify(finalHeaderObj) + "\n";
-  }
+  const finalHeaderStr = computeV2HeaderStr(
+    sessionID,
+    bodyLineBytes,
+    fileCrc32,
+    header.createdAt,
+    Date.now(),
+  );
 
   try {
     writeFileSync(fp, finalHeaderStr + bodyConcat);
   } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    return {
-      ok: false,
-      sourceVersion: 1,
-      targetVersion: 2,
-      lines: calls.length,
-      error: `write failed: ${message}`,
-    };
+    return fail(1, calls.length, `write failed: ${e instanceof Error ? e.message : String(e)}`);
   }
 
   return {
@@ -687,60 +686,22 @@ function _flushSession(state: CheckpointBufferState, sessionID: string): void {
   // Build v2 body lines with stable key order and per-line CRC. Track
   // per-line byte length so offsets can be computed once the header size
   // is known.
-  const bodyLines: string[] = [];
-  const bodyLineBytes: number[] = [];
-  for (const tc of allCalls) {
-    const { line } = buildV2BodyLine(tc);
-    bodyLines.push(line);
-    bodyLineBytes.push(Buffer.byteLength(line, "utf-8"));
-  }
-  const bodyConcat = bodyLines.join("\n") + "\n";
-  const bodyBytes = new TextEncoder().encode(bodyConcat);
+  const { bodyConcat, bodyBytes, bodyLineBytes } = buildV2Body(allCalls);
   const fileCrc32 = crc32(bodyBytes);
 
-  // Iterate to convergence: header size depends on `lineOffsets`, which
-  // depends on header size. Fixed-point converges in ≤3 iterations for
-  // realistic session sizes.
-  let offsets: number[] = [];
-  let headerStr = "";
-  for (let iter = 0; iter < 10; iter++) {
-    const header = makeV2Header(sessionID, offsets, fileCrc32, createdAt, Date.now());
-    headerStr = JSON.stringify(header) + "\n";
-    const headerLen = Buffer.byteLength(headerStr, "utf-8");
-
-    const newOffsets: number[] = [];
-    let p = headerLen;
-    for (let i = 0; i < bodyLines.length; i++) {
-      newOffsets.push(p);
-      p += bodyLineBytes[i] + 1; // +1 for "\n"
-    }
-
-    if (
-      newOffsets.length === offsets.length &&
-      newOffsets.every((v, i) => v === offsets[i])
-    ) {
-      offsets = newOffsets;
-      break;
-    }
-    offsets = newOffsets;
-  }
-
-  // Final header string (with the converged offsets). One more pass in
-  // case the real fileCrc32 shifted the header length vs. the loop above.
-  let finalHeaderObj = makeV2Header(sessionID, offsets, fileCrc32, createdAt, Date.now());
-  let finalHeaderStr = JSON.stringify(finalHeaderObj) + "\n";
-  if (Buffer.byteLength(finalHeaderStr, "utf-8") !== Buffer.byteLength(headerStr, "utf-8")) {
-    // Re-derive offsets against the real header size.
-    const headerLen = Buffer.byteLength(finalHeaderStr, "utf-8");
-    offsets = [];
-    let p = headerLen;
-    for (let i = 0; i < bodyLines.length; i++) {
-      offsets.push(p);
-      p += bodyLineBytes[i] + 1;
-    }
-    finalHeaderObj = makeV2Header(sessionID, offsets, fileCrc32, createdAt, Date.now());
-    finalHeaderStr = JSON.stringify(finalHeaderObj) + "\n";
-  }
+  // Compute the final v2 header with converged line offsets. The header
+  // size depends on the offsets it contains (digit counts grow with
+  // offset values), so we iterate to a fixed point — typically ≤3
+  // iterations for typical session sizes. `updatedAt` is captured once
+  // and held constant across the iteration so the returned header
+  // string and its serialized offsets agree byte-for-byte.
+  const finalHeaderStr = computeV2HeaderStr(
+    sessionID,
+    bodyLineBytes,
+    fileCrc32,
+    createdAt,
+    Date.now(),
+  );
 
   // Write the file. For the first flush we use appendFileSync (single
   // syscall for header+body) — this preserves the v0.14.5 "batched
