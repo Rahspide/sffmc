@@ -5,7 +5,7 @@
 **OpenCode plugin suite — 3 composite packages, 10 sub-features, MIT licensed.**
 
 [![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
-[![Version 0.14.3](https://img.shields.io/badge/version-0.14.3-success)](https://github.com/Rahspide/sffmc/releases)
+[![Version 0.14.5](https://img.shields.io/badge/version-0.14.5-success)](https://github.com/Rahspide/sffmc/releases)
 [![Tests](https://img.shields.io/badge/tests-811%20passing-brightgreen)](./packages/health)
 
 [**Packages**](./packages) &nbsp;·&nbsp; [**Getting started**](./docs/getting-started.md) &nbsp;·&nbsp; [**Contributing**](./CONTRIBUTING.md) &nbsp;·&nbsp; [**Changelog**](./CHANGELOG.md)
