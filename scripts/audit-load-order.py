@@ -9,9 +9,31 @@ import os
 import re
 import json
 
-PLUGINS_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "packages")
-PKG_LIST = ['memory', 'rules', 'watchdog', 'eos-stripper', 'log-whitelist',
-            'max-mode', 'auto-max', 'compose', 'workflow']
+# Derive PKG_LIST from root package.json workspaces (single source of truth).
+# workspaces is ["packages/*", "shared"]; "packages/*" expands to the immediate
+# subdirectories of packages/ (stored as "packages/<dir>"), "shared" is stored
+# literally. Each entry is a workspace-relative path so the same list works for
+# both globs and bare directory names. Asserting the count guards against
+# silent drift if a future workspace pattern is added without updating here.
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+with open(os.path.join(_REPO_ROOT, "package.json")) as _f:
+    _WORKSPACES = json.load(_f)["workspaces"]
+
+PKG_LIST = []
+for _ws in _WORKSPACES:
+    if _ws.endswith("/*"):
+        _parent = _ws[:-2]
+        _pkg_root = os.path.join(_REPO_ROOT, _parent)
+        PKG_LIST.extend(sorted(
+            f"{_parent}/{d}" for d in os.listdir(_pkg_root)
+            if os.path.isdir(os.path.join(_pkg_root, d))
+            and not d.startswith(".")
+        ))
+    else:
+        PKG_LIST.append(_ws)
+
+assert len(PKG_LIST) == 14, f"PKG_LIST drift: got {len(PKG_LIST)}, expected 14 ({PKG_LIST})"
+
 
 # Real OpenCode hook keys
 KNOWN_HOOKS = {
@@ -169,18 +191,21 @@ def main():
 
     print('=== Hook keys per SFFMC plugin ===\n')
     for pkg in PKG_LIST:
-        path = f'{PLUGINS_ROOT}/{pkg}/src/index.ts'
+        # pkg is a workspace-relative path (e.g. "packages/memory" or "shared");
+        # use the leaf name for display and conflict aggregation.
+        pkg_name = os.path.basename(pkg)
+        path = os.path.join(_REPO_ROOT, pkg, 'src', 'index.ts')
         if not os.path.exists(path):
-            print(f'@sffmc/{pkg}: NOT FOUND')
+            print(f'@sffmc/{pkg_name}: NOT FOUND')
             continue
         with open(path) as f:
             content = f.read()
         keys = extract_hook_keys(content)
-        pkg_hooks[pkg] = keys
-        print(f'@sffmc/{pkg}:')
+        pkg_hooks[pkg_name] = keys
+        print(f'@sffmc/{pkg_name}:')
         for k in keys:
             print(f'  - {k}')
-            all_hooks.setdefault(k, []).append(pkg)
+            all_hooks.setdefault(k, []).append(pkg_name)
         if not keys:
             print('  (no hooks found)')
         print()
