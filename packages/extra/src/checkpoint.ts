@@ -2,12 +2,41 @@
 // @sffmc/extra — Checkpoint
 // Real implementation: session state capture, persistence to JSONL, restore.
 
-import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync } from "node:fs";
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { createLogger, redactSecrets } from "@sffmc/shared";
 
 const log = createLogger("extra-checkpoint");
+
+// ---------------------------------------------------------------------------
+// CRC32 (IEEE 802.3) — table-driven, no external dependencies.
+// ---------------------------------------------------------------------------
+
+/** Precomputed CRC32 lookup table (IEEE 802.3 polynomial 0xEDB88320,
+ *  reflected). Initialized once at module load. */
+const CRC32_TABLE: Uint32Array = (() => {
+  const t = new Uint32Array(256);
+  for (let i = 0; i < 256; i++) {
+    let c = i;
+    for (let j = 0; j < 8; j++) {
+      c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    }
+    t[i] = c >>> 0;
+  }
+  return t;
+})();
+
+/** Compute CRC32 (IEEE 802.3) over a UTF-8 string or byte buffer.
+ *  Returns an unsigned 32-bit integer. */
+export function crc32(data: string | Uint8Array): number {
+  const bytes = typeof data === "string" ? new TextEncoder().encode(data) : data;
+  let c = 0xFFFFFFFF;
+  for (let i = 0; i < bytes.length; i++) {
+    c = CRC32_TABLE[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+  }
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
 
 export interface ToolCall {
   tool: string;
@@ -113,7 +142,7 @@ export const DEFAULT_FLUSH_THRESHOLD = 50;
  *  `ExtraConfig.checkpoint_flush_interval_ms`. */
 export const DEFAULT_FLUSH_INTERVAL_MS = 5_000;
 
-export const CURRENT_VERSION = 1;
+export const CURRENT_VERSION = 2;
 
 /** Default max in-memory session buffers. Overridable via
  *  `ExtraConfig.checkpoint_max_buffered_sessions`. */
@@ -148,12 +177,134 @@ export function filePath(sessionID: string, dir?: string): string {
 // Header (schema versioning)
 // ---------------------------------------------------------------------------
 
-interface CheckpointHeader {
+/** v1 header schema. Original layout, no index/CRC. */
+interface CheckpointHeaderV1 {
   __type: "header";
   sessionID: string;
-  version: number;
+  version: 1;
   createdAt: number;
   updatedAt: number;
+}
+
+/** v2 header schema. Adds `lineOffsets` (byte offset of each body line
+ *  from start of file) and `fileCrc32` (CRC32 of all body bytes). */
+interface CheckpointHeaderV2 {
+  __type: "header";
+  sessionID: string;
+  version: 2;
+  createdAt: number;
+  updatedAt: number;
+  lineOffsets: number[];
+  fileCrc32: number;
+}
+
+/** Discriminated union of supported header versions. Readers return the
+ *  appropriate variant based on the `version` field. */
+type CheckpointHeader = CheckpointHeaderV1 | CheckpointHeaderV2;
+
+/** Build a v2 header object with stable field order so that
+ *  `JSON.stringify` produces a deterministic byte sequence (matters for
+ *  the offset-iteration convergence). */
+function makeV2Header(
+  sessionID: string,
+  lineOffsets: number[],
+  fileCrc32: number,
+  createdAt: number,
+  updatedAt: number,
+): Record<string, unknown> {
+  return {
+    __type: "header",
+    sessionID,
+    version: 2,
+    createdAt,
+    updatedAt,
+    lineOffsets,
+    fileCrc32,
+  };
+}
+
+/** Serialize a v2 body line (one ToolCall) with stable key order
+ *  `tool, args, result, timestamp, callID, __crc`. The per-line CRC is
+ *  computed over the JSON WITHOUT `__crc`, then `__crc` is appended. */
+function buildV2BodyLine(tc: ToolCall): string {
+  const lineNoCrc = JSON.stringify({
+    tool: tc.tool,
+    args: tc.args,
+    result: tc.result,
+    timestamp: tc.timestamp,
+    callID: tc.callID,
+  });
+  const crc = crc32(lineNoCrc);
+  return JSON.stringify({
+    tool: tc.tool,
+    args: tc.args,
+    result: tc.result,
+    timestamp: tc.timestamp,
+    callID: tc.callID,
+    __crc: crc,
+  });
+}
+
+/** Build the v2 body bytes and per-line byte lengths from a list of
+ *  ToolCalls. The returned `bodyConcat` is the on-disk body (lines
+ *  joined by "\n", trailing "\n" included); `bodyBytes` is the UTF-8
+ *  encoding used to compute the file-level CRC32; `bodyLineBytes` is
+ *  the per-line byte length consumed by the offset-iteration loop. */
+function buildV2Body(calls: ToolCall[]): {
+  bodyConcat: string;
+  bodyBytes: Uint8Array;
+  bodyLineBytes: number[];
+} {
+  const lines: string[] = [];
+  const lineBytes: number[] = [];
+  for (const tc of calls) {
+    const line = buildV2BodyLine(tc);
+    lines.push(line);
+    lineBytes.push(Buffer.byteLength(line, "utf-8"));
+  }
+  const bodyConcat = lines.join("\n") + "\n";
+  const bodyBytes = new TextEncoder().encode(bodyConcat);
+  return { bodyConcat, bodyBytes, bodyLineBytes: lineBytes };
+}
+
+/** Compute the final v2 header string with converged line offsets.
+ *  The header size depends on the offsets it contains (digit counts
+ *  grow with offset values), so we iterate to a fixed point — typically
+ *  ≤3 iterations for realistic session sizes. The caller MUST hold
+ *  `updatedAt` constant across the call so that the returned header
+ *  string and its serialized offsets agree byte-for-byte. */
+function computeV2HeaderStr(
+  sessionID: string,
+  bodyLineBytes: number[],
+  fileCrc32: number,
+  createdAt: number,
+  updatedAt: number,
+): string {
+  let offsets: number[] = [];
+  for (let iter = 0; iter < 10; iter++) {
+    const headerStr =
+      JSON.stringify(makeV2Header(sessionID, offsets, fileCrc32, createdAt, updatedAt)) + "\n";
+    const headerLen = Buffer.byteLength(headerStr, "utf-8");
+
+    const newOffsets: number[] = [];
+    let p = headerLen;
+    for (let i = 0; i < bodyLineBytes.length; i++) {
+      newOffsets.push(p);
+      p += bodyLineBytes[i] + 1; // +1 for "\n"
+    }
+
+    if (
+      newOffsets.length === offsets.length &&
+      newOffsets.every((v, i) => v === offsets[i])
+    ) {
+      return headerStr;
+    }
+    offsets = newOffsets;
+  }
+  // Fallback after the iteration cap: build the header from the last
+  // (not-yet-converged) offsets. In practice the loop converges within
+  // ≤3 iterations for any realistic session size.
+  return JSON.stringify(makeV2Header(sessionID, offsets, fileCrc32, createdAt, updatedAt)) + "\n";
 }
 
 function writeHeader(sessionID: string, dir?: string): void {
@@ -162,13 +313,10 @@ function writeHeader(sessionID: string, dir?: string): void {
   ensureDir(d);
 
   const now = Date.now();
-  const header: CheckpointHeader = {
-    __type: "header",
-    sessionID,
-    version: CURRENT_VERSION,
-    createdAt: now,
-    updatedAt: now,
-  };
+  // v2 header: written with placeholder offsets/crc on first flush.
+  // Final values are computed and rewritten by `_flushSession` after the
+  // body lines are appended (so offsets reflect the actual byte layout).
+  const header = makeV2Header(sessionID, [], 0, now, now);
   appendFileSync(fp, JSON.stringify(header) + "\n");
 }
 
@@ -201,7 +349,21 @@ function readHeader(
 
     const parsed = JSON.parse(Line) as Record<string, unknown>;
     if (parsed.__type !== "header") return null;
-    return parsed as unknown as CheckpointHeader;
+    const version = parsed.version;
+    if (version === 2) {
+      // v2: validate the index/CRC fields are present.
+      if (
+        !Array.isArray(parsed.lineOffsets) ||
+        typeof parsed.fileCrc32 !== "number"
+      ) {
+        return null;
+      }
+      return parsed as unknown as CheckpointHeaderV2;
+    }
+    if (version === 1) {
+      return parsed as unknown as CheckpointHeaderV1;
+    }
+    return null;
   } catch {
     return null;
   }
@@ -245,9 +407,55 @@ export function readToolCalls(
   // (equivalent to what a stat() pre-check would have given us).
   if (fileBuf.length === 0) return [];
 
+  // Read the header line to detect the on-disk version. v2 uses
+  // index-based seek; v1 falls back to a full scan (original behavior).
+  const firstNewline = fileBuf.indexOf(0x0a);
+  if (firstNewline < 0) return [];
+  const headerLine = fileBuf.subarray(0, firstNewline).toString("utf-8");
+  let headerVersion: number;
+  let lineOffsets: number[] | null = null;
+  try {
+    const parsed = JSON.parse(headerLine) as Record<string, unknown>;
+    if (parsed.__type !== "header") return [];
+    headerVersion = typeof parsed.version === "number" ? parsed.version : 1;
+    if (headerVersion === 2 && Array.isArray(parsed.lineOffsets)) {
+      lineOffsets = parsed.lineOffsets as number[];
+    }
+  } catch {
+    return [];
+  }
+
+  const calls: ToolCall[] = [];
+
+  if (headerVersion === 2 && lineOffsets !== null) {
+    // v2 path: seek to each recorded offset and parse the line.
+    for (let i = 0; i < lineOffsets.length; i++) {
+      const start = lineOffsets[i];
+      if (start < 0 || start >= fileBuf.length) continue;
+      // Locate the line terminator (LF) starting at `start`.
+      let lineEnd = fileBuf.indexOf(0x0a, start);
+      if (lineEnd < 0) lineEnd = fileBuf.length;
+      const lineBytes = fileBuf.subarray(start, lineEnd);
+      try {
+        const obj = JSON.parse(lineBytes.toString("utf-8")) as Record<string, unknown>;
+        if (obj.__type === "header") continue;
+        if (
+          typeof obj.tool === "string" &&
+          typeof obj.timestamp === "number" &&
+          typeof obj.callID === "string"
+        ) {
+          calls.push(obj as unknown as ToolCall);
+        }
+      } catch {
+        // Skip malformed lines
+      }
+    }
+    return calls;
+  }
+
+  // v1 path: full scan, preserving original behavior.
   const raw = fileBuf.toString("utf-8");
   const lines = raw.trim().split("\n");
-  const calls: ToolCall[] = [];
 
   for (const line of lines) {
     const trimmed = line.trim();
@@ -292,6 +500,119 @@ function deleteCheckpoint(sessionID: string, dir?: string): boolean {
   } catch {
     return false;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Migration: v1 → v2
+// ---------------------------------------------------------------------------
+
+/** Result of a v1 → v2 migration attempt. `ok=false` cases include a
+ *  human-readable `error`. The `sourceVersion` / `targetVersion` fields
+ *  always reflect the requested transition (1→2, or 2→2 for the
+ *  no-op path). */
+export interface MigrationResult {
+  ok: boolean;
+  sourceVersion: 1 | 2;
+  targetVersion: 2;
+  lines: number;
+  error?: string;
+}
+
+/** Explicit v1 → v2 migration. Reads the existing checkpoint via the
+ *  version-agnostic read path, computes per-line CRC32 and byte
+ *  offsets, writes a v2 file in place, and copies the original to
+ *  `<sessionID>.jsonl.v1.bak` (preserved, not deleted).
+ *
+ *  Behavior:
+ *  - File missing → `{ ok: false, error: "checkpoint not found", ... }`
+ *  - Already v2 → no-op, returns `{ ok: true, lines: <count> }`
+ *  - v1 too large → propagates `CheckpointTooLargeError` message in `error`
+ *  - Any other failure (backup I/O, write I/O) → `{ ok: false, error }` */
+export function migrateV1ToV2(
+  sessionID: string,
+  dir?: string,
+): MigrationResult {
+  const d = dir ?? getCheckpointDir();
+  const fp = filePath(sessionID, dir);
+
+  // Build a failure result with the given source version (1 when we
+  // never read the header, the header's own version otherwise).
+  const fail = (sourceVersion: 1 | 2, lines: number, error: string): MigrationResult => ({
+    ok: false,
+    sourceVersion,
+    targetVersion: 2,
+    lines,
+    error,
+  });
+
+  if (!existsSync(fp)) {
+    return fail(1, 0, "checkpoint not found");
+  }
+
+  let header: CheckpointHeader | null;
+  try {
+    header = readHeader(sessionID, dir, DEFAULT_MAX_CHECKPOINT_FILE_SIZE);
+  } catch (e) {
+    return fail(1, 0, e instanceof Error ? e.message : String(e));
+  }
+  if (!header) {
+    return fail(1, 0, "checkpoint not found");
+  }
+
+  let calls: ToolCall[];
+  try {
+    calls = readToolCalls(sessionID, dir, DEFAULT_MAX_CHECKPOINT_FILE_SIZE);
+  } catch (e) {
+    return fail(header.version as 1 | 2, 0, e instanceof Error ? e.message : String(e));
+  }
+
+  // No-op when already on v2.
+  if (header.version === 2) {
+    return {
+      ok: true,
+      sourceVersion: 2,
+      targetVersion: 2,
+      lines: calls.length,
+    };
+  }
+
+  // Backup the v1 file before rewriting. Failure here aborts the
+  // migration — we never destroy data without a safety copy.
+  const backupPath = join(d, `${sessionID}.jsonl.v1.bak`);
+  try {
+    copyFileSync(fp, backupPath);
+  } catch (e) {
+    return fail(1, calls.length, `backup failed: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  // Build the v2 file: per-line CRC + offsets + file CRC. The header
+  // size depends on the offsets it contains (digit counts grow with
+  // offset values), so we iterate to a fixed point — typically ≤3
+  // iterations for typical session sizes. `updatedAt` is captured once
+  // and held constant across the iteration so the returned header
+  // string and its serialized offsets agree byte-for-byte.
+  const { bodyConcat, bodyBytes, bodyLineBytes } = buildV2Body(calls);
+  const fileCrc32 = crc32(bodyBytes);
+  const finalHeaderStr = computeV2HeaderStr(
+    sessionID,
+    bodyLineBytes,
+    fileCrc32,
+    header.createdAt,
+    Date.now(),
+  );
+
+  try {
+    writeFileSync(fp, finalHeaderStr + bodyConcat);
+  } catch (e) {
+    return fail(1, calls.length, `write failed: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  return {
+    ok: true,
+    sourceVersion: 1,
+    targetVersion: 2,
+    lines: calls.length,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -343,23 +664,55 @@ function _flushSession(state: CheckpointBufferState, sessionID: string): void {
 
   ensureDir(state.dir);
 
-  if (!state.headersWritten.has(sessionID)) {
-    writeHeader(sessionID, state.dir);
-    state.headersWritten.add(sessionID);
+  const fp = filePath(sessionID, state.dir);
+  const isNewFile = !state.headersWritten.has(sessionID);
+
+  // For an existing file, load prior state so the new header reflects the
+  // union (existing + new). `createdAt` is preserved across flushes.
+  let existingCalls: ToolCall[] = [];
+  let createdAt = Date.now();
+  if (!isNewFile) {
+    try {
+      const priorHeader = readHeader(sessionID, state.dir, Number.MAX_SAFE_INTEGER);
+      if (priorHeader) createdAt = priorHeader.createdAt;
+      existingCalls = readToolCalls(sessionID, state.dir, Number.MAX_SAFE_INTEGER);
+    } catch {
+      // Treat as empty if reading fails — fall through to overwrite.
+    }
   }
 
-  const fp = filePath(sessionID, state.dir);
-  // v0.14.5: batch the buffer into a single appendFileSync syscall instead of
-  // N appendFileSync calls. The output bytes are identical (one
-  // JSON-encoded ToolCall per line, each terminated with "\n"), so on-disk
-  // format is unchanged and existing readers (readToolCalls) are unaffected.
-  // The `entry.buf.length > 0` guard is defensive — the early-return at the
-  // top of this function already covers the empty case, but skipping the
-  // map+join+appendFileSync work entirely for an empty flush saves 1 syscall
-  // and a small string allocation.
-  if (entry.buf.length > 0) {
-    const lines = entry.buf.map((tc) => JSON.stringify(tc)).join("\n") + "\n";
-    appendFileSync(fp, lines);
+  const allCalls = [...existingCalls, ...entry.buf];
+
+  // Build v2 body lines with stable key order and per-line CRC. Track
+  // per-line byte length so offsets can be computed once the header size
+  // is known.
+  const { bodyConcat, bodyBytes, bodyLineBytes } = buildV2Body(allCalls);
+  const fileCrc32 = crc32(bodyBytes);
+
+  // Compute the final v2 header with converged line offsets. The header
+  // size depends on the offsets it contains (digit counts grow with
+  // offset values), so we iterate to a fixed point — typically ≤3
+  // iterations for typical session sizes. `updatedAt` is captured once
+  // and held constant across the iteration so the returned header
+  // string and its serialized offsets agree byte-for-byte.
+  const finalHeaderStr = computeV2HeaderStr(
+    sessionID,
+    bodyLineBytes,
+    fileCrc32,
+    createdAt,
+    Date.now(),
+  );
+
+  // Write the file. For the first flush we use appendFileSync (single
+  // syscall for header+body) — this preserves the v0.14.5 "batched
+  // single-syscall" property. For subsequent flushes, writeFileSync is
+  // required because the header's `lineOffsets` grew and must be
+  // rewritten at byte offset 0; this is also a single syscall.
+  if (isNewFile) {
+    appendFileSync(fp, finalHeaderStr + bodyConcat);
+    state.headersWritten.add(sessionID);
+  } else {
+    writeFileSync(fp, finalHeaderStr + bodyConcat);
   }
   entry.buf.length = 0;
 }
