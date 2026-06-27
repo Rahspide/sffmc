@@ -1,12 +1,14 @@
 <div align="center">
 
+> **Languages:** [English](README.md) | [Русский](README.ru.md)
+
 # SFFMC
 
 **OpenCode plugin suite — 3 composite packages, 10 sub-features, MIT licensed.**
 
 [![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
-[![Version 0.14.5](https://img.shields.io/badge/version-0.14.5-success)](https://github.com/Rahspide/sffmc/releases)
-[![Tests](https://img.shields.io/badge/tests-811%20passing-brightgreen)](./packages/health)
+[![Version 0.14.8](https://img.shields.io/badge/version-0.14.8-success)](https://github.com/Rahspide/sffmc/releases)
+[![Tests](https://img.shields.io/badge/tests-903%20passing-brightgreen)](./packages/health)
 
 [**Packages**](./packages) &nbsp;·&nbsp; [**Getting started**](./docs/getting-started.md) &nbsp;·&nbsp; [**Contributing**](./CONTRIBUTING.md) &nbsp;·&nbsp; [**Changelog**](./CHANGELOG.md)
 
@@ -83,13 +85,11 @@ cd ~/.sffmc/plugins/sffmc
 
 See [`docs/install.md`](./docs/install.md) for the full guide (pinned versions, PATH setup, troubleshooting).
 
-## What's new in v0.14.2
+## What's new in v0.14.8
 
-- **External security audit by @Manriel — all hardening items closed.** Real LRU eviction in checkpoint session buffer, typed error for oversize checkpoint files, module-level mutable state in dream.ts documented with migration path, sandbox deadline rationale documented, parallel candidates cap retained at 10 with explicit trade-off documentation. See [`pr-review-manriel-security-audit.md`](./pr-review-manriel-security-audit.md).
-- **Workflow hardcode migration** — 10 hardcoded constants moved from `runtime.ts` to a `WorkflowConfig` YAML schema, overrideable via `~/.config/sffmc/workflow.yaml`. 17 new tests plus concurrent-access fix.
-- **`flushNow` NOT NULL regression fix** — defensive `?? 0` coercion at the persistence boundary plus test-side fixes for two fake `InternalRunEntry` objects missing counter fields. New regression test `flushNow coerces undefined counters to 0`.
+- **Documentation split into English + Russian.** `README.md` is now English-only; a language picker banner at the top links to `README.ru.md`. `CHANGELOG.md` is now English-only; Russian translations live in `CHANGELOG.ru.md`. Both new files contain the same content as the original bilingual inline format, just split for cleaner per-language navigation. No code changes — same 14 packages, same behaviour.
 
-Tests: 722 pass + 1 skip + 0 fail (was 710 in v0.14.0). 13 commits since v0.14.0.
+Tests: 903 pass + 1 skip + 0 fail (unchanged from v0.14.6).
 
 <details>
 <summary>Want individual sub-features instead? (after `sffmc init --all`)</summary>
