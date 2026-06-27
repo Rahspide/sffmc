@@ -1,5 +1,27 @@
 # SFFMC Changelog
 
+## v0.14.8 (2026-06-28)
+
+### Changed
+
+- **Documentation split into English + Russian** — `README.md` is now English-only; a language picker banner at the top links to `README.ru.md`. `CHANGELOG.md` is now English-only; Russian translations live in `CHANGELOG.ru.md`. Both new files contain the same content as the original bilingual inline format, just split for cleaner per-language navigation.
+
+### Tests
+
+- 903 pass + 1 skip + 0 fail (unchanged from v0.14.6).
+
+---
+
+## v0.14.8 (2026-06-28)
+
+### Изменено
+
+- **Документация разделена на английский + русский** — `README.md` теперь только на английском; переключатель языка в начале ссылается на `README.ru.md`. `CHANGELOG.md` теперь только на английском; русские переводы находятся в `CHANGELOG.ru.md`. Оба новых файла содержат то же содержимое, что и оригинал в билингвальном inline-формате, просто разделены для более удобной навигации по языкам.
+
+### Тесты
+
+- 903 pass + 1 skip + 0 fail (без изменений с v0.14.6).
+
 ## v0.14.6 (2026-06-21)
 
 ### Changed
