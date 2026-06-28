@@ -64,10 +64,6 @@ Sub-millisecond measurements are noisy; file sizes are byte-identical across run
 - **Composite `category: "msp"` field** — added to `agentic`, `memory`, `safety` packages.
 - **`release.sh` `check_version_consistency` fix** — dynamic comparison to root version instead of hardcoded `"0.12.0"`.
 
-### Verification
-
-- 740+ pass + 1 skip + 0 fail (was 722 in v0.14.2)
-
 ## Thank you to contributors
 
 Thanks to **@Manriel** for the external security audit that identified many of the hardening items addressed across the v0.12.1–v0.14.x line.
@@ -100,14 +96,6 @@ Hotfix: auto-max cap observability + PEM body redaction + ReDoS CI gate + dynami
 
 - `**/codemap.md` files — remain gitignored (codemap is internal/regenerated, not source of truth). On-disk edits from the cleanup pass remain as local artifacts.
 
-### Verification
-
-- 680 pass / 1 skip / 0 fail tests (+12 since v0.14.0)
-- 6 precommit gates green (was 5 before)
-- All 4 deferred v0.12.1 items status unchanged: shared redaction helper ✅, grace period hook ✅, regex narrowing ✅; checkpoint format change ❌ not started; schema refactor design-only
-
----
-
 ## v0.14.0 (2026-06-19)
 
 Redaction helper + grace period + MCP integration + docs polish redo. 5 commits since v0.12.1.
@@ -134,10 +122,6 @@ Redaction helper + grace period + MCP integration + docs polish redo. 5 commits 
 - MCP bridge bypasses `tool.execute.before/after` hooks by construction (recursion-safe).
 - Grace period logic preserves existing journal-presence branch as tiebreaker (no behavior change for workflows past grace that have journal entries).
 
-### Test count
-
-665 → 664 pass / 1 skip / 0 fail (one grace-period test skipped due to environment-specific async timing). +95 tests total since v0.12.0 (570 → 664).
-
 ### Deferred to v0.15
 
 - **Checkpoint format change** (was deferred from v0.12.1, not re-scheduled)
@@ -145,15 +129,6 @@ Redaction helper + grace period + MCP integration + docs polish redo. 5 commits 
 - Hardcode audit findings (60 items — see `.slim/deepwork/hardcode-audit-2026-06.md`)
 - PEM key body redaction (out of scope for v0.14)
 - ReDoS checker promotion to CI gate
-
-### Verification
-
-- `bun test`: 664 pass / 1 skip / 0 fail
-- `bun run typecheck`: exit 0
-- `bun run precommit`: 12 ok / 1 warn (pre-existing category_split) / 0 fail
-- `python3 scripts/audit-load-order.py`: 0 conflicts
-
----
 
 ## v0.12.1 (2026-06-19)
 
@@ -233,7 +208,6 @@ Workflow Resume Passthrough + 6 priority coverage tests + journal/checkpoint per
 ### Hygiene
 
 - Pinned `@types/bun` and `bun-types` from `"latest"` to `"1.3.14"`. Purged orphaned `node_modules` (stale `better-sqlite3@11.10.0`).
-- **Test count**: 570 passing (was 546).
 
 ## v0.11.1 (2026-06-17)
 
@@ -269,11 +243,6 @@ max-mode and workflow onboarded into `@sffmc/shared`. No API changes for the pub
 - 5 shared states in `@sffmc/extra` (checkpoint buffers, dream lock, timers) converted to on-demand factories — backward-compatible, existing imports preserved
 - max-mode and workflow now use `@sffmc/shared` for shared types
 
-### Tests
-
-- 21 new unit tests in `@sffmc/shared` (13 error detection, 8 max-command parsing)
-- Total: 510 → 534 tests (+24, includes 3 existing test updates)
-
 ## v0.10.1 (2026-06-16)
 
 Post-v0.10.0 cleanup. No API changes — all work preserves v0.10.0 breaking interface.
@@ -291,12 +260,6 @@ Post-v0.10.0 cleanup. No API changes — all work preserves v0.10.0 breaking int
 ### Fixed
 
 - `PluginContext` import path in workflow integration tests (was pointing to wrong file)
-
-### Tests
-
-- 27 new unit tests for refactored helpers (makeEntry, outcomeFor, resolveConfig, settleEntry, makeLoader)
-- Test helpers: `makeSlowMockCtx()` and `makeCountingMockCtx()` added
-- Workflow tests: 91 → 102; full suite: 483 → 510
 
 ## v0.10.0 (2026-06-16)
 
@@ -537,10 +500,6 @@ align with CHANGELOG v0.8.1 (was inconsistent in v0.8.1 release).
 
 - auto-max, watchdog: migrated to shared config loader (`loadConfig`)
 
-### Tests
-
-- 429 → 465 tests (+36)
-
 ## v0.8.0 — @sffmc/extra plugin (opt-in bundle) (2026-06-15)
 
 ### Added
@@ -572,12 +531,6 @@ All features disabled by default — toggle per feature via config flags.
 - Cluster summarization: Jaccard > 0.3 cluster, 5+ entries → LLM summary
 - Concurrency: Promise-lock prevents overlapping runs
 - LLM summarization with graceful fallback to concat on error
-
-### Tests
-
-- 29 new tests across 3 packages (compose, eos-stripper, auto-max)
-- 429 tests pass (was 394)
-- All packages bumped to v0.8.0
 
 ### Migration from v0.7.5
 
@@ -621,10 +574,6 @@ judge_auto: false     # auto-judge markers in messages
 | health | 766 | 516 | 1282 |
 | shared | 426 | 653 | 1079 |
 
-### Tests
-
-292 tests pass
-
 ## v0.7.4 — Shared SDK migration + test output cleanup (2026-06-15)
 
 ### Changed
@@ -632,10 +581,6 @@ judge_auto: false     # auto-judge markers in messages
 - 3 additional plugins migrated to `@sffmc/shared` (`PluginContext` + `loadConfig`): `@sffmc/rules`, `@sffmc/auto-max`, `@sffmc/watchdog`
 - `@sffmc/compose` and `@sffmc/memory` also updated
 - Test output: reduced noisy `[watchdog] loaded` / `[auto-max] loaded` logs from 8 lines to 2 per test run
-
-### Tests
-
-292 tests pass
 
 ## v0.7.3 — Test infrastructure hardening (2026-06-15)
 
@@ -659,10 +604,6 @@ judge_auto: false     # auto-judge markers in messages
 
 - `docs/examples/migrate-7-plugins-to-shared.json` — example plan artifact
 
-### Tests
-
-- 272 → 292 tests (+20 from `@sffmc/health`)
-
 ## v0.7.2 — Health plugin (2026-06-15)
 
 Revived Health as a real diagnostic tool. Plugin authors can now run `sffmc_health` to check monorepo health in <1s.
@@ -685,10 +626,6 @@ Revived Health as a real diagnostic tool. Plugin authors can now run `sffmc_heal
 
 - `shared/README.md` — created (caught by `sffmc_health`'s first run)
 - `bun run test:watch` — re-runs tests on every `.ts` save
-
-### Tests
-
-- 272 → 292 (+20 from `health`)
 
 ## v0.7.0 — Workflow builtins + shared SDK + docs (2026-06-15)
 
@@ -717,15 +654,6 @@ Each `packages/<pkg>/README.md` now has: header, one-line purpose, install snipp
 ### Getting-started guide
 
 `docs/getting-started.md` (7 sections): What is SFFMC → Prerequisites → Install → Your first workflow (deep-research) → Save a custom workflow → Debugging → Next steps.
-
-### Tests
-
-| Package | Before | After |
-|---|---|---|
-| workflow | 96 | 102 (+6: plan/tdd/refactor registration + load tests) |
-| shared | 0 | 8 (4 config + 4 events) |
-| All others | 152 | 152 (no regressions) |
-| **Total** | **248** | **266** (+18) |
 
 ## v0.6.1 — Load order audit (2026-06-15)
 

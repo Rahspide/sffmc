@@ -43,9 +43,6 @@ composite packages, individual sub-features, or a mix — and they compose clean
 - **Zero shared state.** Every plugin is composite. No side effects from load order.
 - **Drop-in.** `curl ... | sh` then restart OpenCode. No build step, no npm
   install, no configuration required to start.
-- **Battle-tested.** 811 unit tests across 50 files. Long-form agent test:
-  96% pass rate on 121 turns covering 41 patterns and 12 plugin-coverage
-  blocks.
 - **MIT licensed.** Ported from MiMo-Code (Xiaomi) plus SFFMC team originals.
   Use freely in commercial and private projects.
 
