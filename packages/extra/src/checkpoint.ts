@@ -177,15 +177,6 @@ export function filePath(sessionID: string, dir?: string): string {
 // Header (schema versioning)
 // ---------------------------------------------------------------------------
 
-/** v1 header schema. Original layout, no index/CRC. */
-interface CheckpointHeaderV1 {
-  __type: "header";
-  sessionID: string;
-  version: 1;
-  createdAt: number;
-  updatedAt: number;
-}
-
 /** v2 header schema. Adds `lineOffsets` (byte offset of each body line
  *  from start of file) and `fileCrc32` (CRC32 of all body bytes). */
 interface CheckpointHeaderV2 {
@@ -198,9 +189,9 @@ interface CheckpointHeaderV2 {
   fileCrc32: number;
 }
 
-/** Discriminated union of supported header versions. Readers return the
- *  appropriate variant based on the `version` field. */
-type CheckpointHeader = CheckpointHeaderV1 | CheckpointHeaderV2;
+/** The only supported header schema. v1 files are auto-migrated to v2
+ *  on first read (transparent to callers). */
+type CheckpointHeader = CheckpointHeaderV2;
 
 /** Build a v2 header object with stable field order so that
  *  `JSON.stringify` produces a deterministic byte sequence (matters for
@@ -342,31 +333,61 @@ function readHeader(
     return null;
   }
 
+  // First-line read + JSON parse. On any failure (empty file, missing
+  // file caught above, malformed first line, non-header first line),
+  // treat as "no header" and return null.
+  let firstLine: string | undefined;
   try {
     const raw = readFileSync(fp, "utf-8");
-    const Line = raw.split("\n")[0]?.trim();
-    if (!Line) return null;
-
-    const parsed = JSON.parse(Line) as Record<string, unknown>;
-    if (parsed.__type !== "header") return null;
-    const version = parsed.version;
-    if (version === 2) {
-      // v2: validate the index/CRC fields are present.
-      if (
-        !Array.isArray(parsed.lineOffsets) ||
-        typeof parsed.fileCrc32 !== "number"
-      ) {
-        return null;
-      }
-      return parsed as unknown as CheckpointHeaderV2;
-    }
-    if (version === 1) {
-      return parsed as unknown as CheckpointHeaderV1;
-    }
-    return null;
+    firstLine = raw.split("\n")[0]?.trim();
   } catch {
     return null;
   }
+  if (!firstLine) return null;
+
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(firstLine) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+  if (parsed.__type !== "header") return null;
+
+  // v1 → auto-migrate to v2 in place, then fall through to the v2
+  // read path. After migration, `parsed` is re-read from disk.
+  if (parsed.version === 1) {
+    const mig = __migrateV1ToV2InPlace(sessionID, dir);
+    if (!mig.ok) {
+      log.warn(
+        `checkpoint: auto-migrate v1→v2 failed for ${sessionID}: ${mig.error ?? "unknown error"}`,
+      );
+      return null;
+    }
+    try {
+      const raw = readFileSync(fp, "utf-8");
+      firstLine = raw.split("\n")[0]?.trim();
+    } catch {
+      return null;
+    }
+    if (!firstLine) return null;
+    try {
+      parsed = JSON.parse(firstLine) as Record<string, unknown>;
+    } catch {
+      return null;
+    }
+    if (parsed.__type !== "header" || parsed.version !== 2) return null;
+  } else if (parsed.version !== 2) {
+    return null;
+  }
+
+  // v2: validate the index/CRC fields are present.
+  if (
+    !Array.isArray(parsed.lineOffsets) ||
+    typeof parsed.fileCrc32 !== "number"
+  ) {
+    return null;
+  }
+  return parsed as unknown as CheckpointHeaderV2;
 }
 
 // ---------------------------------------------------------------------------
@@ -407,61 +428,62 @@ export function readToolCalls(
   // (equivalent to what a stat() pre-check would have given us).
   if (fileBuf.length === 0) return [];
 
-  // Read the header line to detect the on-disk version. v2 uses
-  // index-based seek; v1 falls back to a full scan (original behavior).
+  // Read the header line to detect the on-disk version. v1 files are
+  // auto-migrated to v2 in place on first read; after migration the
+  // v2 indexed-seek path runs as if the file had always been v2.
   const firstNewline = fileBuf.indexOf(0x0a);
   if (firstNewline < 0) return [];
   const headerLine = fileBuf.subarray(0, firstNewline).toString("utf-8");
-  let headerVersion: number;
-  let lineOffsets: number[] | null = null;
+  let parsed: Record<string, unknown>;
   try {
-    const parsed = JSON.parse(headerLine) as Record<string, unknown>;
-    if (parsed.__type !== "header") return [];
-    headerVersion = typeof parsed.version === "number" ? parsed.version : 1;
-    if (headerVersion === 2 && Array.isArray(parsed.lineOffsets)) {
-      lineOffsets = parsed.lineOffsets as number[];
-    }
+    parsed = JSON.parse(headerLine) as Record<string, unknown>;
   } catch {
     return [];
   }
+  if (parsed.__type !== "header") return [];
 
-  const calls: ToolCall[] = [];
-
-  if (headerVersion === 2 && lineOffsets !== null) {
-    // v2 path: seek to each recorded offset and parse the line.
-    for (let i = 0; i < lineOffsets.length; i++) {
-      const start = lineOffsets[i];
-      if (start < 0 || start >= fileBuf.length) continue;
-      // Locate the line terminator (LF) starting at `start`.
-      let lineEnd = fileBuf.indexOf(0x0a, start);
-      if (lineEnd < 0) lineEnd = fileBuf.length;
-      const lineBytes = fileBuf.subarray(start, lineEnd);
-      try {
-        const obj = JSON.parse(lineBytes.toString("utf-8")) as Record<string, unknown>;
-        if (obj.__type === "header") continue;
-        if (
-          typeof obj.tool === "string" &&
-          typeof obj.timestamp === "number" &&
-          typeof obj.callID === "string"
-        ) {
-          calls.push(obj as unknown as ToolCall);
-        }
-      } catch {
-        // Skip malformed lines
-      }
+  // v1 → auto-migrate to v2 in place, then re-read the file buffer
+  // (the rewrite changes byte offsets, so we cannot reuse `fileBuf`).
+  if (parsed.version === 1) {
+    const mig = __migrateV1ToV2InPlace(sessionID, dir);
+    if (!mig.ok) {
+      log.warn(
+        `checkpoint: readToolCalls auto-migrate v1→v2 failed for ${sessionID}: ${mig.error ?? "unknown error"}`,
+      );
+      return [];
     }
-    return calls;
+    try {
+      fileBuf = readFileSync(fp);
+    } catch {
+      return [];
+    }
+    const firstNewline2 = fileBuf.indexOf(0x0a);
+    if (firstNewline2 < 0) return [];
+    const headerLine2 = fileBuf.subarray(0, firstNewline2).toString("utf-8");
+    try {
+      parsed = JSON.parse(headerLine2) as Record<string, unknown>;
+    } catch {
+      return [];
+    }
+    if (parsed.__type !== "header" || parsed.version !== 2) return [];
+  } else if (parsed.version !== 2) {
+    return [];
   }
 
-  // v1 path: full scan, preserving original behavior.
-  const raw = fileBuf.toString("utf-8");
-  const lines = raw.trim().split("\n");
+  // v2 path: seek to each recorded offset and parse the line.
+  const lineOffsets = parsed.lineOffsets;
+  if (!Array.isArray(lineOffsets)) return [];
 
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
+  const calls: ToolCall[] = [];
+  for (let i = 0; i < lineOffsets.length; i++) {
+    const start = lineOffsets[i];
+    if (typeof start !== "number" || start < 0 || start >= fileBuf.length) continue;
+    // Locate the line terminator (LF) starting at `start`.
+    let lineEnd = fileBuf.indexOf(0x0a, start);
+    if (lineEnd < 0) lineEnd = fileBuf.length;
+    const lineBytes = fileBuf.subarray(start, lineEnd);
     try {
-      const obj = JSON.parse(trimmed) as Record<string, unknown>;
+      const obj = JSON.parse(lineBytes.toString("utf-8")) as Record<string, unknown>;
       if (obj.__type === "header") continue;
       if (
         typeof obj.tool === "string" &&
@@ -503,13 +525,19 @@ function deleteCheckpoint(sessionID: string, dir?: string): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Migration: v1 → v2
+// Migration: v1 → v2 (auto-migrate on read)
 // ---------------------------------------------------------------------------
+//
+// Policy (v0.14.9): v1 files are auto-migrated to v2 in place on the
+// first read via `readHeader` / `readToolCalls`. Callers do not need to
+// invoke a migration API. The on-disk format remains v2; the previous
+// public `migrateV1ToV2` export is now a module-internal helper.
 
 /** Result of a v1 → v2 migration attempt. `ok=false` cases include a
  *  human-readable `error`. The `sourceVersion` / `targetVersion` fields
  *  always reflect the requested transition (1→2, or 2→2 for the
- *  no-op path). */
+ *  no-op path). Still exported — callers that capture a migration
+ *  result (e.g. for telemetry) keep their type import. */
 export interface MigrationResult {
   ok: boolean;
   sourceVersion: 1 | 2;
@@ -518,25 +546,158 @@ export interface MigrationResult {
   error?: string;
 }
 
-/** Explicit v1 → v2 migration. Reads the existing checkpoint via the
- *  version-agnostic read path, computes per-line CRC32 and byte
- *  offsets, writes a v2 file in place, and copies the original to
- *  `<sessionID>.jsonl.v1.bak` (preserved, not deleted).
+/** Internal: extract tool calls from a v1 file body via full-scan.
+ *  Skips the header line (anything with `__type === "header"`). The
+ *  same field-shape rules as `readToolCalls`: keep only lines that
+ *  parse as objects with `tool` (string), `timestamp` (number), and
+ *  `callID` (string). Used by the auto-migration path. */
+function __readV1BodyLines(raw: string): ToolCall[] {
+  const calls: ToolCall[] = [];
+  const lines = raw.split("\n");
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    try {
+      const obj = JSON.parse(trimmed) as Record<string, unknown>;
+      if (obj.__type === "header") continue;
+      if (
+        typeof obj.tool === "string" &&
+        typeof obj.timestamp === "number" &&
+        typeof obj.callID === "string"
+      ) {
+        calls.push(obj as unknown as ToolCall);
+      }
+    } catch {
+      // Skip malformed lines
+    }
+  }
+  return calls;
+}
+
+/** Internal: v1 → v2 in-place migration. Reads the v1 file body via
+ *  full-scan, builds a v2 file (per-line CRC + offsets + file CRC),
+ *  backs up the original to `<sessionID>.jsonl.v1.bak`, and rewrites
+ *  the file as v2.
  *
- *  Behavior:
- *  - File missing → `{ ok: false, error: "checkpoint not found", ... }`
- *  - Already v2 → no-op, returns `{ ok: true, lines: <count> }`
- *  - v1 too large → propagates `CheckpointTooLargeError` message in `error`
- *  - Any other failure (backup I/O, write I/O) → `{ ok: false, error }` */
-export function migrateV1ToV2(
+ *  Does NOT call `readHeader` or `readToolCalls` — that would recurse
+ *  through the auto-migration hooks. Operates on raw bytes instead.
+ *
+ *  Returns `{ ok, lines }`; `ok=false` includes `error`. No-op (and
+ *  `ok=true`) when the file is already v2. */
+function __migrateV1ToV2InPlace(
   sessionID: string,
   dir?: string,
-): MigrationResult {
+): { ok: boolean; lines: number; error?: string } {
   const d = dir ?? getCheckpointDir();
   const fp = filePath(sessionID, dir);
 
-  // Build a failure result with the given source version (1 when we
-  // never read the header, the header's own version otherwise).
+  if (!existsSync(fp)) {
+    return { ok: false, lines: 0, error: "checkpoint not found" };
+  }
+
+  let raw: string;
+  try {
+    raw = readFileSync(fp, "utf-8");
+  } catch (e) {
+    return { ok: false, lines: 0, error: e instanceof Error ? e.message : String(e) };
+  }
+
+  const firstLine = raw.split("\n")[0]?.trim();
+  if (!firstLine) {
+    return { ok: false, lines: 0, error: "empty file" };
+  }
+
+  let parsedHeader: Record<string, unknown>;
+  try {
+    parsedHeader = JSON.parse(firstLine) as Record<string, unknown>;
+  } catch (e) {
+    return { ok: false, lines: 0, error: e instanceof Error ? e.message : String(e) };
+  }
+  if (parsedHeader.__type !== "header") {
+    return { ok: false, lines: 0, error: "not a checkpoint file" };
+  }
+
+  // Already v2 — no migration needed; count existing lines for the
+  // `lines` field so callers can report progress.
+  if (parsedHeader.version === 2) {
+    return { ok: true, lines: __readV1BodyLines(raw).length };
+  }
+
+  if (parsedHeader.version !== 1) {
+    return {
+      ok: false,
+      lines: 0,
+      error: `unknown checkpoint version: ${parsedHeader.version as number}`,
+    };
+  }
+
+  const createdAt =
+    typeof parsedHeader.createdAt === "number" ? parsedHeader.createdAt : Date.now();
+
+  // Read v1 body via full-scan.
+  const calls = __readV1BodyLines(raw);
+
+  // Backup v1 file before rewriting. Failure aborts the migration —
+  // we never destroy data without a safety copy.
+  const backupPath = join(d, `${sessionID}.jsonl.v1.bak`);
+  try {
+    copyFileSync(fp, backupPath);
+  } catch (e) {
+    return {
+      ok: false,
+      lines: calls.length,
+      error: `backup failed: ${e instanceof Error ? e.message : String(e)}`,
+    };
+  }
+
+  // Build v2 file. The header size depends on the offsets it contains
+  // (digit counts grow with offset values), so we iterate to a fixed
+  // point — typically ≤3 iterations for typical session sizes.
+  // `updatedAt` is captured once and held constant across the
+  // iteration so the returned header string and its serialized
+  // offsets agree byte-for-byte.
+  const { bodyConcat, bodyBytes, bodyLineBytes } = buildV2Body(calls);
+  const fileCrc32 = crc32(bodyBytes);
+  const finalHeaderStr = computeV2HeaderStr(
+    sessionID,
+    bodyLineBytes,
+    fileCrc32,
+    createdAt,
+    Date.now(),
+  );
+
+  try {
+    writeFileSync(fp, finalHeaderStr + bodyConcat);
+  } catch (e) {
+    return {
+      ok: false,
+      lines: calls.length,
+      error: `write failed: ${e instanceof Error ? e.message : String(e)}`,
+    };
+  }
+
+  return { ok: true, lines: calls.length };
+}
+
+/** Internal: trigger auto-migration (via `readHeader`) and return the
+ *  structured result. With auto-migration on read, this is effectively
+ *  a "force-migrate and return MigrationResult" wrapper.
+ *
+ *  Behavior:
+ *  - File missing → `{ ok: false, error: "checkpoint not found", ... }`
+ *  - Already v2 → no-op, returns `{ ok: true, sourceVersion: 2, lines }`
+ *  - v1 → triggers auto-migration inside `readHeader`, returns
+ *    `{ ok: true, sourceVersion: 1, lines }` once the file is rewritten
+ *  - Any other failure → `{ ok: false, error }`
+ *
+ *  No longer exported — callers should rely on auto-migration. Kept
+ *  for internal callers that need the structured MigrationResult. */
+function migrateV1ToV2(
+  sessionID: string,
+  dir?: string,
+): MigrationResult {
+  const fp = filePath(sessionID, dir);
+
   const fail = (sourceVersion: 1 | 2, lines: number, error: string): MigrationResult => ({
     ok: false,
     sourceVersion,
@@ -549,62 +710,47 @@ export function migrateV1ToV2(
     return fail(1, 0, "checkpoint not found");
   }
 
+  // Detect the original version BEFORE calling readHeader (which
+  // auto-migrates v1 → v2 in place). This is a cheap raw read and
+  // lets us report the correct `sourceVersion` in the result.
+  let originalVersion: 1 | 2 = 1;
+  try {
+    const raw = readFileSync(fp, "utf-8");
+    const firstLine = raw.split("\n")[0]?.trim();
+    if (firstLine) {
+      const parsed = JSON.parse(firstLine) as Record<string, unknown>;
+      if (parsed.version === 2) originalVersion = 2;
+    }
+  } catch {
+    // Treat as v1 if unreadable.
+  }
+
+  // Trigger auto-migration by calling readHeader (returns null if
+  // migration failed or the file is not a valid checkpoint).
   let header: CheckpointHeader | null;
   try {
     header = readHeader(sessionID, dir, DEFAULT_MAX_CHECKPOINT_FILE_SIZE);
   } catch (e) {
-    return fail(1, 0, e instanceof Error ? e.message : String(e));
+    return fail(originalVersion, 0, e instanceof Error ? e.message : String(e));
   }
   if (!header) {
-    return fail(1, 0, "checkpoint not found");
+    return fail(originalVersion, 0, "checkpoint not found");
   }
 
   let calls: ToolCall[];
   try {
     calls = readToolCalls(sessionID, dir, DEFAULT_MAX_CHECKPOINT_FILE_SIZE);
   } catch (e) {
-    return fail(header.version as 1 | 2, 0, e instanceof Error ? e.message : String(e));
+    return fail(originalVersion, 0, e instanceof Error ? e.message : String(e));
   }
 
-  // No-op when already on v2.
-  if (header.version === 2) {
+  if (originalVersion === 2) {
     return {
       ok: true,
       sourceVersion: 2,
       targetVersion: 2,
       lines: calls.length,
     };
-  }
-
-  // Backup the v1 file before rewriting. Failure here aborts the
-  // migration — we never destroy data without a safety copy.
-  const backupPath = join(d, `${sessionID}.jsonl.v1.bak`);
-  try {
-    copyFileSync(fp, backupPath);
-  } catch (e) {
-    return fail(1, calls.length, `backup failed: ${e instanceof Error ? e.message : String(e)}`);
-  }
-
-  // Build the v2 file: per-line CRC + offsets + file CRC. The header
-  // size depends on the offsets it contains (digit counts grow with
-  // offset values), so we iterate to a fixed point — typically ≤3
-  // iterations for typical session sizes. `updatedAt` is captured once
-  // and held constant across the iteration so the returned header
-  // string and its serialized offsets agree byte-for-byte.
-  const { bodyConcat, bodyBytes, bodyLineBytes } = buildV2Body(calls);
-  const fileCrc32 = crc32(bodyBytes);
-  const finalHeaderStr = computeV2HeaderStr(
-    sessionID,
-    bodyLineBytes,
-    fileCrc32,
-    header.createdAt,
-    Date.now(),
-  );
-
-  try {
-    writeFileSync(fp, finalHeaderStr + bodyConcat);
-  } catch (e) {
-    return fail(1, calls.length, `write failed: ${e instanceof Error ? e.message : String(e)}`);
   }
 
   return {

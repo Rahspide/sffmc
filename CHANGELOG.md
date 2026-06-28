@@ -1,5 +1,19 @@
 # SFFMC Changelog
 
+## v0.14.9 (2026-06-28)
+
+### Changed
+
+- **Dropped v1 checkpoint readers** — `packages/extra/src/checkpoint.ts` no longer exposes `migrateV1ToV2` or the `CheckpointHeaderV1` type. The header parser auto-migrates any v1 file to v2 on read; the migrated file is atomically rewritten as v2 so subsequent reads hit the fast path.
+
+---
+
+## v0.14.9 (2026-06-28)
+
+### Изменено
+
+- **Удалены reader'ы формата v1** — `packages/extra/src/checkpoint.ts` больше не экспортирует `migrateV1ToV2` или тип `CheckpointHeaderV1`. Парсер заголовка автоматически мигрирует любой файл v1 в v2 при чтении; мигрированный файл атомарно перезаписывается как v2, чтобы последующие чтения шли по быстрому пути.
+
 ## v0.14.8 (2026-06-28)
 
 ### Changed
