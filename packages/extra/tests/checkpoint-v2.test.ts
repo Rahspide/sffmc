@@ -3,8 +3,10 @@
 //
 // Coverage for the v2 checkpoint format: indexed access (lineOffsets),
 // per-line CRC32 (__crc), file-level CRC32 (fileCrc32), v1 backward
-// compatibility, and the explicit v1→v2 migration. See checkpoint.ts
-// for the on-disk format and the migrateV1ToV2 implementation.
+// compatibility, and the v1→v2 auto-migration that fires on read.
+// See checkpoint.ts for the on-disk format and the v1→v2
+// auto-migration behavior (readHeader / readToolCalls trigger
+// `__migrateV1ToV2InPlace` on first read of a v1 file).
 
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import {
@@ -19,7 +21,6 @@ import { join } from "node:path";
 
 import {
   crc32,
-  migrateV1ToV2,
   CURRENT_VERSION,
   __setCheckpointDir,
   filePath,
@@ -371,8 +372,8 @@ describe("checkpoint v2", () => {
   // Migration: v1 → v2
   // -----------------------------------------------------------------------
 
-  describe("migration v1 to v2", () => {
-    test("migrateV1ToV2 upgrades a v1 file to v2, backs up the v1, and preserves all lines", () => {
+  describe("auto-migration v1 to v2", () => {
+    test("readToolCalls auto-migrates a v1 file to v2 in place, backs up the v1, and preserves all lines", () => {
       const sessionID = "mig-v1-v2";
       const originalCalls = [
         {
@@ -395,12 +396,19 @@ describe("checkpoint v2", () => {
       const backupPath = join(dir, `${sessionID}.jsonl.v1.bak`);
       expect(existsSync(backupPath)).toBe(false);
 
-      const result = migrateV1ToV2(sessionID, dir);
-      expect(result.ok).toBe(true);
-      expect(result.sourceVersion).toBe(1);
-      expect(result.targetVersion).toBe(2);
-      expect(result.lines).toBe(2);
-      expect(result.error).toBeUndefined();
+      // Pre-read: file is still v1 on disk.
+      const preHeader = readHeaderFromDisk(sessionID, dir);
+      expect(preHeader).not.toBeNull();
+      expect(preHeader!.version).toBe(1);
+
+      // Public-API read triggers auto-migration in place.
+      const read = readToolCalls(sessionID, dir);
+      expect(read.length).toBe(2);
+      expect(read[0].callID).toBe("m-1");
+      expect(read[0].tool).toBe("bash");
+      expect(read[0].args).toEqual({ command: "ls -la" });
+      expect(read[1].callID).toBe("m-2");
+      expect(read[1].tool).toBe("edit");
 
       // The v1 backup file must exist with the original bytes intact.
       expect(existsSync(backupPath)).toBe(true);
@@ -421,15 +429,6 @@ describe("checkpoint v2", () => {
       expect(Array.isArray(header.lineOffsets)).toBe(true);
       expect(typeof header.fileCrc32).toBe("number");
 
-      // All original tool calls preserved (no data loss).
-      const read = readToolCalls(sessionID, dir);
-      expect(read.length).toBe(2);
-      expect(read[0].callID).toBe("m-1");
-      expect(read[0].tool).toBe("bash");
-      expect(read[0].args).toEqual({ command: "ls -la" });
-      expect(read[1].callID).toBe("m-2");
-      expect(read[1].tool).toBe("edit");
-
       // v2 body lines should each carry an `__crc` field.
       const v2Buf = readFileSync(filePath(sessionID, dir));
       const v2Lines = v2Buf.toString("utf-8").trim().split("\n");
@@ -440,15 +439,55 @@ describe("checkpoint v2", () => {
       }
     });
 
-    test("returns { ok: false, error: 'checkpoint not found' } when file is missing", () => {
-      const result = migrateV1ToV2("does-not-exist", dir);
-      expect(result.ok).toBe(false);
-      expect(result.error).toBe("checkpoint not found");
-      expect(result.sourceVersion).toBe(1);
-      expect(result.targetVersion).toBe(2);
-      expect(result.lines).toBe(0);
+    test("readToolCalls returns [] when the checkpoint file is missing (no migration possible)", () => {
+      const result = readToolCalls("does-not-exist", dir);
+      expect(result).toEqual([]);
       // No backup file should have been created on the not-found path.
       expect(existsSync(join(dir, "does-not-exist.jsonl.v1.bak"))).toBe(false);
+    });
+
+    test("auto-migration preserves body lines and assigns per-line CRC after migration", () => {
+      // Larger fixture than the basic upgrade test — stresses that
+      // every line gets its own CRC and that none are dropped or
+      // reordered by the in-place rewrite.
+      const sessionID = "mig-crc";
+      const N = 25;
+      const originalCalls = Array.from({ length: N }, (_, i) => ({
+        tool: i % 2 === 0 ? "bash" : "edit",
+        args: { i, cmd: `echo ${i}`, path: `./p-${i}.ts` },
+        result: `out-${i}-${"x".repeat(15)}`,
+        timestamp: 1700000000000 + i * 1000,
+        callID: `crc-${String(i).padStart(3, "0")}`,
+      }));
+      writeV1File(sessionID, dir, originalCalls);
+
+      const calls = readToolCalls(sessionID, dir);
+      expect(calls.length).toBe(N);
+
+      // Every call comes back in order with its callID intact.
+      for (let i = 0; i < N; i++) {
+        expect(calls[i].callID).toBe(`crc-${String(i).padStart(3, "0")}`);
+        expect(calls[i].timestamp).toBe(1700000000000 + i * 1000);
+      }
+
+      // The on-disk v2 file has 1 header + N body lines, each with a
+      // numeric __crc.
+      const v2Buf = readFileSync(filePath(sessionID, dir));
+      const v2Lines = v2Buf.toString("utf-8").trim().split("\n");
+      expect(v2Lines.length).toBe(1 + N);
+      for (let i = 1; i < v2Lines.length; i++) {
+        const obj = JSON.parse(v2Lines[i]) as Record<string, unknown>;
+        expect(typeof obj.__crc).toBe("number");
+        expect(typeof obj.callID).toBe("string");
+        expect(obj.callID).toBe(`crc-${String(i - 1).padStart(3, "0")}`);
+      }
+
+      // The file-level CRC matches crc32() over the body bytes
+      // (everything after the header line).
+      const header = readHeaderFromDisk(sessionID, dir) as unknown as V2HeaderShape;
+      const headerEnd = v2Buf.indexOf(0x0a) + 1;
+      const bodyBytes = v2Buf.subarray(headerEnd);
+      expect(header.fileCrc32).toBe(crc32(bodyBytes));
     });
   });
 
@@ -456,8 +495,8 @@ describe("checkpoint v2", () => {
   // Migration: idempotency (already-v2 file is a no-op)
   // -----------------------------------------------------------------------
 
-  describe("migration idempotency", () => {
-    test("calling migrateV1ToV2 on an already-v2 file is a no-op", async () => {
+  describe("auto-migration idempotency", () => {
+    test("readToolCalls on an already-v2 file is a no-op (no backup created, file unchanged)", async () => {
       const sessionID = "mig-idem";
       const cp = createCheckpointTool({ enabled: true });
 
@@ -480,13 +519,9 @@ describe("checkpoint v2", () => {
       const beforeHeader = readHeaderFromDisk(sessionID, dir) as unknown as V2HeaderShape;
       expect(beforeHeader.version).toBe(2);
 
-      // First migration call against an already-v2 file: no-op.
-      const result = migrateV1ToV2(sessionID, dir);
-      expect(result.ok).toBe(true);
-      expect(result.sourceVersion).toBe(2);
-      expect(result.targetVersion).toBe(2);
-      expect(result.lines).toBe(3);
-      expect(result.error).toBeUndefined();
+      // Read against an already-v2 file: no-op.
+      const calls = readToolCalls(sessionID, dir);
+      expect(calls.length).toBe(3);
 
       // No `.v1.bak` should have been created by the no-op path.
       expect(existsSync(join(dir, `${sessionID}.jsonl.v1.bak`))).toBe(false);
