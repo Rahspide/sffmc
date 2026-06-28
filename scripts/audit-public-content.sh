@@ -135,6 +135,7 @@ for entry in "${PATTERNS[@]}"; do
           --type=md --type-add 'yaml:*.yaml' --type=yaml \
           --type-add 'py:*.py' --type=py --type-add 'ts:*.ts' --type=ts \
           --glob '!CHANGELOG.md' \
+          --glob '!CHANGELOG.ru.md' \
           --glob '!LICENSE*' \
           --glob '!docs/long-agent-test-v090-report.md' \
           --glob '!node_modules' --glob '!dependencies' --glob '!dist' \
@@ -147,6 +148,7 @@ for entry in "${PATTERNS[@]}"; do
   else
     find_filter_excludes=(
       -not -path "./CHANGELOG.md"
+      -not -path "./CHANGELOG.ru.md"
       -not -path "./LICENSE*"
       -not -path "*/node_modules/*"
       -not -path "./dependencies/*"
