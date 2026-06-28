@@ -1,12 +1,13 @@
 <div align="center">
 
+> **Languages:** [English](README.md) | [Русский](README.ru.md)
+
 # SFFMC
 
 **OpenCode plugin suite — 3 composite packages, 10 sub-features, MIT licensed.**
 
 [![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
-[![Version 0.14.5](https://img.shields.io/badge/version-0.14.5-success)](https://github.com/Rahspide/sffmc/releases)
-[![Tests](https://img.shields.io/badge/tests-811%20passing-brightgreen)](./packages/health)
+[![Version 0.14.8](https://img.shields.io/badge/version-0.14.8-success)](https://github.com/Rahspide/sffmc/releases)
 
 [**Packages**](./packages) &nbsp;·&nbsp; [**Getting started**](./docs/getting-started.md) &nbsp;·&nbsp; [**Contributing**](./CONTRIBUTING.md) &nbsp;·&nbsp; [**Changelog**](./CHANGELOG.md)
 
@@ -42,9 +43,6 @@ composite packages, individual sub-features, or a mix — and they compose clean
 - **Zero shared state.** Every plugin is composite. No side effects from load order.
 - **Drop-in.** `curl ... | sh` then restart OpenCode. No build step, no npm
   install, no configuration required to start.
-- **Battle-tested.** 811 unit tests across 50 files. Long-form agent test:
-  96% pass rate on 121 turns covering 41 patterns and 12 plugin-coverage
-  blocks.
 - **MIT licensed.** Ported from MiMo-Code (Xiaomi) plus SFFMC team originals.
   Use freely in commercial and private projects.
 
@@ -83,13 +81,9 @@ cd ~/.sffmc/plugins/sffmc
 
 See [`docs/install.md`](./docs/install.md) for the full guide (pinned versions, PATH setup, troubleshooting).
 
-## What's new in v0.14.2
+## What's new in v0.14.8
 
-- **External security audit by @Manriel — all hardening items closed.** Real LRU eviction in checkpoint session buffer, typed error for oversize checkpoint files, module-level mutable state in dream.ts documented with migration path, sandbox deadline rationale documented, parallel candidates cap retained at 10 with explicit trade-off documentation. See [`pr-review-manriel-security-audit.md`](./pr-review-manriel-security-audit.md).
-- **Workflow hardcode migration** — 10 hardcoded constants moved from `runtime.ts` to a `WorkflowConfig` YAML schema, overrideable via `~/.config/sffmc/workflow.yaml`. 17 new tests plus concurrent-access fix.
-- **`flushNow` NOT NULL regression fix** — defensive `?? 0` coercion at the persistence boundary plus test-side fixes for two fake `InternalRunEntry` objects missing counter fields. New regression test `flushNow coerces undefined counters to 0`.
-
-Tests: 722 pass + 1 skip + 0 fail (was 710 in v0.14.0). 13 commits since v0.14.0.
+- **Documentation split into English + Russian.** `README.md` is now English-only; a language picker banner at the top links to `README.ru.md`. `CHANGELOG.md` is now English-only; Russian translations live in `CHANGELOG.ru.md`. Both new files contain the same content as the original bilingual inline format, just split for cleaner per-language navigation. No code changes — same 14 packages, same behaviour.
 
 <details>
 <summary>Want individual sub-features instead? (after `sffmc init --all`)</summary>
