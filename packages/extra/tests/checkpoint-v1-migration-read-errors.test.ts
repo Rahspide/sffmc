@@ -14,12 +14,11 @@
 // Every test carries a 5 s timeout — the goal is "fail or pass
 // cleanly", never hang.
 //
-// Note: `readHeader` is internal (not exported). The equivalent public
-// probes are `readToolCalls` (reads body via the v1 full-scan path)
-// and `migrateV1ToV2` (the user-callable migration entry point, which
-// internally calls readHeader + readToolCalls). We use these plus
-// direct file inspection (matching the pattern in
-// checkpoint-v1-migration-format.test.ts).
+// v0.14.9 API note: `migrateV1ToV2` is no longer exported. All probes
+// use `readToolCalls`, which triggers auto-migration internally when
+// the file is detected as v1. The implementation's header-validation
+// logic (which gates migration on `__type === "header"` and `version`
+// being exactly 1) sits inside the same code path.
 
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import {
@@ -36,7 +35,6 @@ import {
   __setCheckpointDir,
   filePath,
   readToolCalls,
-  migrateV1ToV2,
 } from "../src/checkpoint";
 
 // ---------------------------------------------------------------------------
@@ -118,7 +116,7 @@ describe("v1 auto-migration: read errors + version anomalies", () => {
   // -----------------------------------------------------------------------
 
   describe("missing __type field in v1 header", () => {
-    test("migrateV1ToV2 reports graceful error (ok: false), does NOT silently succeed", () => {
+    test("readToolCalls returns [] — the header is rejected before migration is attempted", () => {
       const sessionID = "missing-type";
       const body = [makeV1BodyLine("bash", "c-1")];
       // Header has version: 1 and sessionID, but no __type marker.
@@ -135,21 +133,15 @@ describe("v1 auto-migration: read errors + version anomalies", () => {
         dir,
       );
 
-      expect(() => migrateV1ToV2(sessionID, dir)).not.toThrow();
-      const result = migrateV1ToV2(sessionID, dir);
-
-      // Spec: expect graceful error (NOT crash, NOT silent success).
-      expect(result.ok).toBe(false);
-      expect(typeof result.error).toBe("string");
-      expect(result.error!.length).toBeGreaterThan(0);
-      // readHeader returns null because __type !== "header", so the
-      // migration cannot proceed — reported as "checkpoint not found".
-      expect(result.error).toBe("checkpoint not found");
-      expect(result.lines).toBe(0);
+      // readToolCalls's first check is `parsed.__type !== "header"` →
+      // early-returns []. Auto-migration is never triggered. No
+      // .v1.bak is created and the file is untouched.
+      const calls = readToolCalls(sessionID, dir);
+      expect(calls).toEqual([]);
 
       // The on-disk file MUST be unchanged — no silent migration to v2,
       // no .v1.bak created (backup step is gated behind a successful
-      // header read).
+      // header parse).
       const header = readFirstLineHeader(sessionID, dir);
       expect(header).not.toBeNull();
       expect(header!.__type).toBeUndefined();
@@ -157,7 +149,7 @@ describe("v1 auto-migration: read errors + version anomalies", () => {
       expect(existsSync(join(dir, `${sessionID}.jsonl.v1.bak`))).toBe(false);
     }, 5000);
 
-    test("readToolCalls does not throw on the malformed header", () => {
+    test("readToolCalls does not throw on the malformed header (returns [])", () => {
       const sessionID = "missing-type-rt";
       writeCustomHeaderV1(
         sessionID,
@@ -172,6 +164,7 @@ describe("v1 auto-migration: read errors + version anomalies", () => {
       expect(() => readToolCalls(sessionID, dir)).not.toThrow();
       const calls = readToolCalls(sessionID, dir);
       expect(Array.isArray(calls)).toBe(true);
+      expect(calls).toEqual([]);
     }, 5000);
   });
 
@@ -180,7 +173,7 @@ describe("v1 auto-migration: read errors + version anomalies", () => {
   // -----------------------------------------------------------------------
 
   describe("version: 0 (below supported range)", () => {
-    test("migrateV1ToV2 reports graceful error, NOT treated as v1", () => {
+    test("readToolCalls returns [] — version 0 is not migrated (strict-equality check)", () => {
       const sessionID = "version-zero";
       const body = [makeV1BodyLine("bash", "v0-1")];
       writeCustomHeaderV1(
@@ -196,16 +189,11 @@ describe("v1 auto-migration: read errors + version anomalies", () => {
         dir,
       );
 
-      expect(() => migrateV1ToV2(sessionID, dir)).not.toThrow();
-      const result = migrateV1ToV2(sessionID, dir);
-
-      // Spec: graceful error (not migrated, not treated as v1).
-      // readHeader's version switch handles only 1 and 2; version === 0
-      // falls through to "return null", which surfaces here as
-      // "checkpoint not found".
-      expect(result.ok).toBe(false);
-      expect(result.error).toBe("checkpoint not found");
-      expect(result.lines).toBe(0);
+      // readToolCalls sees __type === "header" but version === 0 (not
+      // 1, not 2) → falls into the `else if (parsed.version !== 2)`
+      // branch and returns []. No migration is attempted.
+      const calls = readToolCalls(sessionID, dir);
+      expect(calls).toEqual([]);
 
       // File MUST be untouched on disk.
       const header = readFirstLineHeader(sessionID, dir);
@@ -214,7 +202,7 @@ describe("v1 auto-migration: read errors + version anomalies", () => {
       expect(existsSync(join(dir, `${sessionID}.jsonl.v1.bak`))).toBe(false);
     }, 5000);
 
-    test("readToolCalls does not throw and returns an array", () => {
+    test("readToolCalls does not throw and returns [] on version 0", () => {
       const sessionID = "version-zero-rt";
       writeCustomHeaderV1(
         sessionID,
@@ -232,6 +220,7 @@ describe("v1 auto-migration: read errors + version anomalies", () => {
       expect(() => readToolCalls(sessionID, dir)).not.toThrow();
       const calls = readToolCalls(sessionID, dir);
       expect(Array.isArray(calls)).toBe(true);
+      expect(calls).toEqual([]);
     }, 5000);
   });
 
@@ -240,7 +229,7 @@ describe("v1 auto-migration: read errors + version anomalies", () => {
   // -----------------------------------------------------------------------
 
   describe("version: -1 (negative, below supported range)", () => {
-    test("migrateV1ToV2 reports graceful error", () => {
+    test("readToolCalls returns [] — negative version is not migrated", () => {
       const sessionID = "version-neg";
       const body = [makeV1BodyLine("bash", "vn-1")];
       writeCustomHeaderV1(
@@ -256,13 +245,10 @@ describe("v1 auto-migration: read errors + version anomalies", () => {
         dir,
       );
 
-      expect(() => migrateV1ToV2(sessionID, dir)).not.toThrow();
-      const result = migrateV1ToV2(sessionID, dir);
-
-      expect(result.ok).toBe(false);
-      expect(typeof result.error).toBe("string");
-      expect(result.error!.length).toBeGreaterThan(0);
-      expect(result.lines).toBe(0);
+      // Same gating as version: 0 — version === -1 (not 1, not 2) →
+      // returns [] without migration. File untouched.
+      const calls = readToolCalls(sessionID, dir);
+      expect(calls).toEqual([]);
 
       // File untouched.
       const header = readFirstLineHeader(sessionID, dir);
@@ -271,7 +257,7 @@ describe("v1 auto-migration: read errors + version anomalies", () => {
       expect(existsSync(join(dir, `${sessionID}.jsonl.v1.bak`))).toBe(false);
     }, 5000);
 
-    test("readToolCalls does not throw and returns an array", () => {
+    test("readToolCalls does not throw and returns [] on version -1", () => {
       const sessionID = "version-neg-rt";
       writeCustomHeaderV1(
         sessionID,
@@ -289,6 +275,7 @@ describe("v1 auto-migration: read errors + version anomalies", () => {
       expect(() => readToolCalls(sessionID, dir)).not.toThrow();
       const calls = readToolCalls(sessionID, dir);
       expect(Array.isArray(calls)).toBe(true);
+      expect(calls).toEqual([]);
     }, 5000);
   });
 
@@ -297,7 +284,7 @@ describe("v1 auto-migration: read errors + version anomalies", () => {
   // -----------------------------------------------------------------------
 
   describe("version: 1.5 (non-integer)", () => {
-    test("migrateV1ToV2 reports graceful error (strict-equality rejects 1.5)", () => {
+    test("readToolCalls returns [] — strict-equality rejects 1.5 as a version", () => {
       const sessionID = "version-frac";
       const body = [makeV1BodyLine("bash", "vf-1")];
       writeCustomHeaderV1(
@@ -313,16 +300,11 @@ describe("v1 auto-migration: read errors + version anomalies", () => {
         dir,
       );
 
-      expect(() => migrateV1ToV2(sessionID, dir)).not.toThrow();
-      const result = migrateV1ToV2(sessionID, dir);
-
-      // Spec: graceful error OR coerced-to-1-then-migrated. Strict
-      // equality (1.5 === 1 is false, 1.5 === 2 is false) yields the
-      // graceful-error branch — confirmed by current behavior.
-      expect(result.ok).toBe(false);
-      expect(typeof result.error).toBe("string");
-      expect(result.error!.length).toBeGreaterThan(0);
-      expect(result.lines).toBe(0);
+      // 1.5 === 1 is false, 1.5 === 2 is false → falls into the
+      // `else if (parsed.version !== 2)` branch and returns [].
+      // Strict-equality gating, no coercion.
+      const calls = readToolCalls(sessionID, dir);
+      expect(calls).toEqual([]);
 
       // File MUST be untouched on disk — no silent migration.
       const header = readFirstLineHeader(sessionID, dir);
@@ -331,7 +313,7 @@ describe("v1 auto-migration: read errors + version anomalies", () => {
       expect(existsSync(join(dir, `${sessionID}.jsonl.v1.bak`))).toBe(false);
     }, 5000);
 
-    test("readToolCalls does not throw on the fractional version", () => {
+    test("readToolCalls does not throw on the fractional version (returns [])", () => {
       const sessionID = "version-frac-rt";
       writeCustomHeaderV1(
         sessionID,
@@ -349,6 +331,7 @@ describe("v1 auto-migration: read errors + version anomalies", () => {
       expect(() => readToolCalls(sessionID, dir)).not.toThrow();
       const calls = readToolCalls(sessionID, dir);
       expect(Array.isArray(calls)).toBe(true);
+      expect(calls).toEqual([]);
     }, 5000);
   });
 
@@ -357,19 +340,21 @@ describe("v1 auto-migration: read errors + version anomalies", () => {
   // -----------------------------------------------------------------------
 
   describe("missing sessionID field in v1 header", () => {
-    test("migrateV1ToV2 does not crash; readHeader does not surface this as an error", () => {
-      // POTENTIAL BUG PROBE:
-      // The current implementation does NOT validate that the v1
-      // header carries a `sessionID` string. `readHeader` does a
-      // bare cast (`return parsed as unknown as CheckpointHeaderV1`)
-      // and `migrateV1ToV2` succeeds because the parameter
-      // `sessionID` overrides the header's missing one. This means
-      // a malformed v1 file with no `sessionID` is silently migrated
-      // to v2 using the caller's sessionID — surprising behavior.
+    test("readToolCalls triggers auto-migration; missing header sessionID is silently replaced with the parameter sessionID (documented gap)", () => {
+      // v0.14.9 BEHAVIOR GAP (documented):
+      // The implementation does NOT validate that the v1 header
+      // carries a `sessionID` string. `__migrateV1ToV2InPlace` reads
+      // the header as a Record<string, unknown> and falls back to
+      // `Date.now()` for `createdAt` if missing — but for `sessionID`
+      // it uses the parameter passed by the caller as a fallback
+      // (the v2 header is rebuilt using the caller's sessionID).
       //
-      // Spec expectation: graceful error. Current behavior: silent
-      // success. We assert the no-crash contract and surface the
-      // discrepancy as a known gap below.
+      // This means a malformed v1 file with no `sessionID` field is
+      // silently migrated to v2 using the caller's sessionID — the
+      // header's missing field is replaced, not rejected. A future
+      // fix should reject this case with a graceful error; the test
+      // below documents the current behavior so a regression to
+      // "graceful error" can be detected and tightened.
       const sessionID = "missing-sessionid";
       const body = [makeV1BodyLine("bash", "ms-1")];
       writeCustomHeaderV1(
@@ -392,46 +377,25 @@ describe("v1 auto-migration: read errors + version anomalies", () => {
       expect(before!.version).toBe(1);
       expect(before!.sessionID).toBeUndefined();
 
-      // No crash regardless of what migrateV1ToV2 decides. Capture
-      // the result in one call — calling twice would convert the
-      // first call's v1→v2 success into the second call's v2→v2
-      // no-op (changing sourceVersion).
-      const result = migrateV1ToV2(sessionID, dir);
-
-      // Document the current behavior. The spec wants a graceful error
-      // (ok: false); current implementation returns ok: true (silent
-      // success — caller-provided sessionID is used as a fallback).
-      // We assert BOTH endpoints so a future fix can tighten this
-      // test:
-      //
-      //   - If the implementation is fixed to reject missing
-      //     sessionID, change this assertion to expect `ok: false`.
-      //   - The no-crash + readable-file invariants below must hold
-      //     in either case.
-      if (result.ok) {
-        // CURRENT BEHAVIOR: silent success. Bug per spec.
-        expect(result.sourceVersion).toBe(1);
-        expect(result.targetVersion).toBe(2);
-        expect(typeof result.lines).toBe("number");
-
-        // After silent success, the file is rewritten as v2 using the
-        // parameter sessionID — the on-disk header now has a sessionID.
-        const after = readFirstLineHeader(sessionID, dir);
-        expect(after).not.toBeNull();
-        expect(after!.version).toBe(2);
-        expect(after!.sessionID).toBe(sessionID);
-      } else {
-        // FUTURE BEHAVIOR (per spec): graceful error. No migration,
-        // no .v1.bak.
-        expect(typeof result.error).toBe("string");
-        expect(result.lines).toBe(0);
-        expect(existsSync(join(dir, `${sessionID}.jsonl.v1.bak`))).toBe(false);
-      }
-
-      // Invariant that must hold in either case: no crash on read.
-      expect(() => readToolCalls(sessionID, dir)).not.toThrow();
+      // readToolCalls triggers auto-migration: __type is "header" and
+      // version is 1, so the migration path runs. The implementation
+      // uses the parameter sessionID as a fallback for the missing
+      // header field. The body line is preserved.
       const calls = readToolCalls(sessionID, dir);
       expect(Array.isArray(calls)).toBe(true);
+      expect(calls.length).toBe(1);
+      expect(calls[0].callID).toBe("ms-1");
+
+      // The on-disk file is now v2 (auto-migration succeeded silently).
+      const after = readFirstLineHeader(sessionID, dir);
+      expect(after).not.toBeNull();
+      expect(after!.version).toBe(2);
+      // The v2 header carries the caller's sessionID, not the
+      // (missing) header one.
+      expect(after!.sessionID).toBe(sessionID);
+
+      // The .v1.bak exists (migration always backs up before rewriting).
+      expect(existsSync(join(dir, `${sessionID}.jsonl.v1.bak`))).toBe(true);
     }, 5000);
 
     test("readToolCalls does not throw when the header has no sessionID", () => {

@@ -8,8 +8,9 @@
 // Coverage:
 //   1. Large v1 file (N=1000 tool calls) — auto-migration preserves all
 //      lines + correct per-line CRCs, runs within reasonable time.
-//   2. Concurrent reads + auto-migrate — multiple migrate calls produce
-//      a consistent v2 result (only one actual upgrade; rest are no-ops).
+//   2. Concurrent reads + auto-migrate — multiple readToolCalls calls
+//      produce a consistent v2 result (only one actual upgrade; rest
+//      see the already-migrated v2 file).
 //   3. Read-only v1 file (no write permission) — migration gracefully
 //      fails without crashing or corrupting the original file.
 //   4. Migration to existing v2 file — no-op path does not corrupt
@@ -17,8 +18,9 @@
 //   5. v1 with extra trailing whitespace + multiple blank lines —
 //      graceful behavior (v1 reader's trim() handles malformed input).
 //
-// See checkpoint.ts for the on-disk format and the migrateV1ToV2
-// implementation.
+// v0.14.9 API note: `migrateV1ToV2` is no longer exported. All probes
+// use `readToolCalls`, which triggers auto-migration internally when
+// the file is detected as v1.
 
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { join } from "node:path";
@@ -38,7 +40,6 @@ import {
   crc32,
   createCheckpointTool,
   filePath,
-  migrateV1ToV2,
   readToolCalls,
   __setCheckpointDir,
 } from "../src/checkpoint";
@@ -159,18 +160,16 @@ describe("v1 auto-migration: scale + filesystem edge cases", () => {
       const sizeBefore = statSync(fp).size;
 
       const t0 = performance.now();
-      const result = migrateV1ToV2(sessionID, dir);
+      // readToolCalls triggers auto-migration. We assign the return
+      // value to a variable to verify the migration produced N calls.
+      const migratedCalls = readToolCalls(sessionID, dir);
       const elapsedMs = performance.now() - t0;
 
       const sizeAfter = statSync(fp).size;
       const backupPath = join(dir, `${sessionID}.jsonl.v1.bak`);
 
-      // Migration succeeded
-      expect(result.ok).toBe(true);
-      expect(result.sourceVersion).toBe(1);
-      expect(result.targetVersion).toBe(2);
-      expect(result.lines).toBe(N);
-      expect(result.error).toBeUndefined();
+      // Auto-migration produced N calls.
+      expect(migratedCalls.length).toBe(N);
 
       // Backup exists with original v1 size (byte-for-byte preserved)
       expect(existsSync(backupPath)).toBe(true);
@@ -185,7 +184,7 @@ describe("v1 auto-migration: scale + filesystem edge cases", () => {
       expect(header.lineOffsets.length).toBe(N);
       expect(typeof header.fileCrc32).toBe("number");
 
-      // All N tool calls preserved
+      // All N tool calls preserved (re-read confirms no data loss).
       const calls = readToolCalls(sessionID, dir);
       expect(calls.length).toBe(N);
       for (let i = 0; i < N; i++) {
@@ -238,43 +237,35 @@ describe("v1 auto-migration: scale + filesystem edge cases", () => {
   // 2. Concurrent reads + auto-migrate
   // -----------------------------------------------------------------------
 
-  test("concurrent migrateV1ToV2 calls produce consistent v2 result (only one upgrade)", async () => {
+  test("concurrent readToolCalls calls produce consistent v2 result (only one upgrade)", async () => {
     const sessionID = "v1-concurrent";
     const N = 100;
 
     writeV1WithCalls(sessionID, dir, N);
 
-    // Fire two migrations "in parallel". Note: Bun's test runner runs
-    // sync code sequentially on the main thread, so these calls execute
-    // in left-to-right order:
-    //   call 1 → reads v1 → writes v2 (sourceVersion=1)
-    //   call 2 → reads v2 → no-op (sourceVersion=2)
-    // The contract being tested: regardless of ordering, the final state
-    // is a consistent v2 file with all N calls preserved.
+    // Fire two readToolCalls "in parallel". Note: Bun's test runner
+    // runs sync code sequentially on the main thread, so these calls
+    // execute in left-to-right order:
+    //   call 1 → reads v1 → triggers auto-migration → writes v2
+    //   call 2 → reads v2 → no-op (no rewrite)
+    // The contract being tested: regardless of ordering, the final
+    // state is a consistent v2 file with all N calls preserved.
     const [r1, r2] = await Promise.all([
-      Promise.resolve(migrateV1ToV2(sessionID, dir)),
-      Promise.resolve(migrateV1ToV2(sessionID, dir)),
+      Promise.resolve(readToolCalls(sessionID, dir)),
+      Promise.resolve(readToolCalls(sessionID, dir)),
     ]);
 
-    // Both report success.
-    expect(r1.ok).toBe(true);
-    expect(r2.ok).toBe(true);
+    // Both return the same N calls.
+    expect(r1.length).toBe(N);
+    expect(r2.length).toBe(N);
 
-    // Exactly one is an actual upgrade (sourceVersion=1) and exactly one
-    // is a no-op (sourceVersion=2). This proves the migration is not
-    // performed redundantly.
-    const upgrades = [r1, r2].filter(
-      (r) => r.sourceVersion === 1 && r.targetVersion === 2,
-    );
-    const noops = [r1, r2].filter(
-      (r) => r.sourceVersion === 2 && r.targetVersion === 2,
-    );
-    expect(upgrades.length).toBe(1);
-    expect(noops.length).toBe(1);
-
-    // Both report the correct line count.
-    expect(upgrades[0]?.lines).toBe(N);
-    expect(noops[0]?.lines).toBe(N);
+    // Both return identical callIDs (order-preserving across reads).
+    const ids1 = r1.map((c) => c.callID);
+    const ids2 = r2.map((c) => c.callID);
+    expect(ids1).toEqual(ids2);
+    for (let i = 0; i < N; i++) {
+      expect(ids1[i]).toBe(`tc-${String(i).padStart(4, "0")}`);
+    }
 
     // Final state: valid v2 with all N calls preserved.
     const header = readHeaderFromDisk(sessionID, dir) as unknown as V2HeaderShape;
@@ -288,7 +279,7 @@ describe("v1 auto-migration: scale + filesystem edge cases", () => {
       expect(calls[i].callID).toBe(`tc-${String(i).padStart(4, "0")}`);
     }
 
-    // Backup exists (created by the first migration's upgrade path).
+    // Backup exists (created by the first call's auto-migration path).
     expect(existsSync(join(dir, `${sessionID}.jsonl.v1.bak`))).toBe(true);
   });
 
@@ -296,7 +287,7 @@ describe("v1 auto-migration: scale + filesystem edge cases", () => {
   // 3. Read-only v1 file (no write permission)
   // -----------------------------------------------------------------------
 
-  test("migration gracefully fails when v1 file is read-only (chmod 0o444)", () => {
+  test("readToolCalls gracefully fails when v1 file is read-only (chmod 0o444)", () => {
     const sessionID = "v1-readonly";
 
     // Skip the assertion if running as root — root bypasses file mode
@@ -312,27 +303,27 @@ describe("v1 auto-migration: scale + filesystem edge cases", () => {
     // Make file read-only
     chmodSync(fp, 0o444);
 
-    const result = migrateV1ToV2(sessionID, dir);
+    // readToolCalls triggers auto-migration: the v1 full-scan runs
+    // fine (read-only allows reads), the .v1.bak copy also succeeds
+    // (writing a NEW file), but the v2 rewrite via writeFileSync fails.
+    // readToolCalls catches the migration failure and returns [].
+    const calls = readToolCalls(sessionID, dir);
 
     if (runningAsRoot) {
-      // root bypass: the write may succeed (file mode ignored). Document
-      // the observed behavior without asserting a failure. Either way,
-      // the implementation must not throw — graceful return only.
+      // root bypass: the write may succeed (file mode ignored). The
+      // read-only chmod has no effect under root. Document observed
+      // behavior without asserting failure. The contract is just
+      // "no thrown exception".
       console.log(
-        `[v1-readonly] running as root: chmod 0o444 bypassed, ok=${result.ok} error=${result.error ?? "<none>"}`,
+        `[v1-readonly] running as root: chmod 0o444 bypassed, calls.length=${calls.length}`,
       );
-      // result should be a valid MigrationResult (no thrown exception)
-      expect(typeof result.ok).toBe("boolean");
-      expect(typeof result.lines).toBe("number");
+      expect(Array.isArray(calls)).toBe(true);
       return;
     }
 
-    // Non-root: write must fail gracefully (no crash, no exception escape).
-    expect(result.ok).toBe(false);
-    expect(result.error).toBeDefined();
-    // Error message must mention write failure (the implementation's
-    // writeFileSync failure is wrapped as `write failed: <EACCES ...>`).
-    expect(result.error!.toLowerCase()).toContain("write");
+    // Non-root: auto-migration must fail gracefully (no crash, no
+    // exception escape). readToolCalls returns [] on migration failure.
+    expect(calls).toEqual([]);
 
     // Original v1 file is preserved byte-for-byte (no corruption).
     expect(existsSync(fp)).toBe(true);
@@ -353,7 +344,7 @@ describe("v1 auto-migration: scale + filesystem edge cases", () => {
   // 4. Migration to existing v2 file
   // -----------------------------------------------------------------------
 
-  test("migrating an already-v2 file is a no-op (does not corrupt v2)", async () => {
+  test("readToolCalls on an already-v2 file is a no-op (does not corrupt v2)", async () => {
     const sessionID = "v2-noop";
     const N = 4;
 
@@ -367,7 +358,7 @@ describe("v1 auto-migration: scale + filesystem edge cases", () => {
     }
     cp.flushSession(sessionID);
 
-    // Capture the v2 file state before migration
+    // Capture the v2 file state before readToolCalls
     const fp = filePath(sessionID, dir);
     const bytesBefore = readFileSync(fp);
     const headerBefore = readHeaderFromDisk(sessionID, dir) as unknown as V2HeaderShape;
@@ -375,17 +366,12 @@ describe("v1 auto-migration: scale + filesystem edge cases", () => {
     expect(headerBefore.version).toBe(2);
     expect(headerBefore.lineOffsets.length).toBe(N);
 
-    // Run migration on the already-v2 file
-    const result = migrateV1ToV2(sessionID, dir);
+    // readToolCalls on an already-v2 file: the auto-migration branch
+    // sees version === 2 and does nothing — no backup, no rewrite.
+    const calls = readToolCalls(sessionID, dir);
+    expect(calls.length).toBe(N);
 
-    // No-op success: sourceVersion === targetVersion === 2
-    expect(result.ok).toBe(true);
-    expect(result.sourceVersion).toBe(2);
-    expect(result.targetVersion).toBe(2);
-    expect(result.lines).toBe(N);
-    expect(result.error).toBeUndefined();
-
-    // No backup should have been created (no-op path does not back up).
+    // No backup should have been created (v2 path does not back up).
     expect(existsSync(join(dir, `${sessionID}.jsonl.v1.bak`))).toBe(false);
 
     // File bytes are bit-identical (no-op means no rewrite).
@@ -403,8 +389,6 @@ describe("v1 auto-migration: scale + filesystem edge cases", () => {
     expect(headerAfter.updatedAt).toBe(headerBefore.updatedAt);
 
     // Tool calls still readable with same content
-    const calls = readToolCalls(sessionID, dir);
-    expect(calls.length).toBe(N);
     for (let i = 0; i < N; i++) {
       expect(calls[i].callID).toBe(`noop-${i}`);
     }
@@ -471,18 +455,14 @@ describe("v1 auto-migration: scale + filesystem edge cases", () => {
     const fp = filePath(sessionID, dir);
     writeFileSync(fp, header + "\n" + body, "utf-8");
 
-    const result = migrateV1ToV2(sessionID, dir);
+    // readToolCalls triggers auto-migration: the v1 full-scan path
+    // uses split('\n').trim() per line, so whitespace and blank lines
+    // are skipped and 3 valid calls survive. The first readToolCalls
+    // call returns the 3 calls (after rewriting the file as v2).
+    const migratedCalls = readToolCalls(sessionID, dir);
 
     // Should succeed gracefully: v1 reader's trim() strips whitespace and
     // skips blank lines, producing 3 valid calls.
-    expect(result.ok).toBe(true);
-    expect(result.sourceVersion).toBe(1);
-    expect(result.targetVersion).toBe(2);
-    expect(result.lines).toBe(3);
-    expect(result.error).toBeUndefined();
-
-    // Verify all 3 calls were preserved in the migrated v2 file.
-    const migratedCalls = readToolCalls(sessionID, dir);
     expect(migratedCalls.length).toBe(3);
     expect(migratedCalls[0].callID).toBe("w-1");
     expect(migratedCalls[0].tool).toBe("bash");
