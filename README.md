@@ -8,7 +8,6 @@
 
 [![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 [![Version 0.14.8](https://img.shields.io/badge/version-0.14.8-success)](https://github.com/Rahspide/sffmc/releases)
-[![Tests](https://img.shields.io/badge/tests-903%20passing-brightgreen)](./packages/health)
 
 [**Packages**](./packages) &nbsp;·&nbsp; [**Getting started**](./docs/getting-started.md) &nbsp;·&nbsp; [**Contributing**](./CONTRIBUTING.md) &nbsp;·&nbsp; [**Changelog**](./CHANGELOG.md)
 
@@ -88,8 +87,6 @@ See [`docs/install.md`](./docs/install.md) for the full guide (pinned versions, 
 ## What's new in v0.14.8
 
 - **Documentation split into English + Russian.** `README.md` is now English-only; a language picker banner at the top links to `README.ru.md`. `CHANGELOG.md` is now English-only; Russian translations live in `CHANGELOG.ru.md`. Both new files contain the same content as the original bilingual inline format, just split for cleaner per-language navigation. No code changes — same 14 packages, same behaviour.
-
-Tests: 903 pass + 1 skip + 0 fail (unchanged from v0.14.6).
 
 <details>
 <summary>Want individual sub-features instead? (after `sffmc init --all`)</summary>

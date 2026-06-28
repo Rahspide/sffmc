@@ -6,10 +6,6 @@
 
 - **Documentation split into English + Russian** — `README.md` is now English-only; a language picker banner at the top links to `README.ru.md`. `CHANGELOG.md` is now English-only; Russian translations live in `CHANGELOG.ru.md`. Both new files contain the same content as the original bilingual inline format, just split for cleaner per-language navigation.
 
-### Tests
-
-- 903 pass + 1 skip + 0 fail (unchanged from v0.14.6).
-
 ## v0.14.6 (2026-06-21)
 
 ### Changed

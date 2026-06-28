@@ -8,7 +8,6 @@
 
 [![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 [![Version 0.14.8](https://img.shields.io/badge/version-0.14.8-success)](https://github.com/Rahspide/sffmc/releases)
-[![Tests](https://img.shields.io/badge/tests-903%20passing-brightgreen)](./packages/health)
 
 [**Пакеты**](./packages) &nbsp;·&nbsp; [**Начало работы**](./docs/getting-started.md) &nbsp;·&nbsp; [**Contributing**](./CONTRIBUTING.md) &nbsp;·&nbsp; [**Changelog**](./CHANGELOG.md)
 
@@ -97,8 +96,6 @@ cd ~/.sffmc/plugins/sffmc
   `CHANGELOG.ru.md`. Оба новых файла содержат то же содержимое, что и оригинал
   в билингвальном inline-формате, просто разделены для более удобной навигации
   по языкам. Изменений в коде нет — те же 14 пакетов, то же поведение.
-
-Тесты: 903 pass + 1 skip + 0 fail (без изменений с v0.14.6).
 
 <details>
 <summary>Хотите отдельные под-фичи вместо этого? (после `sffmc init --all`)</summary>
