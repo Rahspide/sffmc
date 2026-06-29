@@ -15,7 +15,7 @@
  */
 
 import { basename } from "node:path"
-import { loadConfig } from "./config.ts"
+import { loadConfig, validateSafeRegex } from "./config.ts"
 import { createLogger } from "./logger.ts"
 
 const log = createLogger("sffmc/shared")
@@ -127,11 +127,17 @@ let _configHomeOverride: string | undefined
  * Async because `loadConfig` reads YAML from disk. Result is cached
  * per-process. Tests use `__resetRedactionCache()` to flush and
  * `__setRedactionConfigHome()` to redirect to a temp dir.
+ *
+ * User-supplied regex patterns are validated via `safe-regex` at LOAD time
+ * (via the `validate` callback below), not at compile time. Unsafe patterns
+ * are filtered out with a warning rather than crashing — matching the
+ * existing fallback behavior for invalid regex syntax (compile-time try/catch).
  */
 async function getRules(): Promise<ReadonlyArray<RedactionRule>> {
   if (compiledRules !== null) return compiledRules
   const config = await loadConfig<RedactionConfig>("redact-secrets", defaultConfig, {
     configHome: _configHomeOverride,
+    validate: sanitizeRedactionConfig,
   })
   const disabled = new Set(config.disabledRules ?? [])
   const userRules: RedactionRule[] = []
@@ -158,6 +164,54 @@ async function getRules(): Promise<ReadonlyArray<RedactionRule>> {
     ...BUILTIN_RULES.filter((r) => !disabled.has(r.id)),
   ]
   return compiledRules
+}
+
+/**
+ * Validate + sanitize a parsed redact-secrets YAML. Called by `loadConfig`
+ * BEFORE the rule cache is populated. Rejects:
+ *  - non-object inputs (returns defaults)
+ *  - non-array rule lists (replaced with empty array)
+ *  - rules missing `id`/`pattern` strings (dropped)
+ *  - rules with regex patterns flagged by `safe-regex` as potentially
+ *    catastrophic (dropped with a warning)
+ *
+ * This is the schema-level guard against ReDoS in user-supplied regex
+ * (Bug #5b). The compile-time `new RegExp()` try/catch is kept as a
+ * defense-in-depth fallback for the case where safe-regex is missing or
+ * throws on input that `new RegExp()` could still compile.
+ */
+function sanitizeRedactionConfig(parsed: unknown): RedactionConfig {
+  if (!parsed || typeof parsed !== "object") return { ...defaultConfig }
+  const p = parsed as Record<string, unknown>
+  return {
+    extraFilenameRules: sanitizeRuleList(p.extraFilenameRules, "extraFilenameRules"),
+    extraContentRules: sanitizeRuleList(p.extraContentRules, "extraContentRules"),
+    disabledRules: sanitizeDisabledRules(p.disabledRules),
+  }
+}
+
+function sanitizeRuleList(
+  rules: unknown,
+  ctx: string,
+): Array<{ id: string; pattern: string }> {
+  if (!Array.isArray(rules)) return []
+  const out: Array<{ id: string; pattern: string }> = []
+  for (const rule of rules) {
+    if (!rule || typeof rule !== "object") continue
+    const r = rule as { id?: unknown; pattern?: unknown }
+    if (typeof r.id !== "string" || typeof r.pattern !== "string") continue
+    if (!validateSafeRegex(r.pattern)) {
+      log.warn(`redact-secrets: unsafe or invalid pattern in ${ctx}[${r.id}]:`, r.pattern)
+      continue
+    }
+    out.push({ id: r.id, pattern: r.pattern })
+  }
+  return out
+}
+
+function sanitizeDisabledRules(rules: unknown): string[] {
+  if (!Array.isArray(rules)) return []
+  return rules.filter((r): r is string => typeof r === "string")
 }
 
 /** Test escape hatch — flush the cache so the next call re-reads YAML. */

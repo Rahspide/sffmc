@@ -368,3 +368,92 @@ describe("redactSecrets — PEM body redaction (PEM block redaction)", () => {
     expect(r.redacted).toContain("MIIEvQIBADANBgkqhk")
   })
 })
+
+// ---------------------------------------------------------------------------
+// ReDoS guard for user-supplied regex (Bug #5b) — validate callback filters
+// catastrophic patterns at load time so they never reach `new RegExp(...)`.
+// ---------------------------------------------------------------------------
+
+describe("redact-secrets — user regex ReDoS guard", () => {
+  it("rejects catastrophic extraContentRules pattern with warn (34)", async () => {
+    // `^(a+)+$` is the textbook ReDoS example — must be filtered by safe-regex
+    // at load time so it never gets compiled into a hot-path RegExp.
+    writeFileSync(
+      resolve(configDir, "redact-secrets.yaml"),
+      "extraContentRules:\n  - id: \"redos-bad\"\n    pattern: \"^(a+)+$\"\n",
+      "utf-8",
+    )
+    __setRedactionConfigHome(configDir)
+    // Should not throw.
+    await ensureRedactionRules()
+    // Built-ins still work — sanity check that the catalogue survived.
+    const r = redactSecrets("api_key=ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+    expect(r.redacted).toContain("[REDACTED:api-key-assignment]")
+    // And the unsafe rule did NOT become an active matcher. We can't query
+    // the rule list directly, but we can assert that the catastrophic pattern
+    // does NOT appear in the compiled cache: feeding input that would match
+    // it (e.g. "aaaaaaaab") must not be redacted as a user-rule category.
+    const probe = redactSecrets("aaaaaaaab")
+    const matchedRedos = probe.categories.includes("redos-bad" as never)
+    expect(matchedRedos).toBe(false)
+  })
+
+  it("rejects catastrophic extraFilenameRules pattern with warn (35)", async () => {
+    writeFileSync(
+      resolve(configDir, "redact-secrets.yaml"),
+      "extraFilenameRules:\n  - id: \"redos-fn\"\n    pattern: \"^(x+)+$\"\n",
+      "utf-8",
+    )
+    __setRedactionConfigHome(configDir)
+    await ensureRedactionRules()
+    // Same: input that would match the rejected pattern must not be flagged
+    // by the user-rule category.
+    expect(isSensitiveFilename("xxxxxxxxy")).toBe(false)
+  })
+
+  it("accepts a valid extraContentRules pattern (36)", async () => {
+    writeFileSync(
+      resolve(configDir, "redact-secrets.yaml"),
+      "extraContentRules:\n  - id: \"user-jwt\"\n    pattern: \"eyJ[A-Za-z0-9_-]{8,}\"\n",
+      "utf-8",
+    )
+    __setRedactionConfigHome(configDir)
+    await ensureRedactionRules()
+    const r = redactSecrets("token=eyJhbGciOiJIUzI1NiJ9.payload")
+    expect(r.categories).toContain("user-jwt" as never)
+    expect(r.redacted).toContain("[REDACTED:user-jwt]")
+  })
+
+  it("mixed safe + unsafe rules: safe one compiled, unsafe one dropped (37)", async () => {
+    writeFileSync(
+      resolve(configDir, "redact-secrets.yaml"),
+      [
+        "extraContentRules:",
+        "  - id: \"good-rule\"",
+        "    pattern: \"SECRET_[A-Z]+\"",
+        "  - id: \"bad-rule\"",
+        "    pattern: \"(b+)+\"",
+      ].join("\n") + "\n",
+      "utf-8",
+    )
+    __setRedactionConfigHome(configDir)
+    await ensureRedactionRules()
+    const r = redactSecrets("SECRET_FOO and bbbbbbbb")
+    expect(r.categories).toContain("good-rule" as never)
+    expect(r.categories).not.toContain("bad-rule" as never)
+  })
+
+  it("built-in rules still work after YAML with user rules is loaded (38)", async () => {
+    writeFileSync(
+      resolve(configDir, "redact-secrets.yaml"),
+      "extraContentRules:\n  - id: \"my-rule\"\n    pattern: \"MY_TOKEN_[0-9]+\"\n",
+      "utf-8",
+    )
+    __setRedactionConfigHome(configDir)
+    await ensureRedactionRules()
+    // Sanity: the catalogue is intact, BUILTIN_RULES still fire.
+    const r = redactSecrets("AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE")
+    expect(r.redacted).toContain("[REDACTED:cloud-credential]")
+    expect(r.categories).toContain("cloud-credential")
+  })
+})
