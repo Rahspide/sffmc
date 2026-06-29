@@ -34,7 +34,7 @@ export { WorkflowPersistence } from "./persistence.ts"
 export { parseMeta } from "./meta.ts"
 export { resolveWorkflow, isInlineScript } from "./resolve.ts"
 export { registerBuiltin, getBuiltin, loadBuiltin, listBuiltins } from "./builtin-registry.ts"
-export { createEventBus } from "./events.ts"
+export { createEventBus, WorkflowEventEmitter } from "./events.ts"
 export { createWorkflowTool } from "./tool.ts"
 export { WorkflowRuntime, type RuntimeOpts } from "./runtime.ts"
 
