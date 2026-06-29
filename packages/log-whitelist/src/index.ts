@@ -1,5 +1,6 @@
 import { filterLines } from "./filter";
 import { loadConfig, type PluginContext, createLogger } from "@sffmc/shared";
+import safeRegex from "safe-regex";
 
 const log = createLogger("log-whitelist");
 
@@ -25,10 +26,17 @@ const defaultConfig: LogWhitelistConfig = {
   suppress_patterns: [],
 };
 
-function compilePatterns(strings: string[]): RegExp[] {
+export function compilePatterns(strings: string[]): RegExp[] {
   const out: RegExp[] = [];
   for (const s of strings) {
     if (s.length === 0) continue;
+    // Reject ReDoS-prone patterns before compiling — user YAML may supply
+    // catastrophically-backtracking expressions like `^(a+)+$` that would
+    // hang every tool.execute.after / experimental.text.complete hook.
+    if (!safeRegex(s)) {
+      log.warn("unsafe regex pattern (rejected to prevent ReDoS):", s);
+      continue;
+    }
     try {
       out.push(new RegExp(s));
     } catch (e) {
