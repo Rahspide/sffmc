@@ -202,6 +202,12 @@ describe("WorkflowRuntime.setGracePeriodMs", () => {
     const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
     expect(() => runtime.setGracePeriodMs(1.5)).toThrow(/Invalid gracePeriodMs/)
   })
+
+  test("throws with a stable error message when ms exceeds MAX_GRACE_PERIOD_MS (24h)", () => {
+    const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
+    // MAX_GRACE_PERIOD_MS is 24 * 60 * 60 * 1000; +1 is the smallest over-bound value.
+    expect(() => runtime.setGracePeriodMs(24 * 60 * 60 * 1000 + 1)).toThrow(/Invalid gracePeriodMs/)
+  })
 })
 
 describe("WorkflowRuntime.setConfig", () => {
@@ -309,7 +315,8 @@ describe("WorkflowRuntime.status", () => {
     const s = await runtime.status({ runID })
     expect(s.runID).toBe(runID)
     expect(s.status).toBe("running")
-    expect(s.stepsTotal).toBe(s.stepsTotal) // populated
+    expect(typeof s.stepsTotal).toBe("number")
+    expect(s.stepsTotal).toBeGreaterThanOrEqual(0)
   })
 
   test("returns synthetic WorkflowStatusOutput with status='crashed' for an unknown runID", async () => {
@@ -340,7 +347,8 @@ describe("WorkflowRuntime.wait", () => {
     expect(outcome.runID).toBe(runID)
     expect(outcome.status).toBe("completed")
     expect(outcome.result).toBe("ok")
-    expect(outcome.stepsTotal).toBe(outcome.stepsTotal)
+    expect(typeof outcome.stepsTotal).toBe("number")
+    expect(outcome.stepsTotal).toBeGreaterThanOrEqual(0)
   })
 
   test("returns failure outcome with 'unknown runID …' for a never-started runID", async () => {
