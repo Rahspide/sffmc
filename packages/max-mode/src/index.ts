@@ -62,9 +62,9 @@ interface PluginState {
   maxUsedThisSession: boolean;
   /** Pending one-shot verdict per session. Consumed (and deleted) by whichever
    *  chat transform fires  (system or messages) for that session.
-   *  Per-instance — was previously stashed on ctx (`_maxModeResult`), which
+   *  Per-instance — was previously stashed on ctx (`pendingResults`), which
    *  leaked across sessions in long-running processes. */
-  _maxModeResult: Map<string, MaxModeResult>;
+  pendingResults: Map<string, MaxModeResult>;
 }
 
 function estimateCost(candidates: Candidate[]): number {
@@ -85,21 +85,21 @@ function estimateCost(candidates: Candidate[]): number {
  * Each match is replaced with `[REDACTED:injection]` so downstream consumers
  * (LLM, logs, UI) see the marker instead of the literal instruction.
  */
-const INJECTION_PATTERNS: ReadonlyArray<{ name: string; re: RegExp }> = [
+const INJECTION_PATTERNS: ReadonlyArray<{ id: string; re: RegExp }> = [
   // "Ignore all previous instructions" (and variants)
-  { name: "ignore-previous-instructions",
+  { id: "ignore-previous-instructions",
     re: /IGNORE (?:ALL )?PREVIOUS INSTRUCTIONS/gi },
   // "Disregard all previous instructions/context"
-  { name: "disregard-instructions",
+  { id: "disregard-instructions",
     re: /DISREGARD (?:ALL )?(?:PREVIOUS )?(?:INSTRUCTIONS|CONTEXT)/gi },
   // "You are now <role>" — role-hijack attempts
-  { name: "you-are-now",
+  { id: "you-are-now",
     re: /YOU ARE NOW [^.\n]{1,200}/gi },
   // "SYSTEM:" pseudo-system-prompt prefix injection
-  { name: "system-prefix",
+  { id: "system-prefix",
     re: /SYSTEM: [^.\n]{1,200}/gi },
   // "Forget everything / all above" — context-wipe attempts
-  { name: "forget-everything",
+  { id: "forget-everything",
     re: /FORGET (?:EVERYTHING|ALL (?:OF )?(?:THE )?(?:PREVIOUS|ABOVE) (?:INSTRUCTIONS|CONTEXT|TEXT))/gi },
 ];
 
@@ -129,9 +129,9 @@ export function redactInjectionInWinner(content: string): string {
  * Returns the message to inject, or `undefined` if none is pending.
  */
 function consumeWinnerResult(state: PluginState, sessionID: string): string | undefined {
-  const result = state._maxModeResult.get(sessionID);
+  const result = state.pendingResults.get(sessionID);
   if (!result) return undefined;
-  state._maxModeResult.delete(sessionID);
+  state.pendingResults.delete(sessionID);
   return result.message;
 }
 
@@ -174,7 +174,7 @@ export const server = async (ctx: RichPluginContext) => {
     config,
     restore: createRestoreState(),
     maxUsedThisSession: false,
-    _maxModeResult: new Map(),
+    pendingResults: new Map(),
   };
 
   if (config.dry_run) {
@@ -269,7 +269,7 @@ export const server = async (ctx: RichPluginContext) => {
         // Inject winner as system message via the command context
         // The actual injection depends on how the SDK exposes message manipulation
         // For now, store in a per-instance side-channel that can be picked up by chat transforms
-        state._maxModeResult.set(cmdCtx.sessionID, {
+        state.pendingResults.set(cmdCtx.sessionID, {
           winner,
           verdict,
           message,

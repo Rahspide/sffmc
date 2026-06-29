@@ -56,9 +56,9 @@ interface PluginState {
   sessions: Map<string, ReturnType<typeof createSessionState>>;
   /** Pending one-shot escalation fragment per session. Consumed (and deleted) by
    *  experimental.chat.system.transform when it fires for that session.
-   *  Per-instance — was previously stashed on ctx (`_autoMaxTrigger`), which
+   *  Per-instance — was previously stashed on ctx (`pendingTriggers`), which
    *  leaked across sessions in long-running processes. */
-  _autoMaxTrigger: Map<string, AutoMaxTrigger>;
+  pendingTriggers: Map<string, AutoMaxTrigger>;
 }
 
 
@@ -80,7 +80,7 @@ export const server = async (_ctx: PluginContext) => {
   const state: PluginState = {
     config,
     sessions: new Map(),
-    _autoMaxTrigger: new Map(),
+    pendingTriggers: new Map(),
   };
 
   if (!loadedLogged) {
@@ -166,7 +166,7 @@ export const server = async (_ctx: PluginContext) => {
     ) => {
       const sessionID = _input.sessionID;
       if (!sessionID) return data;
-      const trigger = state._autoMaxTrigger.get(sessionID);
+      const trigger = state.pendingTriggers.get(sessionID);
 
       if (trigger) {
         data.system.push(
@@ -175,7 +175,7 @@ export const server = async (_ctx: PluginContext) => {
             `Max Mode will generate parallel candidate solutions to break the loop.`,
           ].join("\n"),
         );
-        state._autoMaxTrigger.delete(sessionID);
+        state.pendingTriggers.delete(sessionID);
       }
       return data;
     },
@@ -208,7 +208,7 @@ function handleTrigger(
       `→ Activating Max Mode, generating ${config.maxModeConfig.n} candidates`,
     );
 
-    state._autoMaxTrigger.set(sessionID, {
+    state.pendingTriggers.set(sessionID, {
       tool,
       errorType,
       failCount: config.watchdogThreshold,
