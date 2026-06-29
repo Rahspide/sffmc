@@ -14,14 +14,14 @@ import { compileRules, type CompiledRule, type Rules, type Action } from "./rule
  * pre-compiled list does not.
  */
 export function evaluate(
-  rulesOrCompiled: CompiledRule[] | Rules,
+  rulesInput: CompiledRule[] | Rules,
   toolName: string,
   args: Record<string, unknown> | undefined,
   projectRoot: string,
 ): { action: Action; reason: string } {
-  const compiled: CompiledRule[] = isRules(rulesOrCompiled)
-    ? compileRules(rulesOrCompiled).rules
-    : rulesOrCompiled;
+  const compiled: CompiledRule[] = isRules(rulesInput)
+    ? compileRules(rulesInput).rules
+    : rulesInput;
 
   for (const rule of compiled) {
     if (rule.match.tool !== toolName) continue;
@@ -39,9 +39,9 @@ export function evaluate(
     }
 
     if (rule.match.path_outside) {
-      const paths = extractPaths(args);
-      const outside = paths.some((p) => !isInside(projectRoot, p));
-      if (outside) {
+      const candidatePaths = extractPaths(args);
+      const anyOutside = candidatePaths.some((p) => !isInside(projectRoot, p));
+      if (anyOutside) {
         return {
           action: rule.action,
           reason: `path outside ${rule.match.path_outside} (${projectRoot})`,
@@ -70,12 +70,12 @@ function extractPaths(args: Record<string, unknown> | undefined): string[] {
   if (!args || typeof args !== "object") return paths;
 
   const pathKeys = ["filePath", "path", "paths", "from", "to", "workdir"];
-  for (const key of pathKeys) {
-    const val = args[key];
-    if (typeof val === "string") paths.push(val);
-    if (Array.isArray(val)) {
-      for (const item of val) {
-        if (typeof item === "string") paths.push(item);
+  for (const pathKey of pathKeys) {
+    const argValue = args[pathKey];
+    if (typeof argValue === "string") paths.push(argValue);
+    if (Array.isArray(argValue)) {
+      for (const pathItem of argValue) {
+        if (typeof pathItem === "string") paths.push(pathItem);
       }
     }
   }

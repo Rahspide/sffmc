@@ -135,26 +135,26 @@ let _configHomeOverride: string | undefined
  */
 async function getRules(): Promise<ReadonlyArray<RedactionRule>> {
   if (compiledRules !== null) return compiledRules
-  const config = await loadConfig<RedactionConfig>("redact-secrets", defaultConfig, {
+  const redactionConfig = await loadConfig<RedactionConfig>("redact-secrets", defaultConfig, {
     configHome: _configHomeOverride,
     validate: sanitizeRedactionConfig,
   })
-  const disabled = new Set(config.disabledRules ?? [])
+  const disabled = new Set(redactionConfig.disabledRules ?? [])
   const userRules: RedactionRule[] = []
-  for (const u of config.extraFilenameRules ?? []) {
-    if (disabled.has(u.id)) continue
+  for (const userRule of redactionConfig.extraFilenameRules ?? []) {
+    if (disabled.has(userRule.id)) continue
     try {
-      userRules.push({ id: u.id as RedactionCategory, pattern: new RegExp(u.pattern, "i"), filenameOnly: true })
+      userRules.push({ id: userRule.id as RedactionCategory, pattern: new RegExp(userRule.pattern, "i"), filenameOnly: true })
     } catch (e) {
-      log.warn(`redact-secrets: invalid extraFilenameRules[${u.id}]:`, e)
+      log.warn(`redact-secrets: invalid extraFilenameRules[${userRule.id}]:`, e)
     }
   }
-  for (const u of config.extraContentRules ?? []) {
-    if (disabled.has(u.id)) continue
+  for (const userRule of redactionConfig.extraContentRules ?? []) {
+    if (disabled.has(userRule.id)) continue
     try {
-      userRules.push({ id: u.id as RedactionCategory, pattern: new RegExp(u.pattern, "gi") })
+      userRules.push({ id: userRule.id as RedactionCategory, pattern: new RegExp(userRule.pattern, "gi") })
     } catch (e) {
-      log.warn(`redact-secrets: invalid extraContentRules[${u.id}]:`, e)
+      log.warn(`redact-secrets: invalid extraContentRules[${userRule.id}]:`, e)
     }
   }
   // User rules run first so a user can override a built-in (e.g., redefine
@@ -182,11 +182,11 @@ async function getRules(): Promise<ReadonlyArray<RedactionRule>> {
  */
 function sanitizeRedactionConfig(parsed: unknown): RedactionConfig {
   if (!parsed || typeof parsed !== "object") return { ...defaultConfig }
-  const p = parsed as Record<string, unknown>
+  const rawConfig = parsed as Record<string, unknown>
   return {
-    extraFilenameRules: sanitizeRuleList(p.extraFilenameRules, "extraFilenameRules"),
-    extraContentRules: sanitizeRuleList(p.extraContentRules, "extraContentRules"),
-    disabledRules: sanitizeDisabledRules(p.disabledRules),
+    extraFilenameRules: sanitizeRuleList(rawConfig.extraFilenameRules, "extraFilenameRules"),
+    extraContentRules: sanitizeRuleList(rawConfig.extraContentRules, "extraContentRules"),
+    disabledRules: sanitizeDisabledRules(rawConfig.disabledRules),
   }
 }
 
