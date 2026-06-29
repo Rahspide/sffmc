@@ -1,177 +1,50 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/extra — Checkpoint
 // Real implementation: session state capture, persistence to JSONL, restore.
+//
+// M-1 god-object refactor (Task 1.7) — this file is the public facade.
+// Each concern now lives in its own module under ./checkpoint/. This file
+// is being incrementally collapsed; the final state is a thin re-export
+// shim. In-progress commits may temporarily hold a mix of inlined code
+// and imports from the extracted modules.
 
-import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { appendFileSync, copyFileSync, existsSync, readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { homedir } from "node:os";
 import { createLogger, redactSecrets } from "@sffmc/shared";
 
+import { crc32 } from "./checkpoint/crc.js";
+import {
+  CURRENT_VERSION,
+  DEFAULT_FLUSH_INTERVAL_MS,
+  DEFAULT_FLUSH_THRESHOLD,
+  DEFAULT_MAX_BUFFER_SESSIONS,
+  DEFAULT_MAX_CHECKPOINT_FILE_SIZE,
+  DEFAULT_MAX_RESTORED_MESSAGES,
+} from "./checkpoint/constants.js";
+import { ensureDir, filePath, getCheckpointDir, __setCheckpointDir } from "./checkpoint/paths.js";
+import type { CheckpointHooks, CheckpointTool, ToolCall } from "./checkpoint/types.js";
+import { CheckpointTooLargeError } from "./checkpoint/types.js";
+
+export {
+  crc32,
+  __setCheckpointDir,
+  filePath,
+  CURRENT_VERSION,
+  DEFAULT_FLUSH_THRESHOLD,
+  DEFAULT_FLUSH_INTERVAL_MS,
+  DEFAULT_MAX_BUFFER_SESSIONS,
+  CheckpointTooLargeError,
+} from "./checkpoint/index.js";
+export type {
+  CheckpointHooks,
+  CheckpointTool,
+  ToolCall,
+  CheckpointState,
+  MigrationResult,
+  SessionBufferEntry,
+} from "./checkpoint/index.js";
+
 const log = createLogger("extra-checkpoint");
-
-// ---------------------------------------------------------------------------
-// CRC32 (IEEE 802.3) — table-driven, no external dependencies.
-// ---------------------------------------------------------------------------
-
-/** Precomputed CRC32 lookup table (IEEE 802.3 polynomial 0xEDB88320,
- *  reflected). Initialized once at module load. */
-const CRC32_TABLE: Uint32Array = (() => {
-  const t = new Uint32Array(256);
-  for (let i = 0; i < 256; i++) {
-    let c = i;
-    for (let j = 0; j < 8; j++) {
-      c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
-    }
-    t[i] = c >>> 0;
-  }
-  return t;
-})();
-
-/** Compute CRC32 (IEEE 802.3) over a UTF-8 string or byte buffer.
- *  Returns an unsigned 32-bit integer. */
-export function crc32(data: string | Uint8Array): number {
-  const bytes = typeof data === "string" ? new TextEncoder().encode(data) : data;
-  let c = 0xFFFFFFFF;
-  for (let i = 0; i < bytes.length; i++) {
-    c = CRC32_TABLE[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
-  }
-  return (c ^ 0xFFFFFFFF) >>> 0;
-}
-
-export interface ToolCall {
-  tool: string;
-  args: unknown;
-  result: unknown;
-  timestamp: number;
-  callID: string;
-}
-
-export interface CheckpointState {
-  sessionID: string;
-  toolCalls: ToolCall[];
-  createdAt: number;
-  updatedAt: number;
-  version: number;
-}
-
-/** Manriel audit finding: typed error thrown by `readHeader()` and
- *  `readToolCalls()` when the on-disk file exceeds `maxFileSize`.
- *  Previously, `readHeader()` returned `null` and `readToolCalls()`
- *  returned `[]` for the oversize case, which made it impossible for
- *  callers to distinguish "checkpoint missing" from "checkpoint too
- *  large" — both surfaced as empty results. Callers in this file catch
- *  `CheckpointTooLargeError` and convert to the existing
- *  `{ ok: false, error: "..." }` response shape so the public tool API
- *  is unchanged. */
-export class CheckpointTooLargeError extends Error {
-  readonly sessionID: string;
-  readonly fileSize: number;
-  readonly maxFileSize: number;
-  constructor(sessionID: string, fileSize: number, maxFileSize: number) {
-    super(
-      `Checkpoint "${sessionID}" file size ${(fileSize / 1024 / 1024).toFixed(1)}MB exceeds limit (${(maxFileSize / 1024 / 1024).toFixed(1)}MB)`,
-    );
-    this.name = "CheckpointTooLargeError";
-    this.sessionID = sessionID;
-    this.fileSize = fileSize;
-    this.maxFileSize = maxFileSize;
-  }
-}
-
-export interface CheckpointTool {
-  description: string;
-  parameters: {
-    type: "object";
-    properties: {
-      action: { type: "string"; enum: string[] };
-      sessionID: { type: "string" };
-    };
-    required: string[];
-  };
-  execute: (args?: { action: string; sessionID?: string }) => Promise<unknown>;
-}
-
-export interface CheckpointHooks {
-  "tool.execute.after"?: (
-    toolCtx: { tool: string; sessionID: string; callID: string },
-    result: { output?: unknown; title?: string; metadata?: unknown },
-  ) => Promise<void>;
-  "experimental.chat.messages.transform"?: (
-    _input: unknown,
-    data: { messages: Array<{ role: string; content: string; [key: string]: unknown }> },
-  ) => Promise<void>;
-}
-
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-//
-// .slim/deepwork/hardcode-audit-2026-06.md.
-//
-// `MAX_CHECKPOINT_FILE_SIZE` and `MAX_RESTORED_MESSAGES` were hardcoded
-// module-level constants. They are now configurable via the factory's
-// `config.maxFileSize` and `config.maxRestoredMessages` (defaults match the
-// previous hardcoded values, so behavior is unchanged when no YAML is
-// provided). The original values are preserved as `DEFAULT_*` so callers
-// that omit the new fields still see the prior behavior.
-
-/** Default max checkpoint file size in bytes. Overridable via
- *  `ExtraConfig.checkpoint_max_file_size`. */
-const DEFAULT_MAX_CHECKPOINT_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
-
-/** Default max restored messages per checkpoint. Overridable via
- *  `ExtraConfig.checkpoint_max_restored_messages`. */
-const DEFAULT_MAX_RESTORED_MESSAGES = 50;
-
-//
-// .slim/deepwork/phase-2-3-hardcode-migration-plan.md §2.3
-//
-// `FLUSH_THRESHOLD`, `FLUSH_INTERVAL_MS`, and `MAX_BUFFER_SESSIONS` were
-// hardcoded module-level constants. They are now configurable via the
-// factory's `config.flushThreshold`, `config.flushIntervalMs`, and
-// `config.maxBufferedSessions`. The original values are preserved as
-// `DEFAULT_*` so callers that omit the new fields still see the prior
-// behavior.
-//
-
-/** Default buffer flush threshold. Overridable via
- *  `ExtraConfig.checkpoint_flush_threshold`. */
-export const DEFAULT_FLUSH_THRESHOLD = 50;
-
-/** Default periodic flush interval in ms. Overridable via
- *  `ExtraConfig.checkpoint_flush_interval_ms`. */
-export const DEFAULT_FLUSH_INTERVAL_MS = 5_000;
-
-export const CURRENT_VERSION = 2;
-
-/** Default max in-memory session buffers. Overridable via
- *  `ExtraConfig.checkpoint_max_buffered_sessions`. */
-export const DEFAULT_MAX_BUFFER_SESSIONS = 50;
-
-// ---------------------------------------------------------------------------
-// Storage path — overridable for tests
-// ---------------------------------------------------------------------------
-
-let _overrideDir: string | null = null;
-
-export function __setCheckpointDir(dir: string): void {
-  _overrideDir = dir;
-}
-
-function getCheckpointDir(): string {
-  if (_overrideDir) return _overrideDir;
-  return join(homedir(), ".local", "share", "sffmc", "extra", "checkpoints");
-}
-
-function ensureDir(dir: string): void {
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true, mode: 0o700 });
-  }
-}
-
-export function filePath(sessionID: string, dir?: string): string {
-  return join(dir ?? getCheckpointDir(), `${sessionID}.jsonl`);
-}
 
 // ---------------------------------------------------------------------------
 // Header (schema versioning)
