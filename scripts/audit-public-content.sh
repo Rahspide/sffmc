@@ -153,6 +153,8 @@ for entry in "${PATTERNS[@]}"; do
       -not -path "*/node_modules/*"
       -not -path "./dependencies/*"
       -not -path "*/dist/*"
+      -not -path "./.slim/*"
+      -not -path "./.sffmc/*"
       -not -regex ".*\.bak-pre-.*"
       -not -path "./.git/*"
     )
