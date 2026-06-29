@@ -8,8 +8,7 @@
 // shim. In-progress commits may temporarily hold a mix of inlined code
 // and imports from the extracted modules.
 
-import { appendFileSync, copyFileSync, existsSync, readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { appendFileSync, writeFileSync } from "node:fs";
 import { createLogger, redactSecrets } from "@sffmc/shared";
 
 import { crc32 } from "./checkpoint/crc.js";
@@ -27,8 +26,19 @@ import {
   readHeader,
   writeHeader,
 } from "./checkpoint/header.js";
-import { ensureDir, filePath, getCheckpointDir, __setCheckpointDir } from "./checkpoint/paths.js";
-import type { CheckpointHooks, CheckpointTool, ToolCall } from "./checkpoint/types.js";
+import { migrateV1ToV2 } from "./checkpoint/migrations.js";
+import { ensureDir, filePath, getCheckpointDir } from "./checkpoint/paths.js";
+import {
+  deleteCheckpoint,
+  listSessions,
+  readToolCallsShim,
+} from "./checkpoint/reader.js";
+import type {
+  CheckpointHooks,
+  CheckpointTool,
+  SessionBufferEntry,
+  ToolCall,
+} from "./checkpoint/types.js";
 import { CheckpointTooLargeError } from "./checkpoint/types.js";
 
 export {
@@ -50,381 +60,18 @@ export type {
   SessionBufferEntry,
 } from "./checkpoint/index.js";
 
+// Re-export the read API under its public name so the rest of this file
+// can call `readToolCalls(...)` without the shim suffix.
+export { readToolCallsShim as readToolCalls, listSessions } from "./checkpoint/reader.js";
+
 const log = createLogger("extra-checkpoint");
 
-// ---------------------------------------------------------------------------
-// ToolCall read / list / delete
-// ---------------------------------------------------------------------------
-
-export function readToolCalls(
-  sessionID: string,
-  dir?: string,
-  maxFileSize: number = DEFAULT_MAX_CHECKPOINT_FILE_SIZE,
-): ToolCall[] {
-  const fp = filePath(sessionID, dir);
-
-  // Stat-based size check before loading into memory.
-  try {
-    const st = statSync(fp);
-    if (st.size > maxFileSize) {
-      log.warn(
-        `checkpoint: skipping ${sessionID} — file size ${(st.size / 1024 / 1024).toFixed(1)}MB exceeds limit (${maxFileSize / 1024 / 1024}MB)`,
-      );
-      // Oversize error: throw a typed error so callers can distinguish
-      // "oversize" from "missing file" (which still returns []).
-      throw new CheckpointTooLargeError(sessionID, st.size, maxFileSize);
-    }
-  } catch (e) {
-    if (e instanceof CheckpointTooLargeError) throw e;
-    return [];
-  }
-
-  let fileBuf: Buffer;
-  try {
-    fileBuf = readFileSync(fp);
-  } catch {
-    return [];
-  }
-
-  // buf.length is the file size — cheap early-exit on empty files
-  // (equivalent to what a stat() pre-check would have given us).
-  if (fileBuf.length === 0) return [];
-
-  // Read the header line to detect the on-disk version. v1 files are
-  // auto-migrated to v2 in place on first read; after migration the
-  // v2 indexed-seek path runs as if the file had always been v2.
-  const firstNewline = fileBuf.indexOf(0x0a);
-  if (firstNewline < 0) return [];
-  const headerLine = fileBuf.subarray(0, firstNewline).toString("utf-8");
-  let parsed: Record<string, unknown>;
-  try {
-    parsed = JSON.parse(headerLine) as Record<string, unknown>;
-  } catch {
-    return [];
-  }
-  if (parsed.__type !== "header") return [];
-
-  // v1 → auto-migrate to v2 in place, then re-read the file buffer
-  // (the rewrite changes byte offsets, so we cannot reuse `fileBuf`).
-  if (parsed.version === 1) {
-    const mig = __migrateV1ToV2InPlace(sessionID, dir);
-    if (!mig.ok) {
-      log.warn(
-        `checkpoint: readToolCalls auto-migrate v1→v2 failed for ${sessionID}: ${mig.error ?? "unknown error"}`,
-      );
-      return [];
-    }
-    try {
-      fileBuf = readFileSync(fp);
-    } catch {
-      return [];
-    }
-    const firstNewline2 = fileBuf.indexOf(0x0a);
-    if (firstNewline2 < 0) return [];
-    const headerLine2 = fileBuf.subarray(0, firstNewline2).toString("utf-8");
-    try {
-      parsed = JSON.parse(headerLine2) as Record<string, unknown>;
-    } catch {
-      return [];
-    }
-    if (parsed.__type !== "header" || parsed.version !== 2) return [];
-  } else if (parsed.version !== 2) {
-    return [];
-  }
-
-  // v2 path: seek to each recorded offset and parse the line.
-  const lineOffsets = parsed.lineOffsets;
-  if (!Array.isArray(lineOffsets)) return [];
-
-  const calls: ToolCall[] = [];
-  for (let i = 0; i < lineOffsets.length; i++) {
-    const start = lineOffsets[i];
-    if (typeof start !== "number" || start < 0 || start >= fileBuf.length) continue;
-    // Locate the line terminator (LF) starting at `start`.
-    let lineEnd = fileBuf.indexOf(0x0a, start);
-    if (lineEnd < 0) lineEnd = fileBuf.length;
-    const lineBytes = fileBuf.subarray(start, lineEnd);
-    try {
-      const obj = JSON.parse(lineBytes.toString("utf-8")) as Record<string, unknown>;
-      if (obj.__type === "header") continue;
-      if (
-        typeof obj.tool === "string" &&
-        typeof obj.timestamp === "number" &&
-        typeof obj.callID === "string"
-      ) {
-        calls.push(obj as unknown as ToolCall);
-      }
-    } catch {
-      // Skip malformed lines
-    }
-  }
-  return calls;
-}
-
-export function listSessions(dir?: string): string[] {
-  const d = dir ?? getCheckpointDir();
-  if (!existsSync(d)) return [];
-
-  try {
-    const files = readdirSync(d);
-    return files
-      .filter((f) => f.endsWith(".jsonl"))
-      .map((f) => f.replace(/\.jsonl$/, ""));
-  } catch {
-    return [];
-  }
-}
-
-function deleteCheckpoint(sessionID: string, dir?: string): boolean {
-  const fp = filePath(sessionID, dir);
-  if (!existsSync(fp)) return false;
-  try {
-    unlinkSync(fp);
-    return true;
-  } catch {
-    return false;
-  }
-}
+// Local alias for in-file use.
+const readToolCalls = readToolCallsShim;
 
 // ---------------------------------------------------------------------------
-// Migration: v1 → v2 (auto-migrate on read)
-// ---------------------------------------------------------------------------
-//
-// Policy (v0.14.9): v1 files are auto-migrated to v2 in place on the
-// first read via `readHeader` / `readToolCalls`. Callers do not need to
-// invoke a migration API. The on-disk format remains v2; the previous
-// public `migrateV1ToV2` export is now a module-internal helper.
-
-/** Result of a v1 → v2 migration attempt. `ok=false` cases include a
- *  human-readable `error`. The `sourceVersion` / `targetVersion` fields
- *  always reflect the requested transition (1→2, or 2→2 for the
- *  no-op path). Still exported — callers that capture a migration
- *  result (e.g. for telemetry) keep their type import. */
-export interface MigrationResult {
-  ok: boolean;
-  sourceVersion: 1 | 2;
-  targetVersion: 2;
-  lines: number;
-  error?: string;
-}
-
-/** Internal: extract tool calls from a v1 file body via full-scan.
- *  Skips the header line (anything with `__type === "header"`). The
- *  same field-shape rules as `readToolCalls`: keep only lines that
- *  parse as objects with `tool` (string), `timestamp` (number), and
- *  `callID` (string). Used by the auto-migration path. */
-function __readV1BodyLines(raw: string): ToolCall[] {
-  const calls: ToolCall[] = [];
-  const lines = raw.split("\n");
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-    try {
-      const obj = JSON.parse(trimmed) as Record<string, unknown>;
-      if (obj.__type === "header") continue;
-      if (
-        typeof obj.tool === "string" &&
-        typeof obj.timestamp === "number" &&
-        typeof obj.callID === "string"
-      ) {
-        calls.push(obj as unknown as ToolCall);
-      }
-    } catch {
-      // Skip malformed lines
-    }
-  }
-  return calls;
-}
-
-/** Internal: v1 → v2 in-place migration. Reads the v1 file body via
- *  full-scan, builds a v2 file (per-line CRC + offsets + file CRC),
- *  backs up the original to `<sessionID>.jsonl.v1.bak`, and rewrites
- *  the file as v2.
- *
- *  Does NOT call `readHeader` or `readToolCalls` — that would recurse
- *  through the auto-migration hooks. Operates on raw bytes instead.
- *
- *  Returns `{ ok, lines }`; `ok=false` includes `error`. No-op (and
- *  `ok=true`) when the file is already v2. */
-function __migrateV1ToV2InPlace(
-  sessionID: string,
-  dir?: string,
-): { ok: boolean; lines: number; error?: string } {
-  const d = dir ?? getCheckpointDir();
-  const fp = filePath(sessionID, dir);
-
-  if (!existsSync(fp)) {
-    return { ok: false, lines: 0, error: "checkpoint not found" };
-  }
-
-  let raw: string;
-  try {
-    raw = readFileSync(fp, "utf-8");
-  } catch (e) {
-    return { ok: false, lines: 0, error: e instanceof Error ? e.message : String(e) };
-  }
-
-  const firstLine = raw.split("\n")[0]?.trim();
-  if (!firstLine) {
-    return { ok: false, lines: 0, error: "empty file" };
-  }
-
-  let parsedHeader: Record<string, unknown>;
-  try {
-    parsedHeader = JSON.parse(firstLine) as Record<string, unknown>;
-  } catch (e) {
-    return { ok: false, lines: 0, error: e instanceof Error ? e.message : String(e) };
-  }
-  if (parsedHeader.__type !== "header") {
-    return { ok: false, lines: 0, error: "not a checkpoint file" };
-  }
-
-  // Already v2 — no migration needed; count existing lines for the
-  // `lines` field so callers can report progress.
-  if (parsedHeader.version === 2) {
-    return { ok: true, lines: __readV1BodyLines(raw).length };
-  }
-
-  if (parsedHeader.version !== 1) {
-    return {
-      ok: false,
-      lines: 0,
-      error: `unknown checkpoint version: ${parsedHeader.version as number}`,
-    };
-  }
-
-  const createdAt =
-    typeof parsedHeader.createdAt === "number" ? parsedHeader.createdAt : Date.now();
-
-  // Read v1 body via full-scan.
-  const calls = __readV1BodyLines(raw);
-
-  // Backup v1 file before rewriting. Failure aborts the migration —
-  // we never destroy data without a safety copy.
-  const backupPath = join(d, `${sessionID}.jsonl.v1.bak`);
-  try {
-    copyFileSync(fp, backupPath);
-  } catch (e) {
-    return {
-      ok: false,
-      lines: calls.length,
-      error: `backup failed: ${e instanceof Error ? e.message : String(e)}`,
-    };
-  }
-
-  // Build v2 file. The header size depends on the offsets it contains
-  // (digit counts grow with offset values), so we iterate to a fixed
-  // point — typically ≤3 iterations for typical session sizes.
-  // `updatedAt` is captured once and held constant across the
-  // iteration so the returned header string and its serialized
-  // offsets agree byte-for-byte.
-  const { bodyConcat, bodyBytes, bodyLineBytes } = buildV2Body(calls);
-  const fileCrc32 = crc32(bodyBytes);
-  const finalHeaderStr = computeV2HeaderStr(
-    sessionID,
-    bodyLineBytes,
-    fileCrc32,
-    createdAt,
-    Date.now(),
-  );
-
-  try {
-    writeFileSync(fp, finalHeaderStr + bodyConcat);
-  } catch (e) {
-    return {
-      ok: false,
-      lines: calls.length,
-      error: `write failed: ${e instanceof Error ? e.message : String(e)}`,
-    };
-  }
-
-  return { ok: true, lines: calls.length };
-}
-
-/** Internal: trigger auto-migration (via `readHeader`) and return the
- *  structured result. With auto-migration on read, this is effectively
- *  a "force-migrate and return MigrationResult" wrapper.
- *
- *  Behavior:
- *  - File missing → `{ ok: false, error: "checkpoint not found", ... }`
- *  - Already v2 → no-op, returns `{ ok: true, sourceVersion: 2, lines }`
- *  - v1 → triggers auto-migration inside `readHeader`, returns
- *    `{ ok: true, sourceVersion: 1, lines }` once the file is rewritten
- *  - Any other failure → `{ ok: false, error }`
- *
- *  No longer exported — callers should rely on auto-migration. Kept
- *  for internal callers that need the structured MigrationResult. */
-function migrateV1ToV2(
-  sessionID: string,
-  dir?: string,
-): MigrationResult {
-  const fp = filePath(sessionID, dir);
-
-  const fail = (sourceVersion: 1 | 2, lines: number, error: string): MigrationResult => ({
-    ok: false,
-    sourceVersion,
-    targetVersion: 2,
-    lines,
-    error,
-  });
-
-  if (!existsSync(fp)) {
-    return fail(1, 0, "checkpoint not found");
-  }
-
-  // Detect the original version BEFORE calling readHeader (which
-  // auto-migrates v1 → v2 in place). This is a cheap raw read and
-  // lets us report the correct `sourceVersion` in the result.
-  let originalVersion: 1 | 2 = 1;
-  try {
-    const raw = readFileSync(fp, "utf-8");
-    const firstLine = raw.split("\n")[0]?.trim();
-    if (firstLine) {
-      const parsed = JSON.parse(firstLine) as Record<string, unknown>;
-      if (parsed.version === 2) originalVersion = 2;
-    }
-  } catch {
-    // Treat as v1 if unreadable.
-  }
-
-  // Trigger auto-migration by calling readHeader (returns null if
-  // migration failed or the file is not a valid checkpoint).
-  let header: CheckpointHeader | null;
-  try {
-    header = readHeader(sessionID, dir, DEFAULT_MAX_CHECKPOINT_FILE_SIZE);
-  } catch (e) {
-    return fail(originalVersion, 0, e instanceof Error ? e.message : String(e));
-  }
-  if (!header) {
-    return fail(originalVersion, 0, "checkpoint not found");
-  }
-
-  let calls: ToolCall[];
-  try {
-    calls = readToolCalls(sessionID, dir, DEFAULT_MAX_CHECKPOINT_FILE_SIZE);
-  } catch (e) {
-    return fail(originalVersion, 0, e instanceof Error ? e.message : String(e));
-  }
-
-  if (originalVersion === 2) {
-    return {
-      ok: true,
-      sourceVersion: 2,
-      targetVersion: 2,
-      lines: calls.length,
-    };
-  }
-
-  return {
-    ok: true,
-    sourceVersion: 1,
-    targetVersion: 2,
-    lines: calls.length,
-  };
-}
-
-// ---------------------------------------------------------------------------
-// In-memory buffer — per-instance state (DLC: no shared state between plugins)
+// ToolCall read / list / delete  → ./checkpoint/reader.js
+// Migration (v1 → v2)            → ./checkpoint/migrations.js
 // ---------------------------------------------------------------------------
 
 /** Per-session buffer entry with explicit LRU metadata.
