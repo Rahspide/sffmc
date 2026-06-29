@@ -191,10 +191,12 @@ function handleTrigger(
 ): void {
   const session = getOrCreateSession(state, sessionID);
   recordFailure(session, tool, errorType);
+  // Used by both the dryRun and cap-blocked log paths below.
+  const toolErrorKey = `${tool}::${errorType}`;
+  const failCount = session.failCount.get(toolErrorKey) ?? 0;
 
   if (shouldTriggerMaxMode(session, tool, errorType, config)) {
     if (config.dryRun) {
-      const failCount = session.failCount.get(`${tool}::${errorType}`) ?? 0;
       log.warn(
         `dryRun=true: would trigger max-mode for session=${sessionID} (failures=${failCount}, threshold=${config.watchdogThreshold})`,
       );
@@ -226,7 +228,6 @@ function handleTrigger(
   // suspected triggers during v0.14.0 — turned out the cap was firing
   // correctly but the suppression was invisible).
   if (session.maxCallsThisSession >= config.costCapPerSession) {
-    const failCount = session.failCount.get(`${tool}::${errorType}`) ?? 0;
     log.warn(
       `cap reached (${session.maxCallsThisSession}/${config.costCapPerSession}): skipping trigger for ${tool}:${errorType} (failures=${failCount}) in session ${sessionID}`,
     );

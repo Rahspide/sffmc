@@ -57,8 +57,8 @@ async function resolveEngine(): Promise<void> {
  *  Bun's Database matches natively; node:sqlite (DatabaseSync) is shimmed below. */
 type MemoryAdapter = Pick<BunDatabase, "exec" | "query" | "run">;
 
-function createAdapter(rawDb: BunDatabase | DatabaseSync, _isBun: boolean): MemoryAdapter {
-  if (_isBun) return rawDb; // pass-through — bun:sqlite API matches our usage
+function createAdapter(rawDb: BunDatabase | DatabaseSync, isBun: boolean): MemoryAdapter {
+  if (isBun) return rawDb; // pass-through — bun:sqlite API matches our usage
 
   // node:sqlite (DatabaseSync) shim
   const nodeDb = rawDb as DatabaseSync;
@@ -66,10 +66,11 @@ function createAdapter(rawDb: BunDatabase | DatabaseSync, _isBun: boolean): Memo
     exec: (sql: string) => nodeDb.exec(sql),
     query: (sql: string) => nodeDb.prepare(sql),
     run: (sql: string, params?: unknown[]) => {
+      const stmt = nodeDb.prepare(sql);
       if (params && params.length > 0) {
-        nodeDb.prepare(sql).run(...params);
+        stmt.run(...params);
       } else {
-        nodeDb.prepare(sql).run();
+        stmt.run();
       }
     },
   };
