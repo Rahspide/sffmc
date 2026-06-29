@@ -97,3 +97,10 @@ If you have two OpenCode instances (development + production), you can restart t
 - [RELEASE.md](RELEASE.md) — publication prep checklist (5 decisions)
 - [CHANGELOG.md](CHANGELOG.md) — per-version release notes
 - [docs/load-order-audit.md](docs/load-order-audit.md) — hook conflict analysis
+
+## Cloned Dependency Source
+
+Read-only dependency source repositories are available under
+`.slim/clonedeps/repos/` for inspection. Do not edit these clones.
+
+- `.slim/clonedeps/repos/justjake__quickjs-emscripten/` — `justjake/quickjs-emscripten` at `df4efb9ef2cb25c417ecb57986da462d11b244ed` (v0.32.0); the QuickJS sandbox engine used by `packages/workflow/src/sandbox.ts`. Reach for this source when debugging handle leaks, deadline-interrupt semantics, or marshal-in/marshal-out edge cases in the workflow sandbox. Not needed for ordinary workflow development.

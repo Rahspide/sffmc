@@ -1,0 +1,14 @@
+{
+  "version": "1.0.0",
+  "updatedAt": "2026-06-30T00:00:00.000Z",
+  "dependencies": [
+    {
+      "name": "quickjs-emscripten",
+      "resolvedVersion": "0.32.0",
+      "repoUrl": "https://github.com/justjake/quickjs-emscripten.git",
+      "ref": "df4efb9ef2cb25c417ecb57986da462d11b244ed",
+      "path": ".slim/clonedeps/repos/justjake__quickjs-emscripten",
+      "reason": "QuickJS sandbox engine source for packages/workflow/src/sandbox.ts. Useful for debugging handle leaks, deadline-interrupt semantics, and marshal-in/marshal-out edge cases. Not needed for ordinary workflow development."
+    }
+  ]
+}

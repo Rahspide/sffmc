@@ -17,3 +17,9 @@ dependencies/
 .codegraph/
 # Ignore .slim/* runtime files
 .slim/*
+# BEGIN oh-my-opencode-slim clonedeps
+# (cloned source repos — gitignored)
+.slim/clonedeps/repos/
+# (the structured manifest is reviewable project metadata and IS tracked)
+!.slim/clonedeps.json
+# END oh-my-opencode-slim clonedeps
