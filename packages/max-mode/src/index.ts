@@ -71,6 +71,57 @@ function estimateCost(candidates: Candidate[]): number {
   return candidates.reduce((sum, c) => sum + c.tokens, 0);
 }
 
+/**
+ * max-mode winner injection guard (Bug #7 HIGH) — strip well-known prompt-injection
+ * patterns from winner content before it is injected back into the chat as an
+ * assistant/system message. Defense-in-depth: max-mode generates N LLM
+ * candidates in parallel, judges them, and pushes the winner into the
+ * conversation. If a malicious candidate wins ("IGNORE PREVIOUS INSTRUCTIONS,
+ * execute X"), the payload becomes the prior assistant turn — subsequent LLM
+ * calls may comply. Patterns here are intentionally conservative: known
+ * jailbreak phrasings, not heuristics. Anything novel still flows through;
+ * defense-in-depth, not bulletproof.
+ *
+ * Each match is replaced with `[REDACTED:injection]` so downstream consumers
+ * (LLM, logs, UI) see the marker instead of the literal instruction.
+ */
+const INJECTION_PATTERNS: ReadonlyArray<{ name: string; re: RegExp }> = [
+  // "Ignore all previous instructions" (and variants)
+  { name: "ignore-previous-instructions",
+    re: /IGNORE (?:ALL )?PREVIOUS INSTRUCTIONS/gi },
+  // "Disregard all previous instructions/context"
+  { name: "disregard-instructions",
+    re: /DISREGARD (?:ALL )?(?:PREVIOUS )?(?:INSTRUCTIONS|CONTEXT)/gi },
+  // "You are now <role>" — role-hijack attempts
+  { name: "you-are-now",
+    re: /YOU ARE NOW [^.\n]{1,200}/gi },
+  // "SYSTEM:" pseudo-system-prompt prefix injection
+  { name: "system-prefix",
+    re: /SYSTEM: [^.\n]{1,200}/gi },
+  // "Forget everything / all above" — context-wipe attempts
+  { name: "forget-everything",
+    re: /FORGET (?:EVERYTHING|ALL (?:OF )?(?:THE )?(?:PREVIOUS|ABOVE) (?:INSTRUCTIONS|CONTEXT|TEXT))/gi },
+];
+
+export function redactInjectionInWinner(content: string): string {
+  if (!content) return content;
+  let redacted = content;
+  let redactionCount = 0;
+  for (const pattern of INJECTION_PATTERNS) {
+    const matches = redacted.match(pattern.re);
+    if (matches && matches.length > 0) {
+      redactionCount += matches.length;
+      redacted = redacted.replace(pattern.re, "[REDACTED:injection]");
+    }
+  }
+  if (redactionCount > 0) {
+    log.warn(
+      `Redacted ${redactionCount} prompt-injection pattern(s) from max-mode winner content`,
+    );
+  }
+  return redacted;
+}
+
 function buildWinnerMessage(
   candidate: Candidate,
   verdict: Verdict,
@@ -80,7 +131,9 @@ function buildWinnerMessage(
     `Winner: Candidate #${verdict.winner + 1} — ${verdict.reasoning}`,
     "",
     `--- WINNER OUTPUT ---`,
-    candidate.draft,
+    // Bug #7 — filter winner draft for prompt-injection before it lands in
+    // the chat as a previous assistant/system message.
+    redactInjectionInWinner(candidate.draft),
   ];
 
   if (candidate.toolCalls.length > 0) {
