@@ -20,6 +20,7 @@ process.env.XDG_DATA_HOME = tmpDir
 import { WorkflowRuntime } from "../src/runtime"
 import type { PluginContext } from "../src/runtime"
 import { WorkflowPersistence, computeScriptSha } from "../src/persistence.ts"
+import { CounterManager } from "../src/counter-manager.ts"
 
 const mockCtx: PluginContext = {
   config: {},
@@ -183,12 +184,10 @@ describe("failRun() budget_exceeded pattern matching", () => {
         runID,
         name: "fake",
         status: "running",
-        running: 0,
-        succeeded: 0,
-        failed: 0,
-        agentCount: 0,
-        agentCountTotal: 0,
-        tokensUsed: 0,
+        // M-1 (Task 1.2): counter state moved into CounterManager.
+        // Tests now construct an all-zero CounterManager to mirror
+        // makeEntry()'s default.
+        counters: new CounterManager(),
         capWarned: false,
         childRunIDs: new Set<string>(),
         startedMs: Date.now(),
@@ -436,12 +435,17 @@ describe("executeAgentCall schema-based structured extract", () => {
     // now has a defensive `?? 0` in flushNow, but the test fake entry
     // should still mirror the full InternalRunEntry shape to avoid
     // silent data masking.
+    // M-1 (Task 1.2): the test fake entry now owns counters via a
+    // CounterManager instance, mirroring makeEntry()'s shape. The
+    // pre-task entry had flat `running: 1, succeeded: 0, …` fields;
+    // post-task the same logical state lives on `entry.counters`.
     const fakeEntry = {
       runID,
-      tokensUsed: 0,
-      succeeded: 0,
-      failed: 0,
-      running: 1,
+      // Running=1 reflects that an agent is "in flight" when
+      // executeAgentCall is invoked (matches the previous flat-field
+      // shape). recordAgentSucceed() will decrement running and
+      // increment succeeded.
+      counters: Object.assign(new CounterManager(), { running: 1 }),
       journalPass: 1,
       cfg: { maxTokens: 2_000_000 },
     }
@@ -454,9 +458,9 @@ describe("executeAgentCall schema-based structured extract", () => {
     )
     // schema branch returns result.structured verbatim.
     expect(result).toEqual({ ok: 1 })
-    // Succeed counter ticked; running decremented.
-    expect(fakeEntry.succeeded).toBe(1)
-    expect(fakeEntry.running).toBe(0)
+    // Succeed counter ticked; running decremented (now on CounterManager).
+    expect(fakeEntry.counters.succeeded).toBe(1)
+    expect(fakeEntry.counters.running).toBe(0)
   })
 })
 

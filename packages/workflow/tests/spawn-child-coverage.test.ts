@@ -20,6 +20,7 @@ process.env.XDG_DATA_HOME = tmpDir
 import { WorkflowRuntime } from "../src/runtime"
 import type { PluginContext } from "../src/runtime"
 import { WorkflowPersistence, computeScriptSha } from "../src/persistence.ts"
+import { CounterManager } from "../src/counter-manager.ts"
 
 const mockCtx: PluginContext = {
   config: {},
@@ -88,19 +89,15 @@ describe("spawnChildWorkflow journal replay", () => {
 
       const fakeEntry = {
         runID: fakeRunID,
-        // Fix-10: include `running: 0` and `failed: 0` on the fake
-        // entry. The journal-hit branch of spawnChildWorkflow calls
-        // `this.scheduleFlush(entry)` (runtime.ts:695), which captures
-        // the entry in a 250ms setTimeout. When the timer fires,
-        // `flushNow` reads these fields — if any are `undefined`,
-        // bun:sqlite binds them as NULL and trips the NOT NULL
-        // constraint on `workflow_runs`. The runtime now has a
-        // defensive `?? 0` in flushNow, but the test fake entry should
-        // still mirror the full InternalRunEntry shape to avoid silent
-        // data masking.
-        running: 0,
-        succeeded: 0,
-        failed: 0,
+        // Fix-10: include a CounterManager on the fake entry so
+        // scheduleFlush → flushNow doesn't see `entry.counters` as
+        // undefined. The runtime now has a defensive `?.running ?? 0`
+        // in flushNow, but the test fake entry should still mirror
+        // the full InternalRunEntry shape to avoid silent data
+        // masking. M-1 (Task 1.2) moved the counter fields onto
+        // CounterManager — pre-task this object had flat
+        // `running: 0, succeeded: 0, failed: 0` fields.
+        counters: new CounterManager(),
         childRunIDs: new Set<string>(),
         journalResults: new Map<string, unknown>([
           [secondCallKey, "from-journal"],
@@ -140,7 +137,8 @@ describe("spawnChildWorkflow journal replay", () => {
       // succeeded++ fires only on the JOURNAL-HIT branch (runtime.ts:692).
       // The launch path returns the child outcome without touching parent
       // succeeded. So 1 child = 1 increment.
-      expect(fakeEntry.succeeded).toBe(1)
+      // M-1 (Task 1.2): succeeded now lives on entry.counters.
+      expect(fakeEntry.counters.succeeded).toBe(1)
       // Exactly ONE child was launched — the second call bypassed
       // startChildWorkflow entirely. childRunIDs grows in spawnChildWorkflow
       // line 713 right before launching.

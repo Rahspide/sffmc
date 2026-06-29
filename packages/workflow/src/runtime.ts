@@ -12,6 +12,7 @@ import {
   flushJournalSync,
 } from "./persistence.ts"
 import { BoundedLRU } from "./lru.ts"
+import { CounterManager } from "./counter-manager.ts"
 import { createEventBus } from "./events.ts"
 import { parseMeta } from "./meta.ts"
 import {
@@ -146,12 +147,12 @@ interface InternalRunEntry {
   runID: string
   name: string
   status: WorkflowStatus
-  running: number
-  succeeded: number
-  failed: number
-  agentCount: number
-  agentCountTotal: number  // total over lifecycle (for cap)
-  tokensUsed: number
+  /** Per-run counter state — running/succeeded/failed/agentCount/
+   *  agentCountTotal/tokensUsed. Owned by CounterManager (Task 1.2, M-1
+   *  god-object refactor) so counter mutation logic can be unit-tested
+   *  independently of WorkflowRuntime. Default-initialized to all-zero
+   *  in makeEntry(). */
+  counters: CounterManager
   capWarned: boolean
   currentPhase?: string
   childRunIDs: Set<string>
@@ -415,13 +416,13 @@ export class WorkflowRuntime {
     return {
       runID: entry.runID,
       status: entry.status,
-      agentCount: entry.agentCount,
-      succeeded: entry.succeeded,
-      failed: entry.failed,
+      agentCount: entry.counters.agentCount,
+      succeeded: entry.counters.succeeded,
+      failed: entry.counters.failed,
       currentPhase: entry.currentPhase,
-      stepsCompleted: entry.succeeded + entry.failed,
+      stepsCompleted: entry.counters.succeeded + entry.counters.failed,
       stepsTotal: entry.cfg.maxSteps,
-      tokensUsed: entry.tokensUsed,
+      tokensUsed: entry.counters.tokensUsed,
     }
   }
 
@@ -452,9 +453,9 @@ export class WorkflowRuntime {
         runID: input.runID,
         status: "failed",
         error: "workflow wait timed out",
-        stepsCompleted: entry.succeeded + entry.failed,
+        stepsCompleted: entry.counters.succeeded + entry.counters.failed,
         stepsTotal: entry.cfg.maxSteps,
-        tokensUsed: entry.tokensUsed,
+        tokensUsed: entry.counters.tokensUsed,
         durationMs: Date.now() - entry.startedMs,
       }), input.timeoutMs),
     )
@@ -745,7 +746,7 @@ export class WorkflowRuntime {
     const key = base + ":" + n
 
     if (entry.journalResults.has(key)) {
-      entry.succeeded++
+      entry.counters.recordJournalHit()
       this.scheduleFlush(entry)
       return entry.journalResults.get(key) as AgentResult
     }
@@ -753,7 +754,7 @@ export class WorkflowRuntime {
     // Run under semaphore
     return this.globalSem.run(async () => {
       // Lifecycle cap
-      if (entry.agentCountTotal >= entry.cfg.maxLifecycleAgents) {
+      if (entry.counters.agentCountTotal >= entry.cfg.maxLifecycleAgents) {
         if (!entry.capWarned) {
           entry.capWarned = true
           log.warn(`lifecycle cap ${entry.cfg.maxLifecycleAgents} reached for ${entry.runID}`)
@@ -763,13 +764,13 @@ export class WorkflowRuntime {
       }
 
       // Token cap
-      if (entry.tokensUsed >= entry.cfg.maxTokens) {
+      if (entry.counters.tokensUsed >= entry.cfg.maxTokens) {
         this.publishAgentFailed(entry.runID, key, AFR.OverCap)
         return null
       }
 
       // Check maxSteps
-      if (entry.succeeded + entry.failed >= entry.cfg.maxSteps) {
+      if (entry.counters.succeeded + entry.counters.failed >= entry.cfg.maxSteps) {
         this.publishAgentFailed(entry.runID, key, AFR.OverCap)
         return null
       }
@@ -786,9 +787,7 @@ export class WorkflowRuntime {
       }
 
       // Counter invariants: running++ before spawn
-      entry.running++
-      entry.agentCount++
-      entry.agentCountTotal++
+      entry.counters.recordAgentStart()
       this.scheduleFlush(entry)
 
       return this.executeAgentCall(entry, promptStr, o, key)
@@ -810,18 +809,17 @@ export class WorkflowRuntime {
       // Track tokens
       const tokens = result.info?.tokens
       const totalTokens = (tokens?.input ?? 0) + (tokens?.output ?? 0)
-      entry.tokensUsed += totalTokens
+      entry.counters.addTokens(tokens?.input ?? 0, tokens?.output ?? 0)
 
       // Check token cap
-      if (entry.tokensUsed >= entry.cfg.maxTokens) {
+      if (entry.counters.tokensUsed >= entry.cfg.maxTokens) {
         this.events.emit("workflow:step_checkpoint", {
           runID: entry.runID,
-          stepIndex: entry.succeeded + entry.failed,
+          stepIndex: entry.counters.succeeded + entry.counters.failed,
           costTokens: totalTokens,
         })
+        entry.counters.recordAgentFail()
         this.publishAgentFailed(entry.runID, key, AFR.OverCap)
-        entry.running--
-        entry.failed++
         this.scheduleFlush(entry)
         // Settle the run so this.runs drops it, entry.status flips to
         // "budget_exceeded", DB row updates, outcome resolves (so wait()
@@ -842,15 +840,13 @@ export class WorkflowRuntime {
 
       if (deliverable === null) {
         reason = AFR.NoDeliverable
-        entry.running--
-        entry.failed++
+        entry.counters.recordAgentFail()
         this.publishAgentFailed(entry.runID, key, reason)
         this.scheduleFlush(entry)
         return null
       }
 
-      entry.running--
-      entry.succeeded++
+      entry.counters.recordAgentSucceed()
       this.scheduleFlush(entry)
 
       // Journal successful result
@@ -864,8 +860,7 @@ export class WorkflowRuntime {
       return deliverable as AgentResult
     } catch (e) {
       reason = AFR.SpawnReject
-      entry.running--
-      entry.failed++
+      entry.counters.recordAgentFail()
       this.publishAgentFailed(entry.runID, key, reason)
       this.scheduleFlush(entry)
       return null
@@ -916,7 +911,7 @@ export class WorkflowRuntime {
 
     // Journal hit
     if (entry.journalResults.has(key)) {
-      entry.succeeded++
+      entry.counters.recordJournalHit()
       this.scheduleFlush(entry)
       return entry.journalResults.get(key)
     }
@@ -1229,12 +1224,7 @@ export class WorkflowRuntime {
       runID: opts.runID,
       name: opts.name,
       status: "running",
-      running: 0,
-      succeeded: 0,
-      failed: 0,
-      agentCount: 0,
-      agentCountTotal: 0,
-      tokensUsed: 0,
+      counters: new CounterManager(),
       capWarned: false,
       childRunIDs: new Set(),
       startedMs,
@@ -1259,9 +1249,9 @@ export class WorkflowRuntime {
       status,
       result: extras?.result,
       error: extras?.error,
-      stepsCompleted: entry.succeeded + entry.failed,
+      stepsCompleted: entry.counters.succeeded + entry.counters.failed,
       stepsTotal: entry.cfg.maxSteps,
-      tokensUsed: entry.tokensUsed,
+      tokensUsed: entry.counters.tokensUsed,
       durationMs: Date.now() - entry.startedMs,
     }
   }
@@ -1295,21 +1285,22 @@ export class WorkflowRuntime {
     try {
       // Defensive `?? 0` — the schema requires NOT NULL for running /
       // succeeded / failed (schema.ts:13-16). In production, `makeEntry()`
-      // always initializes all three to 0, so the `??` is a no-op. But
-      // tests that drive internal methods via reflection (e.g.
-      // `runtime-coverage.test.ts`, `spawn-child-coverage.test.ts`) build
-      // minimal fake entries that only include the fields they exercise.
-      // When those tests trigger `scheduleFlush` indirectly, the timer
-      // fires 250ms later and `flushNow` reads `undefined` for the
-      // omitted fields, which bun:sqlite binds as NULL and trips the
-      // NOT NULL constraint. The `?? 0` coerces to the schema default
-      // so the UPDATE succeeds silently.
+      // always initializes `entry.counters = new CounterManager()` so the
+      // `??` is a no-op. But tests that drive internal methods via
+      // reflection (e.g. `runtime-coverage.test.ts`,
+      // `spawn-child-coverage.test.ts`) build minimal fake entries that
+      // may not include `counters`. When those tests trigger
+      // `scheduleFlush` indirectly, the timer fires 250ms later and
+      // `flushNow` would throw on `entry.counters.running`. The
+      // optional-chaining + `?? 0` coercion matches the previous
+      // behavior (zero-default for missing fields) so the UPDATE
+      // succeeds silently.
       db.run(
         `UPDATE workflow_runs SET running = ?, succeeded = ?, failed = ?, time_updated = ? WHERE id = ?`,
         [
-          entry.running ?? 0,
-          entry.succeeded ?? 0,
-          entry.failed ?? 0,
+          entry.counters?.running ?? 0,
+          entry.counters?.succeeded ?? 0,
+          entry.counters?.failed ?? 0,
           Math.floor(Date.now() / 1000),
           entry.runID,
         ],

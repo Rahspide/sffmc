@@ -20,6 +20,7 @@ process.env.XDG_DATA_HOME = tmpDir
 import { BoundedLRU } from "../src/lru.ts"
 import { WorkflowRuntime } from "../src/runtime"
 import type { PluginContext } from "../src/runtime"
+import { CounterManager } from "../src/counter-manager.ts"
 
 const mockCtx: PluginContext = {
   config: {},
@@ -196,12 +197,10 @@ describe("WorkflowRuntime.completedOutcomes uses BoundedLRU", () => {
         runID,
         name: "fake",
         status: "running",
-        running: 0,
-        succeeded: 0,
-        failed: 0,
-        agentCount: 0,
-        agentCountTotal: 0,
-        tokensUsed: 0,
+        // M-1 (Task 1.2): counter state moved into CounterManager.
+        // The fake entry now mirrors makeEntry()'s shape with a fresh
+        // all-zero CounterManager instance.
+        counters: new CounterManager(),
         capWarned: false,
         childRunIDs: new Set<string>(),
         startedMs: Date.now(),
