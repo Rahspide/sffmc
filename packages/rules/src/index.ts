@@ -3,7 +3,9 @@ import {
   watchRules,
   parseRules,
   isPanicMode,
+  compileRules,
   type Rules,
+  type CompiledRule,
 } from "./rules";
 import { evaluate } from "./gate";
 import { type PluginContext, createLogger } from "@sffmc/shared";
@@ -46,7 +48,7 @@ rules:
 `;
 
 interface PluginState {
-  rules: Rules;
+  rules: CompiledRule[];
   watcher: { stop: () => void } | null;
 }
 
@@ -54,24 +56,29 @@ export const id = "@sffmc/rules"
 export const server = async (ctx: PluginContext) => {
   const configPath = resolve(homedir(), ".config/SFFMC/rules.yaml");
 
-  let rules: Rules;
+  let rawRules: Rules;
   try {
-    rules = loadRules(configPath);
-    if (rules.rules.length === 0 && !existsSync(configPath)) {
-      rules = parseRules(DEFAULT_RULES_YAML);
+    rawRules = loadRules(configPath);
+    if (rawRules.rules.length === 0 && !existsSync(configPath)) {
+      rawRules = parseRules(DEFAULT_RULES_YAML);
     }
   } catch {
-    rules = parseRules(DEFAULT_RULES_YAML);
+    rawRules = parseRules(DEFAULT_RULES_YAML);
   }
 
+  // Pre-compile regex patterns once (and drop ReDoS-unsafe / invalid rules).
+  // The compiled list is reused on every tool call — see bug #5a audit.
+  const { rules: compiled } = compileRules(rawRules);
+
   const state: PluginState = {
-    rules,
+    rules: compiled,
     watcher: null,
   };
 
   try {
     state.watcher = watchRules(configPath, (newRules: Rules) => {
-      state.rules = newRules;
+      const { rules: recompiled } = compileRules(newRules);
+      state.rules = recompiled;
     });
   } catch {
     // watcher failed to start — static rules only

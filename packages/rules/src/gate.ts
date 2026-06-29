@@ -1,22 +1,37 @@
 import { resolve as resolvePath } from "node:path";
-import type { Rules, Action } from "./rules";
+import { compileRules, type CompiledRule, type Rules, type Action } from "./rules";
 
+/**
+ * Evaluate a tool call against the rule list. Accepts either:
+ *   - a pre-compiled list (`CompiledRule[]`) — the hot path, produced by
+ *     `compileRules()` at rule-load time. Regex objects are reused, unsafe
+ *     patterns have already been filtered out.
+ *   - a raw `Rules` object — auto-compiled on each call (legacy shape, kept
+ *     for callers that haven't migrated). The auto-compile step still runs
+ *     the ReDoS guard so the legacy path is not a regression.
+ *
+ * Detect by shape: `Rules` has a top-level `rules: Rule[]` array; a
+ * pre-compiled list does not.
+ */
 export function evaluate(
-  rules: Rules,
+  rulesOrCompiled: CompiledRule[] | Rules,
   toolName: string,
   args: Record<string, unknown> | undefined,
   projectRoot: string,
 ): { action: Action; reason: string } {
-  for (const rule of rules.rules) {
+  const compiled: CompiledRule[] = isRules(rulesOrCompiled)
+    ? compileRules(rulesOrCompiled).rules
+    : rulesOrCompiled;
+
+  for (const rule of compiled) {
     if (rule.match.tool !== toolName) continue;
 
-    if (rule.match.command_match) {
+    if (rule.commandMatch) {
       if (toolName === "bash" && typeof args?.command === "string") {
-        const regex = new RegExp(rule.match.command_match);
-        if (regex.test(args.command)) {
+        if (rule.commandMatch.regex.test(args.command)) {
           return {
             action: rule.action,
-            reason: `command matches "${rule.match.command_match}"`,
+            reason: `command matches "${rule.commandMatch.source}"`,
           };
         }
       }
@@ -42,6 +57,12 @@ export function evaluate(
   }
 
   return { action: "allow", reason: "no matching rule" };
+}
+
+function isRules(input: CompiledRule[] | Rules): input is Rules {
+  // `Rules` is `{ version, rules: Rule[] }`; `CompiledRule[]` is a bare
+  // array. The discriminator is the presence of the `rules` property.
+  return !Array.isArray(input) && typeof input === "object" && "rules" in input;
 }
 
 function extractPaths(args: Record<string, unknown> | undefined): string[] {

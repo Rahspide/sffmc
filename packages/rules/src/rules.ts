@@ -1,9 +1,19 @@
 import { parse as parseYaml, Schema } from "yaml";
 import { readFileSync, existsSync, statSync } from "fs";
+import safeRegex from "safe-regex";
+import { createLogger } from "@sffmc/shared";
+
+const log = createLogger("rules");
 
 export type Action = "allow" | "deny" | "ask";
 
 const VALID_ACTIONS = new Set<Action>(["allow", "deny", "ask"]);
+
+// ReDoS guard for `command_match` patterns. Mirrors the redact-secrets
+// approach (star-height ≤ 1, repetition limit 25) — a `false` return from
+// `safe-regex` means the pattern is potentially catastrophic and must not be
+// compiled (or evaluated against attacker-controlled bash input).
+const SAFE_REGEX_LIMIT = 25;
 
 export interface RuleMatch {
   tool: string;
@@ -19,6 +29,56 @@ export interface Rule {
 export interface Rules {
   version: number;
   rules: Rule[];
+}
+
+/**
+ * Rule with its regex pre-compiled. Built once at rule-load time by
+ * `compileRules()` and reused on every tool-call evaluation — avoids the
+ * per-call cost of `new RegExp(...)` and, more importantly, ensures unsafe
+ * patterns never reach `regex.test()` (which would allow ReDoS via user YAML).
+ */
+export interface CompiledRule {
+  match: RuleMatch;
+  action: Action;
+  commandMatch?: {
+    /** Original pattern string from YAML — used in the `reason` message. */
+    source: string;
+    regex: RegExp;
+  };
+}
+
+/**
+ * Pre-compile all rules. Patterns flagged as ReDoS-unsafe by `safe-regex`
+ * (which also rejects patterns that fail to compile — its analyzer runs
+ * `new RegExp` internally) are dropped with a warning. Returns the safe
+ * subset plus the list of skipped entries so callers can surface them in
+ * logs / health checks.
+ */
+export function compileRules(rawRules: Rules): {
+  rules: CompiledRule[];
+  errors: string[];
+} {
+  const rules: CompiledRule[] = [];
+  const errors: string[] = [];
+  for (const rule of rawRules.rules) {
+    if (!rule.match.command_match) {
+      rules.push({ match: rule.match, action: rule.action });
+      continue;
+    }
+    const source = rule.match.command_match;
+    if (!safeRegex(source, { limit: SAFE_REGEX_LIMIT })) {
+      const msg = `unsafe command_match (ReDoS) — rule skipped: /${source}/`;
+      log.warn(msg);
+      errors.push(msg);
+      continue;
+    }
+    rules.push({
+      match: rule.match,
+      action: rule.action,
+      commandMatch: { source, regex: new RegExp(source) },
+    });
+  }
+  return { rules, errors };
 }
 
 /** Shared mutable state — violates DLC "no shared state" contract.
