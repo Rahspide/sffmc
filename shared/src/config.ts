@@ -8,7 +8,7 @@ import { homedir } from "os"
 import { createLogger } from "./logger.ts"
 import safeRegex from "safe-regex"
 
-const sharedLog = createLogger("sffmc/shared")
+const log = createLogger("sffmc/shared")
 
 /**
  * Default star-height-1 repetition limit for `validateSafeRegex`.
@@ -65,22 +65,22 @@ export async function loadConfig<T extends object>(
   defaults: T,
   opts?: { configHome?: string; validate?: (parsed: unknown) => T },
 ): Promise<T> {
-  const base = opts?.configHome ?? resolve(homedir(), ".config/SFFMC")
-  const configPath = resolve(base, `${pluginName}.yaml`)
+  const baseDir = opts?.configHome ?? resolve(homedir(), ".config/SFFMC")
+  const configPath = resolve(baseDir, `${pluginName}.yaml`)
   if (!existsSync(configPath)) return { ...defaults }
   let parsed: unknown
   try {
-    const raw = readFileSync(configPath, "utf-8")
-    parsed = parseYaml(raw)
+    const rawYaml = readFileSync(configPath, "utf-8")
+    parsed = parseYaml(rawYaml)
   } catch (err) {
-    sharedLog.warn(` failed to parse ${configPath}:`, err)
+    log.warn(` failed to parse ${configPath}:`, err)
     return { ...defaults }
   }
   if (opts?.validate) {
     try {
       return opts.validate(parsed)
     } catch (err) {
-      sharedLog.warn(` validation failed for ${configPath}:`, err)
+      log.warn(` validation failed for ${configPath}:`, err)
       return { ...defaults }
     }
   }

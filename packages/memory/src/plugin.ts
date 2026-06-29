@@ -105,8 +105,8 @@ const INJECTION_PATTERNS: RegExp[] = [
 
 export function redactInjection(content: string): string {
   let redacted = content
-  for (const pat of INJECTION_PATTERNS) {
-    redacted = redacted.replace(pat, "[REDACTED:injection]")
+  for (const pattern of INJECTION_PATTERNS) {
+    redacted = redacted.replace(pattern, "[REDACTED:injection]")
   }
   return redacted
 }

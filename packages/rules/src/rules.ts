@@ -65,9 +65,9 @@ export function compileRules(rawRules: Rules): {
       rules.push({ match: rule.match, action: rule.action });
       continue;
     }
-    const source = rule.match.command_match;
-    if (!safeRegex(source, { limit: SAFE_REGEX_LIMIT })) {
-      const msg = `unsafe command_match (ReDoS) — rule skipped: /${source}/`;
+    const patternSource = rule.match.command_match;
+    if (!safeRegex(patternSource, { limit: SAFE_REGEX_LIMIT })) {
+      const msg = `unsafe command_match (ReDoS) — rule skipped: /${patternSource}/`;
       log.warn(msg);
       errors.push(msg);
       continue;
@@ -75,7 +75,7 @@ export function compileRules(rawRules: Rules): {
     rules.push({
       match: rule.match,
       action: rule.action,
-      commandMatch: { source, regex: new RegExp(source) },
+      commandMatch: { source: patternSource, regex: new RegExp(patternSource) },
     });
   }
   return { rules, errors };

@@ -97,7 +97,7 @@ export const server = async (_ctx: PluginContext) => {
   return {
     event: async (payload: { event: string; [key: string]: unknown }) => {
       if (payload.event === SESSION_CREATED) {
-        const sid = String(payload.sessionID || "");
+        const sessionID = String(payload.sessionID || "");
         // Bug 3b: resetSession clears inner counters but leaves the outer
         // Map entry behind, so state.sessions grows unbounded over a
         // long-running daemon (each unique sessionID accumulates a
@@ -106,8 +106,8 @@ export const server = async (_ctx: PluginContext) => {
         // session — fresh failCount, fresh triggered, AND fresh
         // maxCallsThisSession (matches HOOK_COMMAND_EXECUTE_BEFORE
         // /max-reset behavior, so the cost cap re-arms too).
-        state.sessions.delete(sid);
-        getOrCreateSession(state, sid);
+        state.sessions.delete(sessionID);
+        getOrCreateSession(state, sessionID);
       }
     },
 

@@ -56,11 +56,11 @@ export const id = "@sffmc/rules"
 export const server = async (ctx: PluginContext) => {
   const configPath = resolve(homedir(), ".config/SFFMC/rules.yaml");
 
-  const rawRules = loadRulesWithFallback(configPath);
+  const initialRules = loadRulesWithFallback(configPath);
 
   // Pre-compile regex patterns once (and drop ReDoS-unsafe / invalid rules).
   // The compiled list is reused on every tool call — see bug #5a audit.
-  const { rules: compiled } = compileRules(rawRules);
+  const { rules: compiled } = compileRules(initialRules);
 
   const state: PluginState = {
     rules: compiled,
