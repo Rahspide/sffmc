@@ -24,6 +24,7 @@ import { tmpdir } from "node:os"
 import path from "node:path"
 import { WorkflowRuntime } from "../src/runtime.ts"
 import { WorkflowPersistence } from "../src/persistence.ts"
+import { WorkflowActivation } from "../src/activation.ts"
 import { makeNoClientCtx } from "./test-utils.ts"
 
 let tmpDir: string
@@ -40,10 +41,13 @@ afterEach(() => {
   rmSync(tmpDir, { recursive: true, force: true })
 })
 
-// Reach the private `this.runs` map via a typed cast. This is the same
-// pattern already used in w10-w14-hardcode-runtime.test.ts:122-124.
-function internalRuns(runtime: WorkflowRuntime): Map<string, unknown> {
-  return (runtime as unknown as { runs: Map<string, unknown> }).runs
+// Reach the private `this.runs` registry via a typed cast. Same pattern
+// as w10-w14-hardcode-runtime.test.ts:122-124, but the field is now a
+// `WorkflowActivation<unknown>` (M-1 god-object refactor, Task 1.5),
+// not a raw `Map<string, unknown>`. The activation registry exposes
+// the same `has / get / size` surface so the assertions read identically.
+function internalRuns(runtime: WorkflowRuntime): WorkflowActivation<unknown> {
+  return (runtime as unknown as { runs: WorkflowActivation<unknown> }).runs
 }
 
 describe("v0.14.3 C-2: this.runs cleanup on settle", () => {
@@ -82,7 +86,7 @@ describe("v0.14.3 C-2: this.runs cleanup on settle", () => {
     // The entry was already removed by completeRun, but explicit close()
     // is the second line of defense for long-lived runtimes.
     runtime.close()
-    expect(internalRuns(runtime).size).toBe(0)
+    expect(internalRuns(runtime).size()).toBe(0)
   })
 
   test("long-lived runtime with N runs does not accumulate", async () => {
@@ -100,7 +104,7 @@ describe("v0.14.3 C-2: this.runs cleanup on settle", () => {
     }
     // After all runs settled, this.runs should be empty (per-run delete on
     // completeRun). On v0.14.2 baseline, this fails with size === N.
-    expect(internalRuns(runtime).size).toBe(0)
+    expect(internalRuns(runtime).size()).toBe(0)
     runtime.close()
   })
 })
