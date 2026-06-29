@@ -98,7 +98,8 @@ CREATE TABLE IF NOT EXISTS memory_entries (
   content TEXT NOT NULL,
   importance_score REAL DEFAULT 0.5,
   last_accessed INTEGER,
-  created_at INTEGER DEFAULT (strftime('%s', 'now'))
+  created_at INTEGER DEFAULT (strftime('%s', 'now')),
+  UNIQUE (source_path, section)
 );
 
 CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(
@@ -146,21 +147,19 @@ export function upsert(
   content: string,
   importance: number = 0.5,
 ): void {
-  const existing = db.db
-    .query("SELECT id FROM memory_entries WHERE source_path = ? AND section = ?")
-    .get(source, section) as { id: number } | null;
-
-  if (existing) {
-    db.db.run(
-      "UPDATE memory_entries SET content = ?, importance_score = ?, last_accessed = strftime('%s', 'now') WHERE id = ?",
-      [content, importance, existing.id],
-    );
-  } else {
-    db.db.run(
-      "INSERT INTO memory_entries (source_path, section, content, importance_score) VALUES (?, ?, ?, ?)",
-      [source, section, content, importance],
-    );
-  }
+  // UNIQUE (source_path, section) — atomic upsert via ON CONFLICT so
+  // concurrent writers can't both pass a SELECT-then-INSERT and create
+  // duplicates. last_accessed refreshes on every update so recently-touched
+  // memories surface in topByImportance / search.
+  db.db.run(
+    `INSERT INTO memory_entries (source_path, section, content, importance_score, last_accessed)
+     VALUES (?, ?, ?, ?, strftime('%s', 'now'))
+     ON CONFLICT(source_path, section) DO UPDATE SET
+       content = excluded.content,
+       importance_score = excluded.importance_score,
+       last_accessed = strftime('%s', 'now')`,
+    [source, section, content, importance],
+  );
 }
 
 export function remove(db: MemoryDB, source: string): void {

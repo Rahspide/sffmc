@@ -60,6 +60,56 @@ describe("MemoryDB", () => {
     expect(entries[0].importance_score).toBe(0.8);
   });
 
+  // Bug #8 regression: UNIQUE(source_path, section) + ON CONFLICT means
+  // a second upsert with the same key updates the existing row rather
+  // than inserting a duplicate (which a naive SELECT-then-INSERT could
+  // do under concurrent writers).
+  it("upsert on duplicate (source, section) updates in place — no second row", () => {
+    upsert(db, "src-a.md", "section-x", "first content", 0.4);
+    upsert(db, "src-a.md", "section-x", "second content", 0.6);
+    upsert(db, "src-a.md", "section-x", "third content", 0.8);
+
+    const entries = all(db);
+    const matches = entries.filter(
+      (e) => e.source_path === "src-a.md" && e.section === "section-x",
+    );
+    expect(matches.length).toBe(1);
+    expect(matches[0].content).toBe("third content");
+    expect(matches[0].importance_score).toBe(0.8);
+  });
+
+  it("upsert race — sequential equivalent of two concurrent writers stays at 1 row", () => {
+    // Simulates a concurrent write where two callers both observe no
+    // existing row. Without UNIQUE+ON CONFLICT both would INSERT; with
+    // the constraint, the second INSERT triggers a DO UPDATE.
+    upsert(db, "race.md", "alpha", "writer-A", 0.5);
+    upsert(db, "race.md", "alpha", "writer-B", 0.7);
+
+    const entries = all(db);
+    const matches = entries.filter(
+      (e) => e.source_path === "race.md" && e.section === "alpha",
+    );
+    expect(matches.length).toBe(1);
+    // last write wins (writer-B)
+    expect(matches[0].content).toBe("writer-B");
+    expect(matches[0].importance_score).toBe(0.7);
+  });
+
+  it("upsert refreshes last_accessed on update path", async () => {
+    upsert(db, "ts.md", "s", "v1", 0.5);
+    const before = all(db).find((e) => e.source_path === "ts.md")!.last_accessed;
+
+    // small delay so timestamp actually advances (strftime('%s','now') is
+    // 1-second resolution)
+    await new Promise((r) => setTimeout(r, 1100));
+    upsert(db, "ts.md", "s", "v2", 0.6);
+    const after = all(db).find((e) => e.source_path === "ts.md")!.last_accessed;
+
+    expect(after).not.toBeNull();
+    expect(before).not.toBeNull();
+    expect((after as number)).toBeGreaterThanOrEqual((before as number));
+  });
+
   it("upsert creates separate rows for different sections", () => {
     upsert(db, "a.md", "s1", "one", 0.5);
     upsert(db, "a.md", "s2", "two", 0.5);
@@ -264,6 +314,46 @@ describe("Runtime guard: portable SQLite loader", () => {
       expect(entries.length).toBe(1);
       expect(entries[0].content).toBe("val2");
       expect(entries[0].importance_score).toBe(0.9);
+    } finally {
+      cleanup();
+    }
+  });
+
+  // Bug #8 regression — schema declares UNIQUE (source_path, section) and
+  // upsert() uses INSERT ... ON CONFLICT for atomic write. A naïve SELECT-
+  // then-INSERT upsert racy under concurrency: two callers both observing
+  // (existing === null) would both INSERT, producing duplicates that
+  // corrupt search/topByImportance.
+  it("memory_entries has UNIQUE (source_path, section) constraint", async () => {
+    cleanup();
+    const db = await init(TEST_DB);
+    try {
+      const tables = db.db
+        .query(
+          "SELECT sql FROM sqlite_master WHERE type='table' AND name='memory_entries'",
+        )
+        .all() as Array<{ sql: string }>;
+      const ddl = tables[0]?.sql ?? "";
+      expect(ddl).toMatch(/UNIQUE\s*\(\s*source_path\s*,\s*section\s*\)/i);
+
+      // Functional check: inserting two rows with the same (source, section)
+      // through the raw INSERT path raises a UNIQUE constraint error
+      // (proving the constraint is actually enforced at write time, not
+      // just declared in DDL).
+      let threw = false;
+      try {
+        db.db.run(
+          "INSERT INTO memory_entries (source_path, section, content) VALUES (?, ?, ?)",
+          ["raw.md", "S", "row-1"],
+        );
+        db.db.run(
+          "INSERT INTO memory_entries (source_path, section, content) VALUES (?, ?, ?)",
+          ["raw.md", "S", "row-2"],
+        );
+      } catch {
+        threw = true;
+      }
+      expect(threw).toBe(true);
     } finally {
       cleanup();
     }

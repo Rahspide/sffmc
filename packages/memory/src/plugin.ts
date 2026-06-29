@@ -80,6 +80,37 @@ function ensureDir(filePath: string): void {
   }
 }
 
+/**
+ * Strip common prompt-injection patterns from project-controlled content
+ * (AGENTS.md, etc.) before it is injected into the LLM as part of the
+ * context-recon block. Project files are writable by anyone with
+ * repo-write access, so any "IGNORE PREVIOUS INSTRUCTIONS" text in AGENTS.md
+ * would otherwise be relayed verbatim as a system message every session.
+ *
+ * This is a heuristic, not a complete defense — focused on the most
+ * commonly-cited injection framings. Each match is replaced with a
+ * `[REDACTED:injection]` marker so (a) the LLM can ignore it and
+ * (b) humans reading the recon can notice and investigate.
+ *
+ * Exported for unit tests; not part of the public API.
+ */
+const INJECTION_PATTERNS: RegExp[] = [
+  /IGNORE (?:ALL )?PREVIOUS INSTRUCTIONS/gi,
+  /DISREGARD (?:ALL )?(?:PREVIOUS )?(?:INSTRUCTIONS|CONTEXT)/gi,
+  /YOU ARE NOW [^.\n]{1,200}/gi,
+  /SYSTEM: [^.\n]{1,200}/gi,
+  /FORGET (?:ALL )?(?:PREVIOUS )?(?:INSTRUCTIONS|CONTEXT)/gi,
+  /NEW INSTRUCTIONS?: [^.\n]{1,200}/gi,
+]
+
+export function redactInjection(content: string): string {
+  let redacted = content
+  for (const pat of INJECTION_PATTERNS) {
+    redacted = redacted.replace(pat, "[REDACTED:injection]")
+  }
+  return redacted
+}
+
 export const id = "memory-core"
 export const server = async (ctx: PluginContext) => {
   const config = await loadConfig<MemoryConfig>("memory", defaultConfig)
@@ -146,7 +177,14 @@ export const server = async (ctx: PluginContext) => {
           try {
             const st = statSync(agentsPath)
             if (st.size <= state.config.agentsMaxSize) {
-              agents = readFileSync(agentsPath, "utf-8")
+              const raw = readFileSync(agentsPath, "utf-8")
+              const redacted = redactInjection(raw)
+              if (redacted !== raw) {
+                log.warn(
+                  `AGENTS.md at ${agentsPath} contained prompt-injection patterns; redacted before LLM injection`,
+                )
+              }
+              agents = redacted
             } else {
               log.warn(`AGENTS.md too large (${(st.size / 1024).toFixed(0)}KB > ${(state.config.agentsMaxSize / 1024).toFixed(0)}KB), skipping`)
             }
