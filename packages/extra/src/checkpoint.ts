@@ -11,7 +11,14 @@
 import { appendFileSync, writeFileSync } from "node:fs";
 import { createLogger, redactSecrets } from "@sffmc/shared";
 
-import { crc32 } from "./checkpoint/crc.js";
+import {
+  flushAll as flushAllBuffers,
+  flushSession,
+  findLRUVictim,
+  getOrCreateBuffer,
+  startFlushTimer,
+  stopFlushTimer,
+} from "./checkpoint/buffer.js";
 import {
   CURRENT_VERSION,
   DEFAULT_FLUSH_INTERVAL_MS,
@@ -20,20 +27,16 @@ import {
   DEFAULT_MAX_CHECKPOINT_FILE_SIZE,
   DEFAULT_MAX_RESTORED_MESSAGES,
 } from "./checkpoint/constants.js";
-import {
-  buildV2Body,
-  computeV2HeaderStr,
-  readHeader,
-  writeHeader,
-} from "./checkpoint/header.js";
 import { migrateV1ToV2 } from "./checkpoint/migrations.js";
 import { ensureDir, filePath, getCheckpointDir } from "./checkpoint/paths.js";
+import { readHeader } from "./checkpoint/header.js";
 import {
   deleteCheckpoint,
   listSessions,
   readToolCallsShim,
 } from "./checkpoint/reader.js";
 import type {
+  CheckpointBufferState,
   CheckpointHooks,
   CheckpointTool,
   SessionBufferEntry,
@@ -64,6 +67,11 @@ export type {
 // can call `readToolCalls(...)` without the shim suffix.
 export { readToolCallsShim as readToolCalls, listSessions } from "./checkpoint/reader.js";
 
+// Re-export the LRU helper under its public name (with the leading
+// underscore convention preserved for the regression test in
+// packages/memory/test/checkpoint.test.ts).
+export { findLRUVictim as _findLRUVictim } from "./checkpoint/buffer.js";
+
 const log = createLogger("extra-checkpoint");
 
 // Local alias for in-file use.
@@ -72,181 +80,8 @@ const readToolCalls = readToolCallsShim;
 // ---------------------------------------------------------------------------
 // ToolCall read / list / delete  → ./checkpoint/reader.js
 // Migration (v1 → v2)            → ./checkpoint/migrations.js
+// In-memory buffer + LRU         → ./checkpoint/buffer.js
 // ---------------------------------------------------------------------------
-
-/** Per-session buffer entry with explicit LRU metadata.
- *
- *  Manriel LRU-eviction audit finding: the prior implementation
- *  relied on `Map.keys().next().value` + a `delete; set` touch to implement
- *  LRU via Map's iteration order. That worked but was implicit — the
- *  eviction logic depended on Map's internal ordering, not on a
- *  tracked access timestamp. This struct makes the LRU policy
- *  explicit: `lastAccessMs` is the value compared for eviction, and
- *  `insertionOrder` is the deterministic tie-breaker when two entries
- *  share the same access time. */
-interface SessionBufferEntry {
-  buf: ToolCall[];
-  lastAccessMs: number;
-  /** Monotonic counter assigned at insertion. Tie-breaker for LRU when
-   *  two entries share `lastAccessMs` (e.g. when `Date.now()` does not
-   *  advance between inserts). The lower value is older. */
-  insertionOrder: number;
-}
-
-interface CheckpointBufferState {
-  sessionBuffers: Map<string, SessionBufferEntry>;
-  headersWritten: Set<string>;
-  flushTimer: ReturnType<typeof setInterval> | null;
-  dir: string;
-  /** Buffer flush threshold (tool calls buffered before disk flush). */
-  flushThreshold: number;
-  /** Periodic flush interval in ms. */
-  flushIntervalMs: number;
-  /** Max in-memory session buffers (LRU eviction when exceeded). */
-  maxBufferedSessions: number;
-}
-
-/** Monotonic counter for insertion ordering. Module-level because the
- *  LRU tie-breaker must be globally unique within a process. Each
- *  factory instance shares the counter (intentional — sessions
- *  inserted by different factories never coexist in the same buffer
- *  map, since the buffer is per-instance). */
-let _bufferInsertionCounter = 0;
-
-function _flushSession(state: CheckpointBufferState, sessionID: string): void {
-  const entry = state.sessionBuffers.get(sessionID);
-  if (!entry || entry.buf.length === 0) return;
-
-  ensureDir(state.dir);
-
-  const fp = filePath(sessionID, state.dir);
-  const isNewFile = !state.headersWritten.has(sessionID);
-
-  // For an existing file, load prior state so the new header reflects the
-  // union (existing + new). `createdAt` is preserved across flushes.
-  let existingCalls: ToolCall[] = [];
-  let createdAt = Date.now();
-  if (!isNewFile) {
-    try {
-      const priorHeader = readHeader(sessionID, state.dir, Number.MAX_SAFE_INTEGER);
-      if (priorHeader) createdAt = priorHeader.createdAt;
-      existingCalls = readToolCalls(sessionID, state.dir, Number.MAX_SAFE_INTEGER);
-    } catch {
-      // Treat as empty if reading fails — fall through to overwrite.
-    }
-  }
-
-  const allCalls = [...existingCalls, ...entry.buf];
-
-  // Build v2 body lines with stable key order and per-line CRC. Track
-  // per-line byte length so offsets can be computed once the header size
-  // is known.
-  const { bodyConcat, bodyBytes, bodyLineBytes } = buildV2Body(allCalls);
-  const fileCrc32 = crc32(bodyBytes);
-
-  // Compute the final v2 header with converged line offsets. The header
-  // size depends on the offsets it contains (digit counts grow with
-  // offset values), so we iterate to a fixed point — typically ≤3
-  // iterations for typical session sizes. `updatedAt` is captured once
-  // and held constant across the iteration so the returned header
-  // string and its serialized offsets agree byte-for-byte.
-  const finalHeaderStr = computeV2HeaderStr(
-    sessionID,
-    bodyLineBytes,
-    fileCrc32,
-    createdAt,
-    Date.now(),
-  );
-
-  // Write the file. For the first flush we use appendFileSync (single
-  // syscall for header+body) — this preserves the v0.14.5 "batched
-  // single-syscall" property. For subsequent flushes, writeFileSync is
-  // required because the header's `lineOffsets` grew and must be
-  // rewritten at byte offset 0; this is also a single syscall.
-  if (isNewFile) {
-    appendFileSync(fp, finalHeaderStr + bodyConcat);
-    state.headersWritten.add(sessionID);
-  } else {
-    writeFileSync(fp, finalHeaderStr + bodyConcat);
-  }
-  entry.buf.length = 0;
-}
-
-function _flushAll(state: CheckpointBufferState): void {
-  for (const sid of state.sessionBuffers.keys()) {
-    _flushSession(state, sid);
-  }
-}
-
-function _startFlushTimer(state: CheckpointBufferState): void {
-  if (state.flushTimer) return;
-  state.flushTimer = setInterval(() => _flushAll(state), state.flushIntervalMs);
-  if (state.flushTimer && typeof state.flushTimer === "object" && "unref" in state.flushTimer) {
-    state.flushTimer.unref();
-  }
-}
-
-function _stopFlushTimer(state: CheckpointBufferState): void {
-  if (state.flushTimer) {
-    clearInterval(state.flushTimer);
-    state.flushTimer = null;
-  }
-}
-
-/** Find the LRU victim. Scans every entry and picks the one with the
- *  smallest `lastAccessMs`; ties are broken by `insertionOrder` (the
- *  older insertion wins). Returns `null` when the map is empty.
- *
- *  Exported (with underscore prefix) for the LRU eviction regression test. */
-export function _findLRUVictim(buffers: Map<string, SessionBufferEntry>): string | null {
-  let victimKey: string | null = null;
-  let victimAccess = Number.POSITIVE_INFINITY;
-  let victimInsertion = Number.POSITIVE_INFINITY;
-  for (const [key, entry] of buffers) {
-    if (
-      entry.lastAccessMs < victimAccess ||
-      (entry.lastAccessMs === victimAccess && entry.insertionOrder < victimInsertion)
-    ) {
-      victimKey = key;
-      victimAccess = entry.lastAccessMs;
-      victimInsertion = entry.insertionOrder;
-    }
-  }
-  return victimKey;
-}
-
-function _getOrCreateBuffer(state: CheckpointBufferState, sessionID: string): ToolCall[] {
-  const now = Date.now();
-  let entry = state.sessionBuffers.get(sessionID);
-  if (entry) {
-    // Touch: refresh the access timestamp so this entry is no longer
-    // the eviction candidate. We also delete + re-insert to keep the
-    // Map's iteration order aligned with LRU (defensive — eviction
-    // uses the explicit scan, but iteration order is useful for tests
-    // and for future fast paths).
-    state.sessionBuffers.delete(sessionID);
-    entry.lastAccessMs = now;
-    state.sessionBuffers.set(sessionID, entry);
-    return entry.buf;
-  }
-  // Evict LRU when the cap is reached. The victim is determined
-  // by the explicit timestamp scan, not by Map iteration order.
-  if (state.sessionBuffers.size >= state.maxBufferedSessions) {
-    const victim = _findLRUVictim(state.sessionBuffers);
-    if (victim !== null) {
-      _flushSession(state, victim);
-      state.sessionBuffers.delete(victim);
-      state.headersWritten.delete(victim);
-    }
-  }
-  entry = {
-    buf: [],
-    lastAccessMs: now,
-    insertionOrder: _bufferInsertionCounter++,
-  };
-  state.sessionBuffers.set(sessionID, entry);
-  return entry.buf;
-}
 
 // ---------------------------------------------------------------------------
 // Restore: reconstruct messages from ToolCalls
@@ -364,11 +199,11 @@ function _createToolExecuteAfterHook(
       callID: toolCtx.callID,
     };
 
-    const buf = _getOrCreateBuffer(state, toolCtx.sessionID);
+    const buf = getOrCreateBuffer(state, toolCtx.sessionID);
     buf.push(call);
 
     if (buf.length >= state.flushThreshold) {
-      _flushSession(state, toolCtx.sessionID);
+      flushSession(state, toolCtx.sessionID);
     }
   };
 }
@@ -587,17 +422,17 @@ Auto-restore: inject <!-- EXTRA_RESTORE: <sessionID> --> in a message to auto-lo
       maxRestoredMessages,
     );
 
-    _startFlushTimer(state);
+    startFlushTimer(state);
   }
 
   return {
     tool,
     hooks,
-    flushSession: (sessionID: string) => _flushSession(state, sessionID),
-    flushAll: () => _flushAll(state),
+    flushSession: (sessionID: string) => flushSession(state, sessionID),
+    flushAll: () => flushAllBuffers(state),
     cleanup: () => {
-      _flushAll(state);
-      _stopFlushTimer(state);
+      flushAllBuffers(state);
+      stopFlushTimer(state);
       state.sessionBuffers.clear();
       state.headersWritten.clear();
     },
