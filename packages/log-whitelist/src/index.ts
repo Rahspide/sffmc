@@ -26,26 +26,26 @@ const defaultConfig: LogWhitelistConfig = {
   suppress_patterns: [],
 };
 
-export function compilePatterns(strings: string[]): RegExp[] {
-  const out: RegExp[] = [];
-  for (const s of strings) {
-    if (s.length === 0) continue;
+export function compilePatterns(patterns: string[]): RegExp[] {
+  const compiled: RegExp[] = [];
+  for (const pattern of patterns) {
+    if (pattern.length === 0) continue;
     // Reject ReDoS-prone patterns before compiling — user YAML may supply
     // catastrophically-backtracking expressions like `^(a+)+$` that would
     // hang every tool.execute.after / experimental.text.complete hook.
-    if (!safeRegex(s)) {
-      log.warn("unsafe regex pattern (rejected to prevent ReDoS):", s);
+    if (!safeRegex(pattern)) {
+      log.warn("unsafe regex pattern (rejected to prevent ReDoS):", pattern);
       continue;
     }
     try {
-      out.push(new RegExp(s));
+      compiled.push(new RegExp(pattern));
     } catch (e) {
       // Surface the bad pattern — silently swallowing it (via new RegExp(""))
       // made the filter match everything and then drop it, hiding typos.
-      log.warn("invalid regex pattern:", s, e);
+      log.warn("invalid regex pattern:", pattern, e);
     }
   }
-  return out;
+  return compiled;
 }
 
 interface PluginState {

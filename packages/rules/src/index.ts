@@ -56,15 +56,7 @@ export const id = "@sffmc/rules"
 export const server = async (ctx: PluginContext) => {
   const configPath = resolve(homedir(), ".config/SFFMC/rules.yaml");
 
-  let rawRules: Rules;
-  try {
-    rawRules = loadRules(configPath);
-    if (rawRules.rules.length === 0 && !existsSync(configPath)) {
-      rawRules = parseRules(DEFAULT_RULES_YAML);
-    }
-  } catch {
-    rawRules = parseRules(DEFAULT_RULES_YAML);
-  }
+  const rawRules = loadRulesWithFallback(configPath);
 
   // Pre-compile regex patterns once (and drop ReDoS-unsafe / invalid rules).
   // The compiled list is reused on every tool call — see bug #5a audit.
@@ -136,5 +128,19 @@ export const server = async (ctx: PluginContext) => {
     },
   };
 };
+
+/** Load rules from disk, falling back to the built-in defaults when the file
+ *  is missing, unreadable, or produces an empty rule list. */
+function loadRulesWithFallback(configPath: string): Rules {
+  try {
+    const fromDisk = loadRules(configPath);
+    if (fromDisk.rules.length === 0 && !existsSync(configPath)) {
+      return parseRules(DEFAULT_RULES_YAML);
+    }
+    return fromDisk;
+  } catch {
+    return parseRules(DEFAULT_RULES_YAML);
+  }
+}
 
 export default { id, server }

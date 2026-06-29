@@ -122,6 +122,19 @@ export function redactInjectionInWinner(content: string): string {
   return redacted;
 }
 
+/**
+ * Consume (and delete) the pending winner result for a session. One-shot —
+ * after the first chat transform fires for a session, the result is dropped
+ * so subsequent transforms can't re-inject the same winner.
+ * Returns the message to inject, or `undefined` if none is pending.
+ */
+function consumeWinnerResult(state: PluginState, sessionID: string): string | undefined {
+  const result = state._maxModeResult.get(sessionID);
+  if (!result) return undefined;
+  state._maxModeResult.delete(sessionID);
+  return result.message;
+}
+
 function buildWinnerMessage(
   candidate: Candidate,
   verdict: Verdict,
@@ -273,10 +286,9 @@ export const server = async (ctx: RichPluginContext) => {
     ) => {
       const sessionID = _input.sessionID;
       if (!sessionID) return data;
-      const result = state._maxModeResult.get(sessionID);
-      if (result) {
-        data.system.push(result.message);
-        state._maxModeResult.delete(sessionID);
+      const message = consumeWinnerResult(state, sessionID);
+      if (message !== undefined) {
+        data.system.push(message);
       }
       return data;
     },
@@ -301,13 +313,12 @@ export const server = async (ctx: RichPluginContext) => {
           ? ((_input as { sessionID?: string }).sessionID ?? "")
           : "";
       if (!sessionID) return data;
-      const result = state._maxModeResult.get(sessionID);
-      if (result) {
+      const message = consumeWinnerResult(state, sessionID);
+      if (message !== undefined) {
         data.messages.push({
           role: "assistant",
-          content: result.message,
+          content: message,
         });
-        state._maxModeResult.delete(sessionID);
       }
       return data;
     },

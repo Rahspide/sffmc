@@ -170,29 +170,7 @@ export const server = async (ctx: PluginContext) => {
       try {
         const db = await ensureDB()
         const memory = topByImportance(db, state.config.reconTopN)
-
-        const agentsPath = resolve(ctx.projectRoot, AGENTS_FILE)
-        let agents = ""
-        if (existsSync(agentsPath)) {
-          try {
-            const st = statSync(agentsPath)
-            if (st.size <= state.config.agentsMaxSize) {
-              const raw = readFileSync(agentsPath, "utf-8")
-              const redacted = redactInjection(raw)
-              if (redacted !== raw) {
-                log.warn(
-                  `AGENTS.md at ${agentsPath} contained prompt-injection patterns; redacted before LLM injection`,
-                )
-              }
-              agents = redacted
-            } else {
-              log.warn(`AGENTS.md too large (${(st.size / 1024).toFixed(0)}KB > ${(state.config.agentsMaxSize / 1024).toFixed(0)}KB), skipping`)
-            }
-          } catch {
-            // stat failed, skip
-          }
-        }
-
+        const agents = loadAndRedactAgents(ctx.projectRoot, state.config.agentsMaxSize)
         const tail = tailFromMessages(
           data.messages.slice(-20),
           state.config.tailChars,
@@ -220,7 +198,44 @@ export const server = async (ctx: PluginContext) => {
       }
       return data
     },
+  };
+};
+
+/**
+ * Read AGENTS.md from the project root, redact prompt-injection patterns
+ * (bug #6 — see `redactInjection`), and log a warning when any are found.
+ *
+ * Returns an empty string if the file is missing, too large, or unreadable.
+ * The size cap (`maxSizeBytes`) prevents OOM from a crafted AGENTS.md; the
+ * default is `MemoryConfig.agentsMaxSize` (100 KiB).
+ */
+function loadAndRedactAgents(projectRoot: string, maxSizeBytes: number): string {
+  const agentsPath = resolve(projectRoot, AGENTS_FILE)
+  if (!existsSync(agentsPath)) return ""
+
+  let st: import("node:fs").Stats
+  try {
+    st = statSync(agentsPath)
+  } catch {
+    // stat failed — file unreadable or disappeared mid-check
+    return ""
   }
+
+  if (st.size > maxSizeBytes) {
+    log.warn(
+      `AGENTS.md too large (${(st.size / 1024).toFixed(0)}KB > ${(maxSizeBytes / 1024).toFixed(0)}KB), skipping`,
+    )
+    return ""
+  }
+
+  const raw = readFileSync(agentsPath, "utf-8")
+  const redacted = redactInjection(raw)
+  if (redacted !== raw) {
+    log.warn(
+      `AGENTS.md at ${agentsPath} contained prompt-injection patterns; redacted before LLM injection`,
+    )
+  }
+  return redacted
 }
 
 export default { id, server }

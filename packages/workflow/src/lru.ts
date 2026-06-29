@@ -40,9 +40,10 @@ export class BoundedLRU<K, V> {
     }
     this.map.set(k, v)
     while (this.map.size > this.maxSize) {
-      const oldest = this.map.keys().next().value
-      if (oldest === undefined) break
-      this.map.delete(oldest)
+      // Map preserves insertion order, so the first key is always the oldest.
+      const oldestKey = this.map.keys().next().value
+      if (oldestKey === undefined) break
+      this.map.delete(oldestKey)
     }
   }
 
