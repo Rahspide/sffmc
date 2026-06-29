@@ -141,21 +141,13 @@ async function getRules(): Promise<ReadonlyArray<RedactionRule>> {
   })
   const disabled = new Set(redactionConfig.disabledRules ?? [])
   const userRules: RedactionRule[] = []
-  for (const userRule of redactionConfig.extraFilenameRules ?? []) {
-    if (disabled.has(userRule.id)) continue
-    try {
-      userRules.push({ id: userRule.id as RedactionCategory, pattern: new RegExp(userRule.pattern, "i"), filenameOnly: true })
-    } catch (e) {
-      log.warn(`redact-secrets: invalid extraFilenameRules[${userRule.id}]:`, e)
-    }
+  for (const rule of redactionConfig.extraFilenameRules ?? []) {
+    const compiled = compileUserRule(rule, true, "extraFilenameRules", disabled)
+    if (compiled) userRules.push(compiled)
   }
-  for (const userRule of redactionConfig.extraContentRules ?? []) {
-    if (disabled.has(userRule.id)) continue
-    try {
-      userRules.push({ id: userRule.id as RedactionCategory, pattern: new RegExp(userRule.pattern, "gi") })
-    } catch (e) {
-      log.warn(`redact-secrets: invalid extraContentRules[${userRule.id}]:`, e)
-    }
+  for (const rule of redactionConfig.extraContentRules ?? []) {
+    const compiled = compileUserRule(rule, false, "extraContentRules", disabled)
+    if (compiled) userRules.push(compiled)
   }
   // User rules run first so a user can override a built-in (e.g., redefine
   // `filename-token` with a tighter pattern).
@@ -164,6 +156,28 @@ async function getRules(): Promise<ReadonlyArray<RedactionRule>> {
     ...BUILTIN_RULES.filter((r) => !disabled.has(r.id)),
   ]
   return compiledRules
+}
+
+/** Compile one user-supplied redaction rule. Returns `null` if the rule is
+ *  disabled or has invalid syntax (with a warning log either way). */
+function compileUserRule(
+  rule: { id: string; pattern: string },
+  isFilenameOnly: boolean,
+  sourceLabel: "extraFilenameRules" | "extraContentRules",
+  disabled: Set<string>,
+): RedactionRule | null {
+  if (disabled.has(rule.id)) return null
+  const flags = isFilenameOnly ? "i" : "gi"
+  try {
+    return {
+      id: rule.id as RedactionCategory,
+      pattern: new RegExp(rule.pattern, flags),
+      filenameOnly: isFilenameOnly,
+    }
+  } catch (e) {
+    log.warn(`redact-secrets: invalid ${sourceLabel}[${rule.id}]:`, e)
+    return null
+  }
 }
 
 /**
