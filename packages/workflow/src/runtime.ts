@@ -252,23 +252,23 @@ export class WorkflowRuntime {
    *  comment above. Cleared by `close()`. */
   private completedOutcomes: BoundedLRU<string, WorkflowOutcome>
 
-  constructor(ctx: PluginContext, opts?: RuntimeOpts) {
+  constructor(ctx: PluginContext, opts: RuntimeOpts = {}) {
     this.ctx = ctx
     //  resolve at constructor time (not module init) so the
     // semaphore respects a config the caller may set via
     // `__setWorkflowConfig()` before constructing the runtime.
     this.globalSem = makeSemaphore(resolveMaxConcurrentAgents())
-    this.persistence = opts?.persistence ?? new WorkflowPersistence()
-    if (opts?.gracePeriodMsOverride !== undefined) {
+    this.persistence = opts.persistence ?? new WorkflowPersistence()
+    if (opts.gracePeriodMsOverride !== undefined) {
       this.setGracePeriodMs(opts.gracePeriodMsOverride)
     }
-    if (opts?.configOverride) {
+    if (opts.configOverride) {
       this.setConfig(opts.configOverride)
     }
     // completedOutcomes cache — bounded LRU so long-lived daemons don't
     // grow indefinitely. Opt > env > 500 default.
     this.completedOutcomes = new BoundedLRU<string, WorkflowOutcome>(
-      opts?.completedOutcomesCacheSize ?? resolveOutcomesCacheSize(),
+      opts.completedOutcomesCacheSize ?? resolveOutcomesCacheSize(),
     )
   }
 
