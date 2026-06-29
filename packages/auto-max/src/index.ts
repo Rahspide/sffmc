@@ -98,9 +98,23 @@ export const server = async (_ctx: PluginContext) => {
     event: async (payload: { event: string; [key: string]: unknown }) => {
       if (payload.event === SESSION_CREATED) {
         const sid = String(payload.sessionID || "");
-        resetSession(getOrCreateSession(state, sid));
+        // Bug 3b: resetSession clears inner counters but leaves the outer
+        // Map entry behind, so state.sessions grows unbounded over a
+        // long-running daemon (each unique sessionID accumulates a
+        // SessionState holding its own failCount Map forever). Delete +
+        // recreate via getOrCreateSession gives a true clean slate per
+        // session — fresh failCount, fresh triggered, AND fresh
+        // maxCallsThisSession (matches HOOK_COMMAND_EXECUTE_BEFORE
+        // /max-reset behavior, so the cost cap re-arms too).
+        state.sessions.delete(sid);
+        getOrCreateSession(state, sid);
       }
     },
+
+    // @internal — test-only inspector. Not part of the plugin contract.
+    // Exists so tests can verify Bug 3b (state.sessions leak) without
+    // reaching into module-private state.
+    _getSessionCount: () => state.sessions.size,
 
     [HOOK_TOOL_EXECUTE_AFTER]: async (
       toolCtx: { tool: string; sessionID: string; callID: string },
