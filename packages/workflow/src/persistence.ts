@@ -265,13 +265,25 @@ export class WorkflowPersistence {
 
   // ── Run CRUD ──────────────────────────────────────────────────────────
 
-  createRun(file: string, label: string, scriptSha: string, parentId?: string, workspace?: string): string {
+  createRun(
+    file: string,
+    label: string,
+    scriptSha: string,
+    parentId?: string,
+    workspace?: string,
+    args?: unknown,
+  ): string {
     const runID = generateRunID()
     const now = Math.floor(Date.now() / 1000)
+    // JSON-stringify args before insert so undefined → NULL (column is TEXT).
+    // Anything else (object/array/primitive) round-trips through rowToRun's
+    // JSON.parse. NULL means "no args" — resume() will pass null to the
+    // guest, which is the historical pre-fix behavior.
+    const argsJson = args === undefined ? null : JSON.stringify(args)
     this.db.run(
-      `INSERT INTO workflow_runs (id, name, status, running, succeeded, failed, script_sha, parent_run_id, workspace, time_created, time_updated)
-       VALUES (?, ?, 'running', 0, 0, 0, ?, ?, ?, ?, ?)`,
-      [runID, label, scriptSha, parentId ?? null, workspace ?? null, now, now],
+      `INSERT INTO workflow_runs (id, name, status, running, succeeded, failed, script_sha, parent_run_id, workspace, args, time_created, time_updated)
+       VALUES (?, ?, 'running', 0, 0, 0, ?, ?, ?, ?, ?, ?)`,
+      [runID, label, scriptSha, parentId ?? null, workspace ?? null, argsJson, now, now],
     )
     return runID
   }

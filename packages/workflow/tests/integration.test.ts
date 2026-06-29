@@ -432,7 +432,12 @@ describe("private helpers: resolveConfig", () => {
       workspace: tmpDir,
     })
     const outcome = await runtime.wait({ runID, timeoutMs: 15000 })
-    expect(outcome.status).toBe("completed")
+    // Post-Bug-2-fix: the token-cap branch in executeAgentCall calls
+    // failRun() which settles the run with status="budget_exceeded".
+    // Pre-fix the run continued past the cap (and the script returned
+    // the loop index), but the run never actually settled — status
+    // stayed "running" and this.runs leaked.
+    expect(outcome.status).toBe("budget_exceeded")
     // Token cap: 100 / 15 ≈ 6.7 → at most 6 successful calls before cap hits
     expect(counts.count).toBeLessThanOrEqual(7)
     runtime.close()

@@ -11,6 +11,7 @@ import {
   journalKeyBase,
   flushJournalSync,
 } from "./persistence.ts"
+import { BoundedLRU } from "./lru.ts"
 import { createEventBus } from "./events.ts"
 import { parseMeta } from "./meta.ts"
 import {
@@ -56,6 +57,20 @@ const log = createLogger("workflow")
 // between constructions picks up the updated value.
 function resolveMaxConcurrentAgents(): number {
   return getMaxConcurrentAgents()
+}
+
+/** Capacity for the completed-outcomes LRU. Reads
+ *  `WORKFLOW_OUTCOMES_CACHE_SIZE` from the environment; falls back to 500
+ *  on missing/invalid/negative values. */
+function resolveOutcomesCacheSize(): number {
+  const raw = process.env.WORKFLOW_OUTCOMES_CACHE_SIZE
+  if (raw === undefined) return 500
+  const n = Number.parseInt(raw, 10)
+  if (!Number.isInteger(n) || n < 0) {
+    log.warn(`Invalid WORKFLOW_OUTCOMES_CACHE_SIZE=${raw}; using default 500`)
+    return 500
+  }
+  return n
 }
 
 /** Marker on errors from STRUCTURAL workflow faults. */
@@ -179,6 +194,9 @@ export interface RuntimeOpts {
    *  is unaffected — use `__setWorkflowConfig()` from constants.ts for
    *  those. */
   configOverride?: Partial<WorkflowConfig>
+  /** Override for the completed-outcomes LRU capacity. Default: env var
+   *  `WORKFLOW_OUTCOMES_CACHE_SIZE`, then 500. */
+  completedOutcomesCacheSize?: number
 }
 
 // ---------------------------------------------------------------------------
@@ -223,8 +241,16 @@ export class WorkflowRuntime {
    *  settle (e.g. a test that awaits the workflow and then inspects
    *  the outcome). The resolved outcome is stored here keyed by runID
    *  so late `wait()` calls return the same value as the in-flight
-   *  entry would have. Cleared by `close()`. */
-  private completedOutcomes = new Map<string, WorkflowOutcome>()
+   *  entry would have.
+   *
+   *  Bounded via BoundedLRU so a long-lived daemon doesn't grow this
+   *  map unbounded (each entry can hold step results, error messages,
+   *  tokensUsed). Capacity is configured via the
+   *  `completedOutcomesCacheSize` RuntimeOpt or the
+   *  `WORKFLOW_OUTCOMES_CACHE_SIZE` env var (default: 500). Evicted
+   *  runIDs fall back to "unknown runID" — acceptable per the design
+   *  comment above. Cleared by `close()`. */
+  private completedOutcomes: BoundedLRU<string, WorkflowOutcome>
 
   constructor(ctx: PluginContext, opts?: RuntimeOpts) {
     this.ctx = ctx
@@ -239,6 +265,11 @@ export class WorkflowRuntime {
     if (opts?.configOverride) {
       this.setConfig(opts.configOverride)
     }
+    // completedOutcomes cache — bounded LRU so long-lived daemons don't
+    // grow indefinitely. Opt > env > 500 default.
+    this.completedOutcomes = new BoundedLRU<string, WorkflowOutcome>(
+      opts?.completedOutcomesCacheSize ?? resolveOutcomesCacheSize(),
+    )
   }
 
   /** workflow recovery grace period — set the grace period at runtime. Used by the index.ts config
@@ -332,7 +363,7 @@ export class WorkflowRuntime {
     // Resolve workspace  so it persists alongside the run row.
     // resume() restores from this column instead of falling back to cwd.
     const workspace = input.workspace ?? process.cwd()
-    const runID = this.persistence.createRun(name, name, scriptSha, undefined, workspace)
+    const runID = this.persistence.createRun(name, name, scriptSha, undefined, workspace, input.args)
     await this.persistence.writeScript(runID, script)
 
     const jail = new WorkspaceJail(workspace)
@@ -788,15 +819,19 @@ export class WorkflowRuntime {
           stepIndex: entry.succeeded + entry.failed,
           costTokens: totalTokens,
         })
-        this.events.emit("workflow:finished", {
-          runID: entry.runID,
-          status: "budget_exceeded",
-          error: `Token cap ${entry.cfg.maxTokens} exceeded`,
-        })
         this.publishAgentFailed(entry.runID, key, AFR.OverCap)
         entry.running--
         entry.failed++
         this.scheduleFlush(entry)
+        // Settle the run so this.runs drops it, entry.status flips to
+        // "budget_exceeded", DB row updates, outcome resolves (so wait()
+        // returns), and workflow:finished fires — all in one path.
+        // failRun's pattern match on "budget_exceeded" in the error sets
+        // the right status. The previous code emitted workflow:finished
+        // directly but never settled the run: status stayed "running",
+        // the run entry leaked in this.runs, wait() hung forever, and
+        // subsequent agents kept executing.
+        this.failRun(entry, `Token budget_exceeded: cap ${entry.cfg.maxTokens} exceeded`)
         return null
       }
 
@@ -1086,7 +1121,7 @@ export class WorkflowRuntime {
     // stays jailed to the same directory. Persisted so child resume also
     // restores the same root.
     const childWorkspace = parent.workspace
-    const runID = this.persistence.createRun(name, name, scriptSha, undefined, childWorkspace)
+    const runID = this.persistence.createRun(name, name, scriptSha, undefined, childWorkspace, args)
     await this.persistence.writeScript(runID, script)
 
     const entry = this.makeEntry({ runID, name: parsed.ok ? parsed.meta.name : name, cfg: parent.cfg, workspace: childWorkspace })

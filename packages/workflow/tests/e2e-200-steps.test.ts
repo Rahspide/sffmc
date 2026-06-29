@@ -126,8 +126,12 @@ describe("workflow 200-step E2E", () => {
     })
 
     const outcome = await runtime.wait({ runID, timeoutMs: 30000 })
-    // 2M tokens / 100k per call = 20 calls max
-    expect(outcome.status).toBe("completed")
+    // 2M tokens / 100k per call = 20 calls max. Post-Bug-2-fix, the
+    // token-cap branch in executeAgentCall calls failRun() which settles
+    // the run with status="budget_exceeded". Pre-fix the run continued
+    // (and returned the loop index from main()), but the run never
+    // actually settled — status stayed "running" and this.runs leaked.
+    expect(outcome.status).toBe("budget_exceeded")
     expect(counter).toBeLessThanOrEqual(20)
   }, 35000)
 
