@@ -18,7 +18,7 @@ import { mkdtempSync, rmSync, mkdirSync, writeFileSync, existsSync } from "node:
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { defaultConfig } from "../src/watchdog/index.ts";
+import { defaultConfig } from "../../src/watchdog/index.ts";
 import { loadConfig } from "@sffmc/utilities";
 
 // ---------------------------------------------------------------------------
