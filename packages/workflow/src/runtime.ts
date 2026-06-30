@@ -2,8 +2,6 @@
 // @sffmc/workflow — see ../../LICENSE
 
 import { createHash } from "node:crypto"
-import { readFile } from "node:fs/promises"
-import path from "node:path"
 import {
   WorkflowPersistence,
   generateRunID,
@@ -17,7 +15,8 @@ import { WorkflowEventEmitter } from "./event-emitter.ts"
 import { WorkflowActivation } from "./activation.ts"
 import { createEventBus } from "./events.ts"
 import { makeSemaphore, acquireLock } from "./concurrency.ts"
-import { makeEntry, outcomeFor } from "./internal-run-entry.ts"
+import { makeEntry, outcomeFor, type InternalRunEntry } from "./internal-run-entry.ts"
+import { resolveWorkflowScript } from "./script-resolver.ts"
 
 import { parseMeta } from "./meta.ts"
 import {
@@ -42,7 +41,6 @@ import {
   AgentFailureReason as AFR,
 } from "./types.ts"
 import { SCRIPT_DEADLINE_MS, DEFAULT_GRACE_PERIOD_MS, DEFAULT_SANDBOX_CONSTRAINTS, MAX_GRACE_PERIOD_MS, getWorkflowConfigSync, getMaxConcurrentAgents, getSandboxMemoryMB } from "./constants.ts"
-import { getBuiltin, loadBuiltin } from "./builtin-registry.ts"
 import { type RichPluginContext, createLogger, loadConfig } from "@sffmc/shared";
 import { resolveInheritedTools, McpBridge, DEFAULT_MAX_MCP_CALLS, discoverParentTools } from "./mcp.ts";
 
@@ -278,7 +276,7 @@ export class WorkflowRuntime {
     await this.loadWorkflowConfig()
 
     // Resolve script
-    const script = await this.resolveScript(input)
+    const script = await resolveWorkflowScript(input)
 
     const parsed = parseMeta(script)
     if (!parsed.ok) {
@@ -561,43 +559,6 @@ export class WorkflowRuntime {
       }
     }
     flushJournalSync()
-  }
-
-  // ── Private: script resolution ─────────────────────────────────────────
-
-  private async resolveScript(input: WorkflowStartInput & { name?: string }): Promise<string> {
-    // Built-in by name
-    if (input.name && !input.script) {
-      const builtin = getBuiltin(input.name)
-      if (builtin) {
-        const entry = await loadBuiltin(input.name)
-        return entry.script
-      }
-      // Try saved workflow
-      const workspace = input.workspace ?? process.cwd()
-      const resolved = await resolveWorkflow(input.name, workspace)
-      return resolved.source
-    }
-
-    // Inline script
-    if (input.script) {
-      if (isInlineScript(input.script)) return input.script
-    }
-
-    // File path
-    if (input.file) {
-      // Jail check: file must stay within workspace
-      const workspace = input.workspace ?? process.cwd()
-      const resolved = path.resolve(workspace, input.file)
-      const normalizedResolved = path.resolve(resolved)
-      const normalizedWorkspace = path.resolve(workspace)
-      if (!normalizedResolved.startsWith(normalizedWorkspace + path.sep) && normalizedResolved !== normalizedWorkspace) {
-        throw new Error(`Workflow file escapes workspace: ${JSON.stringify(input.file)}`)
-      }
-      return readFile(resolved, "utf-8")
-    }
-
-    throw new Error("workflow start requires name, script, or file")
   }
 
   // ── Private: launch ────────────────────────────────────────────────────
