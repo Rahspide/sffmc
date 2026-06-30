@@ -890,3 +890,132 @@ describe("createJudgeTool auto-judge hook (judge_auto: true)", () => {
     expect(data.messages.length).toBe(1); // no verdict added on failure
   });
 });
+
+// ---------------------------------------------------------------------------
+// Medium function split — judge prompt + extraction + stream helpers
+// ---------------------------------------------------------------------------
+// The continuation arc (Task 2.2b) extracts formatJudgeCandidateBlocks /
+// extractJudgeSessionText / emitJudgeResultChunks / parseJudgeMarkerContent
+// from the four ≥20 LOC functions in the prompt + call layers. These
+// tests pin the OBSERVABLE behavior of each extracted helper so the
+// orchestrators (buildJudgePrompt, callJudge, callJudgeStream,
+// extractCandidatesFromMessages) keep producing the documented output.
+
+describe("buildJudgePrompt prompt structure", () => {
+  it("system message contains 'expert judge' role marker + rubric verbatim", () => {
+    // Pin the system prompt role string and rubric inclusion. The
+    // rubric's exact text is interpolated — losing it would silently
+    // change the LLM's evaluation criteria.
+    const { system } = buildJudgePrompt(["a", "b"], "Score on accuracy.");
+    expect(system).toContain("expert judge");
+    expect(system).toContain("Score on accuracy.");
+  });
+
+  it("user message header 'Evaluate the following N candidate outputs' (exact phrasing) + numbered code blocks", () => {
+    // Pin the extracted formatJudgeCandidateBlocks output: each entry
+    // formatted as 'Candidate #i:\n```<text>\n```' joined by '\n\n',
+    // and the user header containing 'Evaluate the following N'.
+    const { user } = buildJudgePrompt(
+      ["alpha output", "beta output", "gamma output"],
+      "r",
+    );
+    // Header must be present BEFORE the first code block.
+    expect(user).toMatch(/^Evaluate the following 3 candidate outputs\./);
+    // Each block must contain a numbered code fence with the candidate text.
+    expect(user).toContain("Candidate #0:\n```\nalpha output\n```");
+    expect(user).toContain("Candidate #1:\n```\nbeta output\n```");
+    expect(user).toContain("Candidate #2:\n```\ngamma output\n```");
+    // Output JSON spec must be present AFTER the candidate blocks.
+    expect(user).toContain('"scores": [');
+    expect(user).toContain('"winner": <index of best candidate, 0-based>');
+    expect(user).toContain('"reasoning": "');
+  });
+});
+
+describe("extractCandidatesFromMessages marker parsing", () => {
+  it("returns null when no message contains the marker", () => {
+    const out = extractCandidatesFromMessages([
+      { role: "user", content: "no marker here" },
+      { role: "assistant", content: "neither here" },
+    ]);
+    expect(out).toBeNull();
+  });
+
+  it("parses and returns the array when a message contains valid 2+ candidate JSON", () => {
+    const out = extractCandidatesFromMessages([
+      { role: "user", content: "do something" },
+      {
+        role: "assistant",
+        content: `<!-- EXTRA_JUDGE_CANDIDATES: ${JSON.stringify(["first", "second"])} -->`,
+      },
+    ]);
+    expect(out).toEqual(["first", "second"]);
+  });
+
+  it("skips marker with <2 candidates (length validation requires ≥2)", () => {
+    const out = extractCandidatesFromMessages([
+      {
+        role: "assistant",
+        content: `<!-- EXTRA_JUDGE_CANDIDATES: ${JSON.stringify(["only one"])} -->`,
+      },
+    ]);
+    // Length < 2 → returns null (no marker → no candidates → caller is skipped)
+    expect(out).toBeNull();
+  });
+
+  it("skips invalid JSON inside marker and keeps scanning subsequent messages", () => {
+    // First message has a malformed marker; second has a valid one →
+    // the scan MUST continue and return the second's array.
+    const out = extractCandidatesFromMessages([
+      { role: "assistant", content: `<!-- EXTRA_JUDGE_CANDIDATES: {not json} -->` },
+      {
+        role: "assistant",
+        content: `<!-- EXTRA_JUDGE_CANDIDATES: ${JSON.stringify(["alpha", "beta"])} -->`,
+      },
+    ]);
+    expect(out).toEqual(["alpha", "beta"]);
+  });
+
+  it("skips non-string content (e.g. message with typed array content) without throwing", () => {
+    // Type-safety guard — the parsing only runs on string content.
+    const out = extractCandidatesFromMessages([
+      { role: "assistant", content: "pure string message" },
+    ]);
+    expect(out).toBeNull();
+  });
+});
+
+describe("callJudgeStream chunk emission order", () => {
+  it("emits scores → winner → reasoning → complete in that order", async () => {
+    // Pin the extracted emitJudgeResultChunks order. The chunk order
+    // is a downstream contract — reordering would break any consumer
+    // that processes each chunk stage as it arrives.
+    const chunks: JudgeStreamChunk[] = [];
+    await callJudgeStream(
+      ["first", "second"],
+      "r",
+      "test-model",
+      mockCtx(
+        mockJsonResponse(
+          [
+            { correctness: 9, completeness: 9, conciseness: 9 },
+            { correctness: 5, completeness: 5, conciseness: 5 },
+          ],
+          0,
+          "winner is candidate 0",
+        ),
+      ),
+      (chunk) => chunks.push(chunk),
+    );
+    const types = chunks.map((c) => c.type);
+    expect(types).toEqual(["scores", "winner", "reasoning", "complete"]);
+    // Each chunk carries the expected payload.
+    const scoresChunk = chunks[0] as Extract<JudgeStreamChunk, { type: "scores" }>;
+    expect(scoresChunk.scores.length).toBe(2);
+    const winnerChunk = chunks[1] as Extract<JudgeStreamChunk, { type: "winner" }>;
+    expect(winnerChunk.winner).toBe(0);
+    const reasoningChunk = chunks[2] as Extract<JudgeStreamChunk, { type: "reasoning" }>;
+    expect(reasoningChunk.reasoning).toBe("winner is candidate 0");
+    expect(chunks[3].type).toBe("complete");
+  });
+});

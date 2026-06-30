@@ -125,16 +125,12 @@ export const DEFAULT_RUBRIC =
   "Score each candidate 0-10 on correctness, completeness, and conciseness. Pick the winner with brief reasoning.";
 
 export function buildJudgePrompt(candidates: string[], rubric: string): { system: string; user: string } {
-  const candidateBlocks = candidates
-    .map((text, i) => `Candidate #${i}:\n\`\`\`\n${text}\n\`\`\``)
-    .join("\n\n");
-
   const system = `You are an expert judge evaluating candidate outputs. Use the following rubric:\n\n${rubric}`;
 
   const user = [
     `Evaluate the following ${candidates.length} candidate outputs.`,
     "",
-    candidateBlocks,
+    formatJudgeCandidateBlocks(candidates),
     "",
     "For each candidate, score 0-10 on these three criteria:",
     "  - correctness: factual accuracy and absence of errors",
@@ -153,6 +149,16 @@ export function buildJudgePrompt(candidates: string[], rubric: string): { system
   ].join("\n");
 
   return { system, user };
+}
+
+/** Format each candidate as a numbered markdown code block, joined by
+ *  blank lines. The exact format 'Candidate #i:\\n```\\n<text>\\n```' is
+ *  a contract with the LLM prompt — pin via tests in judge.test.ts
+ *  ('user message header' describe block). */
+function formatJudgeCandidateBlocks(candidates: string[]): string {
+  return candidates
+    .map((text, i) => `Candidate #${i}:\n\`\`\`\n${text}\n\`\`\``)
+    .join("\n\n");
 }
 
 // ---------------------------------------------------------------------------
@@ -254,10 +260,7 @@ async function callJudge(
 
   const latencyMs = Math.round(performance.now() - start);
 
-  const text = response.content
-    .filter((p): p is { type: "text"; text: string } => p.type === "text" && typeof p.text === "string")
-    .map((p) => p.text)
-    .join("\n");
+  const text = extractJudgeSessionText(response);
 
   const parsed = parseJudgeResponse(text, candidates.length);
   if (!parsed) {
@@ -265,6 +268,22 @@ async function callJudge(
   }
 
   return { response: parsed, latencyMs };
+}
+
+/** Extract the plain-text content from a session.message() response.
+ *  Filters out non-text parts (e.g. tool_use blocks), joins the text
+ *  parts with newlines. Kept private — same shape as dream.ts's
+ *  `extractResponseText`, but the two streams don't share a type. */
+function extractJudgeSessionText(response: {
+  content: Array<{ type: string; text?: unknown }>;
+}): string {
+  return response.content
+    .filter(
+      (p): p is { type: "text"; text: string } =>
+        p.type === "text" && typeof p.text === "string",
+    )
+    .map((p) => p.text)
+    .join("\n");
 }
 
 // ---------------------------------------------------------------------------
@@ -280,25 +299,46 @@ export async function callJudgeStream(
 ): Promise<JudgeResult> {
   try {
     const { response, latencyMs } = await callJudge(candidates, rubric, model, ctx);
-
-    onChunk({ type: "scores", scores: response.scores });
-    onChunk({ type: "winner", winner: response.winner });
-    onChunk({ type: "reasoning", reasoning: response.reasoning });
-    onChunk({ type: "complete" });
-
-    return {
-      ok: true,
-      scores: response.scores,
-      winner: response.winner,
-      reasoning: response.reasoning,
-      model,
-      latencyMs,
-    };
+    emitJudgeResultChunks(onChunk, response);
+    return buildJudgeStreamResult(response, model, latencyMs);
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
     onChunk({ type: "error", error: errMsg });
     throw err;
   }
+}
+
+/** Emit the four-stage progress chunks in fixed order — downstream
+ *  consumers pin the order: scores → winner → reasoning → complete.
+ *  The order is a contract; reordering breaks any consumer that
+ *  processes each stage as it arrives.
+ *
+ *  Pinned by: judge.test.ts "callJudgeStream chunk emission order". */
+function emitJudgeResultChunks(
+  onChunk: (chunk: JudgeStreamChunk) => void,
+  response: JudgeResponse,
+): void {
+  onChunk({ type: "scores", scores: response.scores });
+  onChunk({ type: "winner", winner: response.winner });
+  onChunk({ type: "reasoning", reasoning: response.reasoning });
+  onChunk({ type: "complete" });
+}
+
+/** Build the final JudgeResult from a successful call. The model name is
+ *  the ORIGINAL model passed to callJudge (the response doesn't carry it). */
+function buildJudgeStreamResult(
+  response: JudgeResponse,
+  model: string,
+  latencyMs: number,
+): JudgeResult {
+  return {
+    ok: true,
+    scores: response.scores,
+    winner: response.winner,
+    reasoning: response.reasoning,
+    model,
+    latencyMs,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -312,20 +352,37 @@ export function extractCandidatesFromMessages(
 ): string[] | null {
   for (const msg of messages) {
     if (typeof msg.content !== "string") continue;
-    const idx = msg.content.indexOf(JUDGE_MARKER);
-    if (idx === -1) continue;
-    const start = idx + JUDGE_MARKER.length;
-    const end = msg.content.indexOf(" -->", start);
-    if (end === -1) continue;
-    const json = msg.content.slice(start, end).trim();
-    try {
-      const parsed = JSON.parse(json) as string[];
-      if (Array.isArray(parsed) && parsed.length >= 2) {
-        return parsed;
-      }
-    } catch {
-      // ignore parse errors, keep scanning
+    const candidates = parseJudgeMarkerContent(msg.content);
+    if (candidates !== null) return candidates;
+  }
+  return null;
+}
+
+/** Extract the candidate JSON array from a single message's content. The
+ *  marker span is `<!-- EXTRA_JUDGE_CANDIDATES: <json> -->`. Returns
+ *  null when the marker is absent, the JSON is malformed, or the array
+ *  has fewer than 2 entries (the documented minimum for judging).
+ *
+ *  Pinned by: judge.test.ts "extractCandidatesFromMessages marker parsing"
+ *  describe block.
+ *
+ *  Kept separate from the message scanner so the orchestrator reads as
+ *  a plain scan loop and the marker/JSON semantics are testable in
+ *  isolation via the message body. */
+function parseJudgeMarkerContent(content: string): string[] | null {
+  const idx = content.indexOf(JUDGE_MARKER);
+  if (idx === -1) return null;
+  const start = idx + JUDGE_MARKER.length;
+  const end = content.indexOf(" -->", start);
+  if (end === -1) return null;
+  const json = content.slice(start, end).trim();
+  try {
+    const parsed = JSON.parse(json) as string[];
+    if (Array.isArray(parsed) && parsed.length >= 2) {
+      return parsed;
     }
+  } catch {
+    // ignore parse errors — caller keeps scanning subsequent messages
   }
   return null;
 }
