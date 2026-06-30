@@ -4,16 +4,17 @@
 // cron, manual tool), Jaccard dedup, stale removal >30d, cluster summarization.
 
 import { Database } from "bun:sqlite";
-import { mkdirSync, existsSync, appendFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { homedir } from "node:os";
 import {
   createLogger,
   DEFAULT_MEMORY_DB_PATH,
+  defaultFsOps,
   HOOK_TOOL_EXECUTE_AFTER,
   NoLLMClientError,
   redactSecrets,
   SECONDS_PER_DAY,
+  type FsOps,
   unixNow,
 } from "@sffmc/shared";
 export type { RichPluginContext } from "@sffmc/shared";
@@ -192,33 +193,37 @@ export interface MemoryRow {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function openDB(dbPath: string): Database {
+function openDB(dbPath: string, fs: FsOps = defaultFsOps): Database {
   // Ensure the directory exists
   const dir = dirname(dbPath);
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true, mode: 0o700 });
+  if (!fs.exists(dir)) {
+    fs.mkdir(dir, { recursive: true, mode: 0o700 });
   }
   const db = new Database(dbPath);
   db.exec("PRAGMA journal_mode=WAL;");
   return db;
 }
 
-function ensureArchiveDir(archivePath: string): void {
+function ensureArchiveDir(archivePath: string, fs: FsOps = defaultFsOps): void {
   const dir = dirname(archivePath);
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true, mode: 0o700 });
+  if (!fs.exists(dir)) {
+    fs.mkdir(dir, { recursive: true, mode: 0o700 });
   }
 }
 
-function archiveEntry(entry: MemoryRow, archivePath: string): void {
-  ensureArchiveDir(archivePath);
+function archiveEntry(
+  entry: MemoryRow,
+  archivePath: string,
+  fs: FsOps = defaultFsOps,
+): void {
+  ensureArchiveDir(archivePath, fs);
   // Redact content before writing to the dream archive. The archive
   // is on-disk JSONL; if a memory row embedded a raw credential, the
   // archive would persist it forever. `redactSecrets` returns the redacted
   // text plus categories + count for forensic visibility.
   const redaction = redactSecrets(entry.content);
   const record = buildArchiveRecord(entry, redaction);
-  appendFileSync(archivePath, JSON.stringify(record) + "\n");
+  fs.appendFile(archivePath, JSON.stringify(record) + "\n");
 }
 
 /** Build the JSONL record object for an archived entry: the 7 original
@@ -416,6 +421,7 @@ async function runDream(
   archivePath: string = DEFAULT_ARCHIVE_PATH,
   snippetLength: number = DREAM_SNIPPET_LENGTH,
   llmSnippetLength: number = DREAM_LLM_SNIPPET_LENGTH,
+  fs: FsOps = defaultFsOps,
 ): Promise<DreamResult> {
   const errors: string[] = [];
   const start = Date.now();
@@ -459,7 +465,7 @@ async function runDream(
     const allStale = findStaleEntries(db, staleThresholdSec);
     for (const entry of allStale) {
       if (!dryRun) {
-        archiveEntry(entry, archivePath);
+        archiveEntry(entry, archivePath, fs);
         db.run("DELETE FROM memory_entries WHERE id = ?", [entry.id]);
       }
     }
@@ -1041,6 +1047,7 @@ export function createDreamTool(config: DreamConfig): {
       archivePath,
       snippetLength,
       llmSnippetLength,
+      defaultFsOps,
     );
     try {
       const result = await state.dreamLock;

@@ -39,3 +39,5 @@ export {
   migrateLegacyDataPaths,
 } from "./paths.ts"
 export { SECONDS_PER_DAY, unixNow } from "./time.ts"
+export { defaultFsOps, createMockFsOps } from "./fs-ops.ts"
+export type { FsOps, MockFsOpsState } from "./fs-ops.ts"

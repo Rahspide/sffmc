@@ -4,9 +4,10 @@
 // Storage path resolution + test-only directory override.
 // Extracted from checkpoint.ts (M-1 god-object refactor, Task 1.7).
 
-import { existsSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+
+import { defaultFsOps, type FsOps } from "@sffmc/shared";
 
 let _overrideDir: string | null = null;
 
@@ -27,9 +28,9 @@ export function getCheckpointDir(): string {
 
 /** Idempotent `mkdir -p` with `0700` mode (checkpoints may contain
  *  sensitive tool outputs). */
-export function ensureDir(dir: string): void {
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true, mode: 0o700 });
+export function ensureDir(dir: string, fs: FsOps = defaultFsOps): void {
+  if (!fs.exists(dir)) {
+    fs.mkdir(dir, { recursive: true, mode: 0o700 });
   }
 }
 

@@ -14,9 +14,8 @@
 //   lineOffsets:  number[] — byte offset of each body line from file start
 //   fileCrc32:    number  — CRC32 of all body bytes (joined + trailing \n)
 
-import { appendFileSync, copyFileSync, existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { createLogger } from "@sffmc/shared";
+import { createLogger, defaultFsOps, type FsOps } from "@sffmc/shared";
 
 import { crc32 } from "./crc.js";
 import { DEFAULT_MAX_CHECKPOINT_FILE_SIZE } from "./constants.js";
@@ -151,14 +150,18 @@ export function computeV2HeaderStr(
  *  fileCrc32) are computed and rewritten by `_flushSession` after the
  *  body lines are appended so the offsets reflect the actual byte
  *  layout. */
-export function writeHeader(sessionID: string, dir?: string): void {
+export function writeHeader(
+  sessionID: string,
+  dir?: string,
+  fs: FsOps = defaultFsOps,
+): void {
   const fp = filePath(sessionID, dir);
   const d = dir ?? getCheckpointDir();
-  ensureDir(d);
+  ensureDir(d, fs);
 
   const now = Date.now();
   const header = makeV2Header(sessionID, [], 0, now, now);
-  appendFileSync(fp, JSON.stringify(header) + "\n");
+  fs.appendFile(fp, JSON.stringify(header) + "\n");
 }
 
 /** Read + parse the on-disk v2 header. Returns `null` for missing,
@@ -167,16 +170,21 @@ export function writeHeader(sessionID: string, dir?: string): void {
  *  from "missing".
  *
  *  Triggers auto-migration on v1 files (writes v2 in place, then re-reads).
- *  Migration failures return `null` (the caller treats them as "no header"). */
+ *  Migration failures return `null` (the caller treats them as "no header").
+ *
+ *  Accepts an optional `fs` injection for tests; defaults to `defaultFsOps`.
+ *  Pass `createMockFsOps()` here to exercise the read path without
+ *  touching disk. */
 export function readHeader(
   sessionID: string,
   dir?: string,
   maxFileSize: number = DEFAULT_MAX_CHECKPOINT_FILE_SIZE,
+  fs: FsOps = defaultFsOps,
 ): CheckpointHeader | null {
   const fp = filePath(sessionID, dir);
 
   try {
-    const st = statSync(fp);
+    const st = fs.stat(fp);
     if (st.size > maxFileSize) {
       log.warn(
         `checkpoint: skipping ${sessionID} — file size ${(st.size / 1024 / 1024).toFixed(1)}MB exceeds limit (${maxFileSize / 1024 / 1024}MB)`,
@@ -195,7 +203,7 @@ export function readHeader(
   // treat as "no header" and return null.
   let firstLine: string | undefined;
   try {
-    const raw = readFileSync(fp, "utf-8");
+    const raw = fs.readFile(fp);
     firstLine = raw.split("\n")[0]?.trim();
   } catch {
     return null;
@@ -213,7 +221,7 @@ export function readHeader(
   // v1 → auto-migrate to v2 in place, then fall through to the v2
   // read path. After migration, `parsed` is re-read from disk.
   if (parsed.version === 1) {
-    const mig = migrateV1ToV2InPlace(sessionID, dir);
+    const mig = migrateV1ToV2InPlace(sessionID, dir, fs);
     if (!mig.ok) {
       log.warn(
         `checkpoint: auto-migrate v1→v2 failed for ${sessionID}: ${mig.error ?? "unknown error"}`,
@@ -221,7 +229,7 @@ export function readHeader(
       return null;
     }
     try {
-      const raw = readFileSync(fp, "utf-8");
+      const raw = fs.readFile(fp);
       firstLine = raw.split("\n")[0]?.trim();
     } catch {
       return null;
@@ -267,17 +275,18 @@ export function readHeader(
 function migrateV1ToV2InPlace(
   sessionID: string,
   dir?: string,
+  fs: FsOps = defaultFsOps,
 ): { ok: boolean; lines: number; error?: string } {
   const d = dir ?? getCheckpointDir();
   const fp = filePath(sessionID, dir);
 
-  if (!existsSync(fp)) {
+  if (!fs.exists(fp)) {
     return { ok: false, lines: 0, error: "checkpoint not found" };
   }
 
   let raw: string;
   try {
-    raw = readFileSync(fp, "utf-8");
+    raw = fs.readFile(fp);
   } catch (e) {
     return { ok: false, lines: 0, error: e instanceof Error ? e.message : String(e) };
   }
@@ -321,7 +330,7 @@ function migrateV1ToV2InPlace(
   // we never destroy data without a safety copy.
   const backupPath = join(d, `${sessionID}.jsonl.v1.bak`);
   try {
-    copyFileSync(fp, backupPath);
+    fs.copyFile(fp, backupPath);
   } catch (e) {
     return {
       ok: false,
@@ -347,7 +356,7 @@ function migrateV1ToV2InPlace(
   );
 
   try {
-    writeFileSync(fp, finalHeaderStr + bodyConcat);
+    fs.writeFile(fp, finalHeaderStr + bodyConcat);
   } catch (e) {
     return {
       ok: false,

@@ -10,7 +10,7 @@
 // `createCheckpointTool` invocation — there is no shared state between
 // plugins.
 
-import { appendFileSync, writeFileSync } from "node:fs";
+import { defaultFsOps, type FsOps } from "@sffmc/shared";
 
 import { crc32 } from "./crc.js";
 import { buildV2Body, computeV2HeaderStr, readHeader } from "./header.js";
@@ -31,12 +31,20 @@ let _bufferInsertionCounter = 0;
 
 /** Flush a single session's buffer to disk. Merges the buffered calls
  *  with any existing on-disk calls so the header's `lineOffsets` index
- *  reflects the union. Preserves `createdAt` across flushes. */
-export function flushSession(state: CheckpointBufferState, sessionID: string): void {
+ *  reflects the union. Preserves `createdAt` across flushes.
+ *
+ *  Accepts an optional `fs` injection for tests (defaults to `defaultFsOps`).
+ *  Pass `createMockFsOps()` here to verify the flush pipeline without
+ *  touching the real disk. */
+export function flushSession(
+  state: CheckpointBufferState,
+  sessionID: string,
+  fs: FsOps = defaultFsOps,
+): void {
   const entry = state.sessionBuffers.get(sessionID);
   if (!entry || entry.buf.length === 0) return;
 
-  ensureDir(state.dir);
+  ensureDir(state.dir, fs);
 
   const fp = filePath(sessionID, state.dir);
   const isNewFile = !state.headersWritten.has(sessionID);
@@ -47,9 +55,9 @@ export function flushSession(state: CheckpointBufferState, sessionID: string): v
   let createdAt = Date.now();
   if (!isNewFile) {
     try {
-      const priorHeader = readHeader(sessionID, state.dir, Number.MAX_SAFE_INTEGER);
+      const priorHeader = readHeader(sessionID, state.dir, Number.MAX_SAFE_INTEGER, fs);
       if (priorHeader) createdAt = priorHeader.createdAt;
-      existingCalls = readToolCallsShim(sessionID, state.dir, Number.MAX_SAFE_INTEGER);
+      existingCalls = readToolCallsShim(sessionID, state.dir, Number.MAX_SAFE_INTEGER, fs);
     } catch {
       // Treat as empty if reading fails — fall through to overwrite.
     }
@@ -77,25 +85,25 @@ export function flushSession(state: CheckpointBufferState, sessionID: string): v
     Date.now(),
   );
 
-  // Write the file. For the first flush we use appendFileSync (single
+  // Write the file. For the first flush we use appendFile (single
   // syscall for header+body) — this preserves the v0.14.5 "batched
-  // single-syscall" property. For subsequent flushes, writeFileSync is
+  // single-syscall" property. For subsequent flushes, writeFile is
   // required because the header's `lineOffsets` grew and must be
   // rewritten at byte offset 0; this is also a single syscall.
   if (isNewFile) {
-    appendFileSync(fp, finalHeaderStr + bodyConcat);
+    fs.appendFile(fp, finalHeaderStr + bodyConcat);
     state.headersWritten.add(sessionID);
   } else {
-    writeFileSync(fp, finalHeaderStr + bodyConcat);
+    fs.writeFile(fp, finalHeaderStr + bodyConcat);
   }
   entry.buf.length = 0;
 }
 
 /** Flush every session's buffer to disk. Called by the periodic timer
  *  and by `cleanup()`. */
-export function flushAll(state: CheckpointBufferState): void {
+export function flushAll(state: CheckpointBufferState, fs: FsOps = defaultFsOps): void {
   for (const sid of state.sessionBuffers.keys()) {
-    flushSession(state, sid);
+    flushSession(state, sid, fs);
   }
 }
 

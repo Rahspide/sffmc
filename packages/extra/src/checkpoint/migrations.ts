@@ -10,7 +10,7 @@
 // this module is retained for internal callers that need the structured
 // MigrationResult (e.g. telemetry) and for the regression test suite.
 
-import { existsSync, readFileSync } from "node:fs";
+import { defaultFsOps, type FsOps } from "@sffmc/shared";
 
 import { DEFAULT_MAX_CHECKPOINT_FILE_SIZE } from "./constants.js";
 import { readHeader } from "./header.js";
@@ -31,10 +31,13 @@ import type { MigrationResult, ToolCall } from "./types.js";
  *
  *  No longer exported via the public package — callers should rely on
  *  auto-migration. Kept here for internal callers that need the
- *  structured MigrationResult. */
+ *  structured MigrationResult.
+ *
+ *  Accepts an optional `fs` injection; defaults to `defaultFsOps`. */
 export function migrateV1ToV2(
   sessionID: string,
   dir?: string,
+  fs: FsOps = defaultFsOps,
 ): MigrationResult {
   const fp = filePath(sessionID, dir);
 
@@ -46,7 +49,7 @@ export function migrateV1ToV2(
     error,
   });
 
-  if (!existsSync(fp)) {
+  if (!fs.exists(fp)) {
     return fail(1, 0, "checkpoint not found");
   }
 
@@ -55,7 +58,7 @@ export function migrateV1ToV2(
   // lets us report the correct `sourceVersion` in the result.
   let originalVersion: 1 | 2 = 1;
   try {
-    const raw = readFileSync(fp, "utf-8");
+    const raw = fs.readFile(fp);
     const firstLine = raw.split("\n")[0]?.trim();
     if (firstLine) {
       const parsed = JSON.parse(firstLine) as Record<string, unknown>;
@@ -69,7 +72,7 @@ export function migrateV1ToV2(
   // migration failed or the file is not a valid checkpoint).
   let header: ReturnType<typeof readHeader>;
   try {
-    header = readHeader(sessionID, dir, DEFAULT_MAX_CHECKPOINT_FILE_SIZE);
+    header = readHeader(sessionID, dir, DEFAULT_MAX_CHECKPOINT_FILE_SIZE, fs);
   } catch (e) {
     return fail(originalVersion, 0, e instanceof Error ? e.message : String(e));
   }
@@ -79,7 +82,7 @@ export function migrateV1ToV2(
 
   let calls: ToolCall[];
   try {
-    calls = readToolCallsShim(sessionID, dir, DEFAULT_MAX_CHECKPOINT_FILE_SIZE);
+    calls = readToolCallsShim(sessionID, dir, DEFAULT_MAX_CHECKPOINT_FILE_SIZE, fs);
   } catch (e) {
     return fail(originalVersion, 0, e instanceof Error ? e.message : String(e));
   }
