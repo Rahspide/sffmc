@@ -80,26 +80,4 @@ describe("@sffmc/workflow — second release scheduleFlush debounce", () => {
     expect(getFlushDebounceMs()).toBe(250)
   })
 
-  it("Documented: runtime.ts still uses the hardcoded 250 — deferred wiring per v0.14.1 policy", () => {
-    // This test asserts the CURRENT (v0.14.3 second release Batch C) state.
-    // It will need to be updated when runtime.ts is migrated in a
-    // follow-up hotfix commit.
-    //
-    // The deferred-wiring check: the literal `setTimeout(..., 250)` is
-    // still present in runtime.ts:scheduleFlush. Once runtime.ts is
-    // updated, this test should be removed and a new test should verify
-    // `setTimeout(..., getFlushDebounceMs())` instead.
-    const runtimePath = path.join(__dirname, "..", "src", "runtime.ts")
-    expect(existsSync(runtimePath)).toBe(true)
-    const src = readFileSync(runtimePath, "utf-8")
-    // Locate the scheduleFlush method definition (not the call sites).
-    const scheduleFlushIdx = src.indexOf("private scheduleFlush(")
-    expect(scheduleFlushIdx).toBeGreaterThan(-1)
-    // Slice from the method definition onward and look for the closing
-    // `}, 250)` — that's the setTimeout's debounce literal.
-    const after = src.slice(scheduleFlushIdx, scheduleFlushIdx + 400)
-    expect(after).toMatch(/\}\s*,\s*250\s*\)/)
-    // Defensive: the getter should NOT appear in the scheduleFlush body yet.
-    expect(after).not.toContain("getFlushDebounceMs()")
-  })
 })
