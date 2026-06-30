@@ -11,7 +11,7 @@ import {
   journalKeyBase,
   flushJournalSync,
 } from "./persistence.ts"
-import { BoundedLRU } from "./lru.ts"
+import { OutcomeStore } from "./outcome-store.ts"
 import { CounterManager } from "./counter-manager.ts"
 import { WorkflowEventEmitter } from "./event-emitter.ts"
 import { WorkflowActivation } from "./activation.ts"
@@ -261,14 +261,14 @@ export class WorkflowRuntime {
    *  so late `wait()` calls return the same value as the in-flight
    *  entry would have.
    *
-   *  Bounded via BoundedLRU so a long-lived daemon doesn't grow this
-   *  map unbounded (each entry can hold step results, error messages,
-   *  tokensUsed). Capacity is configured via the
+   *  Bounded via OutcomeStore (which wraps a BoundedLRU) so a long-lived
+   *  daemon doesn't grow this map unbounded (each entry can hold step
+   *  results, error messages, tokensUsed). Capacity is configured via the
    *  `completedOutcomesCacheSize` RuntimeOpt or the
    *  `WORKFLOW_OUTCOMES_CACHE_SIZE` env var (default: 500). Evicted
    *  runIDs fall back to "unknown runID" — acceptable per the design
    *  comment above. Cleared by `close()`. */
-  private completedOutcomes: BoundedLRU<string, WorkflowOutcome>
+  private outcomes: OutcomeStore<string, WorkflowOutcome>
 
   constructor(ctx: PluginContext, opts: RuntimeOpts = {}) {
     this.ctx = ctx
@@ -283,9 +283,9 @@ export class WorkflowRuntime {
     if (opts.configOverride) {
       this.setConfig(opts.configOverride)
     }
-    // completedOutcomes cache — bounded LRU so long-lived daemons don't
-    // grow indefinitely. Opt > env > 500 default.
-    this.completedOutcomes = new BoundedLRU<string, WorkflowOutcome>(
+    // OutcomeStore cache — bounded LRU so long-lived daemons don't grow
+    // indefinitely. Opt > env > 500 default.
+    this.outcomes = new OutcomeStore<string, WorkflowOutcome>(
       opts.completedOutcomesCacheSize ?? resolveOutcomesCacheSize(),
     )
   }
@@ -450,7 +450,7 @@ export class WorkflowRuntime {
       // McpBridge / journalResults / AbortController are GC-eligible). A
       // late `wait()` for a settled runID returns the cached outcome
       // instead of a synthetic "unknown runID" failure.
-      const completed = this.completedOutcomes.get(input.runID)
+      const completed = this.outcomes.get(input.runID)
       if (completed) return completed
       return {
         runID: input.runID,
@@ -492,7 +492,7 @@ export class WorkflowRuntime {
     // v0.14.x C-2 — cache the resolved outcome (late wait() callers still
     // need it) then drop the entry from `this.runs` so the McpBridge,
     // journalResults Map, AbortController, and closures are GC-eligible.
-    this.completedOutcomes.set(entry.runID, outcome)
+    this.outcomes.put(entry.runID, outcome)
     this.runs.release(entry.runID)
   }
 
@@ -592,7 +592,7 @@ export class WorkflowRuntime {
     this.runs.clear()
     // Also drop the completed-outcomes cache — the runtime is going away
     // and any further `wait()` calls are meaningless.
-    this.completedOutcomes.clear()
+    this.outcomes.clear()
     // Clear event listeners
     this.events.clearAll()
     // Clear flush timers
@@ -1165,7 +1165,7 @@ export class WorkflowRuntime {
     // journalResults Map, childRunIDs Set, AbortController, and closures
     // are GC-eligible. Without this, every completed run leaks its
     // entry for the lifetime of the runtime.
-    this.completedOutcomes.set(entry.runID, outcome)
+    this.outcomes.put(entry.runID, outcome)
     this.runs.release(entry.runID)
   }
 
@@ -1184,7 +1184,7 @@ export class WorkflowRuntime {
     // journalResults Map, childRunIDs Set, AbortController, and closures
     // are GC-eligible. Without this, every failed run leaks its entry
     // for the lifetime of the runtime.
-    this.completedOutcomes.set(entry.runID, outcome)
+    this.outcomes.put(entry.runID, outcome)
     this.runs.release(entry.runID)
   }
 

@@ -2,7 +2,8 @@
 // @sffmc/workflow — see ../../LICENSE
 
 // Tests for the BoundedLRU class (packages/workflow/src/lru.ts) and its
-// integration with WorkflowRuntime.completedOutcomes. Covers:
+// integration with WorkflowRuntime.outcomes (an OutcomeStore wrapper, Task
+// 1.4). Covers:
 //   - direct BoundedLRU unit tests (insert / over-cap / oldest-evicted /
 //     delete / clear / re-set semantics / size=0)
 //   - WORKFLOW_OUTCOMES_CACHE_SIZE env var resolution
@@ -18,6 +19,7 @@ const tmpDir = mkdtempSync(path.join(tmpdir(), "sffmc-workflow-lru-"))
 process.env.XDG_DATA_HOME = tmpDir
 
 import { BoundedLRU } from "../src/lru.ts"
+import { OutcomeStore } from "../src/outcome-store.ts"
 import { WorkflowRuntime } from "../src/runtime"
 import type { PluginContext } from "../src/runtime"
 import { CounterManager } from "../src/counter-manager.ts"
@@ -126,17 +128,17 @@ describe("BoundedLRU", () => {
   })
 })
 
-// ── Runtime integration: BoundedLRU is wired to completedOutcomes ────────
+// ── Runtime integration: OutcomeStore wraps BoundedLRU ──────────────────
 
-describe("WorkflowRuntime.completedOutcomes uses BoundedLRU", () => {
+describe("WorkflowRuntime.outcomes wraps BoundedLRU via OutcomeStore", () => {
   test("WORKFLOW_OUTCOMES_CACHE_SIZE env var controls capacity", () => {
     const prev = process.env.WORKFLOW_OUTCOMES_CACHE_SIZE
     try {
       process.env.WORKFLOW_OUTCOMES_CACHE_SIZE = "7"
       const runtime = new WorkflowRuntime(mockCtx)
       const outcomes = (runtime as unknown as {
-        completedOutcomes: BoundedLRU<string, unknown>
-      }).completedOutcomes
+        outcomes: OutcomeStore<string, unknown>
+      }).outcomes
       expect(outcomes.capacity).toBe(7)
       expect(outcomes.size).toBe(0)
     } finally {
@@ -151,8 +153,8 @@ describe("WorkflowRuntime.completedOutcomes uses BoundedLRU", () => {
       process.env.WORKFLOW_OUTCOMES_CACHE_SIZE = "not-a-number"
       const runtime = new WorkflowRuntime(mockCtx)
       const outcomes = (runtime as unknown as {
-        completedOutcomes: BoundedLRU<string, unknown>
-      }).completedOutcomes
+        outcomes: OutcomeStore<string, unknown>
+      }).outcomes
       expect(outcomes.capacity).toBe(500)
     } finally {
       if (prev === undefined) delete process.env.WORKFLOW_OUTCOMES_CACHE_SIZE
@@ -166,8 +168,8 @@ describe("WorkflowRuntime.completedOutcomes uses BoundedLRU", () => {
       process.env.WORKFLOW_OUTCOMES_CACHE_SIZE = "7"
       const runtime = new WorkflowRuntime(mockCtx, { completedOutcomesCacheSize: 3 })
       const outcomes = (runtime as unknown as {
-        completedOutcomes: BoundedLRU<string, unknown>
-      }).completedOutcomes
+        outcomes: OutcomeStore<string, unknown>
+      }).outcomes
       expect(outcomes.capacity).toBe(3)
     } finally {
       if (prev === undefined) delete process.env.WORKFLOW_OUTCOMES_CACHE_SIZE
@@ -236,8 +238,8 @@ describe("WorkflowRuntime.completedOutcomes uses BoundedLRU", () => {
 
     // Cache size capped at 2 — oldest two should have been evicted.
     const outcomes = (runtime as unknown as {
-      completedOutcomes: BoundedLRU<string, unknown>
-    }).completedOutcomes
+      outcomes: OutcomeStore<string, unknown>
+    }).outcomes
     expect(outcomes.size).toBe(2)
     // ids[0] and ids[1] evicted; ids[2] and ids[3] remain.
     expect(outcomes.get(ids[0])).toBeUndefined()
