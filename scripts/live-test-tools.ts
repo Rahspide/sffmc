@@ -61,7 +61,7 @@ console.log("[LOAD] Loading agentic + memory MSPs...")
 const agentic = await agenticServer(mockCtx)
 const memory = await memoryServer(mockCtx)
 const msps: Record<string, { tool?: Record<string, Tool> }> = {
-  "@sffmc/agentic": agentic as { tool?: Record<string, Tool> },
+  "@sffmc/runtime": agentic as { tool?: Record<string, Tool> },
   "@sffmc/memory": memory as { tool?: Record<string, Tool> },
 }
 console.log("✓ Both MSPs loaded\n")
@@ -71,7 +71,7 @@ console.log("[EXEC] Calling 5 tools in parallel...\n")
 // 1. workflow — proper inline script (must have `export const meta = {...}`)
 await callTool(
   msps,
-  "@sffmc/agentic",
+  "@sffmc/runtime",
   "workflow",
   {
     operation: "run",
@@ -86,7 +86,7 @@ await callTool(
 // 2. compose_skill — ask skill
 await callTool(
   msps,
-  "@sffmc/agentic",
+  "@sffmc/runtime",
   "compose_skill",
   { name: "ask" },
   "compose_skill (ask)",

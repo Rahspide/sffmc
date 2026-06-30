@@ -34,14 +34,14 @@ if (!healthTool) {
 }
 console.log("✓ sffmc_health registered in @sffmc/cognition")
 
-console.log("\n[2/2] Loading @sffmc/agentic (composed MSP)...")
+console.log("\n[2/2] Loading @sffmc/runtime (composed MSP)...")
 const agenticResult = await agenticServer(mockCtx)
 const agenticTool = (agenticResult.tool as { sffmc_health?: Tool }).sffmc_health
 if (!agenticTool) {
   console.error("✗ sffmc_health tool NOT in agentic MSP (mergeHooks dropped it?)")
   process.exit(1)
 }
-console.log("✓ sffmc_health registered in @sffmc/agentic (via mergeHooks)")
+console.log("✓ sffmc_health registered in @sffmc/runtime (via mergeHooks)")
 
 console.log("\n[EXEC] Calling sffmc_health.execute()...")
 const raw = await healthTool.execute({})
