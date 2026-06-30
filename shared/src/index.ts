@@ -41,3 +41,4 @@ export {
 export { SECONDS_PER_DAY, __resetClock, __setClock, unixNow } from "./time.ts"
 export { defaultFsOps, createMockFsOps } from "./fs-ops.ts"
 export type { FsOps, MockFsOpsState } from "./fs-ops.ts"
+export { isSafeRunID, RUN_ID_REGEX, safeRunID } from "./safe-run-id.ts"

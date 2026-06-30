@@ -12,13 +12,16 @@ import type { WorkflowRun, WorkflowStep, JournalEvent, WorkflowStatus } from "./
 import { applySchema } from "./schema.ts"
 import { ensureWorkflowConfig, getDbFilename, getWorkflowConfigSync, getWorkflowDataDir } from "./constants.ts"
 import { validateJournalEvent } from "./schema-journal.ts"
-import { createLogger, defaultFsOps, type FsOps, unixNow } from "@sffmc/shared"
+import { createLogger, defaultFsOps, type FsOps, safeRunID, unixNow } from "@sffmc/shared"
+// Re-exported so existing test consumers (e.g. `foundation.test.ts`,
+// `v0-14-3-schema-journal.test.ts`, `runtime-coverage.test.ts`) that
+// imported `RUN_ID_REGEX` directly from `./persistence.ts` keep working.
+// The canonical home is `@sffmc/shared`'s `safe-run-id.ts`.
+export { RUN_ID_REGEX } from "@sffmc/shared"
 
 // ---------------------------------------------------------------------------
 // RunID generation (base62)
 // ---------------------------------------------------------------------------
-
-export const RUN_ID_REGEX = /^wf_[0-9A-Za-z]{26}$/
 
 const log = createLogger("workflow:persistence")
 
@@ -44,16 +47,6 @@ export function generateRunID(): string {
   let id = base62Encode(bytes)
   while (id.length < 26) id = "0" + id
   return "wf_" + id.slice(0, 26)
-}
-
-// ---------------------------------------------------------------------------
-// Security: runID validation
-// ---------------------------------------------------------------------------
-
-function safeRunID(runID: string): void {
-  if (!RUN_ID_REGEX.test(runID)) {
-    throw new Error(`invalid workflow runID: ${JSON.stringify(runID)}`)
-  }
 }
 
 // ---------------------------------------------------------------------------
