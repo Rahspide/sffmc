@@ -21,15 +21,15 @@ import {
   defaultFsOps,
   SECONDS_PER_DAY,
   unixNow,
-} from "@sffmc/shared"
+} from "@sffmc/utilities"
 
 import {
   flushSession,
   getOrCreateBuffer,
   type CheckpointBufferState,
   type ToolCall,
-} from "../src/checkpoint/buffer.ts"
-import { clearCronTimer, createDreamTool } from "../src/dream.ts"
+} from "../src/extra/checkpoint/buffer.ts"
+import { clearCronTimer, createDreamTool } from "../src/extra/dream.ts"
 
 // ---------------------------------------------------------------------------
 // mockFsOps: in-memory checkpoint flush round-trip

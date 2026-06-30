@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// @sffmc/extra — Dream tests
+// @sffmc/utilities — Dream tests
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "bun:test";
 import { Database } from "bun:sqlite";
@@ -16,7 +16,7 @@ import {
   type DreamResult,
   type RichPluginContext,
   type MemoryRow,
-} from "../../src/extra/dream.ts";
+} from "../src/extra/dream.ts";
 import { mkdirSync, existsSync, readFileSync, unlinkSync, rmdirSync, rmSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { homedir, tmpdir } from "node:os";

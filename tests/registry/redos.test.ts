@@ -13,7 +13,7 @@
 
 import { describe, it, expect } from "bun:test"
 import safeRegex from "safe-regex"
-import { __listBuiltinRedactionRules } from "../../shared/src/redact-secrets.ts"
+import { __listBuiltinRedactionRules } from "../../packages/utilities/src/redact-secrets.ts"
 
 const REPETITION_LIMIT = 25
 

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// @sffmc/extra — Judge tests
+// @sffmc/utilities — Judge tests
 
 import { describe, it, expect } from "bun:test";
 import {
@@ -15,7 +15,7 @@ import {
   type JudgeExecuteResult,
   type JudgeScore,
   type JudgeStreamChunk,
-} from "../../src/extra/judge.ts";
+} from "../src/extra/judge.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers

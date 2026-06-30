@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/cognition — see ../../LICENSE
 //
-// Aggregator index for @sffmc/cognition (replaces dissolved @sffmc/agentic
+// Aggregator index for @sffmc/cognition (replaces dissolved @sffmc/utilities
 // composite's aggregation role). Re-exports hooks, tools, and other
 // public symbols from the 3 sub-packages: max-mode, compose, health.
 //
 // This file is the public entry point for `@sffmc/cognition`. Consumers
-// that previously did `import { ... } from "@sffmc/agentic"` should
+// that previously did `import { ... } from "@sffmc/utilities"` should
 // switch to `import { ... } from "@sffmc/cognition"`. Hook event names
 // and tool names are preserved exactly so plugin consumer code does
 // not change.

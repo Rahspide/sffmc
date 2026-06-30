@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// @sffmc/extra — checkpoint.test.ts
+// @sffmc/utilities — checkpoint.test.ts
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "bun:test";
 import { mkdtempSync, rmSync, writeFileSync, existsSync, readFileSync, readdirSync, unlinkSync } from "node:fs";
@@ -15,8 +15,8 @@ import {
   CURRENT_VERSION,
   _findLRUVictim,
   CheckpointTooLargeError,
-} from "../../src/extra/checkpoint.ts";
-import type { SessionBufferEntry } from "../../src/extra/checkpoint.ts";
+} from "../src/extra/checkpoint.ts";
+import type { SessionBufferEntry } from "../src/extra/checkpoint.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers

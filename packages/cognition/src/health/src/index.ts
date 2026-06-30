@@ -699,13 +699,13 @@ export const checkChangelogCurrency = createCheck("changelog_currency", async (r
   };
 });
 
-// Check 11: @sffmc/extra opt-in status (informational only)
+// Check 11: @sffmc/utilities opt-in status (informational only)
 export const checkExtraOptIn = createCheck("extra_opt_in", async (repoRoot) => {
   const extraDir = join(repoRoot, "packages", "extra");
   if (!(await fileExists(extraDir))) {
     return {
       status: "ok",
-      detail: "@sffmc/extra not installed (packages/extra/ not found)",
+      detail: "@sffmc/utilities not installed (packages/extra/ not found)",
     };
   }
 
@@ -713,7 +713,7 @@ export const checkExtraOptIn = createCheck("extra_opt_in", async (repoRoot) => {
   if (!(await fileExists(configPath))) {
     return {
       status: "ok",
-      detail: "@sffmc/extra installed, config not found — all features off (default)",
+      detail: "@sffmc/utilities installed, config not found — all features off (default)",
     };
   }
 
@@ -728,13 +728,13 @@ export const checkExtraOptIn = createCheck("extra_opt_in", async (repoRoot) => {
     if (enabled.length === 0) {
       return {
         status: "ok",
-        detail: "@sffmc/extra installed, config present, all features off",
+        detail: "@sffmc/utilities installed, config present, all features off",
       };
     }
 
     return {
       status: "ok",
-      detail: `@sffmc/extra: ${enabled.length}/3 features enabled (${enabled.join(", ")})`,
+      detail: `@sffmc/utilities: ${enabled.length}/3 features enabled (${enabled.join(", ")})`,
     };
   } catch {
     return {
@@ -943,7 +943,7 @@ Checks performed:
 8. sdk_compliance — verifies packages import from @sffmc/utilities (2 known exceptions: max-mode, workflow)
 9. tsconfig_presence — verifies each package has tsconfig.json (migration-progress check)
 10. changelog_currency — verifies CHANGELOG.md version matches root package.json
-11. extra_opt_in — reports @sffmc/extra opt-in status (informational; 3 opt-in features off by default)
+11. extra_opt_in — reports @sffmc/utilities opt-in status (informational; 3 opt-in features off by default)
 12. category_split — counts mimo-port (7) + sffmc-original (4) + composites (3) = 14 packages
 13. composite_structure — verifies safety/memory/agentic composites have role + composes fields + mergeHooks() + listed features
 

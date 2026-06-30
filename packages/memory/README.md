@@ -1,6 +1,6 @@
 # @sffmc/memory
 
-> **This is the memory composite.** It composes 4 sub-features: `memory-core` (SQLite + context recall, inlined), plus `checkpoint` / `judge` / `dream` from `@sffmc/extra` (all opt-in, disabled by default — flip flags in `~/.config/SFFMC/extra.yaml` per feature). The standalone `memory` package now exports the composite that wires the 4 sub-features via `mergeHooks()`.
+> **This is the memory composite.** It composes 4 sub-features: `memory-core` (SQLite + context recall, inlined), plus `checkpoint` / `judge` / `dream` from `@sffmc/utilities` (all opt-in, disabled by default — flip flags in `~/.config/SFFMC/extra.yaml` per feature). The standalone `memory` package now exports the composite that wires the 4 sub-features via `mergeHooks()`.
 
 ## Sub-features
 
@@ -9,11 +9,11 @@ Memory composes 2 sub-features via `mergeHooks()`:
 | Sub-feature | Description |
 |---|---|
 | `memory-core` | FTS5 SQLite index + chokidar watcher + context-recall injection (internal, in `packages/memory/src/plugin.ts`) |
-| [`@sffmc/extra`](../extra/README.md) | 3 opt-in named tools: `extra_checkpoint`, `extra_judge`, `extra_dream` (disabled by default; enable per-feature in `~/.config/SFFMC/extra.yaml`) |
+| [`@sffmc/utilities`](../extra/README.md) | 3 opt-in named tools: `extra_checkpoint`, `extra_judge`, `extra_dream` (disabled by default; enable per-feature in `~/.config/SFFMC/extra.yaml`) |
 
 ## Opt-in configuration
 
-To enable @sffmc/extra features:
+To enable @sffmc/utilities features:
 
 ```yaml
 # opencode.json
