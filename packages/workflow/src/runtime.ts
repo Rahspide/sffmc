@@ -17,6 +17,7 @@ import { createEventBus } from "./events.ts"
 import { makeSemaphore, acquireLock } from "./concurrency.ts"
 import { makeEntry, outcomeFor, type InternalRunEntry } from "./internal-run-entry.ts"
 import { resolveWorkflowScript } from "./script-resolver.ts"
+import { FlushManager } from "./flush-manager.ts"
 
 import { parseMeta } from "./meta.ts"
 import {
@@ -129,7 +130,7 @@ export class WorkflowRuntime {
    *  contract and activation.test.ts for the regression net. */
   private runs = new WorkflowActivation<InternalRunEntry>()
   private globalSem: ReturnType<typeof makeSemaphore>
-  private flushTimers = new Map<string, ReturnType<typeof setTimeout>>()
+  private flushManager: FlushManager
   private persistence: WorkflowPersistence
   /** Event bus for observability listeners.
    *  One emitter per runtime, shared across all runs (Task 1.3, M-1
@@ -189,6 +190,7 @@ export class WorkflowRuntime {
     // `__setWorkflowConfig()` before constructing the runtime.
     this.globalSem = makeSemaphore(resolveMaxConcurrentAgents())
     this.persistence = opts.persistence ?? new WorkflowPersistence()
+    this.flushManager = new FlushManager(this.persistence)
     if (opts.gracePeriodMsOverride !== undefined) {
       this.setGracePeriodMs(opts.gracePeriodMsOverride)
     }
@@ -508,10 +510,7 @@ export class WorkflowRuntime {
     // Clear event listeners
     this.events.clearAll()
     // Clear flush timers
-    for (const [, t] of this.flushTimers) {
-      clearTimeout(t)
-    }
-    this.flushTimers.clear()
+    this.flushManager.clearAll()
     // Close persistence (DB connection)
     this.persistence.close()
   }
@@ -1109,49 +1108,19 @@ export class WorkflowRuntime {
     }
   }
 
+  /** Schedule a debounced DB counter flush for `entry`. Delegates to
+   *  `FlushManager` (M-1 god-object extract, Task 1.6). Kept as a
+   *  runtime-instance method so internal call sites read naturally. */
   private scheduleFlush(entry: InternalRunEntry): void {
-    if (this.flushTimers.has(entry.runID)) return
-    const t = setTimeout(() => {
-      this.flushTimers.delete(entry.runID)
-      this.flushNow(entry)
-    }, 250)
-    t.unref?.()
-    this.flushTimers.set(entry.runID, t)
+    this.flushManager.scheduleFlush(entry)
   }
 
+  /** Flush the DB counter row for `entry` immediately, cancelling any
+   *  pending debounce timer. Delegates to `FlushManager`. Kept as a
+   *  runtime-instance method because `runtime-coverage.test.ts` and
+   *  `lru-cache.test.ts` invoke this via reflection (`runtime as unknown as
+   *  { flushNow: ... }`). */
   private flushNow(entry: InternalRunEntry): void {
-    const t = this.flushTimers.get(entry.runID)
-    if (t) {
-      clearTimeout(t)
-      this.flushTimers.delete(entry.runID)
-    }
-    // Update DB counters
-    const db = this.persistence.getDB()
-    try {
-      // Defensive `?? 0` — the schema requires NOT NULL for running /
-      // succeeded / failed (schema.ts:13-16). In production, `makeEntry()`
-      // always initializes `entry.counters = new CounterManager()` so the
-      // `??` is a no-op. But tests that drive internal methods via
-      // reflection (e.g. `runtime-coverage.test.ts`,
-      // `spawn-child-coverage.test.ts`) build minimal fake entries that
-      // may not include `counters`. When those tests trigger
-      // `scheduleFlush` indirectly, the timer fires 250ms later and
-      // `flushNow` would throw on `entry.counters.running`. The
-      // optional-chaining + `?? 0` coercion matches the previous
-      // behavior (zero-default for missing fields) so the UPDATE
-      // succeeds silently.
-      db.run(
-        `UPDATE workflow_runs SET running = ?, succeeded = ?, failed = ?, time_updated = ? WHERE id = ?`,
-        [
-          entry.counters?.running ?? 0,
-          entry.counters?.succeeded ?? 0,
-          entry.counters?.failed ?? 0,
-          Math.floor(Date.now() / 1000),
-          entry.runID,
-        ],
-      )
-    } catch (e) {
-      log.debug("flushNow DB update error:", e)
-    }
+    this.flushManager.flushNow(entry)
   }
 }
