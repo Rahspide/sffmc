@@ -10,21 +10,21 @@
 | Slot | Plugin | Hooks registered |
 |---|---|---|
 | 13 | @sffmc/memory | `config`, `event`, `experimental.chat.messages.transform` |
-| 14 | @sffmc/rules | `tool.execute.before`, `permission.ask` |
-| 15 | @sffmc/watchdog | `config`, `event`, `tool.execute.after`, `experimental.chat.system.transform`, `experimental.chat.messages.transform`, `command.execute.before` |
-| 16 | @sffmc/eos-stripper | `config`, `experimental.text.complete` |
-| 17 | @sffmc/log-whitelist | `config`, `tool.execute.after`, `experimental.text.complete` |
-| 18 | @sffmc/max-mode | `config`, `command.execute.before`, `experimental.chat.system.transform`, `tool.execute.before`, `experimental.chat.messages.transform` |
-| 19 | @sffmc/auto-max | `config`, `event`, `tool.execute.after`, `experimental.chat.system.transform` |
-| 20 | @sffmc/compose | `tool` (compose_skill) |
-| 21 | @sffmc/workflow | `config`, `tool` (workflow) |
+| 14 | @sffmc/safety | `tool.execute.before`, `permission.ask` |
+| 15 | @sffmc/safety | `config`, `event`, `tool.execute.after`, `experimental.chat.system.transform`, `experimental.chat.messages.transform`, `command.execute.before` |
+| 16 | @sffmc/safety | `config`, `experimental.text.complete` |
+| 17 | @sffmc/safety | `config`, `tool.execute.after`, `experimental.text.complete` |
+| 18 | @sffmc/cognition | `config`, `command.execute.before`, `experimental.chat.system.transform`, `tool.execute.before`, `experimental.chat.messages.transform` |
+| 19 | @sffmc/safety | `config`, `event`, `tool.execute.after`, `experimental.chat.system.transform` |
+| 20 | @sffmc/cognition | `tool` (compose_skill) |
+| 21 | @sffmc/runtime | `config`, `tool` (workflow) |
 
 ## Tool name audit
 
 | Tool | Plugin | External conflict? |
 |---|---|---|
-| `compose_skill` | @sffmc/compose | ✓ none |
-| `workflow` | @sffmc/workflow | ✓ none |
+| `compose_skill` | @sffmc/cognition | ✓ none |
+| `workflow` | @sffmc/runtime | ✓ none |
 
 ## Hook multi-registration analysis
 
@@ -84,7 +84,7 @@ This section documents how SFFMC plugins interact with the standard OpenCode plu
 ## Cross-stack load order
 
 SFFMC plugins load in a deterministic order (composites first, then sub-features). This means:
-- Composite packages (`@sffmc/safety`, `@sffmc/memory`, `@sffmc/agentic`) register their composed hooks before any individual sub-feature re-registers.
+- Composite packages (`@sffmc/safety`, `@sffmc/memory`, `@sffmc/runtime + @sffmc/cognition`) register their composed hooks before any individual sub-feature re-registers.
 - Sub-features can rely on shared SDK (config loading, event bus) being available.
 - No "race condition" where a SFFMC plugin runs before a dependency.
 

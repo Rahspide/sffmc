@@ -40,7 +40,7 @@ mkdir src
 // SPDX-License-Identifier: MIT
 // @sffmc/my-feature — see ../../LICENSE
 
-import type { PluginContext } from "@sffmc/shared"  // or your own interface
+import type { PluginContext } from "@sffmc/utilities"  // or your own interface
 
 export default {
   id: "@sffmc/my-feature",

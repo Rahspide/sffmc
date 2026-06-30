@@ -21,13 +21,13 @@ If you know one, you know all three. The differences are in what gets injected i
 | Feature | vanilla OpenCode | MiMo-Code (fork) | SFFMC (plugin suite) |
 |---|---|---|---|
 | **Memory** | No | Built-in (hardcoded) | Plugin (`@sffmc/memory`) |
-| **Rules** | No | Built-in (hardcoded) | Plugin (`@sffmc/rules`) |
+| **Rules** | No | Built-in (hardcoded) | Plugin (`@sffmc/safety`) |
 | **Watchdog** | No | Built-in (hardcoded) | Plugin (`@sffmc/safety`) |
-| **Max Mode** | No | Built-in (hardcoded) | Plugin (`@sffmc/max-mode`) |
-| **Auto-Max triggers** | No | Built-in (hardcoded) | Plugin (`@sffmc/auto-max`) |
-| **Dynamic Workflow** | No | Built-in (hardcoded) | Plugin (`@sffmc/workflow`) |
-| **Verify skill** | No | Built-in (hardcoded) | Plugin (`@sffmc/compose`) |
-| **Compose pack** | No | Built-in (hardcoded) | Plugin (`@sffmc/compose`) |
+| **Max Mode** | No | Built-in (hardcoded) | Plugin (`@sffmc/cognition`) |
+| **Auto-Max triggers** | No | Built-in (hardcoded) | Plugin (`@sffmc/safety`) |
+| **Dynamic Workflow** | No | Built-in (hardcoded) | Plugin (`@sffmc/runtime`) |
+| **Verify skill** | No | Built-in (hardcoded) | Plugin (`@sffmc/cognition`) |
+| **Compose pack** | No | Built-in (hardcoded) | Plugin (`@sffmc/cognition`) |
 | **EOS token stripping** | No | PR #603 (pending) | Plugin (`@sffmc/safety`) |
 | **Log whitelist** | No | PR #604 (pending) | Plugin (`@sffmc/safety`) |
 
@@ -64,7 +64,7 @@ bun install
 #   "enabled": true
 # },
 # {
-#   "file": "~/.sffmc/plugins/sffmc/packages/rules/src/index.ts",
+#   "file": "~/.sffmc/plugins/sffmc/packages/safety/src/rules/src/index.ts",
 #   "enabled": true
 # }
 
@@ -92,7 +92,7 @@ bun install
 ```
 # 1. Remove plugin entries from opencode.json
 
-# Delete the @sffmc/memory and @sffmc/rules blocks from plugin[]
+# Delete the @sffmc/memory and @sffmc/safety blocks from plugin[]
 
 # 2. (Optional) Remove config files
 
@@ -163,7 +163,7 @@ Based on research of OpenCode community issues (5+ per day as of June 2026).
 
 **Problem**: Some local models (Ollama, vLLM, oMLX) emit end-of-sequence tokens mid-stream — `</s>`, `<|endoftext|>`, `<|im_end|>`, etc. When the agent sees these tokens, it interprets them as "conversation finished" and exits the loop after a single tool call. Your long-running task fails quickly.
 
-**What SFFMC does**: EOS stripper plugin sits on `experimental.text.complete` and strips 10 known EOS token patterns from the end of model output before the agent loop sees them. See `packages/eos-stripper/src/patterns.ts:DEFAULT_EOS_PATTERNS` for the canonical list.
+**What SFFMC does**: EOS stripper plugin sits on `experimental.text.complete` and strips 10 known EOS token patterns from the end of model output before the agent loop sees them. See `packages/safety/src/eos-stripper/src/patterns.ts:DEFAULT_EOS_PATTERNS` for the canonical list.
 
 ```
 # EOS tokens we strip (matches DEFAULT_EOS_PATTERNS):
@@ -220,7 +220,7 @@ SFFMC plugins use standard OpenCode hooks (`tool.execute.before`, `permission.as
 # Recommended order in opencode.json plugin[]:
 
 1. @sffmc/memory       (messages.transform — recon injection)
-2. @sffmc/rules        (tool.execute.before — safety gate)
+2. @sffmc/safety        (tool.execute.before — safety gate)
 3. DCP                  (messages.transform — compaction)
 4. Your plugins         (other hooks)
 ```

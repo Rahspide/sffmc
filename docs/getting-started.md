@@ -4,7 +4,7 @@ Take a fresh OpenCode install from zero to "ran my first workflow and saved my o
 
 ## 1. What is SFFMC?
 
-SFFMC ("Some Features From MiMo Code") is a monorepo of 14 MIT-licensed OpenCode packages that port the productivity wins from Xiaomi's MiMo-Code fork into vanilla OpenCode 1.17.6+ — no fork required, drop them in and they install as plugins. Three of them are **composite packages** (`@sffmc/safety`, `@sffmc/memory`, `@sffmc/agentic`) that compose 10 individual sub-features plus the `@sffmc/shared` SDK into a single default export. The headline feature is `@sffmc/workflow`, a sandboxed JavaScript orchestrator that spawns sub-tasks, fans out work in parallel, and pipelines multi-step tasks so you can run 200+ step jobs without losing context or getting stuck in loops. The remaining packages split into three families: **safety and context** (`@sffmc/memory` for cross-session recall, `@sffmc/rules` for destructive-op gates, `@sffmc/watchdog` for stuck-loop recovery, `@sffmc/eos-stripper` and `@sffmc/log-whitelist` for clean output); **scaling** (`@sffmc/max-mode` for parallel drafts with a judge, `@sffmc/auto-max` for automatic escalation when things get hard); and **skills** (`@sffmc/compose` for 18 drop-in structured-workflow skills, and `@sffmc/workflow` itself).
+SFFMC ("Some Features From MiMo Code") is a monorepo of 14 MIT-licensed OpenCode packages that port the productivity wins from Xiaomi's MiMo-Code fork into vanilla OpenCode 1.17.6+ — no fork required, drop them in and they install as plugins. Three of them are **composite packages** (`@sffmc/safety`, `@sffmc/memory`, `@sffmc/runtime + @sffmc/cognition`) that compose 10 individual sub-features plus the `@sffmc/utilities` SDK into a single default export. The headline feature is `@sffmc/runtime`, a sandboxed JavaScript orchestrator that spawns sub-tasks, fans out work in parallel, and pipelines multi-step tasks so you can run 200+ step jobs without losing context or getting stuck in loops. The remaining packages split into three families: **safety and context** (`@sffmc/memory` for cross-session recall, `@sffmc/safety` for destructive-op gates, `@sffmc/safety` for stuck-loop recovery, `@sffmc/safety` and `@sffmc/safety` for clean output); **scaling** (`@sffmc/cognition` for parallel drafts with a judge, `@sffmc/safety` for automatic escalation when things get hard); and **skills** (`@sffmc/cognition` for 18 drop-in structured-workflow skills, and `@sffmc/runtime` itself).
 
 ## 2. Prerequisites
 
@@ -19,7 +19,7 @@ SFFMC is developed and tested on Linux (CachyOS / Arch-based, systemd). The plug
 
 ## 3. Install
 
-Add the SFFMC plugin paths to your `~/.config/opencode/opencode.json` under the `plugin` key. v0.9.0+ ships as **3 composite packages** — `@sffmc/safety`, `@sffmc/memory`, `@sffmc/agentic` — each of which composes several sub-features into a single default export. The 10 sub-features (`watchdog`, `rules`, `auto-max`, `eos-stripper`, `log-whitelist`, `extra`, `max-mode`, `workflow`, `compose`, `health`) are also individually available for backward compatibility. The recommended way to install is via the `sffmc` CLI, which adds the 3 composites by default and supports `--all` for the full 13-package set:
+Add the SFFMC plugin paths to your `~/.config/opencode/opencode.json` under the `plugin` key. v0.9.0+ ships as **3 composite packages** — `@sffmc/safety`, `@sffmc/memory`, `@sffmc/runtime + @sffmc/cognition` — each of which composes several sub-features into a single default export. The 10 sub-features (`watchdog`, `rules`, `auto-max`, `eos-stripper`, `log-whitelist`, `extra`, `max-mode`, `workflow`, `compose`, `health`) are also individually available for backward compatibility. The recommended way to install is via the `sffmc` CLI, which adds the 3 composites by default and supports `--all` for the full 13-package set:
 
 ```bash
 # macOS / Linux
@@ -36,14 +36,14 @@ Under the hood `install.sh` clones the repo to `~/.sffmc/plugins/sffmc` and runs
   "plugin": [
     "file:///path/to/SFFMC/packages/safety/src/index.ts",
     "file:///path/to/SFFMC/packages/memory/src/index.ts",
-    "file:///path/to/SFFMC/packages/agentic/src/index.ts"
+    "file:///path/to/SFFMC/packages/runtime/src/index.ts"
   ]
 }
 ```
 
 Or pick individual sub-features (`packages/<name>/src/index.ts` for any of the 10 sub-packages) for finer-grained control. Restart OpenCode after editing. The composites load in the order listed; that order is intentional and verified — see [load-order-audit.md](load-order-audit.md) for the full hook list and the reasoning behind each slot.
 
-To verify they loaded, open an OpenCode session and call any tool. If `@sffmc/workflow` is active, you'll see `workflow` in the tool list.
+To verify they loaded, open an OpenCode session and call any tool. If `@sffmc/runtime` is active, you'll see `workflow` in the tool list.
 
 ## 4. Your first workflow: deep-research
 

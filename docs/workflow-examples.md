@@ -1,6 +1,6 @@
 # Workflow Examples
 
-Five ready-to-copy examples for `@sffmc/workflow`.
+Five ready-to-copy examples for `@sffmc/runtime`.
 Each can be saved as `.sffmc/workflows/<name>.ts` and run
 via `workflow({ operation: "run", name: "<name>" })`.
 
