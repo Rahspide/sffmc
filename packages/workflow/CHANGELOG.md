@@ -1,4 +1,4 @@
-# @sffmc/workflow Changelog
+# @sffmc/runtime Changelog
 
 ## 1.0.0 — Deep research builtin + E2E + docs (Lane D)
 

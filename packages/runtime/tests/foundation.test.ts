@@ -1,0 +1,859 @@
+// SPDX-License-Identifier: MIT
+// @sffmc/runtime — see ../../LICENSE
+
+import { describe, test, expect, beforeAll, afterAll } from "bun:test"
+import { tmpdir } from "node:os"
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs"
+import path from "node:path"
+
+// Set XDG_DATA_HOME to temp dir so persistence doesn't write to real ~/.local/share
+const tmpDir = mkdtempSync(path.join(tmpdir(), "sffmc-workflow-test-"))
+process.env.XDG_DATA_HOME = tmpDir
+
+import {
+  WorkflowError,
+  DEFAULT_WORKFLOW_CONFIG,
+  AgentFailureReason,
+} from "../src/types.ts"
+import { DEFAULT_SANDBOX_CONSTRAINTS } from "../src/constants.ts"
+
+import {
+  generateRunID,
+  RUN_ID_REGEX,
+  computeScriptSha,
+  journalKeyBase,
+  WorkflowPersistence,
+} from "../src/persistence.ts"
+
+import {
+  WorkspaceJail,
+} from "../src/workspace.ts"
+
+import {
+  createEventBus,
+} from "../src/events.ts"
+
+import { parseMeta } from "../src/meta.ts"
+import { resolveWorkflow, isInlineScript } from "../src/resolve.ts"
+import { registerBuiltin, getBuiltin, listBuiltins, loadBuiltin } from "../src/builtin-registry.ts"
+import { meta as securityAuditMeta } from "../builtin/security-audit.ts"
+import { meta as docGenMeta } from "../builtin/doc-gen.ts"
+import { meta as libMigrateMeta } from "../builtin/lib-migrate.ts"
+
+// ---------------------------------------------------------------------------
+// Cleanup
+// ---------------------------------------------------------------------------
+
+afterAll(() => {
+  rmSync(tmpDir, { recursive: true, force: true })
+})
+
+// ---------------------------------------------------------------------------
+// types.ts
+// ---------------------------------------------------------------------------
+
+describe("types.ts", () => {
+  test("WorkflowError carries step/token info", () => {
+    const err = new WorkflowError("test error", 5, 200, 50000)
+    expect(err.name).toBe("WorkflowError")
+    expect(err.stepsCompleted).toBe(5)
+    expect(err.stepsTotal).toBe(200)
+    expect(err.tokensUsed).toBe(50000)
+    expect(err.message).toBe("test error")
+  })
+
+  test("DEFAULT_WORKFLOW_CONFIG has reasonable defaults", () => {
+    expect(DEFAULT_WORKFLOW_CONFIG.maxSteps).toBe(200)
+    expect(DEFAULT_WORKFLOW_CONFIG.maxTokens).toBe(2_000_000)
+  })
+
+  test("DEFAULT_SANDBOX_CONSTRAINTS has reasonable defaults", () => {
+    expect(DEFAULT_SANDBOX_CONSTRAINTS.memoryMB).toBe(64)
+    expect(DEFAULT_SANDBOX_CONSTRAINTS.deadlineMs).toBe(60 * 60 * 1000) // 1h, matches maxWallClockMs
+  })
+
+  test("AgentFailureReason has 5 values", () => {
+    const reasons = new Set(Object.values(AgentFailureReason))
+    expect(reasons.size).toBe(5)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// persistence.ts
+// ---------------------------------------------------------------------------
+
+describe("persistence.ts", () => {
+  const p = new WorkflowPersistence({ dataDir: tmpDir })
+
+  test("generateRunID produces valid IDs", () => {
+    const ids = new Set<string>()
+    for (let i = 0; i < 10; i++) {
+      const id = generateRunID()
+      expect(RUN_ID_REGEX.test(id)).toBe(true)
+      ids.add(id)
+    }
+    // All 10 should be unique
+    expect(ids.size).toBe(10)
+  })
+
+  test("RUN_ID_REGEX rejects path traversal", () => {
+    // Valid: exactly 26 chars after wf_, all alphanumeric
+    expect(RUN_ID_REGEX.test("wf_abcdefghijklmnopqrstuvwxyz")).toBe(true)
+    expect(RUN_ID_REGEX.test("wf_../etc/passwd")).toBe(false)
+    expect(RUN_ID_REGEX.test("/etc/passwd")).toBe(false)
+    expect(RUN_ID_REGEX.test("wf_short")).toBe(false) // too short
+    expect(RUN_ID_REGEX.test("wf_000000000000000000000000.0")).toBe(false) // dot not allowed
+  })
+
+  test("createRun → loadRun roundtrip", () => {
+    const sha = computeScriptSha("export const meta = { name: 'test' }")
+    const runID = p.createRun("test.ts", "test-workflow", sha)
+    expect(runID).toMatch(RUN_ID_REGEX)
+
+    const run = p.loadRun(runID)
+    expect(run).not.toBeNull()
+    expect(run!.name).toBe("test-workflow")
+    expect(run!.status).toBe("running")
+    expect(run!.scriptSha).toBe(sha)
+    expect(run!.running).toBe(0)
+    expect(run!.succeeded).toBe(0)
+    expect(run!.failed).toBe(0)
+  })
+
+  test("updateRunStatus changes status", () => {
+    const sha = computeScriptSha("script")
+    const runID = p.createRun("f.ts", "failing", sha)
+    p.updateRunStatus(runID, "failed", "something broke")
+    const run = p.loadRun(runID)
+    expect(run!.status).toBe("failed")
+    expect(run!.error).toBe("something broke")
+  })
+
+  test("writeScript → readScript roundtrip", async () => {
+    const sha = computeScriptSha("my workflow source")
+    const runID = p.createRun("w.ts", "writer", sha)
+    await p.writeScript(runID, "my workflow source")
+    const source = await p.readScript(runID)
+    expect(source).toBe("my workflow source")
+  })
+
+  test("readScript returns null for unknown runID", async () => {
+    // Generate a valid-looking ID that doesn't exist
+    const fakeID = "wf_00000000000000000000000000"
+    const source = await p.readScript(fakeID)
+    expect(source).toBeNull()
+  })
+
+  test("appendJournalSync → loadJournal roundtrip", async () => {
+    const sha = computeScriptSha("journal test")
+    const runID = p.createRun("j.ts", "journal-test", sha)
+
+    p.appendJournalSync(runID, { t: "agent", key: "k1", result: "hello", pass: 1 })
+    p.appendJournalSync(runID, { t: "log", msg: "log msg", pass: 1 })
+    p.appendJournalSync(runID, { t: "agent", key: "k2", result: { x: 1 }, pass: 2 })
+
+    const { results, pass } = await p.loadJournal(runID)
+    expect(pass).toBe(3) // maxPass + 1
+    expect(results.get("k1")).toBe("hello")
+    expect(results.get("k2")).toEqual({ x: 1 })
+    expect(results.has("not-there")).toBe(false)
+  })
+
+  test("appendJournal (async) works", async () => {
+    const sha = computeScriptSha("async journal")
+    const runID = p.createRun("aj.ts", "async-journal", sha)
+
+    await p.appendJournal(runID, { t: "log", msg: "async log", pass: 1 })
+    const { results } = await p.loadJournal(runID)
+    expect(results.size).toBe(0) // log events don't populate results
+  })
+
+  test("clearJournal truncates", async () => {
+    const sha = computeScriptSha("clear test")
+    const runID = p.createRun("c.ts", "clear-test", sha)
+    p.appendJournalSync(runID, { t: "agent", key: "k1", result: "x", pass: 1 })
+    await p.clearJournal(runID)
+    const { results, pass } = await p.loadJournal(runID)
+    expect(results.size).toBe(0)
+    expect(pass).toBe(1) // no events → default pass
+  })
+
+  test("checkpointStep + loadCompletedSteps", () => {
+    const sha = computeScriptSha("checkpoint test")
+    const runID = p.createRun("cp.ts", "checkpoint", sha)
+
+    p.checkpointStep(runID, {
+      runID,
+      stepIndex: 0,
+      kind: "agent",
+      input: "do the thing",
+      output: "done",
+      costTokens: 500,
+      durationMs: 3000,
+      timestamp: Math.floor(Date.now() / 1000),
+    })
+
+    const steps = p.loadCompletedSteps(runID)
+    expect(steps.length).toBe(1)
+    expect(steps[0].stepIndex).toBe(0)
+    expect(steps[0].kind).toBe("agent")
+    expect(steps[0].input).toBe("do the thing")
+    expect(steps[0].output).toBe("done")
+    expect(steps[0].costTokens).toBe(500)
+  })
+
+  test("computeScriptSha is deterministic", () => {
+    const sha1 = computeScriptSha("my script")
+    const sha2 = computeScriptSha("my script")
+    const sha3 = computeScriptSha("my script!")
+    expect(sha1).toBe(sha2)
+    expect(sha1).not.toBe(sha3)
+    expect(sha1.length).toBe(64) // sha256 hex = 64 chars
+  })
+
+  test("journalKeyBase is deterministic for same semantic inputs", () => {
+    const k1 = journalKeyBase("do task", { model: "gpt4", phase: "Search" })
+    const k2 = journalKeyBase("do task", { phase: "Search", model: "gpt4" })
+    // Key order shouldn't matter due to canonical()
+    expect(k1).toBe(k2)
+  })
+
+  test("end-to-end: create → script → journal → load", async () => {
+    const source = "export const meta = { name: 'e2e', description: 'test' }"
+    const sha = computeScriptSha(source)
+    const runID = p.createRun("e2e.ts", "e2e-test", sha)
+
+    await p.writeScript(runID, source)
+    p.appendJournalSync(runID, { t: "agent", key: "k1", result: "done", pass: 1 })
+
+    const run = p.loadRun(runID)
+    expect(run!.scriptSha).toBe(sha)
+
+    const script = await p.readScript(runID)
+    expect(script).toBe(source)
+
+    const { results } = await p.loadJournal(runID)
+    expect(results.get("k1")).toBe("done")
+  })
+})
+
+// ---------------------------------------------------------------------------
+// workspace.ts
+// ---------------------------------------------------------------------------
+
+describe("workspace.ts", () => {
+  const ws = mkdtempSync(path.join(tmpdir(), "ws-"))
+  const jail = new WorkspaceJail(ws)
+
+  beforeAll(() => {
+    writeFileSync(path.join(ws, "readme.md"), "# Hello")
+    mkdirSync(path.join(ws, "subdir"), { recursive: true })
+    writeFileSync(path.join(ws, "subdir", "nested.txt"), "nested")
+  })
+
+  afterAll(() => {
+    rmSync(ws, { recursive: true, force: true })
+  })
+
+  test("readFile returns content", async () => {
+    const content = await jail.readFile("readme.md")
+    expect(content).toBe("# Hello")
+  })
+
+  test("readFile returns null for missing file", async () => {
+    const content = await jail.readFile("no-such-file.txt")
+    expect(content).toBeNull()
+  })
+
+  test("writeFile creates file and parent dirs", async () => {
+    await jail.writeFile("newdir/out.txt", "created")
+    const content = await jail.readFile("newdir/out.txt")
+    expect(content).toBe("created")
+  })
+
+  test("exists returns true for existing path", async () => {
+    expect(await jail.exists("readme.md")).toBe(true)
+  })
+
+  test("exists returns false for missing path", async () => {
+    expect(await jail.exists("ghost.md")).toBe(false)
+  })
+
+  test("glob returns sorted matches", async () => {
+    const files = await jail.glob("*.md")
+    expect(files).toContain("readme.md")
+    expect(files[0] <= files[files.length - 1]).toBe(true) // sorted
+  })
+
+  test("glob filters escapes", async () => {
+    const files = await jail.glob("../*.ts")
+    expect(files.length).toBe(0)
+  })
+
+  test("resolveInWorkspace throws on jail escape", () => {
+    expect(() => jail.resolveInWorkspace("../outside")).toThrow("Jail escape")
+    expect(() => jail.resolveInWorkspace("/etc/passwd")).toThrow("Jail escape")
+  })
+
+  test("resolveInWorkspace allows valid paths", () => {
+    const resolved = jail.resolveInWorkspace("readme.md")
+    expect(resolved).toBe(path.resolve(ws, "readme.md"))
+  })
+})
+
+// ---------------------------------------------------------------------------
+// events.ts
+// ---------------------------------------------------------------------------
+
+describe("events.ts", () => {
+  const bus = createEventBus()
+
+  test("on/emit roundtrip", () => {
+    const events: unknown[] = []
+    const key = bus.on("workflow:started", (e) => events.push(e))
+    bus.emit("workflow:started", { runID: "wf_abc", name: "test" })
+    expect(events.length).toBe(1)
+    expect(events[0]).toEqual({ runID: "wf_abc", name: "test" })
+    bus.off(key)
+  })
+
+  test("off unsubscribes", () => {
+    const events: unknown[] = []
+    const key = bus.on("workflow:log", (e) => events.push(e))
+    bus.off(key)
+    bus.emit("workflow:log", { runID: "x", message: "hi" })
+    expect(events.length).toBe(0)
+  })
+
+  test("multiple listeners receive events", () => {
+    const log1: string[] = []
+    const log2: string[] = []
+    bus.on("workflow:phase", (e) => log1.push(e.title))
+    bus.on("workflow:phase", (e) => log2.push(e.title))
+    bus.emit("workflow:phase", { runID: "wf_x", title: "Search" })
+    expect(log1).toEqual(["Search"])
+    expect(log2).toEqual(["Search"])
+  })
+
+  test("agent_failed event carries reason", () => {
+    const events: unknown[] = []
+    bus.on("workflow:agent_failed", (e) => events.push(e))
+    bus.emit("workflow:agent_failed", { runID: "wf_a", agentKey: "k1", reason: "timeout" })
+    expect(events[0]).toEqual({ runID: "wf_a", agentKey: "k1", reason: "timeout" })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// meta.ts
+// ---------------------------------------------------------------------------
+
+describe("meta.ts", () => {
+  test("parses a valid meta block", () => {
+    const script = `export const meta = {
+      name: 'test-workflow',
+      description: "A test workflow",
+      whenToUse: 'For testing',
+      phases: [
+        { title: 'Stage 1', detail: '' },
+        { title: 'Stage 2' },
+      ],
+      model: 'gpt4',
+    }`
+    const result = parseMeta(script)
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.meta.name).toBe("test-workflow")
+      expect(result.meta.description).toBe("A test workflow")
+      expect(result.meta.whenToUse).toBe("For testing")
+      expect(result.meta.phases).toHaveLength(2)
+      expect(result.meta.phases![0].title).toBe("Stage 1")
+      expect(result.meta.phases![1].detail).toBeUndefined()
+      expect(result.meta.model).toBe("gpt4")
+    }
+  })
+
+  test("parses with double-quoted keys", () => {
+    const script = `export const meta = {
+      "name": "test",
+      "description": "desc"
+    }`
+    const result = parseMeta(script)
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.meta.name).toBe("test")
+    }
+  })
+
+  test("rejects missing name", () => {
+    const script = `export const meta = {
+      description: "no name here"
+    }`
+    const result = parseMeta(script)
+    expect(result.ok).toBe(false)
+  })
+
+  test("rejects non-object meta", () => {
+    const script = `export const meta = [1, 2, 3]`
+    const result = parseMeta(script)
+    expect(result.ok).toBe(false)
+  })
+
+  test("rejects missing meta block", () => {
+    const script = `console.log("no meta");`
+    const result = parseMeta(script)
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.error).toContain("workflow script must start with")
+    }
+  })
+
+  test("rejects code in meta (functions)", () => {
+    const script = `export const meta = {
+      name: "bad",
+      description: "has func",
+      fn: () => {}
+    }`
+    const result = parseMeta(script)
+    expect(result.ok).toBe(false)
+  })
+
+  test("handles comments in meta", () => {
+    const script = `export const meta = {
+      // comment
+      name: 'test',
+      description: 'desc' // inline
+    }`
+    const result = parseMeta(script)
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.meta.name).toBe("test")
+    }
+  })
+
+  test("handles block comments in meta", () => {
+    const script = `export const meta = {
+      /* block comment */
+      name: 'test',
+      description: 'desc'
+    }`
+    const result = parseMeta(script)
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.meta.name).toBe("test")
+    }
+  })
+
+  test("body preserves line numbers", () => {
+    const script = `export const meta = {
+      name: 'ln',
+      description: 'ln'
+    }
+    // line 5
+    const x = 1
+    // line 7`
+    const result = parseMeta(script)
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      // body should have the meta block replaced with spaces
+      expect(result.body).toContain("line 5")
+      expect(result.body).toContain("const x = 1")
+      // The replaced meta block shouldn't affect line count
+      const lines = result.body.split("\n")
+      expect(lines.length).toBeGreaterThanOrEqual(7)
+    }
+  })
+})
+
+// ---------------------------------------------------------------------------
+// resolve.ts
+// ---------------------------------------------------------------------------
+
+describe("resolve.ts", () => {
+  const ws2 = mkdtempSync(path.join(tmpdir(), "ws-resolve-"))
+
+  afterAll(() => {
+    rmSync(ws2, { recursive: true, force: true })
+  })
+
+  test("resolves inline scripts", async () => {
+    const script = `export const meta = { name: 'inline-test', description: 'inline' }`
+    const result = await resolveWorkflow(script, ws2)
+    expect(result.kind).toBe("inline")
+    expect(result.meta.name).toBe("inline-test")
+    expect(result.source).toBe(script)
+  })
+
+  test("isInlineScript detects inline scripts", () => {
+    expect(isInlineScript("export const meta = { name: 't' }")).toBe(true)
+    expect(isInlineScript("saved-workflow-name")).toBe(false)
+  })
+
+  test("resolves saved workflows from .sffmc/workflows/", async () => {
+    const wfDir = path.join(ws2, ".sffmc", "workflows")
+    mkdirSync(wfDir, { recursive: true })
+    writeFileSync(
+      path.join(wfDir, "my-wf.ts"),
+      `export const meta = { name: 'my-wf', description: 'A saved workflow' }`,
+    )
+    const result = await resolveWorkflow("my-wf", ws2)
+    expect(result.kind).toBe("saved")
+    expect(result.meta.name).toBe("my-wf")
+  })
+
+  test("throws on unknown workflow", async () => {
+    await expect(resolveWorkflow("nonexistent", ws2)).rejects.toThrow("Workflow not found")
+  })
+
+  test("rejects invalid name for saved lookup", async () => {
+    // "bad/name" is not a path (no ./ or ../), enters saved lookup branch, fails SAFE_NAME
+    await expect(resolveWorkflow("bad/name", ws2)).rejects.toThrow("invalid workflow name")
+  })
+
+  test("rejects path traversal via ../../etc/passwd", async () => {
+    await expect(resolveWorkflow("../../etc/passwd", ws2)).rejects.toThrow(
+      /escapes workspace/i,
+    )
+  })
+
+  test("rejects absolute path /etc/passwd", async () => {
+    await expect(resolveWorkflow("/etc/passwd", ws2)).rejects.toThrow(
+      /escapes workspace/i,
+    )
+  })
+
+  test("rejects mixed traversal ./some/dir/../../../../etc/passwd", async () => {
+    await expect(
+      resolveWorkflow("./some/dir/../../../../etc/passwd", ws2),
+    ).rejects.toThrow(/escapes workspace/i)
+  })
+
+  test("allows relative path within workspace", async () => {
+    const wfDir = path.join(ws2, ".sffmc", "workflows")
+    mkdirSync(wfDir, { recursive: true })
+    writeFileSync(
+      path.join(wfDir, "inner.ts"),
+      `export const meta = { name: 'inner', description: 'inside' }`,
+    )
+    const result = await resolveWorkflow("./.sffmc/workflows/inner.ts", ws2)
+    expect(result.kind).toBe("file")
+    expect(result.meta.name).toBe("inner")
+  })
+})
+
+// ---------------------------------------------------------------------------
+// builtin-registry.ts
+// ---------------------------------------------------------------------------
+
+describe("builtin-registry.ts", () => {
+  test("deep-research is registered by default", () => {
+    expect(listBuiltins()).toContain("deep-research")
+    expect(getBuiltin("deep-research")).toBeDefined()
+  })
+
+  test("plan is registered by default", () => {
+    expect(listBuiltins()).toContain("plan")
+    expect(getBuiltin("plan")).toBeDefined()
+  })
+
+  test("plan loads with valid meta and source", async () => {
+    const entry = await loadBuiltin("plan")
+    expect(entry.name).toBe("plan")
+    expect(entry.description).toBeTruthy()
+    expect(entry.whenToUse).toBeTruthy()
+    expect(entry.phases?.length).toBeGreaterThan(0)
+    expect(entry.script).toContain("export const meta")
+    expect(entry.script).toContain("args.goal")
+    expect(entry.script).toContain("agent(")
+  })
+
+  test("tdd is registered by default", () => {
+    expect(listBuiltins()).toContain("tdd")
+    expect(getBuiltin("tdd")).toBeDefined()
+  })
+
+  test("tdd loads with valid meta and source", async () => {
+    const entry = await loadBuiltin("tdd")
+    expect(entry.name).toBe("tdd")
+    expect(entry.description).toBeTruthy()
+    expect(entry.phases?.length).toBe(5)
+    expect(entry.script).toContain("args.feature")
+    expect(entry.script).toContain("SPEC_SHAPE")
+    expect(entry.script).toContain("RED_SHAPE")
+    expect(entry.script).toContain("GREEN_SHAPE")
+  })
+
+  test("refactor is registered by default", () => {
+    expect(listBuiltins()).toContain("refactor")
+    expect(getBuiltin("refactor")).toBeDefined()
+  })
+
+  test("refactor loads with valid meta and source", async () => {
+    const entry = await loadBuiltin("refactor")
+    expect(entry.name).toBe("refactor")
+    expect(entry.description).toBeTruthy()
+    expect(entry.phases?.length).toBe(4)
+    expect(entry.script).toContain("args.target")
+    expect(entry.script).toContain("args.workspace")
+    expect(entry.script).toContain("readFile(")
+    expect(entry.script).toContain("glob(")
+    expect(entry.script).toContain("NOT_APPLIED_WARNING")
+  })
+
+  test("loadBuiltin throws on unknown", async () => {
+    await expect(loadBuiltin("not-registered")).rejects.toThrow("Unknown built-in workflow")
+  })
+
+  test("register and load custom builtin", async () => {
+    registerBuiltin("test-builtin", async () => ({
+      source: "// test script",
+      meta: { name: "test-builtin", description: "A test built-in", phases: [{ title: "Stage A" }] },
+    }))
+    expect(listBuiltins()).toContain("test-builtin")
+    expect(getBuiltin("test-builtin")).toBeDefined()
+
+    const entry = await loadBuiltin("test-builtin")
+    expect(entry.name).toBe("test-builtin")
+    expect(entry.description).toBe("A test built-in")
+    expect(entry.script).toBe("// test script")
+  })
+})
+
+// ---------------------------------------------------------------------------
+// builtin: security-audit
+// ---------------------------------------------------------------------------
+
+describe("builtin: security-audit", () => {
+  test("meta is well-formed", () => {
+    expect(securityAuditMeta.name).toBe("security-audit")
+    expect(securityAuditMeta.description).toBeTruthy()
+    expect(securityAuditMeta.description.length).toBeGreaterThan(10)
+    expect(securityAuditMeta.whenToUse).toBeTruthy()
+    expect(securityAuditMeta.phases).toBeDefined()
+    expect(securityAuditMeta.phases!.length).toBe(4)
+    expect(securityAuditMeta.phases![0].title).toBe("Scope")
+    expect(securityAuditMeta.phases![1].title).toBe("Scan")
+    expect(securityAuditMeta.phases![2].title).toBe("Triage")
+    expect(securityAuditMeta.phases![3].title).toBe("Report")
+  })
+
+  test("registered in builtin-registry", () => {
+    expect(listBuiltins()).toContain("security-audit")
+    expect(getBuiltin("security-audit")).toBeDefined()
+  })
+
+  test("loads with valid meta and source via registry", async () => {
+    const entry = await loadBuiltin("security-audit")
+    expect(entry.name).toBe("security-audit")
+    expect(entry.description).toBeTruthy()
+    expect(entry.whenToUse).toBeTruthy()
+    expect(entry.phases?.length).toBe(4)
+    expect(entry.script).toContain("export const meta")
+    expect(entry.script).toContain("args.root")
+    expect(entry.script).toContain("parallel(")
+    expect(entry.script).toContain("scanTasks")
+    expect(entry.script).toContain('"secret"')
+    expect(entry.script).toContain("critical")
+    expect(entry.script).toContain("remediation")
+  })
+})
+
+// ---------------------------------------------------------------------------
+// builtin: doc-gen
+// ---------------------------------------------------------------------------
+
+describe("builtin: doc-gen", () => {
+  test("meta is well-formed", () => {
+    expect(docGenMeta.name).toBe("doc-gen")
+    expect(docGenMeta.description).toBeTruthy()
+    expect(docGenMeta.description.length).toBeGreaterThan(10)
+    expect(docGenMeta.whenToUse).toBeTruthy()
+    expect(docGenMeta.phases).toBeDefined()
+    expect(docGenMeta.phases!.length).toBe(3)
+    expect(docGenMeta.phases![0].title).toBe("Inventory")
+    expect(docGenMeta.phases![1].title).toBe("Generate")
+    expect(docGenMeta.phases![2].title).toBe("Assemble")
+  })
+
+  test("registered in builtin-registry", () => {
+    expect(listBuiltins()).toContain("doc-gen")
+    expect(getBuiltin("doc-gen")).toBeDefined()
+  })
+
+  test("loads with valid meta and source via registry", async () => {
+    const entry = await loadBuiltin("doc-gen")
+    expect(entry.name).toBe("doc-gen")
+    expect(entry.description).toBeTruthy()
+    expect(entry.whenToUse).toBeTruthy()
+    expect(entry.phases?.length).toBe(3)
+    expect(entry.script).toContain("export const meta")
+    expect(entry.script).toContain("args.root")
+    expect(entry.script).toContain("INVENTORY_SHAPE")
+    expect(entry.script).toContain("api.md")
+    expect(entry.script).toContain("docs/api.md")
+    expect(entry.script).toContain("docstring")
+    expect(entry.script).toContain("Inventory")
+  })
+})
+
+// ---------------------------------------------------------------------------
+// builtin: lib-migrate
+// ---------------------------------------------------------------------------
+
+describe("builtin: lib-migrate", () => {
+  test("meta is well-formed", () => {
+    expect(libMigrateMeta.name).toBe("lib-migrate")
+    expect(libMigrateMeta.description).toBeTruthy()
+    expect(libMigrateMeta.description.length).toBeGreaterThan(10)
+    expect(libMigrateMeta.whenToUse).toBeTruthy()
+    expect(libMigrateMeta.phases).toBeDefined()
+    expect(libMigrateMeta.phases!.length).toBe(5)
+    expect(libMigrateMeta.phases![0].title).toBe("Detect")
+    expect(libMigrateMeta.phases![1].title).toBe("Map")
+    expect(libMigrateMeta.phases![2].title).toBe("Transform")
+    expect(libMigrateMeta.phases![3].title).toBe("Verify")
+    expect(libMigrateMeta.phases![4].title).toBe("Report")
+  })
+
+  test("registered in builtin-registry", () => {
+    expect(listBuiltins()).toContain("lib-migrate")
+    expect(getBuiltin("lib-migrate")).toBeDefined()
+  })
+
+  test("loads with valid meta and source via registry", async () => {
+    const entry = await loadBuiltin("lib-migrate")
+    expect(entry.name).toBe("lib-migrate")
+    expect(entry.description).toBeTruthy()
+    expect(entry.whenToUse).toBeTruthy()
+    expect(entry.phases?.length).toBe(5)
+    expect(entry.script).toContain("export const meta")
+    expect(entry.script).toContain("args.from")
+    expect(entry.script).toContain("args.to")
+    expect(entry.script).toContain("args.root")
+    expect(entry.script).toContain("DETECT_SHAPE")
+    expect(entry.script).toContain("MAP_SHAPE")
+    expect(entry.script).toContain("TRANSFORM_SHAPE")
+    expect(entry.script).toContain("old_api")
+    expect(entry.script).toContain("new_api")
+  })
+})
+
+// ---------------------------------------------------------------------------
+// builtin: all new builtins — export shape
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// builtin-registry: makeLoader refactor
+// ---------------------------------------------------------------------------
+
+describe("builtin-registry: makeLoader refactor", () => {
+  const ORIGINAL_BUILTINS = [
+    "deep-research", "plan", "tdd", "refactor",
+    "security-audit", "doc-gen", "lib-migrate",
+  ] as const
+
+  test("listBuiltins returns all 7 built-in names", () => {
+    const builtins = listBuiltins()
+    for (const name of ORIGINAL_BUILTINS) {
+      expect(builtins).toContain(name)
+    }
+  })
+
+  test("each builtin's loader returns valid { source, meta } when called directly", async () => {
+    for (const name of ORIGINAL_BUILTINS) {
+      const loader = getBuiltin(name)
+      expect(loader).toBeDefined()
+      expect(typeof loader).toBe("function")
+      const raw = await loader!()
+      expect(raw).toHaveProperty("source")
+      expect(raw).toHaveProperty("meta")
+      expect(typeof raw.source).toBe("string")
+      expect(raw.source.length).toBeGreaterThan(100)
+      expect(raw.source).toContain("export const meta")
+      expect(raw.meta.name).toBe(name)
+    }
+  })
+
+  test("loadBuiltin returns same source as direct loader call", async () => {
+    for (const name of ORIGINAL_BUILTINS) {
+      const entry = await loadBuiltin(name)
+      const loader = getBuiltin(name)!
+      const raw = await loader()
+      expect(entry.script).toBe(raw.source)
+    }
+  })
+
+  test("each original builtin has all BuiltinEntry fields populated", async () => {
+    for (const name of ORIGINAL_BUILTINS) {
+      const entry = await loadBuiltin(name)
+      expect(entry.name).toBe(name)
+      expect(entry.description).toBeTruthy()
+      expect(typeof entry.description).toBe("string")
+      expect(entry.whenToUse).toBeTruthy()
+      expect(typeof entry.whenToUse).toBe("string")
+      expect(Array.isArray(entry.phases)).toBe(true)
+      expect(entry.phases!.length).toBeGreaterThan(0)
+      expect(typeof entry.script).toBe("string")
+      expect(entry.script).toContain("agent(")  // all builtins use agent()
+    }
+  })
+
+  test("registry uses null-prototype — no Object.prototype pollution", () => {
+    expect(getBuiltin("constructor")).toBeUndefined()
+    expect(getBuiltin("toString")).toBeUndefined()
+    expect(getBuiltin("hasOwnProperty")).toBeUndefined()
+    expect(getBuiltin("__proto__")).toBeUndefined()
+    expect(listBuiltins()).not.toContain("constructor")
+    expect(listBuiltins()).not.toContain("toString")
+  })
+
+  test("loadBuiltin throws descriptive error for unknown name", async () => {
+    await expect(loadBuiltin("nonexistent-builtin-xyz")).rejects.toThrow("Unknown built-in workflow")
+  })
+
+  test("makeLoader creates distinct function references per builtin", () => {
+    const loaders = new Set<Function>()
+    for (const name of ORIGINAL_BUILTINS) {
+      loaders.add(getBuiltin(name)!)
+    }
+    // Each builtin should have its own loader function (7 distinct functions)
+    expect(loaders.size).toBe(ORIGINAL_BUILTINS.length)
+  })
+})
+
+describe("builtin: new builtins export shape", () => {
+  test("security-audit exports meta and source", async () => {
+    const mod = await import("../builtin/security-audit.ts")
+    expect(mod.meta).toBeDefined()
+    expect(mod.source).toBeDefined()
+    expect(typeof mod.source).toBe("string")
+    expect(mod.source.length).toBeGreaterThan(500)
+  })
+
+  test("doc-gen exports meta and source", async () => {
+    const mod = await import("../builtin/doc-gen.ts")
+    expect(mod.meta).toBeDefined()
+    expect(mod.source).toBeDefined()
+    expect(typeof mod.source).toBe("string")
+    expect(mod.source.length).toBeGreaterThan(500)
+  })
+
+  test("lib-migrate exports meta and source", async () => {
+    const mod = await import("../builtin/lib-migrate.ts")
+    expect(mod.meta).toBeDefined()
+    expect(mod.source).toBeDefined()
+    expect(typeof mod.source).toBe("string")
+    expect(mod.source.length).toBeGreaterThan(500)
+  })
+
+  test("all 7 builtins are registered", () => {
+    const builtins = listBuiltins()
+    expect(builtins).toContain("deep-research")
+    expect(builtins).toContain("plan")
+    expect(builtins).toContain("tdd")
+    expect(builtins).toContain("refactor")
+    expect(builtins).toContain("security-audit")
+    expect(builtins).toContain("doc-gen")
+    expect(builtins).toContain("lib-migrate")
+    expect(builtins.length).toBeGreaterThanOrEqual(7)
+  })
+})

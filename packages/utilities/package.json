@@ -1,5 +1,5 @@
 {
-  "name": "@sffmc/utilities",
+  "name": "@sffmc/shared",
   "version": "0.15.0",
   "type": "module",
   "main": "src/index.ts",

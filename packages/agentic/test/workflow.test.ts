@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// @sffmc/workflow — see ../../LICENSE
+// @sffmc/runtime — see ../../LICENSE
 
 import { test, expect, describe } from "bun:test"
 import { WorkflowRuntime } from "../../workflow/src/runtime.ts"

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// @sffmc/workflow — see ../../LICENSE
+// @sffmc/runtime — see ../../LICENSE
 
 import { describe, test, expect } from "bun:test"
 import { runSandboxed, type SandboxPrimitives } from "../../workflow/src/sandbox"

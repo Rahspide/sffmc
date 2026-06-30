@@ -1,4 +1,4 @@
-# @sffmc/workflow
+# @sffmc/runtime
 
 > **Part of `@sffmc/agentic` composite.** This package is a sub-feature of the agentic bundle. Load via `@sffmc/agentic` for the full set (workflow + max-mode + compose + health), or standalone if you only need the workflow tool.
 
@@ -25,7 +25,7 @@ This plugin is loaded by the SFFMC monorepo's sandbox config. To use standalone:
 
 ## Configuration
 
-`@sffmc/workflow` takes no `~/.config/SFFMC/workflow.yaml`. Defaults are exported as `DEFAULT_WORKFLOW_CONFIG` from `src/types.ts` and `DEFAULT_SANDBOX_CONSTRAINTS` from `src/constants.ts` (extracted to break the original `types.ts` ↔ `runtime.ts` circular import) and applied at runtime startup.
+`@sffmc/runtime` takes no `~/.config/SFFMC/workflow.yaml`. Defaults are exported as `DEFAULT_WORKFLOW_CONFIG` from `src/types.ts` and `DEFAULT_SANDBOX_CONSTRAINTS` from `src/constants.ts` (extracted to break the original `types.ts` ↔ `runtime.ts` circular import) and applied at runtime startup.
 
 ## Hooks registered
 
