@@ -485,9 +485,7 @@ function loadAndCacheMemories(
 ):
   | { kind: "skip"; scanned: number; skipMsg: string }
   | { kind: "ok"; rows: MemoryRow[]; tokenCache: Map<number, Set<string>> } {
-  const rows = db
-    .query("SELECT * FROM memory_entries ORDER BY created_at DESC")
-    .all() as MemoryRow[];
+  const rows = loadMemoryRows(db);
 
   if (rows.length > maxEntries) {
     return {
@@ -497,17 +495,29 @@ function loadAndCacheMemories(
     };
   }
 
-  // Pre-tokenize all rows once. The dedup + cluster loops would otherwise
-  // call tokenize() on the same content O(n) times each — O(n²) total
-  // regex + Set allocations. With tokenCache, tokenize runs O(n) times
-  // and every comparison is O(1) (jaccardSets). v0.14.x: 3-5x speedup
-  // observed on 1000+ entry workloads.
-  const tokenCache = new Map<number, Set<string>>();
-  for (const row of rows) {
-    tokenCache.set(row.id, tokenize(row.content));
-  }
+  return { kind: "ok", rows, tokenCache: tokenizeRowsToCache(rows) };
+}
 
-  return { kind: "ok", rows, tokenCache };
+/** Phase 1 helper: load every memory row ordered newest-first. Pure DB
+ *  read — no cap check, no tokenization. The orchestrator decides
+ *  whether to short-circuit on cap before calling `tokenizeRowsToCache`. */
+function loadMemoryRows(db: Database): MemoryRow[] {
+  return db
+    .query("SELECT * FROM memory_entries ORDER BY created_at DESC")
+    .all() as MemoryRow[];
+}
+
+/** Phase 1 helper: pre-tokenize each row once into a map keyed by row id.
+ *  The dedup + cluster loops would otherwise call tokenize() on the same
+ *  content O(n) times each — O(n²) total regex + Set allocations. With
+ *  this cache, tokenize runs O(n) times and every comparison is O(1)
+ *  (jaccardSets). v0.14.x: 3-5x speedup observed on 1000+ entry workloads. */
+function tokenizeRowsToCache(rows: MemoryRow[]): Map<number, Set<string>> {
+  const cache = new Map<number, Set<string>>();
+  for (const row of rows) {
+    cache.set(row.id, tokenize(row.content));
+  }
+  return cache;
 }
 
 /** Phase 2: Jaccard-similarity dedup. For every pair above
@@ -532,10 +542,10 @@ function dedupRows(
         tokenCache.get(rows[j].id)!,
       );
       if (sim > dedupThreshold) {
-        // Keep newer (by last_accessed or created_at); delete older.
+        // Keep newer (by rowTimestamp — last_accessed ?? created_at); delete older.
         // Timestamps are in s (SQLite strftime('%s','now')).
-        const timeI = rows[i].last_accessed ?? rows[i].created_at;
-        const timeJ = rows[j].last_accessed ?? rows[j].created_at;
+        const timeI = rowTimestamp(rows[i]);
+        const timeJ = rowTimestamp(rows[j]);
         if (timeI >= timeJ) {
           dedupSet.add(rows[j].id);
         } else {
@@ -546,6 +556,14 @@ function dedupRows(
     }
   }
   return dedupSet;
+}
+
+/** Phase 2 helper: the "effective timestamp" for a memory row used by
+ *  the dedup decision — `last_accessed` if set, else `created_at`. The
+ *  fallback is what makes `last_accessed === null` rows dedup-against
+ *  their `created_at` peer correctly when both rows lack accesses. */
+function rowTimestamp(row: MemoryRow): number {
+  return row.last_accessed ?? row.created_at;
 }
 
 /** Phase 3: stale removal query. Two SELECTs — one for entries with
@@ -631,27 +649,45 @@ function clusterSimilarRows(
 
     let changed = true;
     for (let iter = 0; iter < maxIters && changed; iter++) {
-      changed = false;
-      for (const other of rows) {
-        if (assigned.has(other.id)) continue;
-        for (const member of cluster) {
-          if (
-            jaccardSets(
-              tokenCache.get(member.id)!,
-              tokenCache.get(other.id)!,
-            ) > clusterThreshold
-          ) {
-            cluster.push(other);
-            assigned.add(other.id);
-            changed = true;
-            break;
-          }
-        }
-      }
+      changed = expandClusterOnce(cluster, rows, clusterThreshold, tokenCache, assigned);
     }
     clusters.push(cluster);
   }
   return clusters;
+}
+
+/** Phase 5 helper: one expansion pass — for every unassigned `other`
+ *  row whose Jaccard with ANY member of `cluster` exceeds the threshold,
+ *  push it into the cluster and mark it assigned. Mutates `cluster` and
+ *  `assigned` in place; returns `true` if anything was added (the
+ *  orchestrator's `maxIters` loop relies on this signal to stop). The
+ *  inner break on first match per `other` row keeps the algorithm
+ *  O(n) per pass. Pure — no DB, no allocation beyond the cluster pushes. */
+function expandClusterOnce(
+  cluster: MemoryRow[],
+  rows: MemoryRow[],
+  clusterThreshold: number,
+  tokenCache: Map<number, Set<string>>,
+  assigned: Set<number>,
+): boolean {
+  let changed = false;
+  for (const other of rows) {
+    if (assigned.has(other.id)) continue;
+    for (const member of cluster) {
+      if (
+        jaccardSets(
+          tokenCache.get(member.id)!,
+          tokenCache.get(other.id)!,
+        ) > clusterThreshold
+      ) {
+        cluster.push(other);
+        assigned.add(other.id);
+        changed = true;
+        break;
+      }
+    }
+  }
+  return changed;
 }
 
 /** Phase 6 driver: iterate clusters, summarize + insert those with 5+ entries.
