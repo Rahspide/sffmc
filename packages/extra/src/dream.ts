@@ -747,8 +747,31 @@ async function processDreamClusters(opts: {
   llmSnippetLength: number;
   errors: string[];
 }): Promise<number> {
+  const { clusters, ...rest } = opts;
+  let summarized = 0;
+  for (const cluster of clusters) {
+    if (cluster.length < 5) continue;
+    summarized += await processSingleCluster({ cluster, ...rest });
+  }
+  return summarized;
+}
+
+/** Phase 6 helper: summarize + insert ONE large cluster. Returns the
+ *  cluster size so the orchestrator can add it to the running total.
+ *  Always returns `cluster.length` (the cluster filter happened in the
+ *  caller; this just processes one cluster at a time). */
+async function processSingleCluster(opts: {
+  cluster: MemoryRow[];
+  db: Database;
+  dryRun: boolean;
+  ctx: RichPluginContext | undefined;
+  summaryModel: string | undefined;
+  snippetLength: number;
+  llmSnippetLength: number;
+  errors: string[];
+}): Promise<number> {
   const {
-    clusters,
+    cluster,
     db,
     dryRun,
     ctx,
@@ -757,21 +780,19 @@ async function processDreamClusters(opts: {
     llmSnippetLength,
     errors,
   } = opts;
-  let summarized = 0;
-  for (const cluster of clusters) {
-    if (cluster.length < 5) continue;
-    const { name, content } = await summarizeClusterContent({
-      cluster,
-      ctx,
-      summaryModel,
-      snippetLength,
-      llmSnippetLength,
-      errors,
-    });
-    insertClusterSummary(db, cluster, content, dryRun);
-    summarized += cluster.length;
-  }
-  return summarized;
+  // The cluster `name` was already folded into `content`'s
+  // 'Cluster: <name>\n\n' prefix inside summarizeClusterContent;
+  // persisting it separately would be dead state.
+  const { content } = await summarizeClusterContent({
+    cluster,
+    ctx,
+    summaryModel,
+    snippetLength,
+    llmSnippetLength,
+    errors,
+  });
+  insertClusterSummary(db, cluster, content, dryRun);
+  return cluster.length;
 }
 
 /** Phase 6 helper: name + summarize one cluster. When `ctx` is absent
@@ -1148,11 +1169,7 @@ function buildDreamHooks(
     [HOOK_TOOL_EXECUTE_AFTER]: async (_toolCtx: unknown, _result: unknown) => {
       if (!config.enabled) return;
       try {
-        const database = getDB();
-        const row = database
-          .query("SELECT COUNT(*) as cnt FROM memory_entries")
-          .get() as { cnt: number } | null;
-        const count = row?.cnt ?? 0;
+        const count = countMemoryRows(getDB);
         if (count > config.threshold) {
           log.info(
             `dream: auto-triggered (count=${count} > threshold=${config.threshold})`,
@@ -1167,6 +1184,16 @@ function buildDreamHooks(
       }
     },
   };
+}
+
+/** Count rows in memory_entries. Returns 0 when the COUNT(*) returns
+ *  NULL (the query's max aggregate value is always numeric, so this is
+ *  just a defensive narrowing). Pure DB read — no mutation. */
+function countMemoryRows(getDB: () => Database): number {
+  const row = getDB()
+    .query("SELECT COUNT(*) as cnt FROM memory_entries")
+    .get() as { cnt: number } | null;
+  return row?.cnt ?? 0;
 }
 
 /** Install the cron timer when the feature is enabled and an interval is
@@ -1185,13 +1212,25 @@ function setupDreamCron(
     clearInterval(state.cronTimer);
   }
   const intervalMs = config.intervalHours * 3600 * 1000;
-  state.cronTimer = setInterval(() => {
-    log.info(`dream: cron triggered (${config.intervalHours}h interval)`);
-    executeDream(false).catch((err) => {
-      log.error("dream: cron error:", err);
-    });
-  }, intervalMs);
+  state.cronTimer = setInterval(
+    () => cronTickBody(config.intervalHours, executeDream),
+    intervalMs,
+  );
   if (typeof state.cronTimer.unref === "function") {
     state.cronTimer.unref();
   }
+}
+
+/** Body of the cron setInterval callback. Logs the trigger and
+ *  fire-and-forget runs `executeDream(false)` so the timer tick never
+ *  blocks. Kept separate so setupDreamCron reads top-down and the
+ *  trigger shape can be unit-tested in isolation. */
+function cronTickBody(
+  intervalHours: number,
+  executeDream: (dryRun?: boolean) => Promise<DreamResult>,
+): void {
+  log.info(`dream: cron triggered (${intervalHours}h interval)`);
+  executeDream(false).catch((err) => {
+    log.error("dream: cron error:", err);
+  });
 }
