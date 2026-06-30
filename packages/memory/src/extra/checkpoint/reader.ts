@@ -6,12 +6,12 @@
 
 import { createLogger, defaultFsOps, type FsOps } from "@sffmc/utilities";
 
-import { DEFAULT_MAX_CHECKPOINT_FILE_SIZE } from "./constants.js";
-import { readHeader } from "./header.js";
-import { iterateBodyLines } from "./lines.js";
-import { filePath, getCheckpointDir } from "./paths.js";
-import { CheckpointTooLargeError } from "./types.js";
-import type { ToolCall } from "./types.js";
+import { DEFAULT_MAX_CHECKPOINT_FILE_SIZE } from "./constants";
+import { readHeader } from "./header";
+import { iterateBodyLines } from "./lines";
+import { filePath, getCheckpointDir } from "./paths";
+import { CheckpointTooLargeError } from "./types";
+import type { ToolCall } from "./types";
 
 const log = createLogger("extra-checkpoint");
 

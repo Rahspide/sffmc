@@ -47,9 +47,9 @@ ${BOLD}Commands:${RESET}
   help                        Show this help
 
 ${BOLD}Examples:${RESET}
-  sffmc init                  # Default: safety, memory, agentic
+  sffmc init                  # Default: safety, memory, runtime, cognition
   sffmc init --all            # All 13 packages
-  sffmc init --only workflow,compose,health  # Specific packages
+  sffmc init --only runtime,cognition,safety  # Specific packages
   sffmc init --yes            # Skip confirmation
   sffmc update                # Pull latest + re-sync config
   sffmc doctor                # Full diagnostic
@@ -72,19 +72,10 @@ detect_config() {
 
 # --- list of all plugin directories (relative to SFFMC_DIR) --------
 PLUGIN_DIRS=(
+  "packages/runtime/src/index.ts"
+  "packages/cognition/src/index.ts"
   "packages/safety/src/index.ts"
   "packages/memory/src/index.ts"
-  "packages/agentic/src/index.ts"
-  "packages/watchdog/src/index.ts"
-  "packages/rules/src/index.ts"
-  "packages/auto-max/src/index.ts"
-  "packages/eos-stripper/src/index.ts"
-  "packages/log-whitelist/src/index.ts"
-  "packages/extra/src/index.ts"
-  "packages/max-mode/src/index.ts"
-  "packages/workflow/src/index.ts"
-  "packages/compose/src/index.ts"
-  "packages/health/src/index.ts"
 )
 
 # Package name → index mapping
@@ -159,11 +150,11 @@ cmd_init() {
   local -a wanted=()
   case "$mode" in
     minimal)
-      mapfile -t wanted < <(resolve_plugins "safety,memory,agentic")
-      info "Minimal install: adding 3 composite packages (safety, memory, agentic)"
+      mapfile -t wanted < <(resolve_plugins "safety,memory,runtime,cognition")
+      info "Minimal install: adding 2 composites (safety, memory) + 2 standalones (runtime, cognition)"
       ;;
     all)
-      mapfile -t wanted < <(resolve_plugins "safety,memory,agentic,watchdog,rules,auto-max,eos-stripper,log-whitelist,extra,max-mode,workflow,compose,health")
+      mapfile -t wanted < <(resolve_plugins "safety,memory,runtime,cognition")
       info "Full install: adding all 13 packages"
       ;;
     only)

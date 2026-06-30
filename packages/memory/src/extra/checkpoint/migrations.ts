@@ -12,11 +12,11 @@
 
 import { defaultFsOps, type FsOps } from "@sffmc/utilities";
 
-import { DEFAULT_MAX_CHECKPOINT_FILE_SIZE } from "./constants.js";
-import { readHeader } from "./header.js";
-import { filePath } from "./paths.js";
-import { readToolCallsShim } from "./reader.js";
-import type { MigrationResult, ToolCall } from "./types.js";
+import { DEFAULT_MAX_CHECKPOINT_FILE_SIZE } from "./constants";
+import { readHeader } from "./header";
+import { filePath } from "./paths";
+import { readToolCallsShim } from "./reader";
+import type { MigrationResult, ToolCall } from "./types";
 
 /** Internal: trigger auto-migration (via `readHeader`) and return the
  *  structured result. With auto-migration on read, this is effectively

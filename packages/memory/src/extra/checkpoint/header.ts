@@ -17,11 +17,11 @@
 import { join } from "node:path";
 import { createLogger, defaultFsOps, type FsOps } from "@sffmc/utilities";
 
-import { crc32 } from "./crc.js";
-import { DEFAULT_MAX_CHECKPOINT_FILE_SIZE } from "./constants.js";
-import { ensureDir, filePath, getCheckpointDir } from "./paths.js";
-import { CheckpointTooLargeError } from "./types.js";
-import type { ToolCall } from "./types.js";
+import { crc32 } from "./crc";
+import { DEFAULT_MAX_CHECKPOINT_FILE_SIZE } from "./constants";
+import { ensureDir, filePath, getCheckpointDir } from "./paths";
+import { CheckpointTooLargeError } from "./types";
+import type { ToolCall } from "./types";
 
 const log = createLogger("extra-checkpoint");
 

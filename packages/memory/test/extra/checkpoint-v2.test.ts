@@ -26,7 +26,7 @@ import {
   filePath,
   readToolCalls,
   createCheckpointTool,
-} from "../src/extra/checkpoint";
+} from "../../src/extra/checkpoint";
 
 // ---------------------------------------------------------------------------
 // Helpers

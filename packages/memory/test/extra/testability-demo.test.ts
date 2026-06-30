@@ -28,8 +28,8 @@ import {
   getOrCreateBuffer,
   type CheckpointBufferState,
   type ToolCall,
-} from "../src/extra/checkpoint/buffer.ts"
-import { clearCronTimer, createDreamTool } from "../src/extra/dream.ts"
+} from "../../src/extra/checkpoint/buffer.ts"
+import { clearCronTimer, createDreamTool } from "../../src/extra/dream.ts"
 
 // ---------------------------------------------------------------------------
 // mockFsOps: in-memory checkpoint flush round-trip

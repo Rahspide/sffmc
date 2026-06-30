@@ -12,15 +12,15 @@
 
 import { defaultFsOps, type FsOps } from "@sffmc/utilities";
 
-import { crc32 } from "./crc.js";
-import { buildV2Body, computeV2HeaderStr, readHeader } from "./header.js";
-import { ensureDir, filePath } from "./paths.js";
-import { readToolCallsShim } from "./reader.js";
+import { crc32 } from "./crc";
+import { buildV2Body, computeV2HeaderStr, readHeader } from "./header";
+import { ensureDir, filePath } from "./paths";
+import { readToolCallsShim } from "./reader";
 import type {
   CheckpointBufferState,
   SessionBufferEntry,
   ToolCall,
-} from "./types.js";
+} from "./types";
 
 /** Monotonic counter for insertion ordering. Module-level because the
  *  LRU tie-breaker must be globally unique within a process. Each

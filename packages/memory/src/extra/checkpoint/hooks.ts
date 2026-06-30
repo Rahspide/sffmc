@@ -6,17 +6,17 @@
 
 import { createLogger } from "@sffmc/utilities";
 
-import { CURRENT_VERSION } from "./constants.js";
-import { getOrCreateBuffer, flushSession } from "./buffer.js";
-import { readHeader } from "./header.js";
-import { readToolCallsShim } from "./reader.js";
-import { RESTORE_MARKER, reconstructMessages, sanitizeValue } from "./restore.js";
+import { CURRENT_VERSION } from "./constants";
+import { getOrCreateBuffer, flushSession } from "./buffer";
+import { readHeader } from "./header";
+import { readToolCallsShim } from "./reader";
+import { RESTORE_MARKER, reconstructMessages, sanitizeValue } from "./restore";
 import type {
   CheckpointBufferState,
   CheckpointHooks,
   ToolCall,
-} from "./types.js";
-import { CheckpointTooLargeError } from "./types.js";
+} from "./types";
+import { CheckpointTooLargeError } from "./types";
 
 const log = createLogger("extra-checkpoint");
 

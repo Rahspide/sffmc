@@ -38,7 +38,7 @@ SCOPE=(
   packages/*/skills/*.md
   scripts/*.py
   packages/*/src/*.ts
-  shared/src/*.ts
+  packages/utilities/src/*.ts
 )
 
 # Files excluded from the public audit (legitimately reference internal names):
@@ -144,7 +144,7 @@ for entry in "${PATTERNS[@]}"; do
           -e "$pat" \
           README.md CONTRIBUTING.md docs/ packages/*/README.md \
           packages/*/config/*.example.yaml packages/*/skills/*.md \
-          scripts/*.py packages/*/src/*.ts shared/src/*.ts 2>/dev/null || true)
+          scripts/*.py packages/*/src/*.ts packages/utilities/src/*.ts 2>/dev/null || true)
   else
     find_filter_excludes=(
       -not -path "./CHANGELOG.md"

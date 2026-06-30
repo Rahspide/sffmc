@@ -9,13 +9,6 @@
         "safe-regex": "^2.1.1",
       },
     },
-    "packages/agentic": {
-      "name": "@sffmc/agentic",
-      "version": "0.14.9",
-      "dependencies": {
-        "@sffmc/utilities": "workspace:*",
-      },
-    },
     "packages/cognition": {
       "name": "@sffmc/cognition",
       "version": "0.15.0",
@@ -30,7 +23,7 @@
     },
     "packages/memory": {
       "name": "@sffmc/memory",
-      "version": "0.14.9",
+      "version": "0.15.0",
       "dependencies": {
         "@sffmc/utilities": "workspace:*",
         "chokidar": "^5.0.0",
@@ -53,7 +46,7 @@
     },
     "packages/safety": {
       "name": "@sffmc/safety",
-      "version": "0.14.9",
+      "version": "0.15.0",
       "dependencies": {
         "@sffmc/utilities": "workspace:*",
         "yaml": "^2.5.0",
@@ -77,8 +70,6 @@
     "@jitl/quickjs-wasmfile-release-asyncify": ["@jitl/quickjs-wasmfile-release-asyncify@0.32.0", "", { "dependencies": { "@jitl/quickjs-ffi-types": "0.32.0" } }, "sha512-3oSwPfja12ICz4aIblB58cuY8JlEq5Txt8Cut4VLo+LH47QN+mzCnSgnbB03hWzg1LBcc+VyyI9UOag7a1NF+Q=="],
 
     "@jitl/quickjs-wasmfile-release-sync": ["@jitl/quickjs-wasmfile-release-sync@0.32.0", "", { "dependencies": { "@jitl/quickjs-ffi-types": "0.32.0" } }, "sha512-BKNDI/TPBfGlLNGYpLrhcDGXmIk4xHm4MRAisOBnOzpXVn9HZWsfmMAc9WMBrAHjvvds6HOikKeaOBKdPdpVrg=="],
-
-    "@sffmc/agentic": ["@sffmc/agentic@workspace:packages/agentic"],
 
     "@sffmc/cognition": ["@sffmc/cognition@workspace:packages/cognition"],
 

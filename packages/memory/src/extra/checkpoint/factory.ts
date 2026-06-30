@@ -9,26 +9,26 @@ import {
   flushSession,
   startFlushTimer,
   stopFlushTimer,
-} from "./buffer.js";
+} from "./buffer";
 import {
   DEFAULT_FLUSH_INTERVAL_MS,
   DEFAULT_FLUSH_THRESHOLD,
   DEFAULT_MAX_BUFFER_SESSIONS,
   DEFAULT_MAX_CHECKPOINT_FILE_SIZE,
   DEFAULT_MAX_RESTORED_MESSAGES,
-} from "./constants.js";
+} from "./constants";
 import {
   createAutoRestoreHook,
   createToolExecuteAfterHook,
-} from "./hooks.js";
-import { getCheckpointDir } from "./paths.js";
-import { deleteCheckpoint, listSessions } from "./reader.js";
-import { executeRestoreAction } from "./restore.js";
+} from "./hooks";
+import { getCheckpointDir } from "./paths";
+import { deleteCheckpoint, listSessions } from "./reader";
+import { executeRestoreAction } from "./restore";
 import type {
   CheckpointBufferState,
   CheckpointHooks,
   CheckpointTool,
-} from "./types.js";
+} from "./types";
 
 /** Configuration for the checkpoint factory. Each field has a default
  *  that matches the previous hardcoded behavior, so omitting any field

@@ -42,7 +42,7 @@ import {
   filePath,
   readToolCalls,
   __setCheckpointDir,
-} from "../src/extra/checkpoint";
+} from "../../src/extra/checkpoint";
 
 // ---------------------------------------------------------------------------
 // Helpers

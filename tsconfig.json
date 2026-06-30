@@ -9,10 +9,12 @@
     "resolveJsonModule": true,
     "allowImportingTsExtensions": true,
     "noEmit": true,
-    "lib": ["ES2022", "DOM"]
+    "lib": [
+      "ES2022",
+      "DOM"
+    ]
   },
   "include": [
-    "packages/*/src/**/*",
-    "shared/src/**/*"
+    "packages/*/src/**/*"
   ]
 }

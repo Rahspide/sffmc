@@ -31,7 +31,7 @@ export {
   DEFAULT_FLUSH_INTERVAL_MS,
   DEFAULT_MAX_BUFFER_SESSIONS,
   CheckpointTooLargeError,
-} from "./checkpoint/index.js";
+} from "./checkpoint/index";
 
 export type {
   ToolCall,
@@ -40,4 +40,4 @@ export type {
   CheckpointHooks,
   MigrationResult,
   SessionBufferEntry,
-} from "./checkpoint/index.js";
+} from "./checkpoint/index";

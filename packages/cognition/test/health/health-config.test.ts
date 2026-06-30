@@ -67,12 +67,12 @@ afterEach(() => {
 describe("composite file list — health.toolFiles", () => {
   it("(a) default matches the v0.14.2 hardcoded 6-entry list", () => {
     expect(DEFAULT_HEALTH_CONFIG.toolFiles).toEqual([
-      "packages/compose/src/index.ts",
-      "packages/workflow/src/tool.ts",
-      "packages/health/src/index.ts",
-      "packages/extra/src/checkpoint.ts",
-      "packages/extra/src/judge.ts",
-      "packages/extra/src/dream.ts",
+      "packages/cognition/src/compose/src/index.ts",
+      "packages/runtime/src/tool.ts",
+      "packages/cognition/src/health/src/index.ts",
+      "packages/memory/src/extra/checkpoint.ts",
+      "packages/memory/src/extra/judge.ts",
+      "packages/memory/src/extra/dream.ts",
     ]);
   });
 
@@ -147,13 +147,12 @@ describe("expected composite list — health.expectedComposites", () => {
     expect(DEFAULT_HEALTH_CONFIG.expectedComposites).toEqual([
       "safety",
       "memory",
-      "agentic",
     ]);
   });
 
   it("(a) getHealthConfigSync returns defaults before any YAML load", () => {
     const cfg = getHealthConfigSync();
-    expect(cfg.expectedComposites).toEqual(["safety", "memory", "agentic"]);
+    expect(cfg.expectedComposites).toEqual(["safety", "memory"]);
   });
 
   it("(b) YAML override flows through to getHealthConfigSync", async () => {

@@ -11,7 +11,7 @@
 // loop so it can be tested independently of the surrounding `readHeader`
 // migration / oversize-handling logic.
 
-import type { ToolCall } from "./types.js";
+import type { ToolCall } from "./types";
 
 /** Result of a single line iteration. `null` means "skip this line"
  *  (header, malformed JSON, missing required fields). The caller

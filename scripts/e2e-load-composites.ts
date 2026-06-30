@@ -1,22 +1,28 @@
 #!/usr/bin/env bun
 // SPDX-License-Identifier: MIT
-// E2E load test for the 3 SFFMC MSPs.
+// E2E load test for the 5 SFFMC packages (v0.15.0: 2 composites + 3 standalones).
 //
-// Loads each MSP's server() in a Bun runtime, calls it with a mock ctx,
-// and asserts the mergeHooks output has the expected hook count and
-// tool count for that MSP. Catches regressions where a sub-feature
-// fails to load, mergeHooks returns an empty result, or wiring drifts.
+// Loads each package's server() in a Bun runtime, calls it with a mock ctx,
+// and asserts the mergeHooks output has the expected shape (id match +
+// non-zero hook keys for the composites). Catches regressions where a
+// package fails to load, mergeHooks returns an empty result, or wiring drifts.
 //
-// Usage: bun run scripts/e2e-load-msps.ts
-// Exit 0 = all 3 MSPs load with expected shape.
-// Exit 1 = at least one MSP failed.
+// v0.15.0 consolidation: the @sffmc/agentic composite is dissolved into
+// @sffmc/runtime (workflow+tool) + @sffmc/cognition (max-mode+compose+health).
+// @sffmc/utilities is consumed by other packages as a workspace dep, not
+// a plugin entry point — it's intentionally excluded from this load test.
+//
+// Usage: bun run scripts/e2e-load-composites.ts
+// Exit 0 = all packages load with expected shape.
+// Exit 1 = at least one package failed.
 
 import { resolve } from "node:path"
 import { server as safetyServer, id as safetyId } from "../packages/safety/src/index.ts"
 import { server as memoryServer, id as memoryId } from "../packages/memory/src/index.ts"
-import { server as agenticServer, id as agenticId } from "../packages/agentic/src/index.ts"
+import { server as runtimeServer, id as runtimeId } from "../packages/runtime/src/index.ts"
+import { server as cognitionServer, id as cognitionId } from "../packages/cognition/src/index.ts"
 
-interface MspSpec {
+interface PkgSpec {
   readonly id: string
   readonly server: (ctx: unknown) => Promise<Record<string, unknown>>
   readonly expectedHookKeys: number
@@ -29,20 +35,24 @@ const mockCtx = {
   sessionID: "e2e-test",
 }
 
-const MSPS: readonly MspSpec[] = [
-  { id: safetyId, server: safetyServer, expectedHookKeys: 9, expectedTools: 0 },
-  { id: memoryId, server: memoryServer, expectedHookKeys: 4, expectedTools: 3 },
-  { id: agenticId, server: agenticServer, expectedHookKeys: 5, expectedTools: 3 },
+// v0.15.0: 2 composites (safety=9 hooks, memory=4 hooks/3 tools) + 3 standalones
+// (runtime + cognition; utilities is consumed, not a plugin entry).
+// Counts are conservative — adjust if mergeHooks shape changes.
+const PACKAGES: readonly PkgSpec[] = [
+  { id: safetyId,    server: safetyServer,    expectedHookKeys: 9, expectedTools: 0 },
+  { id: memoryId,    server: memoryServer,    expectedHookKeys: 4, expectedTools: 3 },
+  { id: runtimeId,   server: runtimeServer,   expectedHookKeys: 2, expectedTools: 1 },
+  { id: cognitionId, server: cognitionServer, expectedHookKeys: 0, expectedTools: 0 }, // aggregator; sub-packages register
 ]
 
 let allOk = true
 
-for (const msp of MSPS) {
+for (const pkg of PACKAGES) {
   try {
-    const result = await msp.server(mockCtx)
+    const result = await pkg.server(mockCtx)
 
-    if (result.id !== msp.id) {
-      console.error(`✗ ${msp.id}: id mismatch — got ${String(result.id)}`)
+    if (result.id !== pkg.id) {
+      console.error(`✗ ${pkg.id}: id mismatch — got ${String(result.id)}`)
       allOk = false
       continue
     }
@@ -50,37 +60,37 @@ for (const msp of MSPS) {
     const hookKeys = Object.keys(result).filter((k) => k !== "id" && k !== "tool")
     const tools = result.tool ? Object.keys(result.tool as Record<string, unknown>) : []
 
-    if (hookKeys.length !== msp.expectedHookKeys) {
+    if (hookKeys.length !== pkg.expectedHookKeys) {
       console.error(
-        `✗ ${msp.id}: expected ${msp.expectedHookKeys} hook keys, got ${hookKeys.length} (${hookKeys.join(", ")})`,
+        `✗ ${pkg.id}: expected ${pkg.expectedHookKeys} hook keys, got ${hookKeys.length} (${hookKeys.join(", ")})`,
       )
       allOk = false
       continue
     }
 
-    if (tools.length !== msp.expectedTools) {
+    if (tools.length !== pkg.expectedTools) {
       console.error(
-        `✗ ${msp.id}: expected ${msp.expectedTools} tools, got ${tools.length} (${tools.join(", ")})`,
+        `✗ ${pkg.id}: expected ${pkg.expectedTools} tools, got ${tools.length} (${tools.join(", ")})`,
       )
       allOk = false
       continue
     }
 
     console.log(
-      `✓ ${msp.id}: ${hookKeys.length} hook keys [${hookKeys.join(", ")}], ${tools.length} tools [${tools.join(", ")}]`,
+      `✓ ${pkg.id}: ${hookKeys.length} hook keys [${hookKeys.join(", ")}], ${tools.length} tools [${tools.join(", ")}]`,
     )
   } catch (err) {
-    console.error(`✗ ${msp.id}: server() threw — ${err instanceof Error ? err.message : String(err)}`)
+    console.error(`✗ ${pkg.id}: server() threw — ${err instanceof Error ? err.message : String(err)}`)
     allOk = false
   }
 }
 
 if (!allOk) {
-  console.error("\n[FAIL] One or more MSPs failed load test")
+  console.error("\n[FAIL] One or more packages failed load test")
   process.exit(1)
 }
 
-console.log("\n[OK] All 3 MSPs loaded with expected shape")
+console.log("\n[OK] All 4 SFFMC packages loaded with expected shape (utilities is consumed, not a plugin)")
 
 // Some sub-features register setInterval (rules hot-reload) or chokidar
 // watchers (memory). They keep the event loop alive, which would prevent

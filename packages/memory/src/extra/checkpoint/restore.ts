@@ -6,11 +6,11 @@
 
 import { redactSecrets } from "@sffmc/utilities";
 
-import { CURRENT_VERSION } from "./constants.js";
-import { readHeader } from "./header.js";
-import { readToolCallsShim } from "./reader.js";
-import { CheckpointTooLargeError } from "./types.js";
-import type { ToolCall } from "./types.js";
+import { CURRENT_VERSION } from "./constants";
+import { readHeader } from "./header";
+import { readToolCallsShim } from "./reader";
+import { CheckpointTooLargeError } from "./types";
+import type { ToolCall } from "./types";
 
 /** Marker embedded in a user message to trigger auto-restore.
  *  Format: `<!-- EXTRA_RESTORE: <sessionID> -->` (whitespace tolerant). */

@@ -5,7 +5,7 @@
   "type": "module",
   "license": "MIT",
   "author": "SFFMC Contributors",
-  "description": "OpenCode plugins: 3 composite packages (safety/memory/agentic) + 10 standalone sub-features",
+  "description": "OpenCode plugins: 2 composites (safety/memory) + 3 standalones (runtime/cognition/utilities)",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Rahspide/sffmc.git"
@@ -39,7 +39,6 @@
     "publish:dry-run": "scripts/release.sh --dry-run",
     "publish:packages": "for p in packages/*/package.json; do d=$(dirname \"$p\"); (cd \"$d\" && bun publish --dry-run) || exit 1; done",
     "publish:actual": "scripts/release.sh --actual",
-    "version:list": "for p in packages/*/package.json shared/package.json; do echo -n \"$p: \"; jq -r .version \"$p\"; done",
     "prepare": "husky"
   },
   "devDependencies": {
