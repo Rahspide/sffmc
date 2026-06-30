@@ -16,6 +16,7 @@ import { CounterManager } from "./counter-manager.ts"
 import { WorkflowEventEmitter } from "./event-emitter.ts"
 import { WorkflowActivation } from "./activation.ts"
 import { createEventBus } from "./events.ts"
+import { makeSemaphore, acquireLock } from "./concurrency.ts"
 
 import { parseMeta } from "./meta.ts"
 import {
@@ -89,57 +90,6 @@ const STRAGGLER_TIMEOUT = Symbol("straggler-timeout")
 
 export type PluginContext = RichPluginContext & {
   config?: Partial<WorkflowConfig>
-}
-
-// ---------------------------------------------------------------------------
-// Semaphore (promise-based)
-// ---------------------------------------------------------------------------
-
-function makeSemaphore(max: number) {
-  let active = 0
-  const queue: Array<() => void> = []
-  const release = () => {
-    active--
-    if (queue.length === 0) return
-    const next = queue.shift()
-    if (next) next()
-  }
-  return {
-    run<T>(fn: () => Promise<T>): Promise<T> {
-      return new Promise<T>((resolve, reject) => {
-        const attempt = () => {
-          active++
-          fn().then(
-            (value) => { release(); resolve(value) },
-            (err) => { release(); reject(err) },
-          )
-        }
-        if (active < max) attempt()
-        else queue.push(attempt)
-      })
-    },
-    get active() { return active },
-    get max() { return max },
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Simple Lock (in-process mutex)
-// ---------------------------------------------------------------------------
-
-const lockMap = new Map<string, Promise<void>>()
-
-function acquireLock(key: string): Promise<{ release: () => void }> {
-  const prev = lockMap.get(key) ?? Promise.resolve()
-  let release: () => void = () => {}
-  const next = new Promise<void>((resolve) => { release = resolve })
-  lockMap.set(key, prev.then(() => next))
-  return prev.then(() => ({
-    release: () => {
-      release()
-      if (lockMap.get(key) === next) lockMap.delete(key)
-    },
-  }))
 }
 
 // ---------------------------------------------------------------------------
