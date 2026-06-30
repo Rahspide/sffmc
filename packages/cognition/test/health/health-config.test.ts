@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// @sffmc/health — second release migration tests (composite file list, safeMultiHooks flag, expected composite list)
+// @sffmc/cognition — second release migration tests (composite file list, safeMultiHooks flag, expected composite list)
 //
 // Verifies the new YAML-configurable fields on HealthConfig:
 //   - composite file list  toolFiles           (default 6-entry list, fix-17 regression scan targets)

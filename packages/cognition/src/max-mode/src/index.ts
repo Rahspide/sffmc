@@ -167,7 +167,7 @@ function buildWinnerMessage(
   return lines.join("\n");
 }
 
-export const id = "@sffmc/max-mode"
+export const id = "@sffmc/cognition"
 export const server = async (ctx: RichPluginContext) => {
   const config = await loadConfig<MaxModeConfig>("max-mode", defaultConfig);
   const state: PluginState = {

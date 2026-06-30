@@ -41,7 +41,7 @@ describe("Plugin entry smoke test", () => {
   it("exports default object with id and server function", async () => {
     const mod = await import("../../compose/src/index");
     expect(mod.default).toBeDefined();
-    expect(mod.default.id).toBe("@sffmc/compose");
+    expect(mod.default.id).toBe("@sffmc/cognition");
     expect(typeof mod.default.server).toBe("function");
   });
 

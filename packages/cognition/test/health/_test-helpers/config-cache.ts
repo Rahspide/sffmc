@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// @sffmc/health — see ../../../LICENSE
+// @sffmc/cognition — see ../../../LICENSE
 //
 // Test-only re-export of src/index.ts. Production code must NOT
 // import this — the file is intentionally placed under tests/ and its
@@ -14,7 +14,7 @@
 //   - production code that imports this file fails the runtime check
 //     below if src/index.ts was never loaded (Symbol not registered)
 
-const __SET_HEALTH_CONFIG_SYMBOL = Symbol.for("@sffmc/health.__setHealthConfig")
+const __SET_HEALTH_CONFIG_SYMBOL = Symbol.for("@sffmc/cognition.__setHealthConfig")
 
 // Re-export every public symbol from src/index.ts so test files have
 // exactly one import path.
@@ -23,7 +23,7 @@ export {
   ensureHealthConfig,
   getHealthConfigSync,
   type HealthConfig,
-} from "../../src/index.ts"
+} from "../../../src/health/src/index.ts"
 
 /** Reset the cached health config to `cfg` (or clear it with `null`).
  *  Mirrors the test-only behavior of the private `__setHealthConfig()`

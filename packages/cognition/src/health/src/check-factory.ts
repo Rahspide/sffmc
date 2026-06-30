@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// @sffmc/health — see ../../LICENSE
+// @sffmc/cognition — see ../../LICENSE
 
 // Check schema + factory. The 13 health checks all follow the same shape:
 // a fixed `name` plus an async predicate over `repoRoot` returning status/detail.

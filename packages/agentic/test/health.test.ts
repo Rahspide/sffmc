@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// @sffmc/health — see ../../LICENSE
+// @sffmc/cognition — see ../../LICENSE
 
 import { describe, it, expect, afterEach } from "bun:test";
 import { mkdir, writeFile, rm, mkdtemp, rename } from "node:fs/promises";
@@ -32,7 +32,7 @@ import {
 describe("Plugin entry", () => {
   it("exports default object with id and server function", () => {
     expect(mod).toBeDefined();
-    expect(mod.id).toBe("@sffmc/health");
+    expect(mod.id).toBe("@sffmc/cognition");
     expect(typeof mod.server).toBe("function");
   });
 

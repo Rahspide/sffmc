@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// @sffmc/health — see ../../LICENSE
+// @sffmc/cognition — see ../../LICENSE
 
 import { loadConfig, type PluginContext } from "@sffmc/shared";
 import { readdir, readFile, stat } from "node:fs/promises";
@@ -13,7 +13,7 @@ import {
 } from "./check-factory.ts";
 
 // Re-export the public schema so consumers (scripts, tests, agentic composite)
-// can `import { CheckResult, HealthResult, CheckFn } from "@sffmc/health"`.
+// can `import { CheckResult, HealthResult, CheckFn } from "@sffmc/cognition"`.
 export type { CheckResult, HealthResult, CheckFn } from "./check-factory.ts";
 
 // ---------------------------------------------------------------------------
@@ -121,7 +121,7 @@ function __setHealthConfig(cfg: HealthConfig | null): void {
   _healthConfigPromise = null
 }
 
-const __SET_HEALTH_CONFIG_SYMBOL = Symbol.for("@sffmc/health.__setHealthConfig")
+const __SET_HEALTH_CONFIG_SYMBOL = Symbol.for("@sffmc/cognition.__setHealthConfig")
 ;(globalThis as Record<symbol, unknown>)[__SET_HEALTH_CONFIG_SYMBOL] = __setHealthConfig
 
 /** Sync accessor — returns the cached config or the defaults if the YAML
@@ -923,7 +923,7 @@ export async function runAllChecks(
 // Plugin entry
 // ---------------------------------------------------------------------------
 
-export const id = "@sffmc/health"
+export const id = "@sffmc/cognition"
 export const server = async (ctx: PluginContext) => {
   const repoRoot = (ctx as Record<string, unknown>).projectRoot as string;
 

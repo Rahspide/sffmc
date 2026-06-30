@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// @sffmc/max-mode — see ../../LICENSE
+// @sffmc/cognition — see ../../LICENSE
 //
 // third release migration test (v0.14.3) — max-mode max-mode dream integration.
 // See .slim/deepwork/phase-2-3-hardcode-migration-plan.md §3.6.
@@ -22,8 +22,8 @@ import { mkdtempSync, rmSync, mkdirSync, writeFileSync, existsSync } from "node:
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { defaultConfig } from "../../max-mode/src/index";
-import { judgeCandidates } from "../../max-mode/src/judge";
+import { defaultConfig } from "../../src/max-mode/src/index";
+import { judgeCandidates } from "../../src/max-mode/src/judge";
 
 // ---------------------------------------------------------------------------
 // Isolated configHome so we don't pick up the user's real

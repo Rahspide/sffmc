@@ -1,4 +1,4 @@
-# @sffmc/compose
+# @sffmc/cognition
 
 > **Part of `@sffmc/agentic` composite.** This package is a sub-feature of the agentic bundle. Load via `@sffmc/agentic` for the full set (compose + max-mode + workflow + health), or standalone if you only need the 18 compose skills.
 

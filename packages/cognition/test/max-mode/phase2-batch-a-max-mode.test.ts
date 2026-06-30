@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// @sffmc/max-mode — see ../../LICENSE
+// @sffmc/cognition — see ../../LICENSE
 //
 // second release migration test (v0.14.3) — max-mode max-mode checkpoint integration + max-mode chokidar migration.
 // See .slim/deepwork/phase-2-3-hardcode-migration-plan.md §2.6.
@@ -30,9 +30,9 @@ import { mkdtempSync, rmSync, mkdirSync, writeFileSync, existsSync } from "node:
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { defaultConfig } from "../../max-mode/src/index";
-import { buildJudgePrompt } from "../../max-mode/src/judge";
-import { generateCandidates } from "../../max-mode/src/candidates";
+import { defaultConfig } from "../../src/max-mode/src/index";
+import { buildJudgePrompt } from "../../src/max-mode/src/judge";
+import { generateCandidates } from "../../src/max-mode/src/candidates";
 import { loadConfig } from "@sffmc/shared";
 
 // ---------------------------------------------------------------------------
@@ -199,7 +199,7 @@ describe("max-mode checkpoint integration — maxMode.maxCandidates", () => {
 
   it("(c) module-level MAX_CANDIDATES export is removed (max-mode checkpoint integration migration complete)", async () => {
     // The prior `export const MAX_CANDIDATES = 10` constant must be gone.
-    const mod = await import("../../max-mode/src/candidates");
+    const mod = await import("../../src/max-mode/src/candidates");
     expect((mod as Record<string, unknown>).MAX_CANDIDATES).toBeUndefined();
   });
 });

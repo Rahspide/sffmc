@@ -1,4 +1,4 @@
-# @sffmc/health
+# @sffmc/cognition
 
 > **Part of `@sffmc/agentic` composite.** This package is a module of the agentic bundle. Load via `@sffmc/agentic` for the full set (health + max-mode + workflow + compose), or standalone if you only need sffmc_health.
 

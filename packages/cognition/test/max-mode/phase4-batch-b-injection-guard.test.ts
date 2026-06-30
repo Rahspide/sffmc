@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// @sffmc/max-mode — see ../../LICENSE
+// @sffmc/cognition — see ../../LICENSE
 //
 // Bug #7 (HIGH) — max-mode winner injection guard
 //
@@ -16,7 +16,7 @@
 // phrasings are stripped, novel payloads still flow through.
 
 import { describe, it, expect } from "bun:test";
-import { redactInjectionInWinner } from "../../max-mode/src/index";
+import { redactInjectionInWinner } from "../../src/max-mode/src/index";
 
 describe("Bug #7 — max-mode winner injection guard (redactInjectionInWinner)", () => {
   // -------------------------------------------------------------------------

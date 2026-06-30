@@ -25,14 +25,14 @@ const mockCtx = {
   sessionID: "live-test",
 }
 
-console.log("[1/2] Loading @sffmc/health standalone...")
+console.log("[1/2] Loading @sffmc/cognition standalone...")
 const healthResult = await healthServer(mockCtx)
 const healthTool = (healthResult.tool as { sffmc_health: Tool }).sffmc_health
 if (!healthTool) {
   console.error("✗ sffmc_health tool not registered in health package")
   process.exit(1)
 }
-console.log("✓ sffmc_health registered in @sffmc/health")
+console.log("✓ sffmc_health registered in @sffmc/cognition")
 
 console.log("\n[2/2] Loading @sffmc/agentic (composed MSP)...")
 const agenticResult = await agenticServer(mockCtx)

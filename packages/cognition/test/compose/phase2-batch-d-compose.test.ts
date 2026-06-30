@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// @sffmc/compose — see ../../LICENSE
+// @sffmc/cognition — see ../../LICENSE
 //
 // second release migration tests (v0.14.3) — compose plugin config
 // plumbing + skills directory override (skills directory override (config), skills directory override (filesystem)).
@@ -38,7 +38,7 @@ import {
   getComposeValidSkills,
 } from "./_test-helpers/config-cache.ts"
 
-describe("@sffmc/compose — second release skills directory override (config + filesystem)", () => {
+describe("@sffmc/cognition — second release skills directory override (config + filesystem)", () => {
   beforeEach(() => {
     __setComposeConfig(null)
   })
@@ -65,7 +65,7 @@ describe("@sffmc/compose — second release skills directory override (config + 
     // resolved at module load. `DEFAULT_SKILLS_DIR` is computed the
     // same way at module load, so the resolved value is identical.
     expect(DEFAULT_SKILLS_DIR).toBe(
-      path.join(import.meta.dir, "..", "src", "..", "skills"),
+      path.join(import.meta.dir, "..", "..", "src", "compose", "skills"),
     )
   })
 

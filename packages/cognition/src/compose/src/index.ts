@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// @sffmc/compose — see ../../LICENSE
+// @sffmc/cognition — see ../../LICENSE
 
 import { readFile, readdir } from "node:fs/promises";
 import { basename, join } from "node:path";
@@ -173,7 +173,7 @@ export async function getComposeValidSkills(): Promise<readonly string[]> {
 // Test escape hatch — `__setComposeConfig()` is a v0.14.3 D-1 pattern.
 // The function is NOT publicly exported from `src/index.ts`. Tests reach
 // it through a Symbol registry populated at module load, looked up via
-// `Symbol.for("@sffmc/compose.__setComposeConfig")` in
+// `Symbol.for("@sffmc/cognition.__setComposeConfig")` in
 // `tests/_test-helpers/config-cache.ts`. This keeps the test-only
 // mutation off the public surface while still allowing tests to inject
 // fake configs without round-tripping through YAML.
@@ -184,14 +184,14 @@ function __setComposeConfig(cfg: ComposeConfig | null): void {
   _composeConfigPromise = null
 }
 
-const __SET_COMPOSE_CONFIG_SYMBOL = Symbol.for("@sffmc/compose.__setComposeConfig")
+const __SET_COMPOSE_CONFIG_SYMBOL = Symbol.for("@sffmc/cognition.__setComposeConfig")
 ;(globalThis as Record<symbol, unknown>)[__SET_COMPOSE_CONFIG_SYMBOL] = __setComposeConfig
 
 // ---------------------------------------------------------------------------
 // Plugin entry point.
 // ---------------------------------------------------------------------------
 
-export const id = "@sffmc/compose"
+export const id = "@sffmc/cognition"
 
 /** v0.14.3 second release: `server()` now resolves the skills directory
  *  and the valid skill list from config (`getComposeSkillsDir()` and

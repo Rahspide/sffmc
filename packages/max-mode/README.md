@@ -1,4 +1,4 @@
-# @sffmc/max-mode
+# @sffmc/cognition
 
 > **Part of `@sffmc/agentic` composite.** This package is a module of the agentic bundle. Load via `@sffmc/agentic` for the full set (max-mode + workflow + compose + health), or standalone if you only need max-mode.
 

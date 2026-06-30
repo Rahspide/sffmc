@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// @sffmc/compose — see ../../../LICENSE
+// @sffmc/cognition — see ../../../LICENSE
 //
 // Test-only re-export of src/index.ts. Production code must NOT
 // import this — the file is intentionally placed under tests/ and its
@@ -14,7 +14,7 @@
 //   - production code that imports this file fails the runtime check
 //     below if src/index.ts was never loaded (Symbol not registered)
 
-const __SET_COMPOSE_CONFIG_SYMBOL = Symbol.for("@sffmc/compose.__setComposeConfig")
+const __SET_COMPOSE_CONFIG_SYMBOL = Symbol.for("@sffmc/cognition.__setComposeConfig")
 
 // Re-export every public symbol from src/index.ts so test files
 // have exactly one import path.
@@ -28,7 +28,7 @@ export {
   getComposeValidSkills,
   type ComposeConfig,
   type DefaultSkillName,
-} from "../../src/index.ts"
+} from "../../../src/compose/src/index.ts"
 
 /** Reset the cached compose config to `cfg` (or clear it with `null`).
  *  Mirrors the test-only behavior of the private
