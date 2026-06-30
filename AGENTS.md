@@ -2,7 +2,7 @@
 
 # SFFMC — Agent Instructions
 
-A Bun-workspace monorepo of 14 SFFMC packages (3 composite + 10 sub-features + 1 SDK) porting killer features from Xiaomi's [MiMo-Code](https://github.com/XiaomiMiMo/MiMo-Code). MIT licensed. v0.9.0 shipped.
+A Bun-workspace monorepo of 5 SFFMC packages (2 composite + 3 standalones; utilities is a library, not a plugin) porting killer features from Xiaomi's [MiMo-Code](https://github.com/XiaomiMiMo/MiMo-Code). MIT licensed. v0.15.0 shipped.
 
 ## Repository Map
 
@@ -13,7 +13,7 @@ Before working on any task, read `codemap.md` to understand:
 - Directory responsibilities and design patterns
 - Data flow and integration points between modules
 
-For deep work on a specific folder, also read that folder's `codemap.md` (e.g. `packages/workflow/codemap.md` for the workflow engine).
+For deep work on a specific folder, also read that folder's `codemap.md` (e.g. `packages/runtime/codemap.md` for the workflow engine).
 
 ## Architecture: composite
 
@@ -23,7 +23,7 @@ Every SFFMC plugin follows the **composite** pattern:
 - **No shared state** between plugins — no module-level state shared via re-export
 - **Hot-pluggable** — adding/removing a plugin does not affect the others
 
-This means `rm -rf packages/foo && bun test` should still pass for the remaining 12.
+This means `rm -rf packages/foo && bun test` should still pass for the remaining 4.
 
 ## Common Tasks
 
@@ -34,7 +34,7 @@ bun test
 # Type-check (uses bun build --no-bundle, no global tsc needed)
 bun run typecheck
 
-# Run health diagnostic (13 checks, JSON output)
+# Run health diagnostic (9 checks, JSON output)
 bun run scripts/run-health.ts
 
 # Audit hook conflicts (0 conflicts expected)
@@ -43,8 +43,8 @@ python3 scripts/audit-load-order.py
 # Build all plugins to /tmp/sffmc-build
 bun run build
 
-# Pre-commit runs 4 gates automatically
-git commit -m "..."   # runs bun test + typecheck + audit + sffmc_health
+# Pre-commit runs 8 gates automatically
+git commit -m "..."   # runs typecheck + test + audit-load-order + audit-public + audit-redos + cleanroom + health + bun-install-frozen
 ```
 
 ## Containerised Testing (Security Policy)

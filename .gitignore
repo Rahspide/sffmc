@@ -23,3 +23,10 @@ dependencies/
 # (the structured manifest is reviewable project metadata and IS tracked)
 !.slim/clonedeps.json
 # END oh-my-opencode-slim clonedeps
+
+# Internal process artifacts (move to ~/.superpowers/sdd/<project>/)
+/docs/superpowers/
+/pr-review-*
+/*-security-audit.md
+/security-audit-*.md
+/audit-report-*.md
