@@ -14,6 +14,9 @@ import {
 import { BoundedLRU } from "./lru.ts"
 import { CounterManager } from "./counter-manager.ts"
 import { WorkflowEventEmitter } from "./event-emitter.ts"
+import { WorkflowActivation } from "./activation.ts"
+import { createEventBus } from "./events.ts"
+
 import { parseMeta } from "./meta.ts"
 import {
   resolveWorkflow,
@@ -206,7 +209,13 @@ export interface RuntimeOpts {
 
 export class WorkflowRuntime {
   private ctx: PluginContext
-  private runs = new Map<string, InternalRunEntry>()
+  /** In-flight run registry (M-1 god-object refactor, Task 1.5).
+   *  Replaces the inline `private runs = new Map<string, InternalRunEntry>()`
+   *  that previously lived directly on WorkflowRuntime. All read/write
+   *  sites (`runs.set / get / has / delete / clear` and `for-of` loops)
+   *  route through `this.runs.<method>` — see activation.ts for the full
+   *  contract and activation.test.ts for the regression net. */
+  private runs = new WorkflowActivation<InternalRunEntry>()
   private globalSem: ReturnType<typeof makeSemaphore>
   private flushTimers = new Map<string, ReturnType<typeof setTimeout>>()
   private persistence: WorkflowPersistence
@@ -382,7 +391,7 @@ export class WorkflowRuntime {
 
     const entry = this.makeEntry({ runID, name, cfg, journalResults: journal.results, journalPass: journal.pass, workspace })
 
-    this.runs.set(runID, entry)
+    this.runs.register(runID, entry)
 
     // Launch async — sandbox never throws, but defensively handle rejections
     this.settleEntry(entry, script, parsed.meta.name, input.args, jail)
@@ -484,7 +493,7 @@ export class WorkflowRuntime {
     // need it) then drop the entry from `this.runs` so the McpBridge,
     // journalResults Map, AbortController, and closures are GC-eligible.
     this.completedOutcomes.set(entry.runID, outcome)
-    this.runs.delete(entry.runID)
+    this.runs.release(entry.runID)
   }
 
   async list(): Promise<Array<{ runID: string; name: string; status: WorkflowStatus }>> {
@@ -495,7 +504,7 @@ export class WorkflowRuntime {
     for (const row of dbRuns) {
       result.set(row.runID, { runID: row.runID, name: row.name, status: row.status })
     }
-    for (const [id, entry] of this.runs) {
+    for (const [id, entry] of this.runs.iter()) {
       result.set(id, { runID: id, name: entry.name, status: entry.status })
     }
 
@@ -550,7 +559,7 @@ export class WorkflowRuntime {
 
       const entry = this.makeEntry({ runID: input.runID, name, cfg, journalResults: journal.results, journalPass: journal.pass, workspace: resumeWorkspace })
 
-      this.runs.set(input.runID, entry)
+      this.runs.register(input.runID, entry)
       this.persistence.updateRunStatus(input.runID, "running")
 
       this.events.emit("workflow:resumed", { runID: input.runID, name, wasStatus: row.status })
@@ -568,7 +577,7 @@ export class WorkflowRuntime {
    *  times. */
   close(): void {
     // Cancel all running workflows
-    for (const [, entry] of this.runs) {
+    for (const [, entry] of this.runs.iter()) {
       if (entry.status === "running") {
         entry.controller.abort()
         entry.status = "cancelled"
@@ -1129,7 +1138,7 @@ export class WorkflowRuntime {
 
     const entry = this.makeEntry({ runID, name: parsed.ok ? parsed.meta.name : name, cfg: parent.cfg, workspace: childWorkspace })
 
-    this.runs.set(runID, entry)
+    this.runs.register(runID, entry)
 
     this.events.emit("workflow:started", { runID, name })
 
@@ -1157,7 +1166,7 @@ export class WorkflowRuntime {
     // are GC-eligible. Without this, every completed run leaks its
     // entry for the lifetime of the runtime.
     this.completedOutcomes.set(entry.runID, outcome)
-    this.runs.delete(entry.runID)
+    this.runs.release(entry.runID)
   }
 
   private failRun(entry: InternalRunEntry, error: string): void {
@@ -1176,7 +1185,7 @@ export class WorkflowRuntime {
     // are GC-eligible. Without this, every failed run leaks its entry
     // for the lifetime of the runtime.
     this.completedOutcomes.set(entry.runID, outcome)
-    this.runs.delete(entry.runID)
+    this.runs.release(entry.runID)
   }
 
   // ── Private: helpers ───────────────────────────────────────────────────
