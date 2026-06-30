@@ -195,12 +195,8 @@ function validateJudgeResponseShape(
   n: number,
 ): JudgeResponse | null {
   if (!hasValidJudgeScores(parsed.scores, n)) return null;
-  if (typeof parsed.winner !== "number" || parsed.winner < 0 || parsed.winner >= n) {
-    return null;
-  }
-  if (typeof parsed.reasoning !== "string" || parsed.reasoning.trim().length === 0) {
-    return null;
-  }
+  if (!isValidWinnerIndex(parsed.winner, n)) return null;
+  if (!hasNonEmptyReason(parsed.reasoning)) return null;
   return {
     scores: parsed.scores,
     winner: parsed.winner,
@@ -208,26 +204,45 @@ function validateJudgeResponseShape(
   };
 }
 
+/** `winner` must be an integer in `[0, n)`. Used as the second gate
+ *  in validateJudgeResponseShape after the scores array check. */
+function isValidWinnerIndex(winner: unknown, n: number): winner is number {
+  return typeof winner === "number" && winner >= 0 && winner < n;
+}
+
+/** `reasoning` must be a non-empty string after trimming. Used as the
+ *  third gate in validateJudgeResponseShape. */
+function hasNonEmptyReason(reasoning: unknown): reasoning is string {
+  return typeof reasoning === "string" && reasoning.trim().length > 0;
+}
+
 /** Validate the `scores` array: must be an Array of length `n`, each
  *  entry's correctness/completeness/conciseness must be a number in [0,10]. */
 function hasValidJudgeScores(scores: unknown, n: number): scores is JudgeScore[] {
   if (!Array.isArray(scores) || scores.length !== n) return false;
   for (const s of scores) {
-    if (
-      typeof s.correctness !== "number" ||
-      s.correctness < 0 ||
-      s.correctness > 10 ||
-      typeof s.completeness !== "number" ||
-      s.completeness < 0 ||
-      s.completeness > 10 ||
-      typeof s.conciseness !== "number" ||
-      s.conciseness < 0 ||
-      s.conciseness > 10
-    ) {
-      return false;
-    }
+    if (!isValidScoreTriplet(s)) return false;
   }
   return true;
+}
+
+/** Per-entry score validator: correctness, completeness, conciseness
+ *  must each be a number in [0,10]. Pinned by judge.test.ts existing
+ *  "scores 0-10 cap" test (line 710-729) on the fallback heuristic. */
+function isValidScoreTriplet(s: unknown): s is JudgeScore {
+  if (typeof s !== "object" || s === null) return false;
+  const e = s as Partial<JudgeScore>;
+  return (
+    typeof e.correctness === "number" &&
+    e.correctness >= 0 &&
+    e.correctness <= 10 &&
+    typeof e.completeness === "number" &&
+    e.completeness >= 0 &&
+    e.completeness <= 10 &&
+    typeof e.conciseness === "number" &&
+    e.conciseness >= 0 &&
+    e.conciseness <= 10
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -413,44 +428,38 @@ function validateJudgeInput(
 ):
   | { kind: "ok"; candidates: string[] }
   | { kind: "error"; error: string } {
-  if (!input || !Array.isArray(input.candidates)) {
+  if (!Array.isArray(input?.candidates)) {
     return { kind: "error", error: "missing or invalid candidates array" };
   }
   const { candidates } = input;
+  const boundsError = validateCandidateBounds(candidates, maxCandidates);
+  if (boundsError !== null) return { kind: "error", error: boundsError };
+  return { kind: "ok", candidates };
+}
+
+/** Check the candidate-count bounds (≥ MIN_MAX_CANDIDATES and ≤ maxCandidates).
+ *  Returns an error description string on failure, `null` on success.
+ *  Kept separate so validateJudgeInput reads top-down: shape check →
+ *  bounds check → ok. */
+function validateCandidateBounds(
+  candidates: string[],
+  maxCandidates: number,
+): string | null {
   if (candidates.length < MIN_MAX_CANDIDATES) {
-    return {
-      kind: "error",
-      error: `at least ${MIN_MAX_CANDIDATES} candidates required`,
-    };
+    return `at least ${MIN_MAX_CANDIDATES} candidates required`;
   }
   if (candidates.length > maxCandidates) {
-    return {
-      kind: "error",
-      error: `maximum ${maxCandidates} candidates allowed`,
-    };
+    return `maximum ${maxCandidates} candidates allowed`;
   }
-  return { kind: "ok", candidates };
+  return null;
 }
 
 /** Fallback path when no LLM ctx is available: score each candidate by output
  *  length (a length-derived approximation) and pick the winner. `model` is
  *  the literal string `"heuristic"` and `latencyMs` is always 0. */
 function runJudgeFallbackHeuristic(candidates: string[]): JudgeResult {
-  const scores: JudgeScore[] = candidates.map((c) => ({
-    correctness: Math.min(10, Math.round(c.length / 100)),
-    completeness: Math.min(10, Math.round(c.length / 150)),
-    conciseness: Math.min(10, Math.round(800 / (c.length + 1))),
-  }));
-
-  const winner = scores.reduce(
-    (best, s, i) =>
-      s.correctness + s.completeness + s.conciseness >
-      scores[best].correctness + scores[best].completeness + scores[best].conciseness
-        ? i
-        : best,
-    0,
-  );
-
+  const scores = candidates.map((c) => scoreCandidateByLength(c));
+  const winner = pickHighestSumIndex(scores);
   return {
     ok: true,
     scores,
@@ -459,6 +468,37 @@ function runJudgeFallbackHeuristic(candidates: string[]): JudgeResult {
     model: "heuristic",
     latencyMs: 0,
   };
+}
+
+/** Score one candidate by its content length. The formulas are
+ *  length-derived approximations — `correctness` scales with size up
+ *  to a 1000-char cap, `completeness` scales with size up to a 1500-char
+ *  cap, `conciseness` is the inverse (longer = less concise, also capped
+ *  at 10). Each is clamped to [0,10] via `Math.min(10, Math.round(...))`.
+ *  Pinned by judge.test.ts "scores each candidate on length-derived..."
+ *  (line 710-729). */
+function scoreCandidateByLength(c: string): JudgeScore {
+  return {
+    correctness: Math.min(10, Math.round(c.length / 100)),
+    completeness: Math.min(10, Math.round(c.length / 150)),
+    conciseness: Math.min(10, Math.round(800 / (c.length + 1))),
+  };
+}
+
+/** Return the index of the entry whose correctness+completeness+conciseness
+ *  sum is highest. Ties favor the earlier index (reduce starts at 0, only
+ *  switches when the new entry's sum is STRICTLY greater). Pinned by
+ *  judge.test.ts "winner is the index of the candidate with the highest
+ *  sum of scores" (line 731-748). */
+function pickHighestSumIndex(scores: JudgeScore[]): number {
+  return scores.reduce(
+    (best, s, i) =>
+      s.correctness + s.completeness + s.conciseness >
+      scores[best].correctness + scores[best].completeness + scores[best].conciseness
+        ? i
+        : best,
+    0,
+  );
 }
 
 /** Format a `JudgeResult` payload as the multi-line verdict string the
@@ -474,9 +514,18 @@ function formatJudgeVerdict(
     `--- Judge Verdict ---`,
     `Winner: Candidate #${winner}`,
     `Reasoning: ${reasoning}`,
-    `Scores: ${scores.map((s, i) => `#${i}: C=${s.correctness} M=${s.completeness} N=${s.conciseness}`).join(" | ")}`,
+    `Scores: ${formatJudgeScoresLine(scores)}`,
     `Model: ${model} (${latencyMs}ms)`,
   ].join("\n");
+}
+
+/** Format the per-candidate scores line: '#i: C=<c> M=<m> N=<n>',
+ *  joined by ' | '. Pinned by judge.test.ts "hook pushes a 'Judge Verdict'
+ *  assistant message" (line 787-826) which checks the verdict content. */
+function formatJudgeScoresLine(scores: JudgeScore[]): string {
+  return scores
+    .map((s, i) => `#${i}: C=${s.correctness} M=${s.completeness} N=${s.conciseness}`)
+    .join(" | ");
 }
 
 // ---------------------------------------------------------------------------
