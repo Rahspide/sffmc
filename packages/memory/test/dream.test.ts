@@ -11,6 +11,7 @@ import {
   DEFAULT_ARCHIVE_PATH,
   DREAM_SNIPPET_LENGTH,
   DREAM_LLM_SNIPPET_LENGTH,
+  MAX_OVERFLOW,
   type DreamResult,
   type RichPluginContext,
   type MemoryRow,
@@ -2200,6 +2201,51 @@ describe("Dream", () => {
       // The summary row MUST contain the concatenation fallback marker.
       expect(rows.length).toBe(1);
       expect(rows[0].content).toContain("DREAM-SUMMARY");
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Hot-path tweak (audit defense-in-depth) — clamp the runDream cap to the
+  // MAX_OVERFLOW constant so a misconfigured `maxEntries` cannot push the
+  // O(n^2) Jaccard dedup/cluster loops past the production budget.
+  // -------------------------------------------------------------------------
+
+  describe("hot-path tweak: MAX_OVERFLOW cap clamp", () => {
+    it("runDream clamps effective cap to MAX_OVERFLOW when maxEntries config exceeds it", async () => {
+      // Pin the MAX_OVERFLOW inner-loop guard: a misconfigured maxEntries
+      // (e.g., 1_000_000) MUST NOT bypass the production 5000-entry O(n^2)
+      // budget. With the clamp in loadAndCacheMemories, runDream early-exits
+      // via the skip-on-overflow path before entering the Jaccard loops.
+      const db = openTestDB();
+      seedDB(db, MAX_OVERFLOW + 1); // 5001 rows — over the hard cap
+      db.close();
+
+      const { tool } = createDreamTool({
+        enabled: true,
+        threshold: 50,
+        intervalHours: 0,
+        storagePath: TEST_DB_PATH,
+        maxEntries: 1_000_000, // misconfig — clamp should force 5000
+      });
+
+      const start = Date.now();
+      const result = await tool.execute();
+      const elapsedMs = Date.now() - start;
+
+      // Skip result, not quadratic-loop result.
+      expect(result.ok).toBe(true);
+      expect(result.scanned).toBe(MAX_OVERFLOW + 1);
+      expect(result.deduped).toBe(0);
+      expect(result.archived).toBe(0);
+      expect(result.summarized).toBe(0);
+      expect(result.errors.length).toBe(1);
+      expect(result.errors[0]).toMatch(/exceed MAX_DREAM_ENTRIES/);
+      // Skip path must short-circuit — well under 2s wall-clock for 5k rows.
+      expect(elapsedMs).toBeLessThan(2000);
+      // DB must be unchanged (skip = no reads-after-initial).
+      const db2 = openTestDB();
+      expect(countRows(db2)).toBe(MAX_OVERFLOW + 1);
+      db2.close();
     });
   });
 });

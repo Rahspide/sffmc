@@ -44,6 +44,13 @@ export const DREAM_CLUSTER_THRESHOLD = 0.3;
  *  `ExtraConfig.dream_max_entries`. */
 export const MAX_DREAM_ENTRIES = 5000;
 
+/** Inner-loop guard for the Jaccard dedup + cluster loops. Aliased to
+ *  `MAX_DREAM_ENTRIES` so the cap has a discoverable name; it is enforced
+ *  in `loadAndCacheMemories` via `Math.min(maxEntries, MAX_OVERFLOW)` so
+ *  a misconfigured `maxEntries` cannot push the quadratic loops past the
+ *  production budget. Default-config callers see no behavior change. */
+export const MAX_OVERFLOW = MAX_DREAM_ENTRIES;
+
 /** Max characters per entry used by the fallback `concatenateSummary` path
  *  and by `nameClusterViaLLM` (which feeds a topic-namer LLM that only needs
  *  a brief preview of each entry). 100 chars is enough to surface the topic
@@ -530,9 +537,15 @@ async function runDream(
 // ---------------------------------------------------------------------------
 
 /** Phase 1: read all memory rows and pre-tokenize. The cap guard returns
- *  a `skip` result when `scanned > maxEntries` so the orchestrator can
+ *  a `skip` result when `scanned > effectiveCap` so the orchestrator can
  *  short-circuit before the O(n²) dedup/cluster loops. The token cache is
- *  populated once (O(n)) so dedup + cluster comparisons are O(1) each. */
+ *  populated once (O(n)) so dedup + cluster comparisons are O(1) each.
+ *
+ *  `effectiveCap` is `Math.min(maxEntries, MAX_OVERFLOW)` — defense-in-depth
+ *  against a misconfigured `maxEntries` (e.g., a future caller that passes
+ *  a value larger than the production O(n²) budget). Default-config callers
+ *  see no behavior change; the clamp only kicks in when config would
+ *  otherwise bypass the 5000-entry cap. */
 function loadAndCacheMemories(
   db: Database,
   maxEntries: number,
@@ -541,7 +554,14 @@ function loadAndCacheMemories(
   | { kind: "ok"; rows: MemoryRow[]; tokenCache: Map<number, Set<string>> } {
   const rows = loadMemoryRows(db);
 
-  if (rows.length > maxEntries) {
+  // MAX_OVERFLOW clamp: the inner-loop Jaccard budget is bounded by
+  // MAX_OVERFLOW (alias for MAX_DREAM_ENTRIES) regardless of how high
+  // `maxEntries` is configured. Without this clamp, a misconfigured
+  // value would push the O(n²) dedup/cluster loops past the
+  // production budget. The skip message preserves the original
+  // `maxEntries` so operators can still see what was configured.
+  const effectiveCap = Math.min(maxEntries, MAX_OVERFLOW);
+  if (rows.length > effectiveCap) {
     return {
       kind: "skip",
       scanned: rows.length,
