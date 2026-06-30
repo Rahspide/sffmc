@@ -10,7 +10,7 @@
 // this module is retained for internal callers that need the structured
 // MigrationResult (e.g. telemetry) and for the regression test suite.
 
-import { defaultFsOps, type FsOps } from "@sffmc/shared";
+import { defaultFsOps, type FsOps } from "@sffmc/utilities";
 
 import { DEFAULT_MAX_CHECKPOINT_FILE_SIZE } from "./constants.js";
 import { readHeader } from "./header.js";

@@ -4,7 +4,7 @@
 // Restore action + message reconstruction + secret redaction.
 // Extracted from checkpoint.ts (M-1 god-object refactor, Task 1.7).
 
-import { redactSecrets } from "@sffmc/shared";
+import { redactSecrets } from "@sffmc/utilities";
 
 import { CURRENT_VERSION } from "./constants.js";
 import { readHeader } from "./header.js";

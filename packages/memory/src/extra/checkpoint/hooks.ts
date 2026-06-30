@@ -4,7 +4,7 @@
 // Lifecycle hook creators.
 // Extracted from checkpoint.ts (M-1 god-object refactor, Task 1.7).
 
-import { createLogger } from "@sffmc/shared";
+import { createLogger } from "@sffmc/utilities";
 
 import { CURRENT_VERSION } from "./constants.js";
 import { getOrCreateBuffer, flushSession } from "./buffer.js";

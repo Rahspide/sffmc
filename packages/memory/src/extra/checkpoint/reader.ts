@@ -4,7 +4,7 @@
 // Read tool calls / list sessions / delete checkpoint files.
 // Extracted from checkpoint.ts (M-1 god-object refactor, Task 1.7).
 
-import { createLogger, defaultFsOps, type FsOps } from "@sffmc/shared";
+import { createLogger, defaultFsOps, type FsOps } from "@sffmc/utilities";
 
 import { DEFAULT_MAX_CHECKPOINT_FILE_SIZE } from "./constants.js";
 import { readHeader } from "./header.js";

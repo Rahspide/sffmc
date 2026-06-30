@@ -9,7 +9,7 @@
 //  release (v0.9.0): factory pattern replaced with named server
 // exports so the memory MSP can compose them via runtime hook().
 
-import { loadConfig, mergeHooks, type PluginContext, createLogger, type PluginServer } from "@sffmc/shared";
+import { loadConfig, mergeHooks, type PluginContext, createLogger, type PluginServer } from "@sffmc/utilities";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { createCheckpointTool } from "./checkpoint";

@@ -10,7 +10,7 @@
 // `createCheckpointTool` invocation — there is no shared state between
 // plugins.
 
-import { defaultFsOps, type FsOps } from "@sffmc/shared";
+import { defaultFsOps, type FsOps } from "@sffmc/utilities";
 
 import { crc32 } from "./crc.js";
 import { buildV2Body, computeV2HeaderStr, readHeader } from "./header.js";

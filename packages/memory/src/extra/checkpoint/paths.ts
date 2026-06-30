@@ -7,7 +7,7 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-import { defaultFsOps, type FsOps } from "@sffmc/shared";
+import { defaultFsOps, type FsOps } from "@sffmc/utilities";
 
 let _overrideDir: string | null = null;
 

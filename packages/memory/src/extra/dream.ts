@@ -16,8 +16,8 @@ import {
   SECONDS_PER_DAY,
   type FsOps,
   unixNow,
-} from "@sffmc/shared";
-export type { RichPluginContext } from "@sffmc/shared";
+} from "@sffmc/utilities";
+export type { RichPluginContext } from "@sffmc/utilities";
 
 /** Jaccard similarity above which two memory entries are considered duplicates.
  *  Tuned for prose-style entries — 0.9 keeps near-verbatim repeats while

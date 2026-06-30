@@ -2,7 +2,7 @@
 // @sffmc/extra — Judge
 // Real LLM-judge implementation: scores 3+ candidates on 3 criteria, picks winner.
 
-import { createLogger, type RichPluginContext } from "@sffmc/shared";
+import { createLogger, type RichPluginContext } from "@sffmc/utilities";
 
 const log = createLogger("extra-judge");
 

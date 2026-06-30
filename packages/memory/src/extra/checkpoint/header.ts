@@ -15,7 +15,7 @@
 //   fileCrc32:    number  — CRC32 of all body bytes (joined + trailing \n)
 
 import { join } from "node:path";
-import { createLogger, defaultFsOps, type FsOps } from "@sffmc/shared";
+import { createLogger, defaultFsOps, type FsOps } from "@sffmc/utilities";
 
 import { crc32 } from "./crc.js";
 import { DEFAULT_MAX_CHECKPOINT_FILE_SIZE } from "./constants.js";
