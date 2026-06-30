@@ -43,7 +43,7 @@ export function buildJudgePrompt(
   ].join("\n");
 }
 
-export function parseVerdict(raw: string, n: number): Verdict | null {
+export function parseVerdict(raw: string, candidateCount: number): Verdict | null {
   try {
     const trimmed = raw.trim();
     const jsonMatch = trimmed.match(/\{[\s\S]*\}/);
@@ -52,7 +52,7 @@ export function parseVerdict(raw: string, n: number): Verdict | null {
     const parsed: { winner: number; reasoning: string; confidence: number } =
       JSON.parse(jsonMatch[0]);
 
-    if (typeof parsed.winner !== "number" || parsed.winner < 0 || parsed.winner >= n) {
+    if (typeof parsed.winner !== "number" || parsed.winner < 0 || parsed.winner >= candidateCount) {
       return null;
     }
     if (typeof parsed.confidence !== "number" || parsed.confidence < 0 || parsed.confidence > 1) {

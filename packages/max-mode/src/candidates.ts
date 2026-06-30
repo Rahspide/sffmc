@@ -108,15 +108,15 @@ export async function generateCandidates(
 
   const model = config.models[0] || String(ctx.config?.model || "");
   const candidates: Candidate[] = [];
-  // max-mode checkpoint integration —  release migration. Safety cap: clamp requested n to the
+  // max-mode checkpoint integration —  release migration. Safety cap: clamp requested candidateCount to the
   // configured maxCandidates (default 10, matching v0.14.x const). This
   // is the deliberate budget guard — see block comment above.
-  const n = Math.min(config.n, config.maxCandidates ?? 10);
+  const candidateCount = Math.min(config.n, config.maxCandidates ?? 10);
 
-  const messages = buildCandidatePrompt(prompt, 0, n);
-  const requests = Array.from({ length: n }, (_, i) =>
+  const messages = buildCandidatePrompt(prompt, 0, candidateCount);
+  const requests = Array.from({ length: candidateCount }, (_, i) =>
     session.message!({
-      messages: buildCandidatePrompt(prompt, i, n),
+      messages: buildCandidatePrompt(prompt, i, candidateCount),
       model,
       temperature: config.temperature,
     }),

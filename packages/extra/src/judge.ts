@@ -165,12 +165,12 @@ function formatJudgeCandidateBlocks(candidates: string[]): string {
 // Response parsing
 // ---------------------------------------------------------------------------
 
-export function parseJudgeResponse(raw: string, n: number): JudgeResponse | null {
+export function parseJudgeResponse(raw: string, candidateCount: number): JudgeResponse | null {
   try {
     const json = extractJudgeJsonObject(raw);
     if (json === null) return null;
     const parsed = JSON.parse(json) as JudgeResponse;
-    return validateJudgeResponseShape(parsed, n);
+    return validateJudgeResponseShape(parsed, candidateCount);
   } catch {
     return null;
   }
@@ -192,10 +192,10 @@ function extractJudgeJsonObject(raw: string): string | null {
  *  outer try/catch around `JSON.parse`. */
 function validateJudgeResponseShape(
   parsed: JudgeResponse,
-  n: number,
+  candidateCount: number,
 ): JudgeResponse | null {
-  if (!hasValidJudgeScores(parsed.scores, n)) return null;
-  if (!isValidWinnerIndex(parsed.winner, n)) return null;
+  if (!hasValidJudgeScores(parsed.scores, candidateCount)) return null;
+  if (!isValidWinnerIndex(parsed.winner, candidateCount)) return null;
   if (!hasNonEmptyReason(parsed.reasoning)) return null;
   return {
     scores: parsed.scores,
@@ -204,10 +204,10 @@ function validateJudgeResponseShape(
   };
 }
 
-/** `winner` must be an integer in `[0, n)`. Used as the second gate
+/** `winner` must be an integer in `[0, candidateCount)`. Used as the second gate
  *  in validateJudgeResponseShape after the scores array check. */
-function isValidWinnerIndex(winner: unknown, n: number): winner is number {
-  return typeof winner === "number" && winner >= 0 && winner < n;
+function isValidWinnerIndex(winner: unknown, candidateCount: number): winner is number {
+  return typeof winner === "number" && winner >= 0 && winner < candidateCount;
 }
 
 /** `reasoning` must be a non-empty string after trimming. Used as the
@@ -216,10 +216,10 @@ function hasNonEmptyReason(reasoning: unknown): reasoning is string {
   return typeof reasoning === "string" && reasoning.trim().length > 0;
 }
 
-/** Validate the `scores` array: must be an Array of length `n`, each
+/** Validate the `scores` array: must be an Array of length `candidateCount`, each
  *  entry's correctness/completeness/conciseness must be a number in [0,10]. */
-function hasValidJudgeScores(scores: unknown, n: number): scores is JudgeScore[] {
-  if (!Array.isArray(scores) || scores.length !== n) return false;
+function hasValidJudgeScores(scores: unknown, candidateCount: number): scores is JudgeScore[] {
+  if (!Array.isArray(scores) || scores.length !== candidateCount) return false;
   for (const s of scores) {
     if (!isValidScoreTriplet(s)) return false;
   }
