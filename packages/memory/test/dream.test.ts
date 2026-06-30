@@ -1956,4 +1956,250 @@ describe("Dream", () => {
       expect(isDreamLocked()).toBe(false);
     });
   });
+
+  // -------------------------------------------------------------------------
+  // Medium function split — prompt + extraction sub-helpers (continued)
+  // -------------------------------------------------------------------------
+  // The continuation arc (Task 2.2b) extracts buildNameClusterPrompt /
+  // buildSummarizeClusterPrompt / extractResponseText from nameClusterViaLLM
+  // and summarizeViaLLM, plus tryLLMClusterNaming / tryLLMClusterSummary
+  // from summarizeClusterContent. These tests pin the OBSERVABLE behavior
+  // of those extractions: when nameClusterViaLLM / summarizeViaLLM run,
+  // the LLM must receive messages with the exact documented strings
+  // (system marker + user header), and the response text-extraction must
+  // produce the same fallback behavior (name → 'untitled cluster',
+  // summary → concatenateSummary) on empty LLM output.
+
+  describe("nameClusterViaLLM prompt structure", () => {
+    it("system message contains the 'topic-namer' role marker", async () => {
+      // Pin the extracted buildNameClusterPrompt's system string. If the
+      // refactor accidentally rewrites the prompt (e.g. swapping 'topic'
+      // for 'subject'), the LLM mock still returns the canned name and
+      // the function-level test would not catch it — but THIS test
+      // fails fast on the captured message.
+      let capturedSysMsg = "";
+      const mockCtx: RichPluginContext = {
+        client: {
+          session: {
+            message: async (params) => {
+              capturedSysMsg = params.messages.find((m) => m.role === "system")?.content ?? "";
+              return { content: [{ type: "text", text: "topic-name" }] };
+            },
+          },
+        },
+      };
+
+      const cluster: MemoryRow[] = [
+        {
+          id: 1,
+          source_path: "src/a.ts",
+          section: null,
+          content: "rust borrow checker lifetimes trait bounds ownership",
+          importance_score: 0.5,
+          last_accessed: null,
+          created_at: 1000,
+        },
+        {
+          id: 2,
+          source_path: "src/b.ts",
+          section: null,
+          content: "rust async runtime tokio reactor epoll scheduler",
+          importance_score: 0.5,
+          last_accessed: null,
+          created_at: 1001,
+        },
+        {
+          id: 3,
+          source_path: "src/c.ts",
+          section: null,
+          content: "rust pattern matching enums Option Result iterator chain",
+          importance_score: 0.5,
+          last_accessed: null,
+          created_at: 1002,
+        },
+      ];
+
+      await nameClusterViaLLM(cluster, mockCtx, "test-model");
+      expect(capturedSysMsg).toContain("topic-namer");
+      expect(capturedSysMsg).toContain("3-5 word phrase");
+    });
+
+    it("user message header is 'Name the topic of these N related memory entries' (exact phrasing)", async () => {
+      // Pin the extracted buildNameClusterPrompt's user-prefix string.
+      // The exact phrasing ("related memory entries") is a contract with
+      // the LLM prompt — silently dropping "related" would degrade naming
+      // quality without any other test catching it.
+      let capturedUserMsg = "";
+      const mockCtx: RichPluginContext = {
+        client: {
+          session: {
+            message: async (params) => {
+              capturedUserMsg = params.messages.find((m) => m.role === "user")?.content ?? "";
+              return { content: [{ type: "text", text: "x" }] };
+            },
+          },
+        },
+      };
+
+      const cluster: MemoryRow[] = Array.from({ length: 5 }, (_, i) => ({
+        id: i + 1,
+        source_path: `src/file${i}.md`,
+        section: null,
+        content: `entry ${i} about auth`,
+        importance_score: 0.5,
+        last_accessed: null,
+        created_at: 1000 + i,
+      }));
+
+      await nameClusterViaLLM(cluster, mockCtx, "test-model");
+      // Header must be present, BEFORE any entry separator ('\n\n').
+      const header = capturedUserMsg.split("\n\n")[0];
+      expect(header).toBe("Name the topic of these 5 related memory entries:");
+    });
+
+    it("extractResponseText fallback: empty LLM output → returns 'untitled cluster'", async () => {
+      // Pin the extracted extractResponseText behavior on nameClusterViaLLM:
+      // if the response.content array contains only empty strings OR is
+      // empty, the function must return "untitled cluster" (NOT throw,
+      // NOT return empty string). This is the contract that prevents the
+      // cluster row from being labeled with an empty cluster_name field.
+      const emptyCtx: RichPluginContext = {
+        client: {
+          session: {
+            message: async () => ({
+              content: [{ type: "text", text: "" }], // empty text → extractResponseText → ""
+            }),
+          },
+        },
+      };
+
+      const cluster: MemoryRow[] = [
+        {
+          id: 1,
+          source_path: "x.md",
+          section: null,
+          content: "y",
+          importance_score: 0.5,
+          last_accessed: null,
+          created_at: 1000,
+        },
+      ];
+
+      const result = await nameClusterViaLLM(cluster, emptyCtx, "test-model");
+      expect(result).toBe("untitled cluster");
+    });
+  });
+
+  describe("summarizeClusterContent prompt structure (via runDream integration)", () => {
+    it("summarize LLM receives system 'memory summarizer' marker + user 'Summarize these N entries' header", async () => {
+      // summarizeViaLLM is private; pin its prompt through the
+      // runDream integration (6 similar entries → 1 cluster → 1 LLM
+      // summarization call). The mock captures the system + user
+      // messages and we assert the doc'd prompt content.
+      const db = openTestDB();
+      const now = Math.floor(Date.now() / 1000);
+      const base = "rust borrow checker lifetimes trait bounds ownership ref";
+      // Shared tokens above 0.3 cluster threshold, unique per entry →
+      // exactly 1 cluster of 6 entries.
+      for (let i = 0; i < 6; i++) {
+        db.run(
+          "INSERT INTO memory_entries (source_path, section, content, importance_score, last_accessed, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+          [`test/cluster-${i}.md`, null, base + ` uniquetoken${i}`, 0.5, now - i, now - i],
+        );
+      }
+      db.close();
+
+      let capturedSysMsg = "";
+      let capturedUserMsg = "";
+      let summarizeCallCount = 0;
+      const mockCtx: RichPluginContext = {
+        client: {
+          session: {
+            message: async (params) => {
+              const sysMsg = params.messages.find((m) => m.role === "system")?.content ?? "";
+              const userMsg = params.messages.find((m) => m.role === "user")?.content ?? "";
+              if (sysMsg.includes("memory summarizer")) {
+                capturedSysMsg = sysMsg;
+                capturedUserMsg = userMsg;
+                summarizeCallCount++;
+                return { content: [{ type: "text", text: "captured summary text" }] };
+              }
+              // topic-namer — return canned name, no need to inspect
+              return { content: [{ type: "text", text: "captured topic" }] };
+            },
+          },
+        },
+      };
+
+      const { tool } = createDreamTool({
+        enabled: true,
+        threshold: 50,
+        intervalHours: 0,
+        storagePath: TEST_DB_PATH,
+        ctx: mockCtx,
+      });
+
+      const result = await tool.execute();
+      expect(result.ok).toBe(true);
+      expect(result.summarized).toBe(6);
+      expect(summarizeCallCount).toBe(1);
+
+      // System prompt pins.
+      expect(capturedSysMsg).toContain("memory summarizer");
+      expect(capturedSysMsg).toContain("concise 1-3 sentence");
+      // User header pins — exact first line before '\n\n'.
+      const header = capturedUserMsg.split("\n\n")[0];
+      expect(header).toBe("Summarize these 6 related memory entries:");
+    });
+
+    it("summarize LLM empty output → fall back to concatenateSummary (DREAM-SUMMARY marker present)", async () => {
+      // Pin the extractResponseText fallback path inside summarizeViaLLM:
+      // when the LLM returns an empty string, the function must fall back
+      // to concatenateSummary (NOT throw, NOT return empty) so the
+      // summary row still contains the cluster content.
+      const db = openTestDB();
+      const now = Math.floor(Date.now() / 1000);
+      const base = "auth jwt tokens api requests session management oauth";
+      for (let i = 0; i < 6; i++) {
+        db.run(
+          "INSERT INTO memory_entries (source_path, section, content, importance_score, last_accessed, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+          [`test/fallback-${i}.md`, "auth", base + ` word${i}`, 0.5, now - i, now - i],
+        );
+      }
+      db.close();
+
+      const emptyCtx: RichPluginContext = {
+        client: {
+          session: {
+            message: async (params) => {
+              const sysMsg = params.messages.find((m) => m.role === "system")?.content ?? "";
+              if (sysMsg.includes("memory summarizer")) {
+                return { content: [{ type: "text", text: "" }] }; // empty → fall back
+              }
+              return { content: [{ type: "text", text: "topic" }] };
+            },
+          },
+        },
+      };
+
+      const { tool } = createDreamTool({
+        enabled: true,
+        threshold: 50,
+        intervalHours: 0,
+        storagePath: TEST_DB_PATH,
+        ctx: emptyCtx,
+      });
+
+      const result = await tool.execute();
+      expect(result.ok).toBe(true);
+      const db2 = openTestDB();
+      const rows = db2
+        .query("SELECT content FROM memory_entries")
+        .all() as Array<{ content: string }>;
+      db2.close();
+      // The summary row MUST contain the concatenation fallback marker.
+      expect(rows.length).toBe(1);
+      expect(rows[0].content).toContain("DREAM-SUMMARY");
+    });
+  });
 });
