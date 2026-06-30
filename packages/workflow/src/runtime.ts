@@ -17,6 +17,7 @@ import { WorkflowEventEmitter } from "./event-emitter.ts"
 import { WorkflowActivation } from "./activation.ts"
 import { createEventBus } from "./events.ts"
 import { makeSemaphore, acquireLock } from "./concurrency.ts"
+import { makeEntry, outcomeFor } from "./internal-run-entry.ts"
 
 import { parseMeta } from "./meta.ts"
 import {
@@ -90,43 +91,6 @@ const STRAGGLER_TIMEOUT = Symbol("straggler-timeout")
 
 export type PluginContext = RichPluginContext & {
   config?: Partial<WorkflowConfig>
-}
-
-// ---------------------------------------------------------------------------
-// RunEntry (internal)
-// ---------------------------------------------------------------------------
-
-interface InternalRunEntry {
-  runID: string
-  name: string
-  status: WorkflowStatus
-  /** Per-run counter state — running/succeeded/failed/agentCount/
-   *  agentCountTotal/tokensUsed. Owned by CounterManager (Task 1.2, M-1
-   *  god-object refactor) so counter mutation logic can be unit-tested
-   *  independently of WorkflowRuntime. Default-initialized to all-zero
-   *  in makeEntry(). */
-  counters: CounterManager
-  capWarned: boolean
-  currentPhase?: string
-  childRunIDs: Set<string>
-  startedMs: number
-  deadlineMs: number
-  // Deferred outcome
-  outcomePromise: Promise<WorkflowOutcome>
-  resolveOutcome: (outcome: WorkflowOutcome) => void
-  // Abort for cancel
-  controller: AbortController
-  // Journal replay state
-  journalResults: Map<string, unknown>
-  journalPass: number
-  // Config
-  cfg: Required<WorkflowConfig> & { maxDepth: number; maxLifecycleAgents: number }
-  /** Lexical jail root — persisted to DB; restored on resume(). Child workflows
-   *  inherit from parent so the whole tree stays in the same directory. */
-  workspace?: string
-  /** MCP bridge — per-run state for guest MCP calls (budget + recursion guard).
-   *  Constructed in `makeEntry` so each run gets an isolated counter. */
-  mcpBridge: McpBridge
 }
 
 // ---------------------------------------------------------------------------
@@ -339,7 +303,7 @@ export class WorkflowRuntime {
     // Load journal (empty on fresh run)
     const journal = await this.persistence.loadJournal(runID)
 
-    const entry = this.makeEntry({ runID, name, cfg, journalResults: journal.results, journalPass: journal.pass, workspace })
+    const entry = makeEntry({ runID, name, cfg, journalResults: journal.results, journalPass: journal.pass, workspace })
 
     this.runs.register(runID, entry)
 
@@ -434,7 +398,7 @@ export class WorkflowRuntime {
     if (!entry || entry.status !== "running") return
     entry.controller.abort()
     entry.status = "cancelled"
-    const outcome = this.outcomeFor(entry, "cancelled")
+    const outcome = outcomeFor(entry, "cancelled")
     entry.resolveOutcome(outcome)
     this.persistence.updateRunStatus(entry.runID, "cancelled")
     flushJournalSync()
@@ -507,7 +471,7 @@ export class WorkflowRuntime {
 
       const journal = await this.persistence.loadJournal(input.runID)
 
-      const entry = this.makeEntry({ runID: input.runID, name, cfg, journalResults: journal.results, journalPass: journal.pass, workspace: resumeWorkspace })
+      const entry = makeEntry({ runID: input.runID, name, cfg, journalResults: journal.results, journalPass: journal.pass, workspace: resumeWorkspace })
 
       this.runs.register(input.runID, entry)
       this.persistence.updateRunStatus(input.runID, "running")
@@ -1086,7 +1050,7 @@ export class WorkflowRuntime {
     const runID = this.persistence.createRun(name, name, scriptSha, undefined, childWorkspace, args)
     await this.persistence.writeScript(runID, script)
 
-    const entry = this.makeEntry({ runID, name: parsed.ok ? parsed.meta.name : name, cfg: parent.cfg, workspace: childWorkspace })
+    const entry = makeEntry({ runID, name: parsed.ok ? parsed.meta.name : name, cfg: parent.cfg, workspace: childWorkspace })
 
     this.runs.register(runID, entry)
 
@@ -1105,7 +1069,7 @@ export class WorkflowRuntime {
     // overwrites entry.status / DB row from "cancelled" → "completed".
     if (entry.status !== "running") return
     entry.status = "completed"
-    const outcome = this.outcomeFor(entry, "completed", { result })
+    const outcome = outcomeFor(entry, "completed", { result })
     entry.resolveOutcome(outcome)
     this.persistence.updateRunStatus(entry.runID, "completed")
     flushJournalSync()
@@ -1124,7 +1088,7 @@ export class WorkflowRuntime {
     entry.status = error.includes("budget_exceeded") || error.includes("deadline exceeded")
       ? "budget_exceeded"
       : "failed"
-    const outcome = this.outcomeFor(entry, entry.status as "failed" | "budget_exceeded", { error })
+    const outcome = outcomeFor(entry, entry.status as "failed" | "budget_exceeded", { error })
     entry.resolveOutcome(outcome)
     this.persistence.updateRunStatus(entry.runID, entry.status, error)
     flushJournalSync()
@@ -1173,53 +1137,6 @@ export class WorkflowRuntime {
       }
     } catch (err) {
       this.failRun(entry, err instanceof Error ? err.message : String(err))
-    }
-  }
-
-  private makeEntry(opts: {
-    runID: string
-    name: string
-    cfg: Required<WorkflowConfig> & { maxDepth: number; maxLifecycleAgents: number }
-    journalResults?: Map<string, unknown>
-    journalPass?: number
-    workspace?: string
-  }): InternalRunEntry {
-    const startedMs = Date.now()
-    let resolveOutcome!: (outcome: WorkflowOutcome) => void
-    const outcomePromise = new Promise<WorkflowOutcome>((res) => { resolveOutcome = res })
-    return {
-      runID: opts.runID,
-      name: opts.name,
-      status: "running",
-      counters: new CounterManager(),
-      capWarned: false,
-      childRunIDs: new Set(),
-      startedMs,
-      deadlineMs: startedMs + opts.cfg.maxWallClockMs,
-      outcomePromise,
-      resolveOutcome,
-      controller: new AbortController(),
-      journalResults: opts.journalResults ?? new Map(),
-      journalPass: opts.journalPass ?? 0,
-      cfg: opts.cfg,
-      workspace: opts.workspace,
-      // Per-run MCP bridge — counter is isolated so concurrent runs don't
-      // share budget. Override `maxMcpCalls` via WorkflowConfig (deferred —
-      // for now the constant DEFAULT_MAX_MCP_CALLS is the only knob).
-      mcpBridge: new McpBridge(DEFAULT_MAX_MCP_CALLS),
-    }
-  }
-
-  private outcomeFor(entry: InternalRunEntry, status: WorkflowOutcome["status"], extras?: { result?: unknown; error?: string }): WorkflowOutcome {
-    return {
-      runID: entry.runID,
-      status,
-      result: extras?.result,
-      error: extras?.error,
-      stepsCompleted: entry.counters.succeeded + entry.counters.failed,
-      stepsTotal: entry.cfg.maxSteps,
-      tokensUsed: entry.counters.tokensUsed,
-      durationMs: Date.now() - entry.startedMs,
     }
   }
 
