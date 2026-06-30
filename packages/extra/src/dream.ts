@@ -1026,6 +1026,18 @@ export function isDreamLocked(): boolean {
   return (_activeDreamState?.dreamLock ?? null) !== null;
 }
 
+/** Snapshot the active factory's state for tests that need to inspect
+ *  internal slots (cronTimer, dreamLock) directly. Returns `null` when no
+ *  factory is currently registered. The returned reference is live: if a
+ *  new factory is later created, the captured reference still points at
+ *  the previous factory's state — useful for asserting that the prior
+ *  factory's slots were cleaned up by the new factory's setup path.
+ *  Production code should use `clearCronTimer()` / `isDreamLocked()` for
+ *  state mutations; this getter is a read-only introspection handle. */
+export function snapshotActiveDreamState(): DreamInstanceState | null {
+  return _activeDreamState;
+}
+
 // ---------------------------------------------------------------------------
 // Factory
 // ---------------------------------------------------------------------------
@@ -1043,6 +1055,17 @@ export function createDreamTool(config: DreamConfig): {
     dreamLock: null,
     cronTimer: null,
   };
+  // Multi-factory cron-timer cleanup: clear the PRIOR active factory's
+  // cron timer (if any) BEFORE swapping _activeDreamState. Otherwise
+  // each new factory leaves the previous factory's setInterval handle
+  // alive but unreachable through the public API — the singleton
+  // _activeDreamState only retains the latest factory's handle. The
+  // fix is here (not in setupDreamCron) because setupDreamCron only
+  // knows about its own `state`, not the prior factory's.
+  if (_activeDreamState?.cronTimer != null) {
+    clearInterval(_activeDreamState.cronTimer);
+    _activeDreamState.cronTimer = null;
+  }
   _activeDreamState = state;
 
   function getDB(): Database {

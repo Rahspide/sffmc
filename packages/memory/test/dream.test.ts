@@ -7,6 +7,7 @@ import {
   createDreamTool,
   clearCronTimer,
   isDreamLocked,
+  snapshotActiveDreamState,
   nameClusterViaLLM,
   DEFAULT_ARCHIVE_PATH,
   DREAM_SNIPPET_LENGTH,
@@ -2205,12 +2206,16 @@ describe("Dream", () => {
   });
 
   // -------------------------------------------------------------------------
-  // Hot-path tweak (audit defense-in-depth) — clamp the runDream cap to the
-  // MAX_OVERFLOW constant so a misconfigured `maxEntries` cannot push the
-  // O(n^2) Jaccard dedup/cluster loops past the production budget.
+  // Hot-path tweaks (audit defense-in-depth) — defense-in-depth guards on
+  // the audit-flagged Jaccard and cron-timer leaks. Independent of the
+  // cluster algorithm itself: the first test clamps the effective cap so a
+  // misconfigured maxEntries cannot push the O(n^2) loops past the
+  // production budget; the second clears the prior factory's cron timer
+  // in the multi-factory case (otherwise the leak persists even after the
+  // singleton ref moves on).
   // -------------------------------------------------------------------------
 
-  describe("hot-path tweak: MAX_OVERFLOW cap clamp", () => {
+  describe("hot-path tweaks (defense-in-depth)", () => {
     it("runDream clamps effective cap to MAX_OVERFLOW when maxEntries config exceeds it", async () => {
       // Pin the MAX_OVERFLOW inner-loop guard: a misconfigured maxEntries
       // (e.g., 1_000_000) MUST NOT bypass the production 5000-entry O(n^2)
@@ -2246,6 +2251,55 @@ describe("Dream", () => {
       const db2 = openTestDB();
       expect(countRows(db2)).toBe(MAX_OVERFLOW + 1);
       db2.close();
+    });
+
+    it("createDreamTool called twice clears the prior factory's cron timer (multi-factory leak)", () => {
+      // Pin the multi-factory cron-timer cleanup: when createDreamTool is
+      // called a second time with cron enabled, the FIRST factory's
+      // setInterval MUST be cleared (otherwise it leaks — the singleton
+      // _activeDreamState only retains the LATEST factory's handle).
+      //
+      // We assert observable side-effects via a snapshot of the prior
+      // factory's state captured BEFORE the second factory replaces it.
+      // If the leak were present, the captured state.cronTimer would
+      // remain a live Interval handle even after createDreamTool#2 runs.
+      clearCronTimer();
+
+      const { tool: toolA } = createDreamTool({
+        enabled: true,
+        threshold: 50,
+        intervalHours: 24, // cron enabled — timer set on factory A
+        storagePath: TEST_DB_PATH,
+      });
+      // _activeDreamState now points at factoryA — capture a snapshot.
+      const factoryAState = snapshotActiveDreamState();
+      expect(factoryAState).not.toBeNull();
+      expect(factoryAState!.cronTimer).not.toBeNull();
+
+      // Second factory with cron also enabled. After this,
+      // _activeDreamState replaces factoryA's state with factoryB's. The
+      // fix must clear factoryA's cronTimer BEFORE the replacement so the
+      // prior handle is released.
+      const { tool: toolB } = createDreamTool({
+        enabled: true,
+        threshold: 50,
+        intervalHours: 24,
+        storagePath: TEST_DB_PATH,
+      });
+      const factoryBState = snapshotActiveDreamState();
+      expect(factoryBState).not.toBeNull();
+      expect(factoryBState!.cronTimer).not.toBeNull();
+
+      // The captured factoryA state must now have a NULL cronTimer slot —
+      // the createDreamTool entry point cleared the prior factory's timer
+      // before swapping _activeDreamState, so the old handle was released
+      // and the slot reset to null.
+      expect(factoryAState!.cronTimer).toBeNull();
+
+      // Cleanup: clear the active factory's timer for clean shutdown.
+      clearCronTimer();
+      void toolA;
+      void toolB;
     });
   });
 });
