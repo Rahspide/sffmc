@@ -622,15 +622,15 @@ export class WorkflowRuntime {
     opts: AgentOptions | undefined,
     occ: Map<string, number>,
   ): Promise<AgentResult> {
-    const o = opts ?? {} as AgentOptions
+    const agentOpts = opts ?? {} as AgentOptions
     const promptStr = String(task)
 
     // Journal cache lookup
     const base = journalKeyBase(promptStr, {
       agentType: undefined,
-      model: o.model,
-      schema: o.schema,
-      phase: o.phase,
+      model: agentOpts.model,
+      schema: agentOpts.schema,
+      phase: agentOpts.phase,
     })
     const n = occ.get(base) ?? 0
     occ.set(base, n + 1)
@@ -672,7 +672,7 @@ export class WorkflowRuntime {
       }
 
       // Depth check
-      const depth = o.depth ?? 0
+      const depth = agentOpts.depth ?? 0
       if (depth > entry.cfg.maxDepth) {
         throw new Error(`Workflow nesting depth (${depth}) exceeds maxDepth (${entry.cfg.maxDepth})`)
       }
@@ -681,7 +681,7 @@ export class WorkflowRuntime {
       entry.counters.recordAgentStart()
       this.scheduleFlush(entry)
 
-      return this.executeAgentCall(entry, promptStr, o, key)
+      return this.executeAgentCall(entry, promptStr, agentOpts, key)
     })
   }
 
@@ -690,12 +690,12 @@ export class WorkflowRuntime {
   private async executeAgentCall(
     entry: InternalRunEntry,
     promptStr: string,
-    o: AgentOptions,
+    agentOpts: AgentOptions,
     key: string,
   ): Promise<AgentResult | null> {
     let reason: AgentFailureReason = AFR.ActorError
     try {
-      const result = await this.callLLM(entry, promptStr, o)
+      const result = await this.callLLM(entry, promptStr, agentOpts)
 
       // Track tokens
       const tokens = result.info?.tokens
@@ -725,7 +725,7 @@ export class WorkflowRuntime {
       }
 
       // Extract deliverable
-      const deliverable = o.schema
+      const deliverable = agentOpts.schema
         ? (result.structured ?? null)
         : (result.structured ?? result.finalText ?? null)
 
