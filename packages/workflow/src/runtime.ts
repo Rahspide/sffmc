@@ -7,7 +7,6 @@ import {
   generateRunID,
   computeScriptSha,
   journalKeyBase,
-  flushJournalSync,
 } from "./persistence.ts"
 import { OutcomeStore } from "./outcome-store.ts"
 import { CounterManager } from "./counter-manager.ts"
@@ -401,7 +400,7 @@ export class WorkflowRuntime {
     const outcome = outcomeFor(entry, "cancelled")
     entry.resolveOutcome(outcome)
     this.persistence.updateRunStatus(entry.runID, "cancelled")
-    flushJournalSync()
+    this.persistence.flushJournalSync()
     this.events.emit("workflow:finished", { runID: entry.runID, status: "cancelled" })
     // v0.14.x C-2 — cache the resolved outcome (late wait() callers still
     // need it) then drop the entry from `this.runs` so the McpBridge,
@@ -557,7 +556,7 @@ export class WorkflowRuntime {
         )
       }
     }
-    flushJournalSync()
+    this.persistence.flushJournalSync()
   }
 
   // ── Private: launch ────────────────────────────────────────────────────
@@ -1032,7 +1031,7 @@ export class WorkflowRuntime {
     const outcome = outcomeFor(entry, "completed", { result })
     entry.resolveOutcome(outcome)
     this.persistence.updateRunStatus(entry.runID, "completed")
-    flushJournalSync()
+    this.persistence.flushJournalSync()
     this.events.emit("workflow:finished", { runID: entry.runID, status: "completed" })
     // v0.14.x C-2 — cache the resolved outcome (late wait() callers still
     // need it) then drop the entry from `this.runs` so the McpBridge,
@@ -1051,7 +1050,7 @@ export class WorkflowRuntime {
     const outcome = outcomeFor(entry, entry.status as "failed" | "budget_exceeded", { error })
     entry.resolveOutcome(outcome)
     this.persistence.updateRunStatus(entry.runID, entry.status, error)
-    flushJournalSync()
+    this.persistence.flushJournalSync()
     this.events.emit("workflow:finished", { runID: entry.runID, status: entry.status, error })
     // v0.14.x C-2 — cache the resolved outcome (late wait() callers still
     // need it) then drop the entry from `this.runs` so the McpBridge,

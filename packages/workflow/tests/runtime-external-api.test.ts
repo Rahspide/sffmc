@@ -58,7 +58,6 @@ import type { PluginContext } from "../src/runtime"
 import {
   WorkflowPersistence,
   computeScriptSha,
-  flushJournalSync,
 } from "../src/persistence.ts"
 import type { WorkflowStatus } from "../src/types.ts"
 
@@ -575,7 +574,7 @@ describe("WorkflowRuntime.recoverOrphanedWorkflows", () => {
     const runID = p.createRun(`${label}.ts`, label, sha)
     // Seed a journal event so the journal-presence check is TRUE.
     p.appendJournalSync(runID, { t: "log", msg: "seed", pass: 1 })
-    flushJournalSync()
+    p.flushJournalSync()
     // Force the row's createdAt back beyond the (tiny) grace window.
     const db = p.getDB()
     db.run(`UPDATE workflow_runs SET time_created = ? WHERE id = ?`, [

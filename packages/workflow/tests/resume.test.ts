@@ -20,7 +20,6 @@ import type { PluginContext } from "../src/runtime"
 import {
   WorkflowPersistence,
   computeScriptSha,
-  flushJournalSync,
 } from "../src/persistence.ts"
 
 const mockCtx: PluginContext = {
@@ -48,7 +47,7 @@ function makeRun(label: string, withJournal = false): string {
   const runID = p.createRun(`${label}.ts`, label, sha)
   if (withJournal) {
     p.appendJournalSync(runID, { t: "agent", key: "k", result: "v", pass: 1 })
-    flushJournalSync()
+    p.flushJournalSync()
   }
   return runID
 }
@@ -113,7 +112,7 @@ describe("persistence.hasJournalEvents", () => {
   test("returns true after first appendJournalSync (#5)", async () => {
     const runID = makeRun("hj-present")
     p.appendJournalSync(runID, { t: "agent", key: "k", result: "v", pass: 1 })
-    flushJournalSync()
+    p.flushJournalSync()
     const result = await p.hasJournalEvents(runID)
     expect(result).toBe(true)
   })
@@ -125,7 +124,7 @@ describe("persistence.appendJournalSync v1 header", () => {
   test("writes v1 header on first append (#6)", () => {
     const runID = makeRun("hdr-first")
     p.appendJournalSync(runID, { t: "log", msg: "first", pass: 1 })
-    flushJournalSync()
+    p.flushJournalSync()
     const lines = readRawJournalLines(runID)
     expect(lines.length).toBe(2) // header + 1 event
     expect(JSON.parse(lines[0])).toEqual({ v: 1 })
@@ -137,7 +136,7 @@ describe("persistence.appendJournalSync v1 header", () => {
     p.appendJournalSync(runID, { t: "log", msg: "a", pass: 1 })
     p.appendJournalSync(runID, { t: "log", msg: "b", pass: 2 })
     p.appendJournalSync(runID, { t: "log", msg: "c", pass: 3 })
-    flushJournalSync()
+    p.flushJournalSync()
     const lines = readRawJournalLines(runID)
     expect(lines.length).toBe(4) // header + 3 events
     const headerCount = lines.filter((l) => {
@@ -173,7 +172,7 @@ describe("persistence.loadJournal format compat", () => {
     const runID = makeRun("ld-v1")
     p.appendJournalSync(runID, { t: "agent", key: "k1", result: "v1r", pass: 1 })
     p.appendJournalSync(runID, { t: "agent", key: "k2", result: "v2r", pass: 2 })
-    flushJournalSync()
+    p.flushJournalSync()
     const { results, pass } = await p.loadJournal(runID)
     expect(pass).toBe(3) // maxPass(2) + 1
     expect(results.get("k1")).toBe("v1r")
@@ -185,7 +184,7 @@ describe("persistence.loadJournal format compat", () => {
     const runID = makeRun("ld-hdr")
     p.appendJournalSync(runID, { t: "agent", key: "k1", result: "r1", pass: 5 })
     p.appendJournalSync(runID, { t: "agent", key: "k2", result: "r2", pass: 10 })
-    flushJournalSync()
+    p.flushJournalSync()
     const { results, pass } = await p.loadJournal(runID)
     expect(pass).toBe(11) // maxPass(10) + 1
     expect(results.size).toBe(2)
@@ -271,7 +270,7 @@ describe("runtime.resume 'paused' path", () => {
       async function main() { return "resumed"; }`)
     // Pre-populate journal so loadJournal has content
     p.appendJournalSync(runID, { t: "log", msg: "before", pass: 1 })
-    flushJournalSync()
+    p.flushJournalSync()
     p.updateRunStatus(runID, "paused", "resumable from journal")
 
     const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
@@ -590,7 +589,7 @@ describe("v0.14 workflow recovery grace period grace period — resume integrati
         async function main() { return "ok"; }`,
     )
     p.appendJournalSync(runID, { t: "log", msg: "pre-crash", pass: 1 })
-    flushJournalSync()
+    p.flushJournalSync()
     // Pre-state: row is running, age=30s. Recovery marks it paused.
     const runtime = new WorkflowRuntime(mockCtx, { persistence: p, gracePeriodMsOverride: 300_000 })
     await runtime.recoverOrphanedWorkflows()

@@ -19,7 +19,6 @@ process.env.XDG_DATA_HOME = tmpDir
 import {
   WorkflowPersistence,
   computeScriptSha,
-  flushJournalSync,
 } from "../src/persistence.ts"
 
 const p = new WorkflowPersistence({ dataDir: tmpDir })
@@ -54,7 +53,7 @@ describe("persistence.clearJournal v1-header preservation", () => {
     // Synchronous append — exactly the race the audit flagged: a child
     // workflow writing within 50ms of clearJournal.
     p.appendJournalSync(runID, { t: "agent", key: "k", result: "after-clear", pass: 1 })
-    flushJournalSync()
+    p.flushJournalSync()
 
     const lines = readRawJournalLines(runID)
     // Must be header + event, in that order. Before the fix this was either
@@ -82,7 +81,7 @@ describe("persistence.clearJournal v1-header preservation", () => {
         t: "agent", key: `k${i}`, result: `r${i}`, pass: i,
       })
     }
-    flushJournalSync()
+    p.flushJournalSync()
 
     const lines = readRawJournalLines(runID)
     expect(lines.length).toBe(N + 1) // 1 header + 5 events
@@ -136,7 +135,7 @@ describe("persistence.clearJournal v1-header preservation", () => {
 
     // And a subsequent append must work, not get treated as a duplicate header
     p.appendJournalSync(runID, { t: "log", msg: "after-fresh-clear", pass: 1 })
-    flushJournalSync()
+    p.flushJournalSync()
     const lines2 = readRawJournalLines(runID)
     expect(lines2.length).toBe(2)
     expect(JSON.parse(lines2[0])).toEqual({ v: 1 })
