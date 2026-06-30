@@ -161,53 +161,67 @@ export function buildJudgePrompt(candidates: string[], rubric: string): { system
 
 export function parseJudgeResponse(raw: string, n: number): JudgeResponse | null {
   try {
-    const trimmed = raw.trim();
-    // Extract the  JSON object from the response (handles markdown fences,
-    // leading text, trailing text)
-    const jsonMatch = trimmed.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return null;
-
-    const parsed = JSON.parse(jsonMatch[0]) as JudgeResponse;
-
-    // Validate scores array
-    if (!Array.isArray(parsed.scores) || parsed.scores.length !== n) {
-      return null;
-    }
-
-    for (const s of parsed.scores) {
-      if (
-        typeof s.correctness !== "number" ||
-        s.correctness < 0 ||
-        s.correctness > 10 ||
-        typeof s.completeness !== "number" ||
-        s.completeness < 0 ||
-        s.completeness > 10 ||
-        typeof s.conciseness !== "number" ||
-        s.conciseness < 0 ||
-        s.conciseness > 10
-      ) {
-        return null;
-      }
-    }
-
-    // Validate winner
-    if (typeof parsed.winner !== "number" || parsed.winner < 0 || parsed.winner >= n) {
-      return null;
-    }
-
-    // Validate reasoning
-    if (typeof parsed.reasoning !== "string" || parsed.reasoning.trim().length === 0) {
-      return null;
-    }
-
-    return {
-      scores: parsed.scores,
-      winner: parsed.winner,
-      reasoning: parsed.reasoning.trim(),
-    };
+    const json = extractJudgeJsonObject(raw);
+    if (json === null) return null;
+    const parsed = JSON.parse(json) as JudgeResponse;
+    return validateJudgeResponseShape(parsed, n);
   } catch {
     return null;
   }
+}
+
+/** Extract the JSON object literal from a free-form LLM response. Handles
+ *  markdown code fences, leading text, and trailing text — the regex
+ *  matches the first `{...}` span. Returns `null` if no JSON object is
+ *  found. */
+function extractJudgeJsonObject(raw: string): string | null {
+  const trimmed = raw.trim();
+  const jsonMatch = trimmed.match(/\{[\s\S]*\}/);
+  return jsonMatch ? jsonMatch[0] : null;
+}
+
+/** Validate the parsed JudgeResponse shape (scores / winner / reasoning).
+ *  Returns the normalized response (with reasoning trimmed) on success,
+ *  or `null` on any structural failure. The caller is responsible for the
+ *  outer try/catch around `JSON.parse`. */
+function validateJudgeResponseShape(
+  parsed: JudgeResponse,
+  n: number,
+): JudgeResponse | null {
+  if (!hasValidJudgeScores(parsed.scores, n)) return null;
+  if (typeof parsed.winner !== "number" || parsed.winner < 0 || parsed.winner >= n) {
+    return null;
+  }
+  if (typeof parsed.reasoning !== "string" || parsed.reasoning.trim().length === 0) {
+    return null;
+  }
+  return {
+    scores: parsed.scores,
+    winner: parsed.winner,
+    reasoning: parsed.reasoning.trim(),
+  };
+}
+
+/** Validate the `scores` array: must be an Array of length `n`, each
+ *  entry's correctness/completeness/conciseness must be a number in [0,10]. */
+function hasValidJudgeScores(scores: unknown, n: number): scores is JudgeScore[] {
+  if (!Array.isArray(scores) || scores.length !== n) return false;
+  for (const s of scores) {
+    if (
+      typeof s.correctness !== "number" ||
+      s.correctness < 0 ||
+      s.correctness > 10 ||
+      typeof s.completeness !== "number" ||
+      s.completeness < 0 ||
+      s.completeness > 10 ||
+      typeof s.conciseness !== "number" ||
+      s.conciseness < 0 ||
+      s.conciseness > 10
+    ) {
+      return false;
+    }
+  }
+  return true;
 }
 
 // ---------------------------------------------------------------------------

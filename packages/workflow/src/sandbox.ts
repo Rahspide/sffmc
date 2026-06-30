@@ -375,48 +375,66 @@ function injectHooks(
 ): void {
   for (const [name, fn] of Object.entries(hooks)) {
     const fnHandle = ctx.newFunction(name, (...argHandles: QuickJSHandle[]) => {
-      const args: unknown[] = []
-      for (const h of argHandles) {
-        args.push(ctx.dump(h))
-        h.dispose()
-      }
+      const args = dumpHostFnArgs(ctx, argHandles)
       const out = fn(...args)
-
       if (out instanceof Promise) {
-        const promise = ctx.newPromise()
-        deferreds.push(promise)
-        out.then(
-          (value) => {
-            // A late settle may arrive after the context is disposed
-            // (script returned without awaiting). Bail before touching
-            // a dead context.
-            if (!ctx.alive) return
-            const vh = marshalIn(ctx, value)
-            promise.resolve(vh)
-            vh.dispose()
-            ctx.runtime.executePendingJobs()
-          },
-          (err) => {
-            if (!ctx.alive) return
-            const eh = ctx.newString(
-              err instanceof Error ? err.message : String(err),
-            )
-            promise.reject(eh)
-            eh.dispose()
-            ctx.runtime.executePendingJobs()
-          },
-        )
-        promise.settled.then(() => {
-          if (ctx.alive) ctx.runtime.executePendingJobs()
-        })
-        return promise.handle
+        return bridgeAsyncHostResult(ctx, out, deferreds)
       }
-
       // Synchronous return — marshal into the guest.
       return marshalIn(ctx, out)
     })
     ctx.setProp(ctx.global, name, track(fnHandle))
   }
+}
+
+/** Dump a guest arg-handle array into a host-side JS array, disposing
+ *  each handle as we go. Used by every host function: the guest owns
+ *  the arg handles and we MUST dispose them after dumping or the
+ *  context will leak. */
+function dumpHostFnArgs(ctx: QuickJSContext, argHandles: QuickJSHandle[]): unknown[] {
+  const args: unknown[] = []
+  for (const h of argHandles) {
+    args.push(ctx.dump(h))
+    h.dispose()
+  }
+  return args
+}
+
+/** Bridge an async host result into a guest promise. Wires up the
+ *  then/settled handlers, marshals the resolved value (or the rejected
+ *  message) into the guest, and tracks the deferred so the script's
+ *  outer `finally` can dispose it before context dispose.
+ *
+ *  Two context-alive guards: a late settle may arrive after the context
+ *  is disposed (script returned without awaiting) — we bail before
+ *  touching a dead context. */
+function bridgeAsyncHostResult(
+  ctx: QuickJSContext,
+  out: Promise<unknown>,
+  deferreds: QuickJSDeferredPromise[],
+): QuickJSHandle {
+  const promise = ctx.newPromise()
+  deferreds.push(promise)
+  out.then(
+    (value) => {
+      if (!ctx.alive) return
+      const vh = marshalIn(ctx, value)
+      promise.resolve(vh)
+      vh.dispose()
+      ctx.runtime.executePendingJobs()
+    },
+    (err) => {
+      if (!ctx.alive) return
+      const eh = ctx.newString(err instanceof Error ? err.message : String(err))
+      promise.reject(eh)
+      eh.dispose()
+      ctx.runtime.executePendingJobs()
+    },
+  )
+  promise.settled.then(() => {
+    if (ctx.alive) ctx.runtime.executePendingJobs()
+  })
+  return promise.handle
 }
 
 /** Marshal a host JS value INTO the guest (by copy via JSON for structured
