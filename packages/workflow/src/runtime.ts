@@ -13,7 +13,7 @@ import { CounterManager } from "./counter-manager.ts"
 import { WorkflowEventEmitter } from "./event-emitter.ts"
 import { WorkflowActivation } from "./activation.ts"
 import { createEventBus } from "./events.ts"
-import { makeSemaphore, acquireLock } from "./concurrency.ts"
+import { makeSemaphore, Concurrency } from "./concurrency.ts"
 import { makeEntry, outcomeFor, type InternalRunEntry } from "./internal-run-entry.ts"
 import { resolveWorkflowScript } from "./script-resolver.ts"
 import { FlushManager } from "./flush-manager.ts"
@@ -129,6 +129,12 @@ export class WorkflowRuntime {
    *  contract and activation.test.ts for the regression net. */
   private runs = new WorkflowActivation<InternalRunEntry>()
   private globalSem: ReturnType<typeof makeSemaphore>
+  /** Per-runtime concurrency primitives (L-3, Task 2.7). Owns the
+   *  `acquireLock("workflow-resume:" + runID)` chain map so concurrent
+   *  `resume()` calls on the same runID serialize correctly. Previously
+   *  the lock chain was a module-level `Map` shared by every caller in
+   *  the process — moved to instance state for hermetic test isolation. */
+  private concurrency = new Concurrency()
   private flushManager: FlushManager
   private persistence: WorkflowPersistence
   /** Event bus for observability listeners.
@@ -428,7 +434,7 @@ export class WorkflowRuntime {
     // Workflow config — same lazy load as `start()` so resume() picks up the YAML
     // config on  call.
     await this.loadWorkflowConfig()
-    const lock = await acquireLock("workflow-resume:" + input.runID)
+    const lock = await this.concurrency.acquireLock("workflow-resume:" + input.runID)
     try {
       // In-process live guard
       const live = this.runs.get(input.runID)
@@ -516,9 +522,11 @@ export class WorkflowRuntime {
 
   /** Recover orphaned workflows on startup.
    *  Any run left in 'running' status after a process restart is orphaned.
-   *  Lock recovery is N/A — lockMap at module scope is in-process only;
-   *  there is no on-disk lock. After this method returns, all orphaned
-   *  runs are either marked 'paused' (resumable) or 'crashed' (no journal).
+   *  Lock recovery is N/A — the `Concurrency` instance's lockMap is
+   *  in-process only (lives on `this.concurrency`, not on disk); there
+   *  is no on-disk lock to recover. After this method returns, all
+   *  orphaned runs are either marked 'paused' (resumable) or 'crashed'
+   *  (no journal).
    *
    *  workflow recovery grace period — grace period: a row with `time_created` within `gracePeriodMs`
    *  of now is always marked 'paused' (regardless of journal presence);

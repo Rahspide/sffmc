@@ -42,7 +42,8 @@ afterAll(() => {
 })
 
 // ── #2: acquireLock() concurrent resume() serialization ─────────────────
-// runtime.ts:101-112 — acquireLock chains lockMap entries. Two parallel
+// runtime.ts — this.concurrency.acquireLock chains lockMap entries on the
+// runtime's own Concurrency instance (L-3, Task 2.7). Two parallel
 // resume() calls must serialize; the in-process live guard makes the second
 // observe the live entry from the first and return {resumed:false}.
 

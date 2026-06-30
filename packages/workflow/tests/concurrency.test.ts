@@ -5,9 +5,14 @@
 // Covers Semaphore ordering and Lock chain semantics — both exercised
 // concurrently by WorkflowRuntime.resume() in production. Standalone
 // helpers have no domain dependencies so test runs are hermetic.
+//
+// L-3 (Task 2.7): acquireLock moved to a `Concurrency` class with an
+// instance-scoped lockMap. Tests construct a fresh `Concurrency` per
+// describe so cross-test chains can't leak — the previous module-level
+// `lockMap` required test ordering to avoid pollution.
 
 import { describe, test, expect } from "bun:test"
-import { makeSemaphore, acquireLock } from "../src/concurrency.ts"
+import { makeSemaphore, Concurrency } from "../src/concurrency.ts"
 
 describe("makeSemaphore", () => {
   test("run() resolves with the thunks return value", async () => {
@@ -73,12 +78,15 @@ describe("makeSemaphore", () => {
   })
 })
 
-describe("acquireLock", () => {
+describe("Concurrency.acquireLock", () => {
+  // Each test gets its own Concurrency instance (L-3, Task 2.7) — independent
+  // lockMap, so test ordering cannot leak chains between describe blocks.
   test("two lockers with different keys do not serialize", async () => {
+    const c = new Concurrency()
     const order: string[] = []
-    const l1 = await acquireLock("k1")
+    const l1 = await c.acquireLock("k1")
     order.push("acq1")
-    const l2 = await acquireLock("k2")
+    const l2 = await c.acquireLock("k2")
     order.push("acq2")
     l2.release()
     l1.release()
@@ -86,10 +94,11 @@ describe("acquireLock", () => {
   })
 
   test("two lockers with the same key serialize — second waits for release", async () => {
+    const c = new Concurrency()
     const order: string[] = []
-    const l1 = await acquireLock("shared")
+    const l1 = await c.acquireLock("shared")
     order.push("acq1")
-    const p2 = acquireLock("shared").then((l) => {
+    const p2 = c.acquireLock("shared").then((l) => {
       order.push("acq2")
       return l
     })
@@ -103,11 +112,35 @@ describe("acquireLock", () => {
   })
 
   test("release() invoked twice does not deadlock subsequent acquirers", async () => {
-    const l1 = await acquireLock("k")
+    const c = new Concurrency()
+    const l1 = await c.acquireLock("k")
     l1.release()
     l1.release() // idempotent: tail already removed
-    const l2 = await acquireLock("k")
+    const l2 = await c.acquireLock("k")
     l2.release()
     // no-op succeeds
+  })
+
+  // L-3 characterization: demonstrates the new instance isolation contract
+  // that motivated promoting lockMap off module scope. Before this refactor
+  // both acquisitions shared the same module-level lockMap; now they don't.
+  test("two Concurrency instances have independent lock chains (L-3 characterization)", async () => {
+    const cA = new Concurrency()
+    const cB = new Concurrency()
+    // Hold A's chain under "shared" indefinitely
+    const lA = await cA.acquireLock("shared")
+    // B's acquisition under the same key must resolve immediately because B
+    // has its own empty lockMap — module-level scope would have made B
+    // wait for A's release.
+    let bResolved = false
+    const lBPromise = cB.acquireLock("shared").then((l) => {
+      bResolved = true
+      return l
+    })
+    await new Promise((r) => setTimeout(r, 10))
+    expect(bResolved).toBe(true)
+    lA.release()
+    const lB = await lBPromise
+    lB.release()
   })
 })

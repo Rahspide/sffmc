@@ -11,14 +11,19 @@
 // Why separate file: both helpers are pure async plumbing with no
 // domain-specific state — they belong in a `concurrency.ts` module rather
 // than the runtime façade. The runtime holds one `Semaphore` (per-runtime)
-// and calls `acquireLock("workflow-resume:" + runID)` on each `resume()`.
-// Test files import directly from this module for unit tests of the helpers
-// in isolation (concurrency.test.ts).
+// and a `Concurrency` instance (also per-runtime, see Task 2.7 L-3) that
+// it calls `acquireLock("workflow-resume:" + runID)` on via
+// `this.concurrency.acquireLock(...)`. Test files import directly from this
+// module for unit tests of the helpers in isolation (concurrency.test.ts).
 
 /** Promise-based counting semaphore. `run(fn)` wraps a thunk so concurrent
  *  callers above `max` queue until a slot frees. Used by
  *  `WorkflowRuntime` to throttle LLM agent invocations against the
- *  YAML-configured `maxConcurrentAgents` cap. */
+ *  YAML-configured `maxConcurrentAgents` cap.
+ *
+ *  `makeSemaphore` returns a fresh closure instance per call — `active` and
+ *  `queue` are captured in the closure, so each semaphore has independent
+ *  state already. No per-instance fields are needed on a class wrapper. */
 export function makeSemaphore(max: number) {
   let active = 0
   const queue: Array<() => void> = []
@@ -47,31 +52,39 @@ export function makeSemaphore(max: number) {
   }
 }
 
-/** Module-scope chain map. Each `acquireLock(key)` appends a new tail entry to
- *  the chain under `key`; the returned `release()` resolves it. Callers with
- *  the same key run strictly in registration order.
+/** Per-key promise-chain mutex (L-3, Task 2.7).
  *
- *  Volatile scope: the map is module-scope, so locks reset across module
- *  reloads (e.g. test runner re-eval). Production runs in a single Node
- *  process so this is fine. If the runtime ever forks workers, each worker
- *  needs its own process module. */
-const lockMap = new Map<string, Promise<void>>()
+ *  Each `acquireLock(key)` appends a new tail entry to the chain under
+ *  `key`; the returned `release()` resolves it. Callers with the same key
+ *  run strictly in registration order. Different keys do NOT serialize.
+ *
+ *  Previously this state lived at module scope (`const lockMap`), which
+ *  meant all `acquireLock` callers in the process shared the same chain.
+ *  Promoted to a class with an instance-scoped `lockMap` so each
+ *  `Concurrency` instance owns its own chains — WorkflowRuntime gets one
+ *  instance, tests can create fresh instances for hermetic isolation, and
+ *  multi-runtime scenarios don't cross-contaminate lock chains. */
+export class Concurrency {
+  /** Per-key promise chain. Each value is the tail of the chain under
+   *  `key`; a new acquireLock resolves when the previous tail is released. */
+  private lockMap = new Map<string, Promise<void>>()
 
-/** Acquire the lock under `key`, returning a `release()` callback that
- *  resolves the next waiter (or removes the tail entry if no successor).
- *  Used by `WorkflowRuntime.resume()` to serialize concurrent resumes of
- *  the same runID — without it, two parallel `resume(wf_X)` calls can both
- *  read "not in memory", both load the script, and both launch a new
- *  sandbox, racing on the same DB row. */
-export function acquireLock(key: string): Promise<{ release: () => void }> {
-  const prev = lockMap.get(key) ?? Promise.resolve()
-  let release: () => void = () => {}
-  const next = new Promise<void>((resolve) => { release = resolve })
-  lockMap.set(key, prev.then(() => next))
-  return prev.then(() => ({
-    release: () => {
-      release()
-      if (lockMap.get(key) === next) lockMap.delete(key)
-    },
-  }))
+  /** Acquire the lock under `key`, returning a `release()` callback that
+   *  resolves the next waiter (or removes the tail entry if no successor).
+   *  Used by `WorkflowRuntime.resume()` to serialize concurrent resumes of
+   *  the same runID — without it, two parallel `resume(wf_X)` calls can
+   *  both read "not in memory", both load the script, and both launch a
+   *  new sandbox, racing on the same DB row. */
+  acquireLock(key: string): Promise<{ release: () => void }> {
+    const prev = this.lockMap.get(key) ?? Promise.resolve()
+    let release: () => void = () => {}
+    const next = new Promise<void>((resolve) => { release = resolve })
+    this.lockMap.set(key, prev.then(() => next))
+    return prev.then(() => ({
+      release: () => {
+        release()
+        if (this.lockMap.get(key) === next) this.lockMap.delete(key)
+      },
+    }))
+  }
 }
