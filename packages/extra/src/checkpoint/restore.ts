@@ -87,19 +87,19 @@ export function executeRestoreAction(
  *  plain objects are walked element-by-element. Used by the redaction rule
  *  for checkpoint writes so secrets embedded in tool output are replaced
  *  with `[REDACTED:<category>]` markers BEFORE the JSONL line is written. */
-export function sanitizeResult(result: unknown): unknown {
-  if (typeof result === "string") {
-    return redactSecrets(result).redacted
+export function sanitizeValue(value: unknown): unknown {
+  if (typeof value === "string") {
+    return redactSecrets(value).redacted
   }
-  if (Array.isArray(result)) {
-    return result.map((v) => sanitizeResult(v))
+  if (Array.isArray(value)) {
+    return value.map((v) => sanitizeValue(v))
   }
-  if (result && typeof result === "object") {
+  if (value && typeof value === "object") {
     const out: Record<string, unknown> = {}
-    for (const [k, v] of Object.entries(result as Record<string, unknown>)) {
-      out[k] = sanitizeResult(v)
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      out[k] = sanitizeValue(v)
     }
     return out
   }
-  return result
+  return value
 }

@@ -10,7 +10,7 @@ import { CURRENT_VERSION } from "./constants.js";
 import { getOrCreateBuffer, flushSession } from "./buffer.js";
 import { readHeader } from "./header.js";
 import { readToolCallsShim } from "./reader.js";
-import { RESTORE_MARKER, reconstructMessages, sanitizeResult } from "./restore.js";
+import { RESTORE_MARKER, reconstructMessages, sanitizeValue } from "./restore.js";
 import type {
   CheckpointBufferState,
   CheckpointHooks,
@@ -30,7 +30,7 @@ export function createToolExecuteAfterHook(
     const call: ToolCall = {
       tool: toolCtx.tool,
       args: (result.metadata as Record<string, unknown>)?.args ?? {},
-      result: sanitizeResult(result.output),
+      result: sanitizeValue(result.output),
       timestamp: Date.now(),
       callID: toolCtx.callID,
     };
