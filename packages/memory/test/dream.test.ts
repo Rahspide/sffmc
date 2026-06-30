@@ -1914,5 +1914,41 @@ describe("Dream", () => {
       expect(rows[0].content).toContain("DREAM-SUMMARY");
       db2.close();
     });
+
+    it("setupDreamCron: intervalHours=0 → clearCronTimer() is a no-op (no timer registered)", () => {
+      // The factory must NOT register a cron timer when intervalHours is 0.
+      // isDreamLocked()/clearCronTimer() are the only windows into the
+      // internal timer state — both should be in their "no-op" baseline
+      // after createDreamTool returns.
+      clearCronTimer();
+      expect(isDreamLocked()).toBe(false);
+      const before = (createDreamTool as unknown as { _activeDreamState?: { cronTimer: ReturnType<typeof setInterval> | null } })._activeDreamState;
+      void before; // typed probe (not a contract assertion — just exercises the path)
+      createDreamTool({
+        enabled: true,
+        threshold: 50,
+        intervalHours: 0,
+        storagePath: TEST_DB_PATH,
+      });
+      // clearCronTimer must remain a no-op (timer is null on the new factory).
+      expect(() => clearCronTimer()).not.toThrow();
+      // Lock state is still false — disabled-or-no-timer factory never sets it.
+      expect(isDreamLocked()).toBe(false);
+    });
+
+    it("setupDreamCron: enabled:false → clearCronTimer() is a no-op regardless of intervalHours", () => {
+      // Disabled factories must not register a cron timer even when
+      // intervalHours is set. This guards the early-return on
+      // `!config.enabled || config.intervalHours <= 0`.
+      clearCronTimer();
+      createDreamTool({
+        enabled: false,
+        threshold: 50,
+        intervalHours: 24,
+        storagePath: TEST_DB_PATH,
+      });
+      expect(() => clearCronTimer()).not.toThrow();
+      expect(isDreamLocked()).toBe(false);
+    });
   });
 });

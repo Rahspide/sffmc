@@ -840,21 +840,9 @@ export function createDreamTool(config: DreamConfig): {
   tool: DreamTool;
   hooks: DreamHooks;
 } {
-  const dbPath = config.storagePath ?? DEFAULT_STORAGE_PATH;
+  const resolved = resolveDreamConfig(config);
+  const { dbPath, dedupThreshold, clusterThreshold, maxEntries, archivePath, snippetLength, llmSnippetLength } = resolved;
   let db: Database | null = null;
-
-    // thresholds/cap up front so they are stable across the lifetime of
-  // this factory instance. Defaults preserve prior behavior.
-  const dedupThreshold = config.dedupThreshold ?? DREAM_DEDUP_THRESHOLD;
-  const clusterThreshold = config.clusterThreshold ?? DREAM_CLUSTER_THRESHOLD;
-  const maxEntries = config.maxEntries ?? MAX_DREAM_ENTRIES;
-    // Empty string / undefined falls back to the homedir default. This
-  // replaces the previous module-level `ARCHIVE_PATH` constant.
-  const archivePath = config.archivePath || DEFAULT_ARCHIVE_PATH;
-    // they are stable across the lifetime of this factory instance. Defaults
-  // preserve prior behavior.
-  const snippetLength = config.snippetLength ?? DREAM_SNIPPET_LENGTH;
-  const llmSnippetLength = config.llmSnippetLength ?? DREAM_LLM_SNIPPET_LENGTH;
 
   // Per-instance state (DLC: no shared state between plugins)
   const state: DreamInstanceState = {
@@ -875,34 +863,8 @@ export function createDreamTool(config: DreamConfig): {
    * the disabled check.
    */
   async function executeDream(dryRun = false): Promise<DreamResult> {
-    if (!config.enabled) {
-      return {
-        scanned: 0,
-        deduped: 0,
-        archived: 0,
-        summarized: 0,
-        durationMs: 0,
-        errors: [],
-        ok: true,
-        skipped: true,
-        reason: "feature disabled",
-      };
-    }
-
-    // Concurrency lock: only one dream run at a time
-    if (state.dreamLock) {
-      return {
-        scanned: 0,
-        deduped: 0,
-        archived: 0,
-        summarized: 0,
-        durationMs: 0,
-        errors: [],
-        ok: true,
-        skipped: true,
-        reason: "dream already in progress",
-      };
-    }
+    const skip = checkDreamSkipped(config, state);
+    if (skip) return skip;
 
     const database = getDB();
     state.dreamLock = runDream(
@@ -926,7 +888,94 @@ export function createDreamTool(config: DreamConfig): {
   }
 
   // ── Tool definition ─────────────────────────────────────────────
-  const tool: DreamTool = {
+  const tool = buildDreamToolDefinition(config, executeDream);
+
+  // ── Hooks ───────────────────────────────────────────────────────
+  const hooks = buildDreamHooks(config, state, getDB, executeDream);
+
+  // ── Cron schedule ───────────────────────────────────────────────
+  setupDreamCron(state, config, executeDream);
+
+  return { tool, hooks };
+}
+
+// ---------------------------------------------------------------------------
+// createDreamTool — sub-helpers (M-3 split, all non-exported)
+// ---------------------------------------------------------------------------
+
+/** Resolve the factory-level config defaults so the resolved values are
+ *  stable across the lifetime of the factory instance. The threshold /
+ *  cap / archive-path / snippet-length fields are all defaulted here. */
+function resolveDreamConfig(config: DreamConfig): {
+  dbPath: string;
+  dedupThreshold: number;
+  clusterThreshold: number;
+  maxEntries: number;
+  archivePath: string;
+  snippetLength: number;
+  llmSnippetLength: number;
+} {
+  const dbPath = config.storagePath ?? DEFAULT_STORAGE_PATH;
+  // thresholds/cap up front so they are stable across the lifetime of
+  // this factory instance. Defaults preserve prior behavior.
+  const dedupThreshold = config.dedupThreshold ?? DREAM_DEDUP_THRESHOLD;
+  const clusterThreshold = config.clusterThreshold ?? DREAM_CLUSTER_THRESHOLD;
+  const maxEntries = config.maxEntries ?? MAX_DREAM_ENTRIES;
+  // Empty string / undefined falls back to the homedir default. This
+  // replaces the previous module-level `ARCHIVE_PATH` constant.
+  const archivePath = config.archivePath || DEFAULT_ARCHIVE_PATH;
+  // they are stable across the lifetime of this factory instance. Defaults
+  // preserve prior behavior.
+  const snippetLength = config.snippetLength ?? DREAM_SNIPPET_LENGTH;
+  const llmSnippetLength = config.llmSnippetLength ?? DREAM_LLM_SNIPPET_LENGTH;
+  return {
+    dbPath,
+    dedupThreshold,
+    clusterThreshold,
+    maxEntries,
+    archivePath,
+    snippetLength,
+    llmSnippetLength,
+  };
+}
+
+/** Build the early-skip `DreamResult` for the two no-op paths:
+ *  (a) the feature is disabled, (b) a dream is already in progress.
+ *  Returns `null` when the caller should proceed to `runDream`. */
+function checkDreamSkipped(
+  config: DreamConfig,
+  state: DreamInstanceState,
+): DreamResult | null {
+  if (!config.enabled) {
+    return makeSkippedDreamResult("feature disabled");
+  }
+  if (state.dreamLock) {
+    return makeSkippedDreamResult("dream already in progress");
+  }
+  return null;
+}
+
+/** Build the all-zeros `DreamResult` for the disabled / locked paths. */
+function makeSkippedDreamResult(reason: string): DreamResult {
+  return {
+    scanned: 0,
+    deduped: 0,
+    archived: 0,
+    summarized: 0,
+    durationMs: 0,
+    errors: [],
+    ok: true,
+    skipped: true,
+    reason,
+  };
+}
+
+/** Build the tool definition (description + JSON schema + execute wrapper). */
+function buildDreamToolDefinition(
+  config: DreamConfig,
+  executeDream: (dryRun?: boolean) => Promise<DreamResult>,
+): DreamTool {
+  return {
     description: `Dream — background memory cleaning.
 Triggers: count>${config.threshold} OR ${config.intervalHours}h cron OR manual.
 Actions: dedup (Jaccard > ${DREAM_DEDUP_THRESHOLD}), stale removal (>${STALE_DAYS}d), cluster summarization (5+ similar).`,
@@ -942,9 +991,18 @@ Actions: dedup (Jaccard > ${DREAM_DEDUP_THRESHOLD}), stale removal (>${STALE_DAY
       return executeDream(params?.dry_run ?? false);
     },
   };
+}
 
-  // ── Hooks ───────────────────────────────────────────────────────
-  const hooks: DreamHooks = {
+/** Build the count-threshold hook. When `config.enabled` is false the hook
+ *  is a no-op. When the row count exceeds `config.threshold`, fire-and-forget
+ *  triggers `executeDream(false)` so the tool pipeline isn't blocked. */
+function buildDreamHooks(
+  config: DreamConfig,
+  _state: DreamInstanceState,
+  getDB: () => Database,
+  executeDream: (dryRun?: boolean) => Promise<DreamResult>,
+): DreamHooks {
+  return {
     [HOOK_TOOL_EXECUTE_AFTER]: async (_toolCtx: unknown, _result: unknown) => {
       if (!config.enabled) return;
       try {
@@ -967,30 +1025,31 @@ Actions: dedup (Jaccard > ${DREAM_DEDUP_THRESHOLD}), stale removal (>${STALE_DAY
       }
     },
   };
+}
 
-  // ── Cron schedule ───────────────────────────────────────────────
-  // Note: no OpenCode shutdown hook exists, so the timer is intentionally
-  // leaked. On process exit, setInterval is cleaned up by the runtime.
-  // The unref() call (when available) allows the process to exit without
-  // waiting for the next tick.
-  if (config.enabled && config.intervalHours > 0) {
-    // Clear any previous timer (tests may call createDreamTool multiple times)
-    if (state.cronTimer !== null) {
-      clearInterval(state.cronTimer);
-    }
-    const intervalMs = config.intervalHours * 3600 * 1000;
-    state.cronTimer = setInterval(() => {
-      log.info(
-        `dream: cron triggered (${config.intervalHours}h interval)`,
-      );
-      executeDream(false).catch((err) => {
-        log.error("dream: cron error:", err);
-      });
-    }, intervalMs);
-    if (typeof state.cronTimer.unref === "function") {
-      state.cronTimer.unref();
-    }
+/** Install the cron timer when the feature is enabled and an interval is
+ *  configured. Clears any previous timer on the same state (tests may
+ *  call `createDreamTool` multiple times). The timer is unref'd (when
+ *  available) so it does not keep the process alive; no OpenCode
+ *  shutdown hook exists, so the timer is intentionally leaked on
+ *  process exit and cleaned up by the runtime. */
+function setupDreamCron(
+  state: DreamInstanceState,
+  config: DreamConfig,
+  executeDream: (dryRun?: boolean) => Promise<DreamResult>,
+): void {
+  if (!config.enabled || config.intervalHours <= 0) return;
+  if (state.cronTimer !== null) {
+    clearInterval(state.cronTimer);
   }
-
-  return { tool, hooks };
+  const intervalMs = config.intervalHours * 3600 * 1000;
+  state.cronTimer = setInterval(() => {
+    log.info(`dream: cron triggered (${config.intervalHours}h interval)`);
+    executeDream(false).catch((err) => {
+      log.error("dream: cron error:", err);
+    });
+  }, intervalMs);
+  if (typeof state.cronTimer.unref === "function") {
+    state.cronTimer.unref();
+  }
 }
