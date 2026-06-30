@@ -1,5 +1,59 @@
 # SFFMC Changelog
 
+## v0.15.0 (2026-06-30)
+
+### Changed (consolidated 13 → 5 packages)
+
+- **Package consolidation** — 14 workspace members (13 packages + `shared/`) consolidated into 5 packages:
+  - `@sffmc/runtime` (was `@sffmc/workflow`)
+  - `@sffmc/cognition` (was `@sffmc/max-mode` + `@sffmc/compose` + `@sffmc/health`; replaces dissolved `@sffmc/agentic`)
+  - `@sffmc/guard` — package metadata layer (the 5 governance standalones are now internal sub-folders of `@sffmc/safety`)
+  - `@sffmc/persist` — package metadata layer (now an internal sub-folder of `@sffmc/memory`)
+  - `@sffmc/utilities` (was `shared/`)
+  - `@sffmc/safety` and `@sffmc/memory` retained as composites; their `composes[]` is now empty (members are internal sub-folders)
+- **`@sffmc/agentic` composite dissolved** — users must now register `@sffmc/runtime` and `@sffmc/cognition` explicitly in `opencode.json` `plugins[]`
+- **Imports updated across the codebase** — `@sffmc/{workflow,max-mode,compose,health,rules,watchdog,auto-max,eos-stripper,log-whitelist,extra,agentic,shared}` → `@sffmc/{runtime,cognition,safety,memory,utilities}` as appropriate
+
+### Added (test/exports)
+
+- `@sffmc/shared` → `@sffmc/utilities`: `FsOps` interface + `defaultFsOps` + `createMockFsOps()`
+- `@sffmc/shared` → `@sffmc/utilities`: `unixNow()` + `__setClock()` + `__resetClock()`
+- `@sffmc/shared` → `@sffmc/utilities`: `isSafeRunID()` + `safeRunID()` + `RUN_ID_REGEX`
+
+### Fixed (Medium + Low audit findings — Phase 1 + Phase 2 work)
+
+- **God-object extract**: `WorkflowRuntime` split into `CounterManager`, `WorkflowEventEmitter`, `OutcomeStore`, `WorkflowActivation`, `FlushManager` (per-entry / per-runtime / single-concern)
+- **God-object extract**: `packages/extra/src/checkpoint.ts` (1296 LOC) split into 13 focused modules under `packages/extra/src/checkpoint/`
+- **Long function split**: `runDream` (259→117 LOC), `runSandboxed` (175→99 LOC), `createJudgeTool` (158→123 LOC), `createDreamTool` (157→57 LOC), plus 19 other orchestrators reduced via private-helper extraction
+- **Testability primitives** wired into 4 packages: `mockFsOps` mocking, `__setClock` time-travel, `safeRunID` export, `WorkflowPersistence` FsOps injection
+- **Naming**: 4 high-impact renames (`o` → `agentOpts` × 2; `sanitizeResult` → `sanitizeValue`; `n` → `candidateCount`; `result` → `scratch`)
+- **Hot-path tweaks**: `MAX_OVERFLOW` defense-in-depth clamp in `loadAndCacheMemories`; multi-factory cron timer cleanup in `createDreamTool`
+- **Module-level state** promoted to instance fields: `fsyncPendingPaths` + `fsyncTimer` → `WorkflowPersistence` instance; `lockMap` → new `Concurrency` class
+- **Ops**: regenerated `bun.lock` (workspace versions 0.14.3 → 0.15.0); removed dangling `better-sqlite3` symlink
+
+### Migration
+
+| Old npm | New npm | Migration |
+|---|---|---|
+| `@sffmc/workflow` | `@sffmc/runtime` | rename |
+| `@sffmc/max-mode` | `@sffmc/cognition` | rename |
+| `@sffmc/compose` | `@sffmc/cognition` | rename (composite subsumes) |
+| `@sffmc/health` | `@sffmc/cognition` | rename (composite subsumes) |
+| `@sffmc/rules` | `@sffmc/safety` | rename (composite subsumes) |
+| `@sffmc/watchdog` | `@sffmc/safety` | rename (composite subsumes) |
+| `@sffmc/auto-max` | `@sffmc/safety` | rename (composite subsumes) |
+| `@sffmc/eos-stripper` | `@sffmc/safety` | rename (composite subsumes) |
+| `@sffmc/log-whitelist` | `@sffmc/safety` | rename (composite subsumes) |
+| `@sffmc/extra` | `@sffmc/memory` | rename (composite subsumes) |
+| `@sffmc/agentic` | (removed) | replace with **two** entries: `"@sffmc/runtime": {}` and `"@sffmc/cognition": {}` in `opencode.json` `plugins[]` |
+| `@sffmc/safety` | `@sffmc/safety` | unchanged |
+| `@sffmc/memory` | `@sffmc/memory` | unchanged |
+| `@sffmc/shared` | `@sffmc/utilities` | rename (library; not a plugin) |
+
+> **Note on `@sffmc/utilities`:** not a plugin entry point. Consumers using the SDK as a library must update their imports; do not add `"@sffmc/utilities": {}` to `opencode.json` `plugins[]`.
+
+---
+
 ## v0.14.9 (2026-06-28)
 
 ### Changed

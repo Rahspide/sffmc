@@ -18,5 +18,7 @@
     "url": "git+https://github.com/Rahspide/sffmc.git",
     "directory": "packages/utilities"
   },
-  "publishConfig": { "access": "restricted" }
+  "publishConfig": {
+    "access": "restricted"
+  }
 }
