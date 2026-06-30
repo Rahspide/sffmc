@@ -141,4 +141,55 @@ describe("persistence.clearJournal v1-header preservation", () => {
     expect(JSON.parse(lines2[0])).toEqual({ v: 1 })
     expect(JSON.parse(lines2[1])).toEqual({ t: "log", msg: "after-fresh-clear", pass: 1 })
   })
+
+  // L-3 (Task 2.7) follow-up: instance-isolation characterization for
+  // `fsyncPendingPaths`. Before L-3, `fsyncPendingPaths` and `fsyncTimer`
+  // were module-level, so two `WorkflowPersistence` instances constructed
+  // against the same dataDir would share a single Set + timer. A future
+  // refactor that accidentally re-introduces module-level state would
+  // silently re-merge state across instances — this test pins the new
+  // invariant by creating two instances against the same tmpDir and
+  // verifying that B's flushJournalSync does not drain A's pending paths
+  // (and that A's flushJournalSync drains A's set independently).
+  test("two WorkflowPersistence instances have independent fsyncPendingPaths (L-3 characterization)", () => {
+    // Same dataDir so journal files would share paths on disk if state
+    // was shared. Both instances point at the same tmpDir.
+    const a = new WorkflowPersistence({ dataDir: tmpDir })
+    const b = new WorkflowPersistence({ dataDir: tmpDir })
+
+    const runA = a.createRun("iso-a.ts", "iso-a", computeScriptSha("iso-a"))
+    const runB = b.createRun("iso-b.ts", "iso-b", computeScriptSha("iso-b"))
+
+    try {
+      // A appends — populates A's fsyncPendingPaths only.
+      a.appendJournalSync(runA, { t: "agent", key: "kA", result: "a-only", pass: 1 })
+
+      // Inspect internal state via escape hatch. With per-instance state,
+      // A's set contains runA's journal path; B's set is still null (B
+      // never appended, so the lazy initializer hasn't fired).
+      const aPending = (a as unknown as { fsyncPendingPaths: Set<string> | null }).fsyncPendingPaths
+      const bPending = (b as unknown as { fsyncPendingPaths: Set<string> | null }).fsyncPendingPaths
+      expect(aPending).not.toBeNull()
+      expect(aPending!.size).toBe(1)
+      expect(aPending!.has(path.join(tmpDir, `${runA}.jsonl`))).toBe(true)
+      expect(bPending).toBeNull()
+
+      // CRITICAL: B's flushJournalSync must NOT drain A's pending set.
+      // With module-level state, this would have cleared A's set too.
+      b.flushJournalSync()
+      const aPendingAfterBFlush = (a as unknown as { fsyncPendingPaths: Set<string> | null }).fsyncPendingPaths
+      expect(aPendingAfterBFlush).not.toBeNull()
+      expect(aPendingAfterBFlush!.size).toBe(1)
+      expect(aPendingAfterBFlush!.has(path.join(tmpDir, `${runA}.jsonl`))).toBe(true)
+
+      // Now drain A's pending paths explicitly. After flushJournalSync,
+      // the set is reset to null (and the timer is cleared).
+      a.flushJournalSync()
+      const aPendingAfterAFlush = (a as unknown as { fsyncPendingPaths: Set<string> | null }).fsyncPendingPaths
+      expect(aPendingAfterAFlush).toBeNull()
+    } finally {
+      a.close()
+      b.close()
+    }
+  })
 })
