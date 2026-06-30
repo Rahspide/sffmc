@@ -317,6 +317,98 @@ export function extractCandidatesFromMessages(
 }
 
 // ---------------------------------------------------------------------------
+// Factory helpers
+// ---------------------------------------------------------------------------
+
+/** Clamp the configured `maxCandidates` to the documented 2-20 range. The
+ *  floor keeps non-integer YAML values (e.g. 12.7 → 12) on integer grid.
+ *  Replaces the previous hardcoded `maxItems: 8` and the matching runtime
+ *  check `candidates.length > 8`. */
+function clampMaxCandidates(rawMax: number | undefined): number {
+  const raw = rawMax ?? DEFAULT_MAX_CANDIDATES;
+  return Math.max(
+    MIN_MAX_CANDIDATES,
+    Math.min(MAX_MAX_CANDIDATES, Math.floor(raw)),
+  );
+}
+
+/** Validate a `JudgeInput` against the `min`/`max` candidate bounds. Returns
+ *  the validated `string[]` candidates on success, or an error description
+ *  on failure. The caller maps the error into a `{ ok: false, error }`
+ *  JudgeExecuteResult. */
+function validateJudgeInput(
+  input: JudgeInput | undefined,
+  maxCandidates: number,
+):
+  | { kind: "ok"; candidates: string[] }
+  | { kind: "error"; error: string } {
+  if (!input || !Array.isArray(input.candidates)) {
+    return { kind: "error", error: "missing or invalid candidates array" };
+  }
+  const { candidates } = input;
+  if (candidates.length < MIN_MAX_CANDIDATES) {
+    return {
+      kind: "error",
+      error: `at least ${MIN_MAX_CANDIDATES} candidates required`,
+    };
+  }
+  if (candidates.length > maxCandidates) {
+    return {
+      kind: "error",
+      error: `maximum ${maxCandidates} candidates allowed`,
+    };
+  }
+  return { kind: "ok", candidates };
+}
+
+/** Fallback path when no LLM ctx is available: score each candidate by output
+ *  length (a length-derived approximation) and pick the winner. `model` is
+ *  the literal string `"heuristic"` and `latencyMs` is always 0. */
+function runJudgeFallbackHeuristic(candidates: string[]): JudgeResult {
+  const scores: JudgeScore[] = candidates.map((c) => ({
+    correctness: Math.min(10, Math.round(c.length / 100)),
+    completeness: Math.min(10, Math.round(c.length / 150)),
+    conciseness: Math.min(10, Math.round(800 / (c.length + 1))),
+  }));
+
+  const winner = scores.reduce(
+    (best, s, i) =>
+      s.correctness + s.completeness + s.conciseness >
+      scores[best].correctness + scores[best].completeness + scores[best].conciseness
+        ? i
+        : best,
+    0,
+  );
+
+  return {
+    ok: true,
+    scores,
+    winner,
+    reasoning: "Fallback heuristic: scored by output length",
+    model: "heuristic",
+    latencyMs: 0,
+  };
+}
+
+/** Format a `JudgeResult` payload as the multi-line verdict string the
+ *  auto-judge hook appends to `messages`. Pure: same inputs → same string. */
+function formatJudgeVerdict(
+  winner: number,
+  reasoning: string,
+  scores: JudgeScore[],
+  model: string,
+  latencyMs: number,
+): string {
+  return [
+    `--- Judge Verdict ---`,
+    `Winner: Candidate #${winner}`,
+    `Reasoning: ${reasoning}`,
+    `Scores: ${scores.map((s, i) => `#${i}: C=${s.correctness} M=${s.completeness} N=${s.conciseness}`).join(" | ")}`,
+    `Model: ${model} (${latencyMs}ms)`,
+  ].join("\n");
+}
+
+// ---------------------------------------------------------------------------
 // Factory
 // ---------------------------------------------------------------------------
 
@@ -324,15 +416,7 @@ export function createJudgeTool(
   config: JudgeConfig,
 ): { tool: JudgeTool; hooks: JudgeHooks } {
   const rubric = config.rubric || DEFAULT_RUBRIC;
-    // candidates cap up front. Clamp to the documented 2-20 range so
-  // out-of-range YAML cannot crash the LLM or blow context. This
-  // replaces the previous hardcoded `maxItems: 8` and the matching
-  // runtime check `candidates.length > 8`.
-  const rawMax = config.maxCandidates ?? DEFAULT_MAX_CANDIDATES;
-  const maxCandidates = Math.max(
-    MIN_MAX_CANDIDATES,
-    Math.min(MAX_MAX_CANDIDATES, Math.floor(rawMax)),
-  );
+  const maxCandidates = clampMaxCandidates(config.maxCandidates);
 
   const tool: JudgeTool = {
     description: `Judge — multi-criteria LLM judge for evaluating candidate outputs.
@@ -360,26 +444,17 @@ Set stream: true to receive partial results as they become available (useful for
         return { ok: true, skipped: true, reason: "feature disabled" };
       }
 
-      if (!input || !Array.isArray(input.candidates)) {
-        return { ok: false, error: "missing or invalid candidates array" };
+      const validated = validateJudgeInput(input, maxCandidates);
+      if (validated.kind === "error") {
+        return { ok: false, error: validated.error };
       }
-
-      const { candidates } = input;
-
-      if (candidates.length < MIN_MAX_CANDIDATES) {
-        return { ok: false, error: `at least ${MIN_MAX_CANDIDATES} candidates required` };
-      }
-
-      if (candidates.length > maxCandidates) {
-        return { ok: false, error: `maximum ${maxCandidates} candidates allowed` };
-      }
-
-      const effectiveRubric = input.rubric || rubric;
+      const { candidates } = validated;
+      const effectiveRubric = (input?.rubric as string | undefined) || rubric;
 
       // Try LLM judge
       if (config.ctx?.client?.session?.message) {
         try {
-          if (input.stream) {
+          if (input?.stream) {
             return await callJudgeStream(
               candidates,
               effectiveRubric,
@@ -413,25 +488,7 @@ Set stream: true to receive partial results as they become available (useful for
 
       // No client available — fallback heuristic
       log.warn("[extra] judge: no LLM client available, using fallback heuristic");
-      const scores: JudgeScore[] = candidates.map((c) => ({
-        correctness: Math.min(10, Math.round(c.length / 100)),
-        completeness: Math.min(10, Math.round(c.length / 150)),
-        conciseness: Math.min(10, Math.round(800 / (c.length + 1))),
-      }));
-
-      const winner = scores.reduce((best, s, i) =>
-        (s.correctness + s.completeness + s.conciseness) >
-        (scores[best].correctness + scores[best].completeness + scores[best].conciseness)
-          ? i : best, 0);
-
-      return {
-        ok: true,
-        scores,
-        winner,
-        reasoning: "Fallback heuristic: scored by output length",
-        model: "heuristic",
-        latencyMs: 0,
-      };
+      return runJudgeFallbackHeuristic(candidates);
     },
   };
 
@@ -457,13 +514,13 @@ Set stream: true to receive partial results as they become available (useful for
           config.ctx!,
         );
 
-        const verdictMsg = [
-          `--- Judge Verdict ---`,
-          `Winner: Candidate #${response.winner}`,
-          `Reasoning: ${response.reasoning}`,
-          `Scores: ${response.scores.map((s, i) => `#${i}: C=${s.correctness} M=${s.completeness} N=${s.conciseness}`).join(" | ")}`,
-          `Model: ${config.model} (${latencyMs}ms)`,
-        ].join("\n");
+        const verdictMsg = formatJudgeVerdict(
+          response.winner,
+          response.reasoning,
+          response.scores,
+          config.model,
+          latencyMs,
+        );
 
         data.messages.push({
           role: "assistant",
