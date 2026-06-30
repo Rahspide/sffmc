@@ -16,23 +16,23 @@ export const DEFAULT_EOS_PATTERNS: string[] = [
  * Patterns in the middle are presumed intentional.
  */
 export function stripEos(text: string, patterns: string[]): string {
-  let result = text;
+  let scratch = text;
   let changed = true;
 
   while (changed) {
     changed = false;
     for (const pattern of patterns) {
-      if (result.endsWith(pattern)) {
-        result = result.slice(0, result.length - pattern.length);
+      if (scratch.endsWith(pattern)) {
+        scratch = scratch.slice(0, scratch.length - pattern.length);
         changed = true;
         break;
       }
     }
     // Also try trimmed — some models emit whitespace then EOS
     for (const pattern of patterns) {
-      const trimmed = result.trimEnd();
-      if (trimmed !== result && trimmed.endsWith(pattern)) {
-        result = trimmed.slice(0, trimmed.length - pattern.length);
+      const trimmed = scratch.trimEnd();
+      if (trimmed !== scratch && trimmed.endsWith(pattern)) {
+        scratch = trimmed.slice(0, trimmed.length - pattern.length);
         changed = true;
         break;
       }
@@ -40,7 +40,7 @@ export function stripEos(text: string, patterns: string[]): string {
   }
 
   // Strip trailing whitespace that may have been left after EOS removal
-  return result.trimEnd();
+  return scratch.trimEnd();
 }
 
 /**
