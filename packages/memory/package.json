@@ -48,5 +48,5 @@
   "composes": [],
   "portSource": "MiMo-Code v8.0",
   "portFeature": "memory",
-  "description": "Memory composite — FTS5 SQLite recall + chokidar file watcher + opt-in checkpoint/judge/dream"
+  "description": "Memory composite \u2014 FTS5 SQLite recall + chokidar file watcher + opt-in checkpoint/judge/dream"
 }

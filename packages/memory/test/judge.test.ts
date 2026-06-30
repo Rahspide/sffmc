@@ -15,7 +15,7 @@ import {
   type JudgeExecuteResult,
   type JudgeScore,
   type JudgeStreamChunk,
-} from "../../extra/src/judge";
+} from "../../src/extra/judge.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers

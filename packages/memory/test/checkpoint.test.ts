@@ -15,8 +15,8 @@ import {
   CURRENT_VERSION,
   _findLRUVictim,
   CheckpointTooLargeError,
-} from "../../extra/src/checkpoint";
-import type { SessionBufferEntry } from "../../extra/src/checkpoint";
+} from "../../src/extra/checkpoint.ts";
+import type { SessionBufferEntry } from "../../src/extra/checkpoint.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers

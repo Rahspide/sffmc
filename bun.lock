@@ -13,14 +13,14 @@
       "name": "@sffmc/agentic",
       "version": "0.14.9",
       "dependencies": {
-        "@sffmc/shared": "workspace:*",
+        "@sffmc/utilities": "workspace:*",
       },
     },
     "packages/cognition": {
       "name": "@sffmc/cognition",
       "version": "0.15.0",
       "dependencies": {
-        "@sffmc/shared": "workspace:*",
+        "@sffmc/utilities": "workspace:*",
       },
       "devDependencies": {
         "@types/bun": "1.3.14",
@@ -32,7 +32,7 @@
       "name": "@sffmc/memory",
       "version": "0.14.9",
       "dependencies": {
-        "@sffmc/shared": "workspace:*",
+        "@sffmc/utilities": "workspace:*",
         "chokidar": "^5.0.0",
         "yaml": "^2.0.0",
       },
@@ -41,7 +41,7 @@
       "name": "@sffmc/runtime",
       "version": "0.15.0",
       "dependencies": {
-        "@sffmc/shared": "workspace:*",
+        "@sffmc/utilities": "workspace:*",
         "quickjs-emscripten": "0.32.0",
         "yaml": "^2.5.0",
       },
@@ -55,12 +55,12 @@
       "name": "@sffmc/safety",
       "version": "0.14.9",
       "dependencies": {
-        "@sffmc/shared": "workspace:*",
+        "@sffmc/utilities": "workspace:*",
         "yaml": "^2.5.0",
       },
     },
     "packages/utilities": {
-      "name": "@sffmc/shared",
+      "name": "@sffmc/utilities",
       "version": "0.15.0",
       "dependencies": {
         "yaml": "^2.0.0",
@@ -88,7 +88,7 @@
 
     "@sffmc/safety": ["@sffmc/safety@workspace:packages/safety"],
 
-    "@sffmc/shared": ["@sffmc/shared@workspace:packages/utilities"],
+    "@sffmc/utilities": ["@sffmc/utilities@workspace:packages/utilities"],
 
     "@types/bun": ["@types/bun@1.3.14", "", { "dependencies": { "bun-types": "1.3.14" } }, "sha512-h1hFqFVcvAvD9j9K7ZW7vd82aSA+rTdznZa+5bwvCwqSB1jmmfLcbIWhOLx1/+boy/xmjgCs/OMUL8hRJSmnPw=="],
 
