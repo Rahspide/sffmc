@@ -367,92 +367,38 @@ async function runDream(
   let summarized = 0;
 
   try {
-    // ── 1. Read all memories ──────────────────────────────────────────
-    const rows = db
-      .query("SELECT * FROM memory_entries ORDER BY created_at DESC")
-      .all() as MemoryRow[];
-    scanned = rows.length;
-
-    if (scanned > maxEntries) {
+    // ── Phase 1: load + pre-tokenize (with O(n²) cap guard) ──────────
+    const loaded = loadAndCacheMemories(db, maxEntries);
+    if (loaded.kind === "skip") {
       log.warn(
-        `dream: ${scanned} entries exceed cap of ${maxEntries} — skipping dedup/cluster to avoid O(n^2) blowup`,
+        `dream: ${loaded.scanned} entries exceed cap of ${maxEntries} — skipping dedup/cluster to avoid O(n^2) blowup`,
       );
-      return {
-        scanned,
+      return makeDreamResult({
+        scanned: loaded.scanned,
         deduped: 0,
         archived: 0,
         summarized: 0,
         durationMs: Date.now() - start,
-        errors: [
-          `Skipped: ${scanned} entries exceed MAX_DREAM_ENTRIES (${maxEntries})`,
-        ],
+        errors: [loaded.skipMsg],
+        dryRun,
         ok: true,
-        dry_run: dryRun,
-      };
+      });
     }
+    scanned = loaded.rows.length;
+    const { rows, tokenCache } = loaded;
 
-    // Pre-tokenize all rows once. The dedup + cluster loops would otherwise
-    // call tokenize() on the same content O(n) times each — O(n²) total
-    // regex + Set allocations. With tokenCache, tokenize runs O(n) times
-    // and every comparison is O(1) (jaccardSets). v0.14.x: 3-5x speedup
-    // observed on 1000+ entry workloads.
-    const tokenCache = new Map<number, Set<string>>();
-    for (const row of rows) {
-      tokenCache.set(row.id, tokenize(row.content));
-    }
-
-    // ── 2. Dedup: Jaccard > DREAM_DEDUP_THRESHOLD, keep newer, delete older
-    const dedupSet = new Set<number>();
-    if (scanned > 1) {
-      for (let i = 0; i < rows.length; i++) {
-        if (dedupSet.has(rows[i].id)) continue;
-        for (let j = i + 1; j < rows.length; j++) {
-          if (dedupSet.has(rows[j].id)) continue;
-          if (rows[i].id === rows[j].id) continue;
-          const sim = jaccardSets(
-            tokenCache.get(rows[i].id)!,
-            tokenCache.get(rows[j].id)!,
-          );
-          if (sim > dedupThreshold) {
-            // Keep newer (by last_accessed or created_at); delete older.
-            // Timestamps are in s (SQLite strftime('%s','now')).
-            const timeI = rows[i].last_accessed ?? rows[i].created_at;
-            const timeJ = rows[j].last_accessed ?? rows[j].created_at;
-            if (timeI >= timeJ) {
-              dedupSet.add(rows[j].id);
-            } else {
-              dedupSet.add(rows[i].id);
-              break; // rows[i] is the older duplicate; stop comparing it
-            }
-          }
-        }
-      }
-      if (dedupSet.size > 0 && !dryRun) {
-        for (const id of dedupSet) {
-          db.run("DELETE FROM memory_entries WHERE id = ?", [id]);
-        }
+    // ── Phase 2: dedup (Jaccard > threshold, keep newer) ─────────────
+    const dedupSet = dedupRows(rows, dedupThreshold, tokenCache);
+    if (dedupSet.size > 0 && !dryRun) {
+      for (const id of dedupSet) {
+        db.run("DELETE FROM memory_entries WHERE id = ?", [id]);
       }
     }
     deduped = dedupSet.size;
 
-    // ── 3. Stale removal: last_accessed < now - 30 days ───────────────
-    // created_at / last_accessed are Unix timestamps in s.
+    // ── Phase 3: stale removal (>30d, archive + delete) ──────────────
     const staleThresholdSec = unixNow() - SECONDS_PER_STALE_WINDOW;
-
-    const staleAccessed = db
-      .query(
-        "SELECT * FROM memory_entries WHERE last_accessed IS NOT NULL AND last_accessed < ?",
-      )
-      .all(staleThresholdSec) as MemoryRow[];
-
-    const staleNullAccessed = db
-      .query(
-        "SELECT * FROM memory_entries WHERE last_accessed IS NULL AND created_at < ?",
-      )
-      .all(staleThresholdSec) as MemoryRow[];
-
-    const allStale = [...staleAccessed, ...staleNullAccessed];
-
+    const allStale = findStaleEntries(db, staleThresholdSec);
     for (const entry of allStale) {
       if (!dryRun) {
         archiveEntry(entry, archivePath);
@@ -461,150 +407,375 @@ async function runDream(
     }
     archived = allStale.length;
 
-    // ── 4. Summarization: cluster by Jaccard > DREAM_CLUSTER_THRESHOLD, summarize 5+
-    // Re-read the DB to work on post-dedup+stale state.
-    let remainingRows: MemoryRow[];
-    if (!dryRun) {
-      remainingRows = db
-        .query("SELECT * FROM memory_entries ORDER BY importance_score DESC")
-        .all() as MemoryRow[];
-    } else {
-      // Dry run: simulate what WOULD remain after dedup + stale removal
-      const staleIds = new Set(allStale.map((e) => e.id));
-      remainingRows = rows.filter(
-        (r) => !dedupSet.has(r.id) && !staleIds.has(r.id),
-      );
-    }
+    // ── Phase 4: re-read post-dedup+stale + rebuild token cache ──────
+    const remainingRows = loadRemainingRows(db, dryRun, rows, dedupSet, allStale);
+    const remainingTokenCache = rebuildTokenCache(remainingRows, tokenCache);
 
-    // Rebuild token cache for the surviving rows. In dry-run, remainingRows
-    // is filtered from the original `rows` so the cached sets are valid
-    // as-is. In non-dry-run, the DB SELECT returns the surviving IDs — a
-    // subset of the original `rows` IDs (SQLite AUTOINCREMENT never recycles).
-    // The `?? tokenize(...)` fallback is a defensive guard for any future
-    // code path that re-inserts rows (e.g., a stale-removal recovery hook).
-    const remainingTokenCache = new Map<number, Set<string>>();
-    for (const row of remainingRows) {
-      const cached = tokenCache.get(row.id);
-      remainingTokenCache.set(row.id, cached ?? tokenize(row.content));
-    }
+    // ── Phase 5: greedy clustering (5-iteration cap) ─────────────────
+    const clusters = clusterSimilarRows(
+      remainingRows,
+      clusterThreshold,
+      remainingTokenCache,
+      5,
+    );
 
-    // Greedy clustering: for each unassigned row, start a cluster;
-    // add any other row that has Jaccard > DREAM_CLUSTER_THRESHOLD with any cluster member.
-    const clusters: MemoryRow[][] = [];
-    const assigned = new Set<number>();
+    // ── Phase 6: process clusters of 5+ (LLM name + summary + insert)
+    summarized = await processDreamClusters({
+      clusters,
+      db,
+      dryRun,
+      ctx,
+      summaryModel,
+      snippetLength,
+      llmSnippetLength,
+      errors,
+    });
 
-    for (const row of remainingRows) {
-      if (assigned.has(row.id)) continue;
-      const cluster: MemoryRow[] = [row];
-      assigned.add(row.id);
-
-      // Expand cluster (capped at 5 iterations to bound worst-case O(n³))
-      let changed = true;
-      for (let iter = 0; iter < 5 && changed; iter++) {
-        changed = false;
-        for (const other of remainingRows) {
-          if (assigned.has(other.id)) continue;
-          for (const member of cluster) {
-            if (
-              jaccardSets(
-                remainingTokenCache.get(member.id)!,
-                remainingTokenCache.get(other.id)!,
-) > clusterThreshold
-              ) {
-              cluster.push(other);
-              assigned.add(other.id);
-              changed = true;
-              break;
-            }
-          }
-        }
-      }
-      clusters.push(cluster);
-    }
-
-    // Process clusters of 5+ entries
-    for (const cluster of clusters) {
-      if (cluster.length >= 5) {
-        let summaryContent: string;
-        let clusterName = "untitled cluster";
-
-        if (ctx) {
-          // Try to name the cluster via LLM
-          try {
-            clusterName = await nameClusterViaLLM(
-              cluster,
-              ctx,
-              summaryModel ?? "",
-              snippetLength,
-            );
-          } catch (err) {
-            errors.push(
-              `cluster naming LLM failed: ${String(err)}`,
-            );
-          }
-          // Try to summarize via LLM
-          try {
-            summaryContent = await summarizeViaLLM(
-              cluster,
-              ctx,
-              summaryModel ?? "",
-              llmSnippetLength,
-            );
-          } catch (err) {
-            errors.push(
-              `summarization LLM failed for cluster of ${cluster.length}: ${String(err)}`,
-            );
-            summaryContent = concatenateSummary(cluster, snippetLength);
-          }
-        } else {
-          summaryContent = concatenateSummary(cluster, snippetLength);
-        }
-
-        const finalContent = ctx
-          ? `Cluster: ${clusterName}\n\n${summaryContent}`
-          : summaryContent;
-
-        const maxImportance = Math.max(
-          ...cluster.map((e) => e.importance_score),
-        );
-        if (!dryRun) {
-          db.run(
-            "INSERT INTO memory_entries (source_path, section, content, importance_score) VALUES (?, ?, ?, ?)",
-            ["dream-summary", null, finalContent, maxImportance],
-          );
-          for (const entry of cluster) {
-            db.run("DELETE FROM memory_entries WHERE id = ?", [entry.id]);
-          }
-        }
-        summarized += cluster.length;
-      }
-    }
-
-    const durationMs = Date.now() - start;
-    return {
+    return makeDreamResult({
       scanned,
       deduped,
       archived,
       summarized,
-      durationMs,
+      durationMs: Date.now() - start,
       errors,
+      dryRun,
       ok: true,
-      dry_run: dryRun,
-    };
+    });
   } catch (err) {
     errors.push(String(err));
-    const durationMs = Date.now() - start;
-    return {
+    return makeDreamResult({
       scanned,
       deduped,
       archived,
       summarized,
-      durationMs,
+      durationMs: Date.now() - start,
       errors,
+      dryRun,
       ok: errors.length === 0,
-      dry_run: dryRun,
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Dream engine — sub-helpers (M-3 split, all non-exported)
+// ---------------------------------------------------------------------------
+
+/** Phase 1: read all memory rows and pre-tokenize. The cap guard returns
+ *  a `skip` result when `scanned > maxEntries` so the orchestrator can
+ *  short-circuit before the O(n²) dedup/cluster loops. The token cache is
+ *  populated once (O(n)) so dedup + cluster comparisons are O(1) each. */
+function loadAndCacheMemories(
+  db: Database,
+  maxEntries: number,
+):
+  | { kind: "skip"; scanned: number; skipMsg: string }
+  | { kind: "ok"; rows: MemoryRow[]; tokenCache: Map<number, Set<string>> } {
+  const rows = db
+    .query("SELECT * FROM memory_entries ORDER BY created_at DESC")
+    .all() as MemoryRow[];
+
+  if (rows.length > maxEntries) {
+    return {
+      kind: "skip",
+      scanned: rows.length,
+      skipMsg: `Skipped: ${rows.length} entries exceed MAX_DREAM_ENTRIES (${maxEntries})`,
     };
   }
+
+  // Pre-tokenize all rows once. The dedup + cluster loops would otherwise
+  // call tokenize() on the same content O(n) times each — O(n²) total
+  // regex + Set allocations. With tokenCache, tokenize runs O(n) times
+  // and every comparison is O(1) (jaccardSets). v0.14.x: 3-5x speedup
+  // observed on 1000+ entry workloads.
+  const tokenCache = new Map<number, Set<string>>();
+  for (const row of rows) {
+    tokenCache.set(row.id, tokenize(row.content));
+  }
+
+  return { kind: "ok", rows, tokenCache };
+}
+
+/** Phase 2: Jaccard-similarity dedup. For every pair above
+ *  `dedupThreshold`, mark the older one (by last_accessed or created_at,
+ *  falling back to array order on ties) for deletion. Pure — does not
+ *  touch the DB; the caller iterates the returned set to issue DELETEs. */
+function dedupRows(
+  rows: MemoryRow[],
+  dedupThreshold: number,
+  tokenCache: Map<number, Set<string>>,
+): Set<number> {
+  const dedupSet = new Set<number>();
+  if (rows.length <= 1) return dedupSet;
+
+  for (let i = 0; i < rows.length; i++) {
+    if (dedupSet.has(rows[i].id)) continue;
+    for (let j = i + 1; j < rows.length; j++) {
+      if (dedupSet.has(rows[j].id)) continue;
+      if (rows[i].id === rows[j].id) continue;
+      const sim = jaccardSets(
+        tokenCache.get(rows[i].id)!,
+        tokenCache.get(rows[j].id)!,
+      );
+      if (sim > dedupThreshold) {
+        // Keep newer (by last_accessed or created_at); delete older.
+        // Timestamps are in s (SQLite strftime('%s','now')).
+        const timeI = rows[i].last_accessed ?? rows[i].created_at;
+        const timeJ = rows[j].last_accessed ?? rows[j].created_at;
+        if (timeI >= timeJ) {
+          dedupSet.add(rows[j].id);
+        } else {
+          dedupSet.add(rows[i].id);
+          break; // rows[i] is the older duplicate; stop comparing it
+        }
+      }
+    }
+  }
+  return dedupSet;
+}
+
+/** Phase 3: stale removal query. Two SELECTs — one for entries with
+ *  `last_accessed < threshold` and one for entries where `last_accessed`
+ *  IS NULL and `created_at < threshold`. Returns the concatenated list;
+ *  the caller iterates to archive + delete. */
+function findStaleEntries(db: Database, staleThresholdSec: number): MemoryRow[] {
+  const staleAccessed = db
+    .query(
+      "SELECT * FROM memory_entries WHERE last_accessed IS NOT NULL AND last_accessed < ?",
+    )
+    .all(staleThresholdSec) as MemoryRow[];
+
+  const staleNullAccessed = db
+    .query(
+      "SELECT * FROM memory_entries WHERE last_accessed IS NULL AND created_at < ?",
+    )
+    .all(staleThresholdSec) as MemoryRow[];
+
+  return [...staleAccessed, ...staleNullAccessed];
+}
+
+/** Phase 4 helper: re-read the DB post-dedup+stale (or simulate the
+ *  filtering in dry-run mode) and produce the post-state row set. The
+ *  non-dry-run branch orders by `importance_score DESC` so the cluster
+ *  loop iterates high-importance rows first. */
+function loadRemainingRows(
+  db: Database,
+  dryRun: boolean,
+  originalRows: MemoryRow[],
+  dedupSet: Set<number>,
+  allStale: MemoryRow[],
+): MemoryRow[] {
+  if (!dryRun) {
+    return db
+      .query("SELECT * FROM memory_entries ORDER BY importance_score DESC")
+      .all() as MemoryRow[];
+  }
+  // Dry run: simulate what WOULD remain after dedup + stale removal
+  const staleIds = new Set(allStale.map((e) => e.id));
+  return originalRows.filter(
+    (r) => !dedupSet.has(r.id) && !staleIds.has(r.id),
+  );
+}
+
+/** Phase 4 helper: rebuild the token cache for the surviving rows. In
+ *  dry-run, remainingRows is filtered from the original `rows` so the
+ *  cached sets are valid as-is. In non-dry-run, the DB SELECT returns
+ *  the surviving IDs — a subset of the original `rows` IDs (SQLite
+ *  AUTOINCREMENT never recycles). The `?? tokenize(...)` fallback is
+ *  a defensive guard for any future code path that re-inserts rows
+ *  (e.g., a stale-removal recovery hook). */
+function rebuildTokenCache(
+  rows: MemoryRow[],
+  sourceCache: Map<number, Set<string>>,
+): Map<number, Set<string>> {
+  const out = new Map<number, Set<string>>();
+  for (const row of rows) {
+    const cached = sourceCache.get(row.id);
+    out.set(row.id, cached ?? tokenize(row.content));
+  }
+  return out;
+}
+
+/** Phase 5: greedy clustering. For each unassigned row, start a cluster
+ *  and expand it by adding any other row that has Jaccard > threshold
+ *  with ANY cluster member. Expansion is capped at `maxIters` iterations
+ *  to bound worst-case O(n³). Returns the full cluster list (singletons
+ *  included — phase 6 filters by length). Pure. */
+function clusterSimilarRows(
+  rows: MemoryRow[],
+  clusterThreshold: number,
+  tokenCache: Map<number, Set<string>>,
+  maxIters: number,
+): MemoryRow[][] {
+  const clusters: MemoryRow[][] = [];
+  const assigned = new Set<number>();
+
+  for (const row of rows) {
+    if (assigned.has(row.id)) continue;
+    const cluster: MemoryRow[] = [row];
+    assigned.add(row.id);
+
+    let changed = true;
+    for (let iter = 0; iter < maxIters && changed; iter++) {
+      changed = false;
+      for (const other of rows) {
+        if (assigned.has(other.id)) continue;
+        for (const member of cluster) {
+          if (
+            jaccardSets(
+              tokenCache.get(member.id)!,
+              tokenCache.get(other.id)!,
+            ) > clusterThreshold
+          ) {
+            cluster.push(other);
+            assigned.add(other.id);
+            changed = true;
+            break;
+          }
+        }
+      }
+    }
+    clusters.push(cluster);
+  }
+  return clusters;
+}
+
+/** Phase 6 driver: iterate clusters, summarize + insert those with 5+ entries.
+ *  Mutates `errors` (pushes LLM-failure messages) and the DB (inserts summary
+ *  rows, deletes source rows when not dry-run). Returns the total summarized
+ *  count. */
+async function processDreamClusters(opts: {
+  clusters: MemoryRow[][];
+  db: Database;
+  dryRun: boolean;
+  ctx: RichPluginContext | undefined;
+  summaryModel: string | undefined;
+  snippetLength: number;
+  llmSnippetLength: number;
+  errors: string[];
+}): Promise<number> {
+  const {
+    clusters,
+    db,
+    dryRun,
+    ctx,
+    summaryModel,
+    snippetLength,
+    llmSnippetLength,
+    errors,
+  } = opts;
+  let summarized = 0;
+  for (const cluster of clusters) {
+    if (cluster.length < 5) continue;
+    const { name, content } = await summarizeClusterContent({
+      cluster,
+      ctx,
+      summaryModel,
+      snippetLength,
+      llmSnippetLength,
+      errors,
+    });
+    insertClusterSummary(db, cluster, name, content, dryRun);
+    summarized += cluster.length;
+  }
+  return summarized;
+}
+
+/** Phase 6 helper: name + summarize one cluster. When `ctx` is absent
+ *  (or both LLM calls fail), falls back to concatenation. Returns the
+ *  cluster name (defaults to `"untitled cluster"`) and the final content
+ *  (with `"Cluster: <name>\n\n"` prefix when LLM was used). */
+async function summarizeClusterContent(opts: {
+  cluster: MemoryRow[];
+  ctx: RichPluginContext | undefined;
+  summaryModel: string | undefined;
+  snippetLength: number;
+  llmSnippetLength: number;
+  errors: string[];
+}): Promise<{ name: string; content: string }> {
+  const { cluster, ctx, summaryModel, snippetLength, llmSnippetLength, errors } =
+    opts;
+  let clusterName = "untitled cluster";
+  let summaryContent: string;
+
+  if (ctx) {
+    try {
+      clusterName = await nameClusterViaLLM(
+        cluster,
+        ctx,
+        summaryModel ?? "",
+        snippetLength,
+      );
+    } catch (err) {
+      errors.push(`cluster naming LLM failed: ${String(err)}`);
+    }
+    try {
+      summaryContent = await summarizeViaLLM(
+        cluster,
+        ctx,
+        summaryModel ?? "",
+        llmSnippetLength,
+      );
+    } catch (err) {
+      errors.push(
+        `summarization LLM failed for cluster of ${cluster.length}: ${String(err)}`,
+      );
+      summaryContent = concatenateSummary(cluster, snippetLength);
+    }
+  } else {
+    summaryContent = concatenateSummary(cluster, snippetLength);
+  }
+
+  const finalContent = ctx
+    ? `Cluster: ${clusterName}\n\n${summaryContent}`
+    : summaryContent;
+  return { name: clusterName, content: finalContent };
+}
+
+/** Phase 6 helper: insert a single cluster summary row (and delete the
+ *  source rows) — or, in dry-run mode, do nothing (the caller still
+ *  counts the cluster in `summarized` so the operator sees the simulated
+ *  outcome). The new row's importance_score is the max of the cluster. */
+function insertClusterSummary(
+  db: Database,
+  cluster: MemoryRow[],
+  _name: string,
+  finalContent: string,
+  dryRun: boolean,
+): void {
+  if (dryRun) return;
+  const maxImportance = Math.max(...cluster.map((e) => e.importance_score));
+  db.run(
+    "INSERT INTO memory_entries (source_path, section, content, importance_score) VALUES (?, ?, ?, ?)",
+    ["dream-summary", null, finalContent, maxImportance],
+  );
+  for (const entry of cluster) {
+    db.run("DELETE FROM memory_entries WHERE id = ?", [entry.id]);
+  }
+}
+
+/** Build a DreamResult from the orchestrator's counters. The `ok` flag
+ *  is computed by the caller (success path → `ok: true`; error path
+ *  → `ok: errors.length === 0`). */
+function makeDreamResult(state: {
+  scanned: number;
+  deduped: number;
+  archived: number;
+  summarized: number;
+  durationMs: number;
+  errors: string[];
+  dryRun: boolean;
+  ok: boolean;
+}): DreamResult {
+  return {
+    scanned: state.scanned,
+    deduped: state.deduped,
+    archived: state.archived,
+    summarized: state.summarized,
+    durationMs: state.durationMs,
+    errors: state.errors,
+    ok: state.ok,
+    dry_run: state.dryRun,
+  };
 }
 
 // ---------------------------------------------------------------------------

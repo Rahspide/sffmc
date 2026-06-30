@@ -1808,4 +1808,111 @@ describe("Dream", () => {
       }
     });
   });
+
+  // -------------------------------------------------------------------------
+  // M-3 characterization — runDream refactor safety net
+  // -------------------------------------------------------------------------
+  // These tests pin specific early-exit and control-flow branches of runDream
+  // that the upcoming extraction (loadAndCacheMemories / dedupRows /
+  // findStaleEntries / clusterSimilarRows / summarizeCluster) must preserve.
+  // Each test targets a branch the existing 17 top-level tests do not cover.
+
+  describe("runDream — M-3 refactor safety net", () => {
+    it("scanned > maxEntries → skips dedup/cluster, returns { ok: true, errors: [skip msg] }", async () => {
+      const db = openTestDB();
+      seedDB(db, 10);
+      db.close();
+
+      const { tool } = createDreamTool({
+        enabled: true,
+        threshold: 50,
+        intervalHours: 0,
+        storagePath: TEST_DB_PATH,
+        maxEntries: 5, // 10 > 5 → must skip
+      });
+
+      const result = await tool.execute();
+      expect(result.ok).toBe(true);
+      expect(result.scanned).toBe(10);
+      // All three counters must be 0 — no work was done.
+      expect(result.deduped).toBe(0);
+      expect(result.archived).toBe(0);
+      expect(result.summarized).toBe(0);
+      // The skip reason must be in errors[0] — visible to operators/UI.
+      expect(result.errors.length).toBe(1);
+      expect(result.errors[0]).toMatch(/exceed MAX_DREAM_ENTRIES/);
+      // The DB must be UNCHANGED — skip means no reads-after-initial.
+      const db2 = openTestDB();
+      expect(countRows(db2)).toBe(10);
+      db2.close();
+    });
+
+    it("scanned > maxEntries in dry-run mode: dry_run is true and DB still unchanged", async () => {
+      const db = openTestDB();
+      seedDB(db, 10);
+      db.close();
+
+      const { tool } = createDreamTool({
+        enabled: true,
+        threshold: 50,
+        intervalHours: 0,
+        storagePath: TEST_DB_PATH,
+        maxEntries: 5,
+      });
+
+      const result = await tool.execute({ dry_run: true });
+      expect(result.ok).toBe(true);
+      expect(result.dry_run).toBe(true);
+      expect(result.scanned).toBe(10);
+      expect(result.deduped).toBe(0);
+      expect(result.archived).toBe(0);
+      expect(result.summarized).toBe(0);
+
+      const db2 = openTestDB();
+      expect(countRows(db2)).toBe(10);
+      db2.close();
+    });
+
+    it("cluster algorithm: 6 highly-similar entries → exactly 1 cluster, all 6 summarized", async () => {
+      const db = openTestDB();
+      const now = Math.floor(Date.now() / 1000);
+      // Six entries sharing ≥70% tokens (above DREAM_CLUSTER_THRESHOLD=0.3)
+      // so they all fall into one cluster. The 5-iteration cap inside the
+      // greedy cluster-expander must converge (1-2 iterations suffice when
+      // all members mutually exceed the threshold).
+      const base =
+        "rust async runtime tokio reactor epoll kqueue io_uring scheduler task waker future pin projection lifetime borrow checker ownership";
+      for (let i = 0; i < 6; i++) {
+        db.run(
+          "INSERT INTO memory_entries (source_path, section, content, importance_score, last_accessed, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+          [`test/cluster-${i}.md`, null, base + ` word${i}`, 0.5, now, now - i],
+        );
+      }
+      expect(countRows(db)).toBe(6);
+      db.close();
+
+      const { tool } = createDreamTool({
+        enabled: true,
+        threshold: 50,
+        intervalHours: 0,
+        storagePath: TEST_DB_PATH,
+      });
+
+      const result = await tool.execute();
+      expect(result.ok).toBe(true);
+      // All 6 source entries must be folded into 1 summary row.
+      expect(result.summarized).toBe(6);
+      const db2 = openTestDB();
+      const rows = db2
+        .query("SELECT * FROM memory_entries")
+        .all() as Array<{ source_path: string; content: string }>;
+      expect(rows.length).toBe(1);
+      expect(rows[0].source_path).toBe("dream-summary");
+      // The summary must be the concatenation fallback (no ctx) — pinned
+      // so the cluster processing path stays observably identical after
+      // the M-3 extraction.
+      expect(rows[0].content).toContain("DREAM-SUMMARY");
+      db2.close();
+    });
+  });
 });
