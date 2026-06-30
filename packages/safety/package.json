@@ -43,12 +43,6 @@
     "bun": ">=1.3.0"
   },
   "role": "safety",
-  "composes": [
-    "watchdog",
-    "rules",
-    "auto-max",
-    "eos-stripper",
-    "log-whitelist"
-  ],
+  "composes": [],
   "description": "Safety composite — composes watchdog, rules, auto-max, eos-stripper, log-whitelist"
 }
