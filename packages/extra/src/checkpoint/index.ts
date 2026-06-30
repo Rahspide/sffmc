@@ -2,9 +2,12 @@
 // @sffmc/extra — see ../../LICENSE
 
 // Public facade for the checkpoint subsystem.
-// Populated incrementally as concerns are extracted from checkpoint.ts
-// (M-1 god-object refactor, Task 1.7). The final state re-exports every
-// public symbol from its concern module.
+// Re-exports every public symbol from its concern module.
+//
+// M-1 god-object refactor (Task 1.7) — `checkpoint.ts` itself is now a
+// re-export shim that imports from this module, so all consumers
+// (tests, bench, packages/extra/src/index.ts) keep their original
+// import paths.
 
 export { crc32 } from "./crc.js";
 export {
@@ -28,3 +31,6 @@ export {
   type SessionBufferEntry,
   type ToolCall,
 } from "./types.js";
+export { readToolCallsShim as readToolCalls, listSessions, deleteCheckpoint } from "./reader.js";
+export { findLRUVictim as _findLRUVictim } from "./buffer.js";
+export { createCheckpointTool } from "./factory.js";
