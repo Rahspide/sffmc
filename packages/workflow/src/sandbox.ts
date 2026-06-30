@@ -266,11 +266,27 @@ function createSandboxRuntime(
  *  replace `Math.random` with a seeded mulberry32 PRNG so resume replay
  *  stays sound. Always disposes the eval result/error; never throws. */
 function hardenDeterminism(ctx: QuickJSContext, seed: number): void {
-  const stripResult = ctx.evalCode(`
+  const stripResult = ctx.evalCode(hardenGuestCode(seed))
+  if (stripResult.error) {
+    stripResult.error.dispose()
+  } else {
+    stripResult.value.dispose()
+  }
+}
+
+/** Build the guest-side hardening script. Pure string template — the
+ *  actual eval happens in `hardenDeterminism`. Kept separate so the
+ *  orchestrator reads as: eval → dispose result, and the mulberry32
+ *  payload (which is the only "interesting" logic in this function)
+ *  lives in one named place. The seed is interpolated as an integer
+ *  literal so the guest sees a stable constant — seeds are runtime-
+ *  determined but the same seed across runs produces the same script. */
+function hardenGuestCode(seed: number): string {
+  return `
     delete globalThis.Date;
     (function () {
       // mulberry32 — tiny seeded PRNG; deterministic for a given seed.
-      let s = ${seed} >>> 0;
+      let s = ${seed >>> 0};
       Math.random = function () {
         s = (s + 0x6d2b79f5) >>> 0;
         let t = s;
@@ -281,12 +297,7 @@ function hardenDeterminism(ctx: QuickJSContext, seed: number): void {
     })();
     delete globalThis.WeakRef;
     delete globalThis.FinalizationRegistry;
-  `)
-  if (stripResult.error) {
-    stripResult.error.dispose()
-  } else {
-    stripResult.value.dispose()
-  }
+  `
 }
 
 /** Eval a guest expression and discard its return value. Throws a labelled
@@ -327,22 +338,46 @@ function startMicrotaskPump(rt: QuickJSRuntime): { stop: () => void } {
   const FAST_WINDOW = 50
   let pumpTimer: ReturnType<typeof setTimeout> | undefined
   let idleTicks = 0
-  const pumpOnce = (): void => {
-    if (rt.hasPendingJob()) {
-      rt.executePendingJobs()
-      idleTicks = 0
-    } else {
-      idleTicks++
-    }
-    pumpTimer = setTimeout(pumpOnce, idleTicks < FAST_WINDOW ? FAST_MS : SLOW_MS)
+
+  const drainAndSchedule = (): void => {
+    idleTicks = drainPendingJobsOrIdle(rt, idleTicks)
+    pumpTimer = setTimeout(
+      drainAndSchedule,
+      computePumpDelayMs(idleTicks, FAST_MS, SLOW_MS, FAST_WINDOW),
+    )
   }
-  pumpTimer = setTimeout(pumpOnce, FAST_MS)
+
+  pumpTimer = setTimeout(drainAndSchedule, FAST_MS)
   pumpTimer.unref?.()
   return {
     stop: (): void => {
       if (pumpTimer) clearTimeout(pumpTimer)
     },
   }
+}
+
+/** Drain any pending guest jobs and return the next idle-tick count:
+ *  resets to 0 on work found (the next pump tick fires FAST), or
+ *  increments otherwise (gradually decays the cadence toward SLOW). */
+function drainPendingJobsOrIdle(rt: QuickJSRuntime, idleTicks: number): number {
+  if (rt.hasPendingJob()) {
+    rt.executePendingJobs()
+    return 0
+  }
+  return idleTicks + 1
+}
+
+/** Adaptive cadence delay: FAST (1 ms) while `idleTicks < FAST_WINDOW`,
+ *  SLOW (50 ms) once the pump has been idle longer. The decay caps
+ *  worst-case pump overhead at SLOW_MS while keeping the pump responsive
+ *  when the guest is actively scheduling work. Pure. */
+function computePumpDelayMs(
+  idleTicks: number,
+  fastMs: number,
+  slowMs: number,
+  fastWindow: number,
+): number {
+  return idleTicks < fastWindow ? fastMs : slowMs
 }
 
 /** Wall-clock deadline race: rejects after `ms` with a clear error. Returns
@@ -416,25 +451,50 @@ function bridgeAsyncHostResult(
   const promise = ctx.newPromise()
   deferreds.push(promise)
   out.then(
-    (value) => {
-      if (!ctx.alive) return
-      const vh = marshalIn(ctx, value)
-      promise.resolve(vh)
-      vh.dispose()
-      ctx.runtime.executePendingJobs()
-    },
-    (err) => {
-      if (!ctx.alive) return
-      const eh = ctx.newString(err instanceof Error ? err.message : String(err))
-      promise.reject(eh)
-      eh.dispose()
-      ctx.runtime.executePendingJobs()
-    },
+    (value) => resolveHostPromise(ctx, promise, value),
+    (err) => rejectHostPromise(ctx, promise, err),
   )
-  promise.settled.then(() => {
-    if (ctx.alive) ctx.runtime.executePendingJobs()
-  })
+  promise.settled.then(() => flushPendingJobsIfAlive(ctx))
   return promise.handle
+}
+
+/** Marshal the resolved `value` into the guest and resolve the deferred.
+ *  Disposes the value handle after the resolve. Bails before touching
+ *  `ctx` if it's already been disposed (late settle guard). */
+function resolveHostPromise(
+  ctx: QuickJSContext,
+  deferred: QuickJSDeferredPromise,
+  value: unknown,
+): void {
+  if (!ctx.alive) return
+  const vh = marshalIn(ctx, value)
+  deferred.resolve(vh)
+  vh.dispose()
+  flushPendingJobsIfAlive(ctx)
+}
+
+/** Marshal the rejected `err` (as a string) into the guest and reject
+ *  the deferred. Error → message string conversion keeps the guest
+ *  side from needing to deal with cross-realm Error objects. Bails
+ *  before touching `ctx` if it's already been disposed. */
+function rejectHostPromise(
+  ctx: QuickJSContext,
+  deferred: QuickJSDeferredPromise,
+  err: unknown,
+): void {
+  if (!ctx.alive) return
+  const msg = err instanceof Error ? err.message : String(err)
+  const eh = ctx.newString(msg)
+  deferred.reject(eh)
+  eh.dispose()
+  flushPendingJobsIfAlive(ctx)
+}
+
+/** Drain guest pending jobs after a settle, if the context is still
+ *  alive. Repeated across the resolve/reject/settled paths — pulling
+ *  it into one helper keeps the alive-guard consistent. */
+function flushPendingJobsIfAlive(ctx: QuickJSContext): void {
+  if (ctx.alive) ctx.runtime.executePendingJobs()
 }
 
 /** Marshal a host JS value INTO the guest (by copy via JSON for structured
