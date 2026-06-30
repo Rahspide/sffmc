@@ -12,7 +12,7 @@ import type { WorkflowRun, WorkflowStep, JournalEvent, WorkflowStatus } from "./
 import { applySchema } from "./schema.ts"
 import { ensureWorkflowConfig, getDbFilename, getWorkflowConfigSync, getWorkflowDataDir } from "./constants.ts"
 import { validateJournalEvent } from "./schema-journal.ts"
-import { createLogger, defaultFsOps, type FsOps } from "@sffmc/shared"
+import { createLogger, defaultFsOps, type FsOps, unixNow } from "@sffmc/shared"
 
 // ---------------------------------------------------------------------------
 // RunID generation (base62)
@@ -287,7 +287,7 @@ export class WorkflowPersistence {
     args?: unknown,
   ): string {
     const runID = generateRunID()
-    const now = Math.floor(Date.now() / 1000)
+    const now = unixNow()
     // JSON-stringify args before insert so undefined → NULL (column is TEXT).
     // Anything else (object/array/primitive) round-trips through rowToRun's
     // JSON.parse. NULL means "no args" — resume() will pass null to the
@@ -309,7 +309,7 @@ export class WorkflowPersistence {
 
   updateRunStatus(runID: string, status: WorkflowStatus, error?: string): void {
     safeRunID(runID)
-    const now = Math.floor(Date.now() / 1000)
+    const now = unixNow()
     this.db.run(
       `UPDATE workflow_runs SET status = ?, error = ?, time_updated = ? WHERE id = ?`,
       [status, error ?? null, now, runID],
@@ -485,7 +485,7 @@ export class WorkflowPersistence {
       )
       this.db.run(
         `UPDATE workflow_runs SET time_updated = ? WHERE id = ?`,
-        [Math.floor(Date.now() / 1000), runID],
+        [unixNow(), runID],
       )
       this.db.run("COMMIT")
     } catch (e) {

@@ -38,6 +38,6 @@ export {
   MEMORY_DB_FILENAME,
   migrateLegacyDataPaths,
 } from "./paths.ts"
-export { SECONDS_PER_DAY, unixNow } from "./time.ts"
+export { SECONDS_PER_DAY, __resetClock, __setClock, unixNow } from "./time.ts"
 export { defaultFsOps, createMockFsOps } from "./fs-ops.ts"
 export type { FsOps, MockFsOpsState } from "./fs-ops.ts"

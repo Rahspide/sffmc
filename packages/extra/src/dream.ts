@@ -238,6 +238,11 @@ function buildArchiveRecord(
   entry: MemoryRow,
   redaction: { redacted: string; count: number; categories: string[] },
 ): Record<string, unknown> {
+  // `archived_at_ms` is consumed by downstream forensic tooling that
+  // expects a millisecond epoch timestamp (matching `Date.now()` shape).
+  // We keep the direct `Date.now()` call here because the value isn't
+  // consumed by any time-arithmetic logic in the data plane — tests
+  // assert presence/recency via range checks, not exact pins.
   return {
     id: entry.id,
     source_path: entry.source_path,
