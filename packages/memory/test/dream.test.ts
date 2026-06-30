@@ -1922,8 +1922,13 @@ describe("Dream", () => {
       // after createDreamTool returns.
       clearCronTimer();
       expect(isDreamLocked()).toBe(false);
+      // Pre-condition: the singleton timer slot is null before the factory
+      // allocates a new state (or it holds a stale handle from a prior test).
+      // Either way, clearCronTimer() must be idempotent — the timer slot
+      // after createDreamTool returns is null because intervalHours=0
+      // short-circuits the setup before any setInterval runs.
       const before = (createDreamTool as unknown as { _activeDreamState?: { cronTimer: ReturnType<typeof setInterval> | null } })._activeDreamState;
-      void before; // typed probe (not a contract assertion — just exercises the path)
+      expect(before?.cronTimer ?? null).toBeNull();
       createDreamTool({
         enabled: true,
         threshold: 50,

@@ -217,7 +217,23 @@ function archiveEntry(entry: MemoryRow, archivePath: string): void {
   // archive would persist it forever. `redactSecrets` returns the redacted
   // text plus categories + count for forensic visibility.
   const redaction = redactSecrets(entry.content);
-  const record = {
+  const record = buildArchiveRecord(entry, redaction);
+  appendFileSync(archivePath, JSON.stringify(record) + "\n");
+}
+
+/** Build the JSONL record object for an archived entry: the 7 original
+ *  MemoryRow fields + redaction metadata (count + categories) + 2 audit
+ *  timestamps (ms + ISO). The redaction result is passed in by the
+ *  caller so the actual write can stay in archiveEntry. Pure data builder —
+ *  no filesystem I/O — kept separate so the orchestration
+ *  (ensure dir → redact → build → append) reads top-down at the call site
+ *  and the record shape can be pinned by tests via the existing #15
+ *  JSONL round-trip test. */
+function buildArchiveRecord(
+  entry: MemoryRow,
+  redaction: { redacted: string; count: number; categories: string[] },
+): Record<string, unknown> {
+  return {
     id: entry.id,
     source_path: entry.source_path,
     section: entry.section,
@@ -230,7 +246,6 @@ function archiveEntry(entry: MemoryRow, archivePath: string): void {
     archived_at_ms: Date.now(),
     archived_at_iso: new Date().toISOString(),
   };
-  appendFileSync(archivePath, JSON.stringify(record) + "\n");
 }
 
 /** Fallback summarization: concatenate  `snippetLength` chars of each entry.
@@ -674,7 +689,7 @@ async function processDreamClusters(opts: {
       llmSnippetLength,
       errors,
     });
-    insertClusterSummary(db, cluster, name, content, dryRun);
+    insertClusterSummary(db, cluster, content, dryRun);
     summarized += cluster.length;
   }
   return summarized;
@@ -734,11 +749,13 @@ async function summarizeClusterContent(opts: {
 /** Phase 6 helper: insert a single cluster summary row (and delete the
  *  source rows) — or, in dry-run mode, do nothing (the caller still
  *  counts the cluster in `summarized` so the operator sees the simulated
- *  outcome). The new row's importance_score is the max of the cluster. */
+ *  outcome). The new row's importance_score is the max of the cluster.
+ *  Note: `name` (the LLM-generated cluster topic) is intentionally NOT
+ *  persisted — the clusterName was already folded into `finalContent`'s
+ *  `Cluster: <name>\n\n` prefix by `summarizeClusterContent`. */
 function insertClusterSummary(
   db: Database,
   cluster: MemoryRow[],
-  _name: string,
   finalContent: string,
   dryRun: boolean,
 ): void {
