@@ -7,6 +7,7 @@ import {
   type QuickJSContext,
   type QuickJSDeferredPromise,
   type QuickJSHandle,
+  type QuickJSRuntime,
   type QuickJSWASMModule,
 } from "quickjs-emscripten"
 import type { SandboxConstraints } from "./types"
@@ -135,30 +136,8 @@ export async function runSandboxed(
 ): Promise<unknown> {
   const QJS = await getQuickJS()
 
-  // --- Build hooks map (host functions only; skip PRELUDE keys + args) ---
-  const PRELUDE_KEYS = new Set(["parallel", "pipeline", "args"])
-  const hooks: Record<string, HostFn> = {}
-  for (const key of Object.keys(primitives)) {
-    if (PRELUDE_KEYS.has(key)) continue
-    const fn = (primitives as unknown as Record<string, unknown>)[key]
-    if (typeof fn === "function") {
-      hooks[key] = fn as HostFn
-    }
-  }
-
   // --- Create runtime + context ---
-  const rt = QJS.newRuntime()
-    // YAML-configured value (via `getSandboxMemoryMB()`), which falls back
-  // to 64 MiB when no override is set. The previous hardcoded `DEFAULT_MEMORY`
-  // constant is preserved as `DEFAULT_MEMORY_BYTES` for any code paths
-  // that still need to compute byte counts directly.
-  const memoryMB = opts?.memoryMB ?? getSandboxMemoryMB()
-  rt.setMemoryLimit(memoryMB * 1024 * 1024)
-    // the YAML config via `getSandboxStackSize()` (default 1 MiB).
-  rt.setMaxStackSize(getSandboxStackSize())
-  rt.setInterruptHandler(
-    shouldInterruptAfterDeadline(Date.now() + (opts?.deadlineMs ?? SCRIPT_DEADLINE_MS)),
-  )
+  const rt = createSandboxRuntime(QJS, opts)
   const ctx = rt.newContext()
 
   // Arena: every handle we create goes here and is disposed in `finally`.
@@ -174,47 +153,15 @@ export async function runSandboxed(
 
   try {
     // --- Inject host functions ---
+    const hooks = buildHostHooks(primitives)
     injectHooks(ctx, hooks, track, deferreds)
 
     // --- Determinism hardening ---
-    // The guest is a bare quickjs-emscripten JS engine — no Web/Node APIs
-    // exist (no crypto/performance/fetch/timers/process/Temporal/gc; all
-    // already undefined). We neutralize the JS built-ins whose output or
-    // timing is nondeterministic so resume replay stays sound:
-    //   - Date — deleted (nondeterministic wall-clock)
-    //   - Math.random — REPLACED with a SEEDED PRNG (mulberry32)
-    //   - WeakRef / FinalizationRegistry — deleted (GC liveness callbacks)
     const seed = (opts?.seed ?? DEFAULT_PRNG_SEED) >>> 0
-    const stripResult = ctx.evalCode(`
-      delete globalThis.Date;
-      (function () {
-        // mulberry32 — tiny seeded PRNG; deterministic for a given seed.
-        let s = ${seed} >>> 0;
-        Math.random = function () {
-          s = (s + 0x6d2b79f5) >>> 0;
-          let t = s;
-          t = Math.imul(t ^ (t >>> 15), t | 1);
-          t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-          return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-        };
-      })();
-      delete globalThis.WeakRef;
-      delete globalThis.FinalizationRegistry;
-    `)
-    if (stripResult.error) {
-      stripResult.error.dispose()
-    } else {
-      stripResult.value.dispose()
-    }
+    hardenDeterminism(ctx, seed)
 
     // --- Run PRELUDE ---
-    const preResult = ctx.evalCode(PRELUDE)
-    if (preResult.error) {
-      const err = ctx.dump(preResult.error)
-      preResult.error.dispose()
-      throw new Error(`workflow prelude error: ${typeof err === "string" ? err : JSON.stringify(err)}`)
-    }
-    preResult.value.dispose()
+    evalAndDiscard(ctx, PRELUDE, "workflow prelude error")
 
     // --- Inject args as guest global (by value) ---
     const argsHandle = marshalIn(ctx, primitives.args ?? null)
@@ -223,54 +170,15 @@ export async function runSandboxed(
 
     // --- Evaluate user script ---
     const wrapped = `(async () => {\n${source}\n})()`
-    const evalRes = ctx.evalCode(wrapped)
-    if (evalRes.error) {
-      const err = ctx.dump(evalRes.error)
-      evalRes.error.dispose()
-      throw new Error(`workflow script error: ${typeof err === "string" ? err : JSON.stringify(err)}`)
-    }
-    const promiseHandle = track(evalRes.value)
+    const promiseHandle = track(evalAndReturn(ctx, wrapped, "workflow script error"))
 
-    // --- Concurrent pump ---
-    // A BACKSTOP that drains guest microtasks while we await the guest
-    // promise. NOTE: agent() results do NOT depend on this loop's latency —
-    // injectHooks already calls executePendingJobs() synchronously the
-    // moment a host promise settles. This pump only catches guest-INTERNAL
-    // pending jobs (e.g. parallel()'s Promise.all advancing between host
-    // settles).
-    //
-    // Adaptive cadence to avoid idle CPU churn: stays FAST right after
-    // finding work, decays to SLOW when idle. NEVER stops polling (cannot
-    // deadlock) — worst case adds ≤ SLOW_MS latency.
-    const FAST_MS = 1
-    const SLOW_MS = 50
-    const FAST_WINDOW = 50
-    let pumpTimer: ReturnType<typeof setTimeout> | undefined
-    let idleTicks = 0
-    const pumpOnce = () => {
-      if (rt.hasPendingJob()) {
-        rt.executePendingJobs()
-        idleTicks = 0
-      } else {
-        idleTicks++
-      }
-      pumpTimer = setTimeout(pumpOnce, idleTicks < FAST_WINDOW ? FAST_MS : SLOW_MS)
-    }
-    pumpTimer = setTimeout(pumpOnce, FAST_MS)
-    pumpTimer.unref?.()
+    // --- Concurrent pump (adaptive cadence backstop) ---
+    const pump = startMicrotaskPump(rt)
 
     // --- Wall-clock deadline (hard kill via Promise.race) ---
-    // The runtime interrupt handler only fires during guest bytecode
-    // execution, so it kills `while(true){}` but NOT a guest parked on a
-    // pending host promise. This timer races resolvePromise and rejects
-    // when the budget elapses.
-    let deadlineTimer: ReturnType<typeof setTimeout> | undefined
-    const deadline = new Promise<never>((_, reject) => {
-      deadlineTimer = setTimeout(
-        () => reject(new Error("workflow script deadline exceeded")),
-        opts?.deadlineMs ?? SCRIPT_DEADLINE_MS,
-      )
-    })
+    const { promise: deadline, timer: deadlineTimer } = createDeadlineRace(
+      opts?.deadlineMs ?? SCRIPT_DEADLINE_MS,
+    )
 
     try {
       const resolved = await Promise.race([ctx.resolvePromise(promiseHandle), deadline])
@@ -282,7 +190,7 @@ export async function runSandboxed(
       const valueHandle = track(resolved.value)
       return ctx.dump(valueHandle)
     } finally {
-      clearTimeout(pumpTimer)
+      pump.stop()
       clearTimeout(deadlineTimer)
     }
   } catch (e: unknown) {
@@ -307,6 +215,156 @@ export async function runSandboxed(
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
+
+/** Keys that the guest-side PRELUDE wires up directly — host primitives
+ *  bearing these names are filtered out of the hooks map so the PRELUDE
+ *  versions (parallel / pipeline / args binding) cannot be shadowed. */
+const PRELUDE_KEYS = new Set(["parallel", "pipeline", "args"])
+
+/** Build the host-functions map for `injectHooks`. Pure: filters out
+ *  PRELUDE keys and non-function primitive entries. */
+function buildHostHooks(primitives: SandboxPrimitives): Record<string, HostFn> {
+  const hooks: Record<string, HostFn> = {}
+  for (const key of Object.keys(primitives)) {
+    if (PRELUDE_KEYS.has(key)) continue
+    const fn = (primitives as unknown as Record<string, unknown>)[key]
+    if (typeof fn === "function") {
+      hooks[key] = fn as HostFn
+    }
+  }
+  return hooks
+}
+
+/** Allocate a QuickJS runtime sized by `opts` (YAML-configured memory/stack)
+ *  with the wall-clock interrupt handler installed. Caller is responsible
+ *  for `rt.dispose()`. */
+function createSandboxRuntime(
+  QJS: QuickJSWASMModule,
+  opts?: Partial<SandboxConstraints> & { seed?: number; runID?: string },
+): QuickJSRuntime {
+  const rt = QJS.newRuntime()
+  // YAML-configured value (via `getSandboxMemoryMB()`), which falls back
+  // to 64 MiB when no override is set. The previous hardcoded `DEFAULT_MEMORY`
+  // constant is preserved as `DEFAULT_MEMORY_BYTES` for any code paths
+  // that still need to compute byte counts directly.
+  const memoryMB = opts?.memoryMB ?? getSandboxMemoryMB()
+  rt.setMemoryLimit(memoryMB * 1024 * 1024)
+  // the YAML config via `getSandboxStackSize()` (default 1 MiB).
+  rt.setMaxStackSize(getSandboxStackSize())
+  rt.setInterruptHandler(
+    shouldInterruptAfterDeadline(Date.now() + (opts?.deadlineMs ?? SCRIPT_DEADLINE_MS)),
+  )
+  return rt
+}
+
+/** Install the determinism hardening: delete `Date` / `WeakRef` /
+ *  `FinalizationRegistry` (nondeterministic or GC-liveness built-ins) and
+ *  replace `Math.random` with a seeded mulberry32 PRNG so resume replay
+ *  stays sound. Always disposes the eval result/error; never throws. */
+function hardenDeterminism(ctx: QuickJSContext, seed: number): void {
+  const stripResult = ctx.evalCode(`
+    delete globalThis.Date;
+    (function () {
+      // mulberry32 — tiny seeded PRNG; deterministic for a given seed.
+      let s = ${seed} >>> 0;
+      Math.random = function () {
+        s = (s + 0x6d2b79f5) >>> 0;
+        let t = s;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    })();
+    delete globalThis.WeakRef;
+    delete globalThis.FinalizationRegistry;
+  `)
+  if (stripResult.error) {
+    stripResult.error.dispose()
+  } else {
+    stripResult.value.dispose()
+  }
+}
+
+/** Eval a guest expression and discard its return value. Throws a labelled
+ *  error if the eval failed, dumping the guest error to a string first. */
+function evalAndDiscard(ctx: QuickJSContext, code: string, label: string): void {
+  const result = ctx.evalCode(code)
+  if (result.error) {
+    const err = ctx.dump(result.error)
+    result.error.dispose()
+    throw new Error(`${label}: ${typeof err === "string" ? err : JSON.stringify(err)}`)
+  }
+  result.value.dispose()
+}
+
+/** Eval a guest expression and return its live handle. Caller is responsible
+ *  for disposing the returned handle. Throws a labelled error on eval failure
+ *  (after disposing the error handle). */
+function evalAndReturn(ctx: QuickJSContext, code: string, label: string): QuickJSHandle {
+  const result = ctx.evalCode(code)
+  if (result.error) {
+    const err = ctx.dump(result.error)
+    result.error.dispose()
+    throw new Error(`${label}: ${typeof err === "string" ? err : JSON.stringify(err)}`)
+  }
+  return result.value
+}
+
+/** Install the adaptive-cadenence microtask pump that drains guest microtasks
+ *  while we await the guest promise. Adaptive cadence: stays FAST (1 ms)
+ *  right after finding work, decays to SLOW (50 ms) when idle. NEVER stops
+ *  polling (cannot deadlock) — worst case adds ≤ SLOW_MS latency. Returns
+ *  a handle whose `stop()` cancels the currently-scheduled timer (the latest
+ *  one in the recursive chain — the first timer may have already fired and
+ *  rescheduled itself). */
+function startMicrotaskPump(rt: QuickJSRuntime): { stop: () => void } {
+  const FAST_MS = 1
+  const SLOW_MS = 50
+  const FAST_WINDOW = 50
+  let pumpTimer: ReturnType<typeof setTimeout> | undefined
+  let idleTicks = 0
+  const pumpOnce = (): void => {
+    if (rt.hasPendingJob()) {
+      rt.executePendingJobs()
+      idleTicks = 0
+    } else {
+      idleTicks++
+    }
+    pumpTimer = setTimeout(pumpOnce, idleTicks < FAST_WINDOW ? FAST_MS : SLOW_MS)
+  }
+  pumpTimer = setTimeout(pumpOnce, FAST_MS)
+  pumpTimer.unref?.()
+  return {
+    stop: (): void => {
+      if (pumpTimer) clearTimeout(pumpTimer)
+    },
+  }
+}
+
+/** Wall-clock deadline race: rejects after `ms` with a clear error. Returns
+ *  the rejecting promise AND the underlying timer so the caller can cancel
+ *  it once the guest resolves.
+ *
+ *  Why this exists: the QuickJS runtime interrupt handler only fires during
+ *  guest bytecode execution, so it kills `while(true){}` but NOT a guest
+ *  parked on a pending host promise. This timer races resolvePromise and
+ *  rejects when the budget elapses. */
+function createDeadlineRace(
+  ms: number,
+): { promise: Promise<never>; timer: ReturnType<typeof setTimeout> } {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const promise = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error("workflow script deadline exceeded")),
+      ms,
+    )
+  })
+  return { promise, timer: timer as ReturnType<typeof setTimeout> }
+}
 
 /** Wire host functions into the guest as globals. */
 function injectHooks(
