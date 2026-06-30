@@ -50,12 +50,12 @@ export interface HealthConfig {
 export const DEFAULT_HEALTH_CONFIG: HealthConfig = {
   // composite file list — matches the v0.14.x hardcoded TOOL_FILES at src/index.ts:280-287
   toolFiles: [
-    "packages/compose/src/index.ts",       // compose_skill
-    "packages/workflow/src/tool.ts",       // workflow
-    "packages/health/src/index.ts",        // sffmc_health
-    "packages/extra/src/checkpoint.ts",    // extra_checkpoint
-    "packages/extra/src/judge.ts",         // extra_judge
-    "packages/extra/src/dream.ts",         // extra_dream
+    "packages/cognition/src/compose/src/index.ts",       // compose_skill
+    "packages/runtime/src/tool.ts",                      // workflow
+    "packages/cognition/src/health/src/index.ts",        // sffmc_health
+    "packages/memory/src/extra/checkpoint.ts",           // extra_checkpoint
+    "packages/memory/src/extra/judge.ts",                // extra_judge
+    "packages/memory/src/extra/dream.ts",                // extra_dream
   ],
   // safeMultiHooks flag — matches the v0.14.x hardcoded `new Set([...])` at src/index.ts:133-149
   safeMultiHooks: [
@@ -76,7 +76,7 @@ export const DEFAULT_HEALTH_CONFIG: HealthConfig = {
     "chat.system",
   ],
   // expected composite list — matches the v0.14.x hardcoded EXPECTED_COMPOSITES at src/index.ts:693
-  expectedComposites: ["safety", "memory", "agentic"],
+  expectedComposites: ["safety", "memory"],
 }
 
 let _healthConfig: HealthConfig | null = null
@@ -578,7 +578,7 @@ export const checkSdkCompliance = createCheck("sdk_compliance", async (repoRoot)
     const indexPath = join(repoRoot, "packages", pkg, "src", "index.ts");
     try {
       const content = await readFile(indexPath, "utf-8");
-      const hasSharedImport = /from\s+["']@sffmc\/shared["']/.test(content)
+      const hasSharedImport = /from\s+["']@sffmc\/utilities["']/.test(content)
         || /from\s+["']\.\.\/shared\/src\//.test(content);
       const hasExclusionComment = /\/\/\s*@sffmc-shared:\s*excluded/.test(content);
       if (!hasSharedImport && !hasExclusionComment) {
@@ -817,9 +817,9 @@ export const checkCompositeStructure = createCheck("composite_structure", async 
       } else if (parsed.role !== compositeName) {
         errors.push(`${compositeName}: package.json role is "${parsed.role}" but expected "${compositeName}"`);
       }
-      if (!parsed.composes || parsed.composes.length === 0) {
-        errors.push(`${compositeName}: package.json missing composes`);
-      } else {
+      // composes[] may be empty for the new layer-based layout where
+      // composite members are internal sub-folders (not workspace packages).
+      if (parsed.composes && parsed.composes.length > 0) {
         // 3. Each listed feature corresponds to a real package
         for (const feature of parsed.composes) {
           const featureDir = join(repoRoot, "packages", feature);
@@ -839,7 +839,7 @@ export const checkCompositeStructure = createCheck("composite_structure", async 
       if (!/mergeHooks\s*\(/.test(content)) {
         errors.push(`${compositeName}: src/index.ts does not call mergeHooks()`);
       }
-      if (!/from\s+["']@sffmc\/shared["']/.test(content)) {
+      if (!/from\s+["']@sffmc\/utilities["']/.test(content)) {
         warnings.push(`${compositeName}: src/index.ts does not import from @sffmc/utilities`);
       }
     } catch (err) {

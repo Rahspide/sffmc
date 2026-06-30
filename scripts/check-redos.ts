@@ -22,7 +22,7 @@
 // `shared/src/redact-secrets.ts`); this script only covers the catalogue.
 
 import { resolve } from "node:path"
-import { __listBuiltinRedactionRules } from "../shared/src/redact-secrets.ts"
+import { __listBuiltinRedactionRules } from "../packages/utilities/src/redact-secrets.ts"
 
 type BuiltinRule = {
   id: string

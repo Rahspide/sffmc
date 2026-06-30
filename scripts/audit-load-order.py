@@ -32,7 +32,7 @@ for _ws in _WORKSPACES:
     else:
         PKG_LIST.append(_ws)
 
-assert len(PKG_LIST) == 14, f"PKG_LIST drift: got {len(PKG_LIST)}, expected 14 ({PKG_LIST})"
+assert len(PKG_LIST) == 5, f"PKG_LIST drift: got {len(PKG_LIST)}, expected 14 ({PKG_LIST})"
 
 
 # Real OpenCode hook keys
