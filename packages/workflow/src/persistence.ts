@@ -3,7 +3,7 @@
 
 import { Database } from "bun:sqlite"
 import { randomBytes, createHash } from "node:crypto"
-import { mkdirSync, appendFileSync, createReadStream, openSync, fsyncSync, closeSync, existsSync } from "node:fs"
+import { createReadStream, openSync, fsyncSync, closeSync } from "node:fs"
 import { readFile, writeFile, appendFile, mkdir, stat } from "node:fs/promises"
 import path from "node:path"
 import { homedir } from "node:os"
@@ -12,7 +12,7 @@ import type { WorkflowRun, WorkflowStep, JournalEvent, WorkflowStatus } from "./
 import { applySchema } from "./schema.ts"
 import { ensureWorkflowConfig, getDbFilename, getWorkflowConfigSync, getWorkflowDataDir } from "./constants.ts"
 import { validateJournalEvent } from "./schema-journal.ts"
-import { createLogger } from "@sffmc/shared"
+import { createLogger, defaultFsOps, type FsOps } from "@sffmc/shared"
 
 // ---------------------------------------------------------------------------
 // RunID generation (base62)
@@ -213,6 +213,15 @@ export class WorkflowPersistence {
   private db: Database
   private dir: string
   private _owned: boolean
+  /** Sync filesystem layer for mkdir/exists/appendFile in the sync code
+   *  paths (constructor, `appendJournalSync`). Defaults to `defaultFsOps`;
+   *  tests can inject `createMockFsOps()` to keep the entire persistence
+   *  instance off the real disk. The async paths (writeScript,
+   *  readScript, appendJournal, loadJournal) keep using `node:fs/promises`
+   *  directly — abstracting those into an FsOpsAsync would require a
+   *  separate async interface and broader refactor (see audit report
+   *  §Easy-Win: constructor-inject WorkflowPersistence). */
+  private fs: FsOps
 
   /**
    * Create a persistence instance.
@@ -223,14 +232,18 @@ export class WorkflowPersistence {
    * @param opts.dataDir Optional data directory for file-based artifacts
    *                     (scripts, journals). Defaults to XDG_DATA_HOME or
    *                     ~/.local/share/SFFMC/workflow.
+   * @param opts.fs      Sync filesystem layer (mkdir/exists/appendFile).
+   *                     Defaults to `defaultFsOps`. Tests can pass
+   *                     `createMockFsOps()` for in-memory journaling.
    */
-  constructor(opts?: { db?: Database; dataDir?: string }) {
+  constructor(opts?: { db?: Database; dataDir?: string; fs?: FsOps }) {
     this.dir = opts?.dataDir ?? defaultDataDir()
+    this.fs = opts?.fs ?? defaultFsOps
     if (opts?.db) {
       this.db = opts.db
       this._owned = false
     } else {
-      mkdirSync(this.dir, { recursive: true })
+      this.fs.mkdir(this.dir, { recursive: true })
       this.db = new Database(dbPathForDir(this.dir))
       applySchema(this.db)
       this._owned = true
@@ -367,13 +380,13 @@ export class WorkflowPersistence {
    *  distinguishes header lines by the absence of a `t` field. */
   appendJournalSync(runID: string, event: JournalEvent): void {
     safeRunID(runID)
-    mkdirSync(this.dir, { recursive: true })
+    this.fs.mkdir(this.dir, { recursive: true })
     const jpath = this.journalPath(runID)
-    if (!existsSync(jpath)) {
+    if (!this.fs.exists(jpath)) {
       //  append: write v1 header so future readers can detect format
-      appendFileSync(jpath, JSON.stringify({ v: 1 }) + "\n")
+      this.fs.appendFile(jpath, JSON.stringify({ v: 1 }) + "\n")
     }
-    appendFileSync(jpath, JSON.stringify(event) + "\n")
+    this.fs.appendFile(jpath, JSON.stringify(event) + "\n")
     if (fsyncPendingPaths === null) fsyncPendingPaths = new Set()
     fsyncPendingPaths.add(jpath)
     scheduleFsync()
