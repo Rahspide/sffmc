@@ -1,126 +1,40 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/workflow — see ../../LICENSE
 
-import type { AgentFailureReason, WorkflowStatus } from "./types.ts"
-import { createLogger } from "@sffmc/shared";
+// Event bus public surface (back-compat shim).
+//
+// The implementation moved to `event-emitter.ts` (WorkflowEventEmitter
+// class, Task 1.3, M-1 god-object extract). This file re-exports both
+// the class and the payload type definitions from there so existing
+// consumers (`packages/workflow/src/index.ts`,
+// `packages/workflow/tests/foundation.test.ts`) keep working without
+// changes, and provides the `createEventBus` factory as a thin wrapper
+// over `new WorkflowEventEmitter()` for back-compat.
+//
+// New code should prefer importing `WorkflowEventEmitter` directly from
+// `./event-emitter.ts`; `createEventBus` is preserved for the
+// foundation.test.ts smoke tests and any downstream consumers that
+// imported it as a factory function.
 
-const log = createLogger("workflow")
+import { WorkflowEventEmitter } from "./event-emitter.ts"
 
-// ---------------------------------------------------------------------------
-// Event payloads
-// ---------------------------------------------------------------------------
+export { WorkflowEventEmitter }
+export type {
+  EventName,
+  WorkflowEventPayload,
+  WorkflowStartedEvent,
+  WorkflowResumedEvent,
+  WorkflowAgentFailedEvent,
+  WorkflowPhaseEvent,
+  WorkflowLogEvent,
+  WorkflowFinishedEvent,
+  WorkflowStepCheckpointEvent,
+} from "./event-emitter.ts"
 
-export interface WorkflowStartedEvent {
-  runID: string
-  name: string
-}
-
-export interface WorkflowResumedEvent {
-  runID: string
-  name: string
-  /** Status of the run immediately before resume() transitioned it to 'running'.
-   *  Typically 'paused' (new) or 'crashed' (legacy backward-compat). */
-  wasStatus: WorkflowStatus
-}
-
-export interface WorkflowAgentFailedEvent {
-  runID: string
-  agentKey: string
-  reason: AgentFailureReason
-}
-
-export interface WorkflowPhaseEvent {
-  runID: string
-  title: string
-}
-
-export interface WorkflowLogEvent {
-  runID: string
-  message: string
-}
-
-export interface WorkflowFinishedEvent {
-  runID: string
-  status: WorkflowStatus
-  error?: string
-}
-
-export interface WorkflowStepCheckpointEvent {
-  runID: string
-  stepIndex: number
-  costTokens: number
-}
-
-export type WorkflowEventPayload =
-  | WorkflowStartedEvent
-  | WorkflowResumedEvent
-  | WorkflowAgentFailedEvent
-  | WorkflowPhaseEvent
-  | WorkflowLogEvent
-  | WorkflowFinishedEvent
-  | WorkflowStepCheckpointEvent
-
-export type EventName =
-  | "workflow:started"
-  | "workflow:resumed"
-  | "workflow:agent_failed"
-  | "workflow:phase"
-  | "workflow:log"
-  | "workflow:finished"
-  | "workflow:step_checkpoint"
-
-// ---------------------------------------------------------------------------
-// Event bus factory
-// ---------------------------------------------------------------------------
-
-type Listener<T = WorkflowEventPayload> = (event: T) => void
-
-export function createEventBus() {
-  const listeners = new Map<string, Array<{ fn: Listener; key: string }>>()
-  let listenerIdCounter = 0
-
-  /**
-   * Register a listener for a workflow event.
-   * Returns a key that can be passed to `off()` to unsubscribe.
-   */
-  function on(name: EventName, fn: Listener): string {
-    const key = `${name}_${++listenerIdCounter}`
-    const list = listeners.get(name) ?? []
-    list.push({ fn, key })
-    listeners.set(name, list)
-    return key
-  }
-
-  /** Unsubscribe a listener by key. */
-  function off(key: string): void {
-    for (const [name, list] of listeners) {
-      const idx = list.findIndex((l) => l.key === key)
-      if (idx >= 0) {
-        list.splice(idx, 1)
-        if (list.length === 0) listeners.delete(name)
-        return
-      }
-    }
-  }
-
-  /** Emit an event to all registered listeners for that event name. */
-  function emit(name: EventName, payload: WorkflowEventPayload): void {
-    const list = listeners.get(name)
-    if (!list) return
-    // Copy list — listeners may call off() during iteration
-    for (const { fn, key } of [...list]) {
-      try {
-        fn(payload)
-      } catch (e) {
-        log.error(`error in listener ${key} for event ${name}:`, e)
-      }
-    }
-  }
-
-  /** Remove all listeners. */
-  function clearAll(): void {
-    listeners.clear()
-  }
-
-  return { on, off, emit, clearAll }
+/** Back-compat factory — returns a fresh `WorkflowEventEmitter` instance.
+ *  Use `new WorkflowEventEmitter()` in new code; this function exists to
+ *  preserve the pre-Task-1.3 `createEventBus()` API for
+ *  `foundation.test.ts` smoke tests and any downstream consumers. */
+export function createEventBus(): WorkflowEventEmitter {
+  return new WorkflowEventEmitter()
 }

@@ -13,7 +13,7 @@ import {
 } from "./persistence.ts"
 import { BoundedLRU } from "./lru.ts"
 import { CounterManager } from "./counter-manager.ts"
-import { createEventBus } from "./events.ts"
+import { WorkflowEventEmitter } from "./event-emitter.ts"
 import { parseMeta } from "./meta.ts"
 import {
   resolveWorkflow,
@@ -210,8 +210,16 @@ export class WorkflowRuntime {
   private globalSem: ReturnType<typeof makeSemaphore>
   private flushTimers = new Map<string, ReturnType<typeof setTimeout>>()
   private persistence: WorkflowPersistence
-  /** Event bus for observability listeners. */
-  readonly events = createEventBus()
+  /** Event bus for observability listeners.
+   *  One emitter per runtime, shared across all runs (Task 1.3, M-1
+   *  god-object extract — `WorkflowEventEmitter` class extracted from
+   *  the inline `createEventBus()` factory). Per-run vs per-runtime: the
+   *  event bus is per-runtime because observability listeners
+   *  (`runtime.events.on(...)` in `index.ts` `server()`) need to see
+   *  every run's events from a single registration point, not
+   *  re-register per run. The per-run split applies to `CounterManager`
+   *  because counter state is per-run; events are global. */
+  readonly events = new WorkflowEventEmitter()
   /** workflow recovery grace period — grace period in ms, populated by the index.ts config hook
    *  via `loadConfig<WorkflowConfig>("workflow", ...)`. Tests may also
    *  inject a value via `RuntimeOpts.gracePeriodMsOverride`. Stored on
