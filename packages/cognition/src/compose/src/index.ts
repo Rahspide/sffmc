@@ -3,7 +3,7 @@
 
 import { readFile, readdir } from "node:fs/promises";
 import { basename, join } from "node:path";
-import { loadConfig, type PluginContext } from "@sffmc/shared";
+import { loadConfig, type PluginContext } from "@sffmc/utilities";
 
 // ---------------------------------------------------------------------------
 // v0.14.2 hardcoded values (kept verbatim for backward compatibility).

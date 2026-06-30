@@ -1,6 +1,6 @@
 ---
 name: agentic:resolve-hook-conflict
-description: "Use when 2+ plugins register the same hook key (GATE or SIDE_EFFECT), causing unpredictable ordering. Runs audit-load-order.py, reads the output at .sffmc/load-order-audit.json, and resolves by adjusting plugin load order in opencode.json or by combining via mergeHooks (in @sffmc/shared)."
+description: "Use when 2+ plugins register the same hook key (GATE or SIDE_EFFECT), causing unpredictable ordering. Runs audit-load-order.py, reads the output at .sffmc/load-order-audit.json, and resolves by adjusting plugin load order in opencode.json or by combining via mergeHooks (in @sffmc/utilities)."
 hidden: true
 ---
 

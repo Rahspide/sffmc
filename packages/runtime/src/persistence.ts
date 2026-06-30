@@ -12,12 +12,12 @@ import type { WorkflowRun, WorkflowStep, JournalEvent, WorkflowStatus } from "./
 import { applySchema } from "./schema.ts"
 import { ensureWorkflowConfig, getDbFilename, getWorkflowConfigSync, getWorkflowDataDir } from "./constants.ts"
 import { validateJournalEvent } from "./schema-journal.ts"
-import { createLogger, defaultFsOps, type FsOps, safeRunID, unixNow } from "@sffmc/shared"
+import { createLogger, defaultFsOps, type FsOps, safeRunID, unixNow } from "@sffmc/utilities"
 // Re-exported so existing test consumers (e.g. `foundation.test.ts`,
 // `v0-14-3-schema-journal.test.ts`, `runtime-coverage.test.ts`) that
 // imported `RUN_ID_REGEX` directly from `./persistence.ts` keep working.
-// The canonical home is `@sffmc/shared`'s `safe-run-id.ts`.
-export { RUN_ID_REGEX } from "@sffmc/shared"
+// The canonical home is `@sffmc/utilities`'s `safe-run-id.ts`.
+export { RUN_ID_REGEX } from "@sffmc/utilities"
 
 // ---------------------------------------------------------------------------
 // RunID generation (base62)

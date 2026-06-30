@@ -16,66 +16,16 @@
         "@sffmc/shared": "workspace:*",
       },
     },
-    "packages/auto-max": {
-      "name": "@sffmc/auto-max",
-      "version": "0.14.9",
-      "dependencies": {
-        "@sffmc/shared": "workspace:*",
-      },
-    },
     "packages/cognition": {
       "name": "@sffmc/cognition",
       "version": "0.15.0",
       "dependencies": {
-        "@sffmc/utilities": "workspace:*",
+        "@sffmc/shared": "workspace:*",
       },
       "devDependencies": {
         "@types/bun": "1.3.14",
         "bun-types": "1.3.14",
         "typescript": "^6.0.3",
-      },
-    },
-    "packages/compose": {
-      "name": "@sffmc/compose",
-      "version": "0.14.9",
-      "dependencies": {
-        "@sffmc/shared": "workspace:*",
-      },
-    },
-    "packages/eos-stripper": {
-      "name": "@sffmc/eos-stripper",
-      "version": "0.14.9",
-      "dependencies": {
-        "@sffmc/shared": "workspace:*",
-      },
-    },
-    "packages/extra": {
-      "name": "@sffmc/extra",
-      "version": "0.14.9",
-      "dependencies": {
-        "@sffmc/shared": "workspace:*",
-      },
-    },
-    "packages/health": {
-      "name": "@sffmc/health",
-      "version": "0.14.9",
-      "dependencies": {
-        "@sffmc/shared": "workspace:*",
-      },
-    },
-    "packages/log-whitelist": {
-      "name": "@sffmc/log-whitelist",
-      "version": "0.14.9",
-      "dependencies": {
-        "@sffmc/shared": "workspace:*",
-      },
-    },
-    "packages/max-mode": {
-      "name": "@sffmc/max-mode",
-      "version": "0.14.9",
-      "dependencies": {
-        "@sffmc/shared": "workspace:*",
-        "yaml": "^2.0.0",
       },
     },
     "packages/memory": {
@@ -87,19 +37,11 @@
         "yaml": "^2.0.0",
       },
     },
-    "packages/rules": {
-      "name": "@sffmc/rules",
-      "version": "0.14.9",
-      "dependencies": {
-        "@sffmc/shared": "workspace:*",
-        "yaml": "^2.0.0",
-      },
-    },
     "packages/runtime": {
       "name": "@sffmc/runtime",
       "version": "0.15.0",
       "dependencies": {
-        "@sffmc/utilities": "workspace:*",
+        "@sffmc/shared": "workspace:*",
         "quickjs-emscripten": "0.32.0",
         "yaml": "^2.5.0",
       },
@@ -114,39 +56,12 @@
       "version": "0.14.9",
       "dependencies": {
         "@sffmc/shared": "workspace:*",
+        "yaml": "^2.5.0",
       },
     },
     "packages/utilities": {
-      "name": "@sffmc/utilities",
-      "version": "0.15.0",
-      "dependencies": {
-        "yaml": "^2.0.0",
-      },
-    },
-    "packages/watchdog": {
-      "name": "@sffmc/watchdog",
-      "version": "0.14.9",
-      "dependencies": {
-        "@sffmc/shared": "workspace:*",
-      },
-    },
-    "packages/workflow": {
-      "name": "@sffmc/workflow",
-      "version": "0.14.9",
-      "dependencies": {
-        "@sffmc/shared": "workspace:*",
-        "quickjs-emscripten": "0.32.0",
-        "yaml": "^2.5.0",
-      },
-      "devDependencies": {
-        "@types/bun": "1.3.14",
-        "bun-types": "1.3.14",
-        "typescript": "^6.0.3",
-      },
-    },
-    "shared": {
       "name": "@sffmc/shared",
-      "version": "0.14.9",
+      "version": "0.15.0",
       "dependencies": {
         "yaml": "^2.0.0",
       },
@@ -165,37 +80,15 @@
 
     "@sffmc/agentic": ["@sffmc/agentic@workspace:packages/agentic"],
 
-    "@sffmc/auto-max": ["@sffmc/auto-max@workspace:packages/auto-max"],
-
     "@sffmc/cognition": ["@sffmc/cognition@workspace:packages/cognition"],
 
-    "@sffmc/compose": ["@sffmc/compose@workspace:packages/compose"],
-
-    "@sffmc/eos-stripper": ["@sffmc/eos-stripper@workspace:packages/eos-stripper"],
-
-    "@sffmc/extra": ["@sffmc/extra@workspace:packages/extra"],
-
-    "@sffmc/health": ["@sffmc/health@workspace:packages/health"],
-
-    "@sffmc/log-whitelist": ["@sffmc/log-whitelist@workspace:packages/log-whitelist"],
-
-    "@sffmc/max-mode": ["@sffmc/max-mode@workspace:packages/max-mode"],
-
     "@sffmc/memory": ["@sffmc/memory@workspace:packages/memory"],
-
-    "@sffmc/rules": ["@sffmc/rules@workspace:packages/rules"],
 
     "@sffmc/runtime": ["@sffmc/runtime@workspace:packages/runtime"],
 
     "@sffmc/safety": ["@sffmc/safety@workspace:packages/safety"],
 
-    "@sffmc/shared": ["@sffmc/shared@workspace:shared"],
-
-    "@sffmc/utilities": ["@sffmc/utilities@workspace:packages/utilities"],
-
-    "@sffmc/watchdog": ["@sffmc/watchdog@workspace:packages/watchdog"],
-
-    "@sffmc/workflow": ["@sffmc/workflow@workspace:packages/workflow"],
+    "@sffmc/shared": ["@sffmc/shared@workspace:packages/utilities"],
 
     "@types/bun": ["@types/bun@1.3.14", "", { "dependencies": { "bun-types": "1.3.14" } }, "sha512-h1hFqFVcvAvD9j9K7ZW7vd82aSA+rTdznZa+5bwvCwqSB1jmmfLcbIWhOLx1/+boy/xmjgCs/OMUL8hRJSmnPw=="],
 

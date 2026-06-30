@@ -147,7 +147,7 @@ check_bun() {
 plan_publishes() {
   echo ""
   echo "Publish plan:"
-  echo "  1. shared/ (@sffmc/shared)"
+  echo "  1. shared/ (@sffmc/utilities)"
   local i=2
   for p in "$REPO_ROOT"/packages/*/; do
     local pkg_name

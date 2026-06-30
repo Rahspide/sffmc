@@ -5,7 +5,7 @@ import { WorkflowRuntime, type RuntimeOpts } from "./runtime.ts"
 import { createWorkflowTool } from "./tool.ts"
 import type { PluginContext } from "./runtime.ts"
 import type { WorkflowAgentFailedEvent, WorkflowFinishedEvent } from "./events.ts"
-import { createLogger, loadConfig } from "@sffmc/shared";
+import { createLogger, loadConfig } from "@sffmc/utilities";
 import { DEFAULT_WORKFLOW_CONFIG } from "./types.ts";
 
 const log = createLogger("workflow")

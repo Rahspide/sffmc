@@ -1,7 +1,7 @@
 import { generateCandidates, type Candidate } from "./candidates";
 import { judgeCandidates, type Verdict } from "./judge";
 import { createRestoreState, stripToolExecutes, restoreToolExecutes, resetRestoreState } from "./restore";
-import { loadConfig, MAX_COMMAND, type RichPluginContext, createLogger } from "@sffmc/shared";
+import { loadConfig, MAX_COMMAND, type RichPluginContext, createLogger } from "@sffmc/utilities";
 
 const log = createLogger("max-mode");
 

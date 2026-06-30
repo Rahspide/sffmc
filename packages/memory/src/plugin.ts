@@ -18,7 +18,7 @@ import {
   DEFAULT_MEMORY_DB_PATH,
   HOOK_CHAT_MESSAGES_TRANSFORM,
   SESSION_CREATED,
-} from "@sffmc/shared";
+} from "@sffmc/utilities";
 import { readFileSync, existsSync, mkdirSync, statSync } from "fs"
 import { resolve, dirname } from "path"
 import { homedir } from "node:os"

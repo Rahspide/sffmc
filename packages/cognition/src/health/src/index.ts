@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/cognition — see ../../LICENSE
 
-import { loadConfig, type PluginContext } from "@sffmc/shared";
+import { loadConfig, type PluginContext } from "@sffmc/utilities";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -599,13 +599,13 @@ export const checkSdkCompliance = createCheck("sdk_compliance", async (repoRoot)
   if (missingImport.length === 0) {
     return {
       status: "ok",
-      detail: `${pkgs.length - KNOWN_SDK_EXCEPTIONS.size}/${pkgs.length} packages import @sffmc/shared (2 known exceptions: ${[...KNOWN_SDK_EXCEPTIONS].join(", ")})`,
+      detail: `${pkgs.length - KNOWN_SDK_EXCEPTIONS.size}/${pkgs.length} packages import @sffmc/utilities (2 known exceptions: ${[...KNOWN_SDK_EXCEPTIONS].join(", ")})`,
     };
   }
 
   return {
     status: "warn",
-    detail: `${missingImport.length} package(s) missing @sffmc/shared import: ${missingImport.join(", ")}`,
+    detail: `${missingImport.length} package(s) missing @sffmc/utilities import: ${missingImport.join(", ")}`,
   };
 });
 
@@ -840,7 +840,7 @@ export const checkCompositeStructure = createCheck("composite_structure", async 
         errors.push(`${compositeName}: src/index.ts does not call mergeHooks()`);
       }
       if (!/from\s+["']@sffmc\/shared["']/.test(content)) {
-        warnings.push(`${compositeName}: src/index.ts does not import from @sffmc/shared`);
+        warnings.push(`${compositeName}: src/index.ts does not import from @sffmc/utilities`);
       }
     } catch (err) {
       errors.push(`${compositeName}: could not read src/index.ts (${err})`);
@@ -940,7 +940,7 @@ Checks performed:
 5. tool_registration — scans for 'name' field bug in tool definitions (fix-17 regression, 6 tool files)
 6. version_consistency — compares root package.json version against all plugin versions
 7. license — verifies LICENSE exists and is referenced from all READMEs
-8. sdk_compliance — verifies packages import from @sffmc/shared (2 known exceptions: max-mode, workflow)
+8. sdk_compliance — verifies packages import from @sffmc/utilities (2 known exceptions: max-mode, workflow)
 9. tsconfig_presence — verifies each package has tsconfig.json (migration-progress check)
 10. changelog_currency — verifies CHANGELOG.md version matches root package.json
 11. extra_opt_in — reports @sffmc/extra opt-in status (informational; 3 opt-in features off by default)

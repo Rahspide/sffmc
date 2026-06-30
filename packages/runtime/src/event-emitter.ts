@@ -71,7 +71,7 @@ export type EventName =
 // Event bus implementation
 // ---------------------------------------------------------------------------
 
-import { createLogger } from "@sffmc/shared"
+import { createLogger } from "@sffmc/utilities"
 
 const log = createLogger("workflow")
 

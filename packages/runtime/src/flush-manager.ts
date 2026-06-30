@@ -23,7 +23,7 @@
 
 import type { CounterManager } from "./counter-manager.ts"
 import type { WorkflowPersistence } from "./persistence.ts"
-import { createLogger } from "@sffmc/shared"
+import { createLogger } from "@sffmc/utilities"
 
 const log = createLogger("workflow")
 

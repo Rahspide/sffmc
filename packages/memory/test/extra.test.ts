@@ -5,7 +5,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from
 import { mkdtempSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { type PluginContext } from "@sffmc/shared";
+import { type PluginContext } from "@sffmc/utilities";
 
 /**
  * loadServer sets HOME to a temp dir for the duration of the test so that

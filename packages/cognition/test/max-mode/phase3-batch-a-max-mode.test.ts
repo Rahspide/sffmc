@@ -99,7 +99,7 @@ describe("max-mode dream integration — maxMode.fallbackConfidence (default + l
   it("(a) loadConfig with no YAML file returns fallbackConfidence = 0.3", async () => {
     clearMaxModeYaml();
     // Re-import loadConfig so each test sees a fresh module state.
-    const { loadConfig } = await import("@sffmc/shared");
+    const { loadConfig } = await import("@sffmc/utilities");
     const cfg = await loadConfig("max-mode", defaultConfig, { configHome });
     expect(cfg.fallbackConfidence).toBe(0.3);
   });
@@ -112,28 +112,28 @@ describe("max-mode dream integration — maxMode.fallbackConfidence (default + l
 describe("max-mode dream integration — maxMode.fallbackConfidence (YAML override)", () => {
   it("(b) YAML override changes the value (mid-range: 0.5)", async () => {
     writeMaxModeYaml("fallbackConfidence: 0.5\n");
-    const { loadConfig } = await import("@sffmc/shared");
+    const { loadConfig } = await import("@sffmc/utilities");
     const cfg = await loadConfig("max-mode", defaultConfig, { configHome });
     expect(cfg.fallbackConfidence).toBe(0.5);
   });
 
   it("(b) YAML override at the plan-stated lower bound (0.0) flows through", async () => {
     writeMaxModeYaml("fallbackConfidence: 0.0\n");
-    const { loadConfig } = await import("@sffmc/shared");
+    const { loadConfig } = await import("@sffmc/utilities");
     const cfg = await loadConfig("max-mode", defaultConfig, { configHome });
     expect(cfg.fallbackConfidence).toBe(0.0);
   });
 
   it("(b) YAML override at the plan-stated upper bound (1.0) flows through", async () => {
     writeMaxModeYaml("fallbackConfidence: 1.0\n");
-    const { loadConfig } = await import("@sffmc/shared");
+    const { loadConfig } = await import("@sffmc/utilities");
     const cfg = await loadConfig("max-mode", defaultConfig, { configHome });
     expect(cfg.fallbackConfidence).toBe(1.0);
   });
 
   it("(b) YAML override with high precision float (0.75) is preserved", async () => {
     writeMaxModeYaml("fallbackConfidence: 0.75\n");
-    const { loadConfig } = await import("@sffmc/shared");
+    const { loadConfig } = await import("@sffmc/utilities");
     const cfg = await loadConfig("max-mode", defaultConfig, { configHome });
     expect(cfg.fallbackConfidence).toBe(0.75);
   });
@@ -266,7 +266,7 @@ describe("max-mode dream integration — integration with max-mode checkpoint in
       "fallbackConfidence: 0.6",
       "",
     ].join("\n"));
-    const { loadConfig } = await import("@sffmc/shared");
+    const { loadConfig } = await import("@sffmc/utilities");
     const cfg = await loadConfig("max-mode", defaultConfig, { configHome });
     expect(cfg.maxCandidates).toBe(25);
     expect(cfg.judgeDraftMaxChars).toBe(12000);
@@ -276,7 +276,7 @@ describe("max-mode dream integration — integration with max-mode checkpoint in
   it("(e) YAML override of one field does NOT disturb max-mode dream integration fallbackConfidence", async () => {
     // Override only maxCandidates — fallbackConfidence should stay default 0.3.
     writeMaxModeYaml("maxCandidates: 7\n");
-    const { loadConfig } = await import("@sffmc/shared");
+    const { loadConfig } = await import("@sffmc/utilities");
     const cfg = await loadConfig("max-mode", defaultConfig, { configHome });
     expect(cfg.maxCandidates).toBe(7);
     expect(cfg.fallbackConfidence).toBe(0.3);

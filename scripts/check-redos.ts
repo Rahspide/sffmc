@@ -2,7 +2,7 @@
 //
 // scripts/check-redos.ts — ReDoS gate for built-in redaction rules.
 //
-// Validates every built-in regex pattern in `@sffmc/shared/redact-secrets`
+// Validates every built-in regex pattern in `@sffmc/utilities/redact-secrets`
 // against the `safe-regex` library (star-height-1 check, default limit 25
 // repetitions). A `false` result means the pattern is potentially
 // catastrophic — matches would degrade to exponential time on worst-case

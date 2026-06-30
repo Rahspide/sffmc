@@ -1,4 +1,4 @@
-import { type RichPluginContext } from "@sffmc/shared";
+import { type RichPluginContext } from "@sffmc/utilities";
 
 /** Hard cap on the number of parallel LLM candidates. Prevents users
  *  from setting n_candidates to very high values (e.g. 100) which would

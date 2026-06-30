@@ -412,7 +412,7 @@ describe("checkSdkCompliance", () => {
     "rules", "watchdog", "workflow",
   ];
 
-  it("reports ok when all 9 checkable packages import from @sffmc/shared", async () => {
+  it("reports ok when all 9 checkable packages import from @sffmc/utilities", async () => {
     await withTempDir(async (dir) => {
       for (const pkg of SFFMC_PACKAGES) {
         await mkdir(join(dir, "packages", pkg, "src"), { recursive: true });
@@ -420,7 +420,7 @@ describe("checkSdkCompliance", () => {
         if (pkg === "max-mode" || pkg === "workflow") {
           content = `// SPDX-License-Identifier: MIT\nimport { existsSync } from "fs";\nexport default { id: "@sffmc/${pkg}", server: async () => ({}) };`;
         } else {
-          content = `// SPDX-License-Identifier: MIT\nimport { type PluginContext } from "@sffmc/shared";\nexport default { id: "@sffmc/${pkg}", server: async (ctx: PluginContext) => ({}) };`;
+          content = `// SPDX-License-Identifier: MIT\nimport { type PluginContext } from "@sffmc/utilities";\nexport default { id: "@sffmc/${pkg}", server: async (ctx: PluginContext) => ({}) };`;
         }
         await writeFile(join(dir, "packages", pkg, "src", "index.ts"), content);
       }
@@ -433,19 +433,19 @@ describe("checkSdkCompliance", () => {
     });
   });
 
-  it("reports warn when one package is missing @sffmc/shared import", async () => {
+  it("reports warn when one package is missing @sffmc/utilities import", async () => {
     await withTempDir(async (dir) => {
       for (const pkg of SFFMC_PACKAGES) {
         await mkdir(join(dir, "packages", pkg, "src"), { recursive: true });
         let content: string;
         if (pkg === "auto-max") {
-          // Missing @sffmc/shared import — and not in exception list
+          // Missing @sffmc/utilities import — and not in exception list
           content = `// SPDX-License-Identifier: MIT\nimport { existsSync } from "fs";\nexport default { id: "@sffmc/${pkg}", server: async () => ({}) };`;
         } else if (pkg === "max-mode" || pkg === "workflow") {
           // Known exceptions — no import, but excluded from check
           content = `// SPDX-License-Identifier: MIT\nimport { existsSync } from "fs";\nexport default { id: "@sffmc/${pkg}", server: async () => ({}) };`;
         } else {
-          content = `// SPDX-License-Identifier: MIT\nimport { type PluginContext } from "@sffmc/shared";\nexport default { id: "@sffmc/${pkg}", server: async (ctx: PluginContext) => ({}) };`;
+          content = `// SPDX-License-Identifier: MIT\nimport { type PluginContext } from "@sffmc/utilities";\nexport default { id: "@sffmc/${pkg}", server: async (ctx: PluginContext) => ({}) };`;
         }
         await writeFile(join(dir, "packages", pkg, "src", "index.ts"), content);
       }
@@ -467,7 +467,7 @@ describe("checkSdkCompliance", () => {
           // No import — they are exceptions
           content = `// SPDX-License-Identifier: MIT\nexport default { id: "@sffmc/${pkg}", server: async () => ({}) };`;
         } else {
-          content = `// SPDX-License-Identifier: MIT\nimport { type PluginContext } from "@sffmc/shared";\nexport default { id: "@sffmc/${pkg}", server: async (ctx: PluginContext) => ({}) };`;
+          content = `// SPDX-License-Identifier: MIT\nimport { type PluginContext } from "@sffmc/utilities";\nexport default { id: "@sffmc/${pkg}", server: async (ctx: PluginContext) => ({}) };`;
         }
         await writeFile(join(dir, "packages", pkg, "src", "index.ts"), content);
       }
@@ -490,7 +490,7 @@ describe("checkSdkCompliance", () => {
         if (pkg === "max-mode" || pkg === "workflow") {
           content = `// SPDX-License-Identifier: MIT\nexport default { id: "@sffmc/${pkg}", server: async () => ({}) };`;
         } else {
-          content = `// SPDX-License-Identifier: MIT\nimport { type PluginContext } from "@sffmc/shared";\nexport default { id: "@sffmc/${pkg}", server: async (ctx: PluginContext) => ({}) };`;
+          content = `// SPDX-License-Identifier: MIT\nimport { type PluginContext } from "@sffmc/utilities";\nexport default { id: "@sffmc/${pkg}", server: async (ctx: PluginContext) => ({}) };`;
         }
         await writeFile(join(dir, "packages", pkg, "src", "index.ts"), content);
       }
@@ -781,7 +781,7 @@ describe("checkCompositeStructure", () => {
         );
         await writeFile(
           join(dir, "packages", composite.name, "src", "index.ts"),
-          `import { mergeHooks } from "@sffmc/shared";\nexport default mergeHooks([]);`,
+          `import { mergeHooks } from "@sffmc/utilities";\nexport default mergeHooks([]);`,
         );
       }
 
@@ -812,7 +812,7 @@ describe("checkCompositeStructure", () => {
         await writeFile(join(dir, "packages", "some-feat", "package.json"), JSON.stringify({ name: "@sffmc/some-feat", version: "0.9.0", category: "mimo-port" }));
         await writeFile(
           join(dir, "packages", composite, "src", "index.ts"),
-          `import { mergeHooks } from "@sffmc/shared";\nexport default mergeHooks([]);`,
+          `import { mergeHooks } from "@sffmc/utilities";\nexport default mergeHooks([]);`,
         );
       }
 
@@ -838,8 +838,8 @@ describe("checkCompositeStructure", () => {
         );
         // safety gets no mergeHooks call; others are fine
         const content = composite === "safety"
-          ? `import { something } from "@sffmc/shared";\nexport default { id: "safety" };`
-          : `import { mergeHooks } from "@sffmc/shared";\nexport default mergeHooks([]);`;
+          ? `import { something } from "@sffmc/utilities";\nexport default { id: "safety" };`
+          : `import { mergeHooks } from "@sffmc/utilities";\nexport default mergeHooks([]);`;
         await writeFile(join(dir, "packages", composite, "src", "index.ts"), content);
       }
       await mkdir(join(dir, "packages", "some-feat"), { recursive: true });
@@ -867,7 +867,7 @@ describe("checkCompositeStructure", () => {
         );
         await writeFile(
           join(dir, "packages", composite, "src", "index.ts"),
-          `import { mergeHooks } from "@sffmc/shared";\nexport default mergeHooks([]);`,
+          `import { mergeHooks } from "@sffmc/utilities";\nexport default mergeHooks([]);`,
         );
       }
       // Only create real-feat (not nonexistent-feature)
@@ -897,7 +897,7 @@ describe("checkCompositeStructure", () => {
         );
         await writeFile(
           join(dir, "packages", composite, "src", "index.ts"),
-          `import { mergeHooks } from "@sffmc/shared";\nexport default mergeHooks([]);`,
+          `import { mergeHooks } from "@sffmc/utilities";\nexport default mergeHooks([]);`,
         );
       }
       await mkdir(join(dir, "packages", "feat-a"), { recursive: true });

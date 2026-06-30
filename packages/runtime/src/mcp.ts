@@ -22,8 +22,8 @@
 // token) is extended with a per-run MCP-call cap so a runaway guest cannot
 // exhaust the parent's MCP quota.
 
-import { createLogger } from "@sffmc/shared"
-import type { RichPluginContext } from "@sffmc/shared"
+import { createLogger } from "@sffmc/utilities"
+import type { RichPluginContext } from "@sffmc/utilities"
 
 const log = createLogger("workflow")
 

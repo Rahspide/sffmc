@@ -33,7 +33,7 @@ import { join } from "node:path";
 import { defaultConfig } from "../../src/max-mode/src/index";
 import { buildJudgePrompt } from "../../src/max-mode/src/judge";
 import { generateCandidates } from "../../src/max-mode/src/candidates";
-import { loadConfig } from "@sffmc/shared";
+import { loadConfig } from "@sffmc/utilities";
 
 // ---------------------------------------------------------------------------
 // Isolated configHome so we don't pick up the user's real

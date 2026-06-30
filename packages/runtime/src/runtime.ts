@@ -41,7 +41,7 @@ import {
   AgentFailureReason as AFR,
 } from "./types.ts"
 import { SCRIPT_DEADLINE_MS, DEFAULT_GRACE_PERIOD_MS, DEFAULT_SANDBOX_CONSTRAINTS, MAX_GRACE_PERIOD_MS, getWorkflowConfigSync, getMaxConcurrentAgents, getSandboxMemoryMB } from "./constants.ts"
-import { type RichPluginContext, createLogger, loadConfig } from "@sffmc/shared";
+import { type RichPluginContext, createLogger, loadConfig } from "@sffmc/utilities";
 import { resolveInheritedTools, McpBridge, DEFAULT_MAX_MCP_CALLS, discoverParentTools } from "./mcp.ts";
 
 // ---------------------------------------------------------------------------

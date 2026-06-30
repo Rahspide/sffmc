@@ -1,5 +1,5 @@
 import type { Candidate } from "./candidates";
-import { type RichPluginContext } from "@sffmc/shared";
+import { type RichPluginContext } from "@sffmc/utilities";
 
 export interface Verdict {
   winner: number;

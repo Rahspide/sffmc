@@ -9,7 +9,7 @@
 // `bun test` whenever runtime.ts happened to load ).
 
 import type { SandboxConstraints } from "./types.ts"
-import { loadConfig } from "@sffmc/shared"
+import { loadConfig } from "@sffmc/utilities"
 
 /** 1h wall-clock for the sandbox. Matches maxWallClockMs to prevent
  *  mismatches where the sandbox runs 12x longer than the workflow.
@@ -103,7 +103,7 @@ export const MAX_GRACE_PERIOD_MS = 24 * 60 * 60 * 1000
 //
 //
 // The schema below is loaded lazily via `loadConfig<>("workflow", …)` from
-// `@sffmc/shared`. Defaults match the exported constants above so behavior
+// `@sffmc/utilities`. Defaults match the exported constants above so behavior
 // is unchanged when no `~/.config/SFFMC/workflow.yaml` is present. Callers
 // that want config-aware values use the getter functions (`getScriptDeadlineMs`,
 // `getSandboxMemoryMB`, …) — they prefer the YAML override and fall back to

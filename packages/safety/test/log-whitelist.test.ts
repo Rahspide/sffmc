@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test";
-import { suppressLine, filterLines } from "../../log-whitelist/src/filter";
+import { suppressLine, filterLines } from "../src/log-whitelist/filter.ts";
 
 describe("shouldKeep (via filterLines, single-line input)", () => {
   const whitelist = [/error/i, /warn/i, /fail/i, /ENOENT/];
@@ -182,7 +182,7 @@ describe("filterLines with suppressPatterns", () => {
 
   it("suppression in filterLines via tool.execute.after hook", async () => {
     // Mock loadConfig returns a whitelist that catches errors, plus suppress patterns
-    const mod = await import("../../log-whitelist/src/index");
+    const mod = await import("../src/log-whitelist/index");
 
     // We need to inject config with suppress_patterns. The server reads from
     // ~/.config/SFFMC/log-whitelist.yaml, which doesn't exist on this machine.
@@ -228,14 +228,14 @@ describe("filterLines with suppressPatterns", () => {
 
 describe("Plugin entry", () => {
   it("exports default object with id and server function", async () => {
-    const mod = await import("../../log-whitelist/src/index");
+    const mod = await import("../src/log-whitelist/index");
     expect(mod.default).toBeDefined();
-    expect(mod.default.id).toBe("@sffmc/log-whitelist");
+    expect(mod.default.id).toBe("@sffmc/safety");
     expect(typeof mod.default.server).toBe("function");
   });
 
   it("server returns expected hooks", async () => {
-    const mod = await import("../../log-whitelist/src/index");
+    const mod = await import("../src/log-whitelist/index");
     const hooks = await mod.default.server({
       projectRoot: "/tmp/test-project",
       config: {},
@@ -246,7 +246,7 @@ describe("Plugin entry", () => {
 
   it("tool.execute.after is a no-op when whitelist is empty", async () => {
     // Default config has empty whitelist — so nothing should be filtered
-    const mod = await import("../../log-whitelist/src/index");
+    const mod = await import("../src/log-whitelist/index");
     const hooks = await mod.default.server({
       projectRoot: "/tmp/test-project",
       config: {},
@@ -262,7 +262,7 @@ describe("Plugin entry", () => {
   });
 
   it("tool.execute.after skips non-string output", async () => {
-    const mod = await import("../../log-whitelist/src/index");
+    const mod = await import("../src/log-whitelist/index");
     const hooks = await mod.default.server({
       projectRoot: "/tmp/test-project",
       config: {},
@@ -278,7 +278,7 @@ describe("Plugin entry", () => {
   });
 
   it("text.complete is a no-op when whitelist is empty", async () => {
-    const mod = await import("../../log-whitelist/src/index");
+    const mod = await import("../src/log-whitelist/index");
     const hooks = await mod.default.server({
       projectRoot: "/tmp/test-project",
       config: {},

@@ -5,7 +5,8 @@
   "type": "module",
   "main": "src/index.ts",
   "dependencies": {
-    "@sffmc/shared": "workspace:*"
+    "@sffmc/utilities": "workspace:*",
+    "yaml": "^2.5.0"
   },
   "scripts": {
     "test": "bun test",
@@ -44,5 +45,5 @@
   },
   "role": "safety",
   "composes": [],
-  "description": "Safety composite — composes watchdog, rules, auto-max, eos-stripper, log-whitelist"
+  "description": "Safety composite \u2014 composes watchdog, rules, auto-max, eos-stripper, log-whitelist"
 }

@@ -8,7 +8,7 @@ import { server as maxModeServer } from "../../max-mode/src/index.ts"
 import { server as workflowServer } from "../../workflow/src/index.ts"
 import { server as composeServer } from "../../compose/src/index.ts"
 import { server as healthServer } from "../../health/src/index.ts"
-import { mergeHooks, type PluginContext, type PluginServer } from "@sffmc/shared";
+import { mergeHooks, type PluginContext, type PluginServer } from "@sffmc/utilities";
 
 export const id = "@sffmc/agentic"
 
