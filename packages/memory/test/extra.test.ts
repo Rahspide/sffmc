@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// @sffmc/utilities — see ../../LICENSE
+// @sffmc/memory (extra features) — see ../../LICENSE
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from "bun:test";
 import { mkdtempSync, rmSync, existsSync } from "node:fs";
@@ -30,8 +30,8 @@ afterAll(() => {
 
 const loadServer = async (
   config: Record<string, unknown> = {},
-): Promise<Awaited<ReturnType<(typeof import("../src/extra/index.ts"))["default"]["server"]>>> => {
-  const mod = await import("../src/extra/index.ts");
+): Promise<Awaited<ReturnType<(typeof import("../src/index.ts"))["default"]["server"]>>> => {
+  const mod = await import("../src/index.ts");
   const ctx: PluginContext = {
     projectRoot: "/tmp/test-project",
     config: {},
@@ -39,11 +39,11 @@ const loadServer = async (
   return await mod.default.server(ctx);
 };
 
-describe("@sffmc/utilities plugin", () => {
+describe("@sffmc/memory plugin (extra features)", () => {
   it("default export shape: { id, server }", async () => {
-    const mod = await import("../src/extra/index.ts");
+    const mod = await import("../src/index.ts");
     expect(mod.default).toBeDefined();
-    expect(mod.default.id).toBe("@sffmc/utilities");
+    expect(mod.default.id).toBe("@sffmc/memory");
     expect(typeof mod.default.server).toBe("function");
   });
 
