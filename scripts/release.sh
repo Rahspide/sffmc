@@ -15,6 +15,7 @@ ONLY=""      # if set, only publish this package (e.g. "utilities" or "safety")
 VERBOSE=false
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+VERSION=$(jq -r .version "$REPO_ROOT/package.json")
 
 # -- help --------------------------------------------------------------
 show_help() {
@@ -37,7 +38,7 @@ Precondition checks (fail-fast before any publish):
   2. Working tree clean (git status --porcelain)
   3. npm login (npm whoami)
   4. npm org sffmc exists (npm org ls sffmc)
-  5. git tag v0.9.0 exists (warns if missing)
+  5. git tag v${VERSION} exists (warns if missing)
 
 Exit codes:
   0  success
@@ -128,11 +129,11 @@ check_npm_org() {
 }
 
 check_tag() {
-  info "Checking git tag v0.9.0 exists..."
-  if git -C "$REPO_ROOT" rev-parse "v0.9.0" >/dev/null 2>&1; then
-    echo -e "  ${GREEN}tag v0.9.0 exists${NC}"
+  info "Checking git tag ${VERSION} exists..."
+  if git -C "$REPO_ROOT" rev-parse "v${VERSION}" >/dev/null 2>&1; then
+    echo -e "  ${GREEN}tag v${VERSION} exists${NC}"
   else
-    warn "git tag v0.9.0 not found. Publishing without tag gate."
+    warn "git tag v${VERSION} not found. Publishing without tag gate."
   fi
 }
 
@@ -233,10 +234,13 @@ main() {
     fi
   fi
 
-  # -- publish: packages alphabetically --
+  # -- publish: packages alphabetically (utilities already published first) --
   for p in "$REPO_ROOT"/packages/*/; do
     local pkg_base
     pkg_base=$(basename "$p")
+    if [[ "$pkg_base" == "utilities" ]]; then
+      continue  # already published above as depends-first
+    fi
     if [[ -z "$ONLY" || "$ONLY" == "$pkg_base" ]]; then
       if [[ -f "$p/package.json" ]]; then
         run_publish "$p" || ((errors++))

@@ -28,12 +28,6 @@
     "access": "public",
     "registry": "https://registry.npmjs.org/"
   },
-  "files": [
-    "src/**/*",
-    "skills/**/*",
-    "README.md",
-    "LICENSE"
-  ],
   "keywords": [
     "sffmc",
     "opencode",
@@ -45,5 +39,12 @@
   },
   "role": "safety",
   "composes": [],
-  "description": "Safety composite \u2014 composes watchdog, rules, auto-max, eos-stripper, log-whitelist"
+  "description": "Safety composite \u2014 composes watchdog, rules, auto-max, eos-stripper, log-whitelist",
+  "files": [
+    "LICENSE",
+    "README.md",
+    "package.json",
+    "skills/**/*.md",
+    "src/**/*.ts"
+  ]
 }
