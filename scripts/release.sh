@@ -190,6 +190,15 @@ run_publish() {
     info "PUBLISH: ${pkg_name}@${pkg_version} (in ${pkg_dir#$REPO_ROOT/})"
     if (cd "$pkg_dir" && bun publish --access public --tolerate-republish); then
       echo -e "  ${GREEN}published OK${NC}"
+      # Force-dist-tag refresh: npm registry sometimes lags the package doc
+      # index after publish (tarball is 200 but registry.npmjs.org/<pkg>
+      # returns "Not Found" until the next sync). Re-setting the existing
+      # dist-tag forces re-index. Cheap, idempotent, harmless.
+      if command -v npm &>/dev/null; then
+        if npm dist-tag add "${pkg_name}@${pkg_version}" "${pkg_version}" &>/dev/null; then
+          echo "  dist-tag refreshed"
+        fi
+      fi
     else
       error "publish FAILED for ${pkg_name}"
       return 1
