@@ -48,6 +48,30 @@ composites + standalones — they compose cleanly. The previously-dissolved `@sf
 
 ## Install
 
+> **v0.15.0** — first version installable from **npm**. Pick one of:
+
+### Option A — install via npm (recommended)
+
+```bash
+# After running sffmc init, each package is installed via npm at install time.
+# Or pin a specific version in your opencode.json:
+{
+  "plugins": {
+    "@sffmc/safety":    "npm:@sffmc/safety@^0.15.0",
+    "@sffmc/memory":    "npm:@sffmc/memory@^0.15.0",
+    "@sffmc/runtime":   "npm:@sffmc/runtime@^0.15.0",
+    "@sffmc/cognition": "npm:@sffmc/cognition@^0.15.0"
+  }
+}
+```
+
+```bash
+# Or install the registry packages globally for inspection:
+npm install -g @sffmc/safety @sffmc/memory @sffmc/runtime @sffmc/cognition
+```
+
+### Option B — one-liner installer (legacy `file://` mode)
+
 ```bash
 # macOS / Linux
 curl -fsSL https://raw.githubusercontent.com/Rahspide/sffmc/main/install.sh | sh
