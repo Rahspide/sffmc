@@ -10,7 +10,7 @@
 // Exit 1 = at least one tool failed.
 
 import { resolve } from "node:path"
-import { server as agenticServer } from "../packages/agentic/src/index.ts"
+import { server as runtimeServer } from "../packages/runtime/src/index.ts"
 import { server as memoryServer } from "../packages/memory/src/index.ts"
 
 interface Tool {
@@ -57,21 +57,21 @@ async function callTool(
   }
 }
 
-console.log("[LOAD] Loading agentic + memory MSPs...")
-const agentic = await agenticServer(mockCtx)
+console.log("[LOAD] Loading runtime + memory packages...")
+const runtime = await runtimeServer(mockCtx)
 const memory = await memoryServer(mockCtx)
 const msps: Record<string, { tool?: Record<string, Tool> }> = {
-  "@sffmc/agentic": agentic as { tool?: Record<string, Tool> },
+  "@sffmc/runtime": runtime as { tool?: Record<string, Tool> },
   "@sffmc/memory": memory as { tool?: Record<string, Tool> },
 }
-console.log("✓ Both MSPs loaded\n")
+console.log("✓ Both packages loaded\n")
 
 console.log("[EXEC] Calling 5 tools in parallel...\n")
 
 // 1. workflow — proper inline script (must have `export const meta = {...}`)
 await callTool(
   msps,
-  "@sffmc/agentic",
+  "@sffmc/runtime",
   "workflow",
   {
     operation: "run",
@@ -86,7 +86,7 @@ await callTool(
 // 2. compose_skill — ask skill
 await callTool(
   msps,
-  "@sffmc/agentic",
+  "@sffmc/runtime",
   "compose_skill",
   { name: "ask" },
   "compose_skill (ask)",

@@ -4,7 +4,7 @@
 
 # SFFMC
 
-**OpenCode plugin suite — 3 composite packages, 10 sub-features, MIT licensed.**
+**OpenCode plugin suite — 2 composites + 3 standalones, MIT licensed. v0.15.0.**
 
 [![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 [![Version 0.14.8](https://img.shields.io/badge/version-0.14.8-success)](https://github.com/Rahspide/sffmc/releases)
@@ -25,16 +25,16 @@ with judge selection, a sandboxed JavaScript workflow engine, and 18 markdown
 compose skills.
 
 The repo ships as 14 npm packages under the `@sffmc/*` scope. Three of them are
-**composite packages** — `@sffmc/safety`, `@sffmc/memory`, and `@sffmc/agentic` —
+**composites** — `@sffmc/safety` (5 governance features) and `@sffmc/memory` (FTS5 recall + checkpoint/judge/dream opt-ins). Three standalone packages: `@sffmc/runtime` (sandboxed JS workflow orchestrator), `@sffmc/cognition` (parallel reasoning + compose skills + health diagnostics), and `@sffmc/utilities` (shared SDK library; **not a plugin entry**, only consumed by other packages as `workspace:*` dep).
 each of which is a thin wrapper that composes several sub-features into one
-default export using `mergeHooks()` from `@sffmc/shared`. The remaining 10
+`mergeHooks()` from `@sffmc/utilities`. The three standalones
 packages are the individual sub-features; they still work standalone for
 backward compatibility.
 
 Every plugin is a **composite**: it reads any hook payload
 freely but writes only to its own slot. No module-level exports, no shared
 mutable state, no cross-plugin coupling. Load any combination — all three
-composite packages, individual sub-features, or a mix — and they compose cleanly.
+composites + standalones — they compose cleanly. The previously-dissolved `@sffmc/agentic` composite has been split into `@sffmc/runtime` + `@sffmc/cognition`; users must register both explicitly.
 
 ## Why use it?
 
@@ -72,8 +72,8 @@ cd ~/.sffmc/plugins/sffmc
 
 | Command | Effect |
 |---|---|
-| `sffmc init` | Auto-detect config + add 3 composite plugins (safety, memory, agentic) |
-| `sffmc init --all` | Add all 13 packages |
+| `sffmc init` | Auto-detect config + add 2 composite plugins + 2 standalones (safety, memory, runtime, cognition) |
+| `sffmc init --all` | Add all 5 packages |
 | `sffmc init --only workflow,compose` | Pick specific packages |
 | `sffmc update` | `git pull --ff-only` + re-sync config |
 | `sffmc doctor` | Run 13-check diagnostic |
@@ -83,7 +83,7 @@ See [`docs/install.md`](./docs/install.md) for the full guide (pinned versions, 
 
 ## What's new in v0.14.8
 
-- **Documentation split into English + Russian.** `README.md` is now English-only; a language picker banner at the top links to `README.ru.md`. `CHANGELOG.md` is now English-only; Russian translations live in `CHANGELOG.ru.md`. Both new files contain the same content as the original bilingual inline format, just split for cleaner per-language navigation. No code changes — same 14 packages, same behaviour.
+- **Documentation split into English + Russian.** `README.md` is now English-only; a language picker banner at the top links to `README.ru.md`. `CHANGELOG.md` is now English-only; Russian translations live in `CHANGELOG.ru.md`. Both new files contain the same content as the original bilingual inline format, just split for cleaner per-language navigation. **v0.15.0 BREAKING**: code consolidation; 13 packages → 5. See CHANGELOG.md migration table for `@sffmc/<old>` → `@sffmc/<new>` mapping.
 
 <details>
 <summary>Want individual sub-features instead? (after `sffmc init --all`)</summary>
@@ -122,7 +122,7 @@ All 10 sub-feature packages still work standalone for backward compatibility:
 ## Architecture
 
 Each composite package is a thin wrapper that imports its sub-features and
-passes them to `mergeHooks()` from `@sffmc/shared`. The merger categorizes
+passes them to `mergeHooks()` from `@sffmc/utilities`. The merger categorizes
 hooks into TRANSFORM, GATE, SIDE_EFFECT, and tool — so output-mutation hooks
 chain, permission gates aggregate, and side-effects run independently with no
 collision. The result is a single default export that behaves exactly like
@@ -133,7 +133,7 @@ opencode.json (3 file:// entries)
          |
     +----+----+
     |         |
-[safety]  [memory]  [agentic]        <- composite packages (thin wrappers)
+[safety]  [memory]                   <- composite packages (thin wrappers)
     |         |         |
     |    +----+----+    |
     |    |    |    |    |
@@ -148,7 +148,7 @@ opencode.json (3 file:// entries)
  |mem- | |extra| |max- | |work-|
  |core | |     | |mode | |flow |
  +-----+ +-----+ +-----+ +-----+
-   memory sub-features (2)       agentic sub-features (4)
+   memory sub-features (3)       runtime + cognition standalones
 
                    +--+--+ +--+--+
                    |comp-| |heal-|
@@ -156,7 +156,7 @@ opencode.json (3 file:// entries)
                    +-----+ +-----+
 
  +---------------------------------------------------+
- |                @sffmc/shared (SDK)                 |
+ |                @sffmc/utilities (SDK)                 |
  |  loadConfig  |  PluginContext  |  mergeHooks  |  EventBus  |
  +---------------------------------------------------+
 ```
@@ -172,27 +172,22 @@ bus, and the `mergeHooks` composer.
 |---|---|---|---|
 | [`@sffmc/safety`](./packages/safety/README.md) | safety | Tool-failure recovery + destructive-op gates + log hygiene | stable |
 | [`@sffmc/memory`](./packages/memory/README.md) | memory | Cross-session FTS5 recall + opt-in checkpoint/judge/dream | stable |
-| [`@sffmc/agentic`](./packages/agentic/README.md) | agentic | Parallel reasoning + sandboxed workflow + compose skills + health | stable |
-| [`@sffmc/watchdog`](./packages/watchdog/README.md) | safety | 3-failure rolling counter + auto-recovery | stable |
-| [`@sffmc/rules`](./packages/rules/README.md) | safety | YAML gate-based allow/deny for destructive commands | stable |
-| [`@sffmc/auto-max`](./packages/auto-max/README.md) | safety | Watchdog-driven auto-escalation to max-mode | stable |
-| [`@sffmc/eos-stripper`](./packages/eos-stripper/README.md) | safety | Strip EOS tokens from local model outputs | stable |
-| [`@sffmc/log-whitelist`](./packages/log-whitelist/README.md) | safety | Prevent permission-log spam on long daemon runs | stable |
-| [`@sffmc/extra`](./packages/extra/README.md) | memory | Opt-in bundle: checkpoint, judge, dream | stable |
-| [`@sffmc/max-mode`](./packages/max-mode/README.md) | agentic | Parallel drafts + judge selection | stable |
-| [`@sffmc/workflow`](./packages/workflow/README.md) | agentic | Sandboxed JS orchestrator (quickjs-emscripten WASM) | stable |
-| [`@sffmc/compose`](./packages/compose/README.md) | agentic | 18 markdown skills for common workflows (planning, TDD, verification, task delegation, etc.) | stable |
-| [`@sffmc/health`](./packages/health/README.md) | agentic | Plugin diagnostic with JSON output | stable |
-| [`@sffmc/shared`](./shared/README.md) | — | SDK: loadConfig, PluginContext, EventBus, mergeHooks | stable |
+| [`@sffmc/safety`](./packages/safety/README.md) | composite | 5 governance features (rules, watchdog, auto-max, eos-stripper, log-whitelist) | stable |
+| [`@sffmc/memory`](./packages/memory/README.md) | composite | FTS5 SQLite recall + checkpoint/judge/dream opt-ins | stable |
+| [`@sffmc/runtime`](./packages/runtime/README.md) | standalone | Sandboxed JS workflow orchestrator (quickjs-emscripten WASM) | stable |
+| [`@sffmc/cognition`](./packages/cognition/README.md) | standalone | Parallel reasoning (max-mode) + compose skills + health diagnostics | stable |
+| [`@sffmc/utilities`](./packages/utilities/README.md) | library | Shared SDK (NOT a plugin; consumed as `workspace:*` dep) | stable |
+| [`@sffmc/cognition`](./packages/cognition/README.md) | standalone | max-mode + compose (18 markdown skills for common workflows) + health (plugin diagnostics) | stable |
+| [`@sffmc/utilities`](./packages/utilities/README.md) | — | SDK: loadConfig, PluginContext, EventBus, mergeHooks | stable |
 
 ## Hook example
 
 A minimal OpenCode plugin that strips EOS tokens from local model output.
-Import `@sffmc/shared`, declare a config interface with defaults, register
+Import `@sffmc/utilities`, declare a config interface with defaults, register
 on the `experimental.text.complete` hook, and mutate the output.
 
 ```ts
-import { loadConfig, type PluginContext } from "@sffmc/shared"
+import { loadConfig, type PluginContext } from "@sffmc/utilities"
 
 interface EosConfig { markers: string[] }
 const defaults: EosConfig = { markers: ["<|im_end|>", "<|endoftext|>"] }
@@ -218,7 +213,7 @@ Register it in `~/.config/opencode/opencode.json`:
   "plugin": [
     "file:///path/to/SFFMC/packages/safety/src/index.ts",
     "file:///path/to/SFFMC/packages/memory/src/index.ts",
-    "file:///path/to/SFFMC/packages/agentic/src/index.ts"
+    "file:///path/to/SFFMC/packages/runtime/src/index.ts  (or packages/cognition/src/index.ts — both work)"
   ]
 }
 ```
@@ -281,7 +276,7 @@ test requirements, code style, and PR checklist.
 SFFMC ports features from [XiaomiMiMo/MiMo-Code](https://github.com/XiaomiMiMo/MiMo-Code).
 All ported features retain their original upstream attribution in source-file
 headers. The SFFMC team contributed the composite-package composition layer
-(`mergeHooks`), the `@sffmc/shared` SDK, and four original sub-features:
+(`mergeHooks`), the `@sffmc/utilities` SDK, and four original sub-features:
 auto-max, eos-stripper, log-whitelist, and health.
 
 | Capability | SFFMC package | Description |
@@ -291,9 +286,9 @@ auto-max, eos-stripper, log-whitelist, and health.
 | Memory | `@sffmc/memory` | FTS5 SQLite + context recall at session start |
 | Checkpoint | `@sffmc/extra` | 200K resume with schema migration |
 | Judge | `@sffmc/extra` | Multi-criteria verdict with streaming mode |
-| Max Mode | `@sffmc/max-mode` | Parallel drafts + judge selection |
+| Max Mode | `@sffmc/cognition/max-mode` | Parallel drafts + judge selection |
 | Dream | `@sffmc/extra` | Cluster naming + memory cleaning |
-| Compose | `@sffmc/compose` | 18 markdown skills |
+| Compose | `@sffmc/cognition/compose` | 18 markdown skills |
 | Dynamic Workflow | `@sffmc/workflow` | Sandboxed JS orchestrator |
 
 ## License

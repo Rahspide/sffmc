@@ -18,7 +18,7 @@ import {
   DEFAULT_MEMORY_DB_PATH,
   HOOK_CHAT_MESSAGES_TRANSFORM,
   SESSION_CREATED,
-} from "@sffmc/shared";
+} from "@sffmc/utilities";
 import { readFileSync, existsSync, mkdirSync, statSync } from "fs"
 import { resolve, dirname } from "path"
 import { homedir } from "node:os"
@@ -80,6 +80,37 @@ function ensureDir(filePath: string): void {
   }
 }
 
+/**
+ * Strip common prompt-injection patterns from project-controlled content
+ * (AGENTS.md, etc.) before it is injected into the LLM as part of the
+ * context-recon block. Project files are writable by anyone with
+ * repo-write access, so any "IGNORE PREVIOUS INSTRUCTIONS" text in AGENTS.md
+ * would otherwise be relayed verbatim as a system message every session.
+ *
+ * This is a heuristic, not a complete defense — focused on the most
+ * commonly-cited injection framings. Each match is replaced with a
+ * `[REDACTED:injection]` marker so (a) the LLM can ignore it and
+ * (b) humans reading the recon can notice and investigate.
+ *
+ * Exported for unit tests; not part of the public API.
+ */
+const INJECTION_PATTERNS: RegExp[] = [
+  /IGNORE (?:ALL )?PREVIOUS INSTRUCTIONS/gi,
+  /DISREGARD (?:ALL )?(?:PREVIOUS )?(?:INSTRUCTIONS|CONTEXT)/gi,
+  /YOU ARE NOW [^.\n]{1,200}/gi,
+  /SYSTEM: [^.\n]{1,200}/gi,
+  /FORGET (?:ALL )?(?:PREVIOUS )?(?:INSTRUCTIONS|CONTEXT)/gi,
+  /NEW INSTRUCTIONS?: [^.\n]{1,200}/gi,
+]
+
+export function redactInjection(content: string): string {
+  let redacted = content
+  for (const pattern of INJECTION_PATTERNS) {
+    redacted = redacted.replace(pattern, "[REDACTED:injection]")
+  }
+  return redacted
+}
+
 export const id = "memory-core"
 export const server = async (ctx: PluginContext) => {
   const config = await loadConfig<MemoryConfig>("memory", defaultConfig)
@@ -139,22 +170,7 @@ export const server = async (ctx: PluginContext) => {
       try {
         const db = await ensureDB()
         const memory = topByImportance(db, state.config.reconTopN)
-
-        const agentsPath = resolve(ctx.projectRoot, AGENTS_FILE)
-        let agents = ""
-        if (existsSync(agentsPath)) {
-          try {
-            const st = statSync(agentsPath)
-            if (st.size <= state.config.agentsMaxSize) {
-              agents = readFileSync(agentsPath, "utf-8")
-            } else {
-              log.warn(`AGENTS.md too large (${(st.size / 1024).toFixed(0)}KB > ${(state.config.agentsMaxSize / 1024).toFixed(0)}KB), skipping`)
-            }
-          } catch {
-            // stat failed, skip
-          }
-        }
-
+        const agents = loadAndRedactAgents(ctx.projectRoot, state.config.agentsMaxSize)
         const tail = tailFromMessages(
           data.messages.slice(-20),
           state.config.tailChars,
@@ -182,7 +198,44 @@ export const server = async (ctx: PluginContext) => {
       }
       return data
     },
+  };
+};
+
+/**
+ * Read AGENTS.md from the project root, redact prompt-injection patterns
+ * (bug #6 — see `redactInjection`), and log a warning when any are found.
+ *
+ * Returns an empty string if the file is missing, too large, or unreadable.
+ * The size cap (`maxSizeBytes`) prevents OOM from a crafted AGENTS.md; the
+ * default is `MemoryConfig.agentsMaxSize` (100 KiB).
+ */
+function loadAndRedactAgents(projectRoot: string, maxSizeBytes: number): string {
+  const agentsPath = resolve(projectRoot, AGENTS_FILE)
+  if (!existsSync(agentsPath)) return ""
+
+  let st: import("node:fs").Stats
+  try {
+    st = statSync(agentsPath)
+  } catch {
+    // stat failed — file unreadable or disappeared mid-check
+    return ""
   }
+
+  if (st.size > maxSizeBytes) {
+    log.warn(
+      `AGENTS.md too large (${(st.size / 1024).toFixed(0)}KB > ${(maxSizeBytes / 1024).toFixed(0)}KB), skipping`,
+    )
+    return ""
+  }
+
+  const raw = readFileSync(agentsPath, "utf-8")
+  const redacted = redactInjection(raw)
+  if (redacted !== raw) {
+    log.warn(
+      `AGENTS.md at ${agentsPath} contained prompt-injection patterns; redacted before LLM injection`,
+    )
+  }
+  return redacted
 }
 
 export default { id, server }

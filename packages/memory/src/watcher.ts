@@ -3,7 +3,7 @@ import type { MemoryDB } from "./memory";
 import { upsert, remove } from "./memory";
 import { readFileSync } from "fs";
 import { relative, basename } from "path";
-import { ensureRedactionRules, isSensitiveFilename } from "@sffmc/shared";
+import { ensureRedactionRules, isSensitiveFilename } from "@sffmc/utilities";
 import { AGENTS_FILE, MEMORY_BANK_DIR } from "./constants.ts";
 
 /** Watcher tuning parameters ( release migration chokidar awaitWriteFinish.stabilityThreshold, chokidar awaitWriteFinish.pollInterval).

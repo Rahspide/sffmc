@@ -1,0 +1,27 @@
+{
+  "name": "@sffmc/cognition",
+  "version": "0.15.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "build": "tsc --noEmit",
+    "typecheck": "bun build --target=bun --no-bundle src/index.ts"
+  },
+  "dependencies": {
+    "@sffmc/utilities": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3",
+    "@types/bun": "1.3.14",
+    "bun-types": "1.3.14"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Rahspide/sffmc.git",
+    "directory": "packages/cognition"
+  },
+  "publishConfig": {
+    "access": "restricted"
+  }
+}

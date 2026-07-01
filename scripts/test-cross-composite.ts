@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 // SPDX-License-Identifier: MIT
-// Cross-MSP hook chain test. Loads all 3 MSPs (safety/memory/agentic)
+// Cross-MSP hook chain test. Loads the 2 composite MSPs (safety/memory)
 // and fires a mock `tool.execute.after` event to verify that hooks
 // from ALL THREE MSPs receive the event. Catches regressions where
 // mergeHooks() drops a hook key or one MSP shadows another.
@@ -12,7 +12,6 @@
 import { resolve } from "node:path"
 import { server as safetyServer } from "../packages/safety/src/index.ts"
 import { server as memoryServer } from "../packages/memory/src/index.ts"
-import { server as agenticServer } from "../packages/agentic/src/index.ts"
 
 type Hook = (input: unknown, output: unknown) => unknown | Promise<unknown>
 
@@ -22,10 +21,9 @@ const mockCtx = {
   sessionID: "cross-msp-test",
 }
 
-console.log("[LOAD] safety + memory + agentic...")
+console.log("[LOAD] safety + memory...")
 const safety = (await safetyServer(mockCtx)) as { tool?: unknown } & Record<string, Hook>
 const memory = (await memoryServer(mockCtx)) as { tool?: unknown } & Record<string, Hook>
-const agentic = (await agenticServer(mockCtx)) as { tool?: unknown } & Record<string, Hook>
 console.log("✓ All 3 MSPs loaded\n")
 
 // Find which MSPs have a `tool.execute.after` hook
@@ -33,14 +31,12 @@ const hasHook = (msp: Record<string, unknown>): boolean => typeof msp["tool.exec
 
 const safetyHook = hasHook(safety)
 const memoryHook = hasHook(memory)
-const agenticHook = hasHook(agentic)
 
 console.log("[CHECK] Which MSPs hook tool.execute.after:")
 console.log(`  safety  : ${safetyHook ? "✓" : "✗"}`)
 console.log(`  memory  : ${memoryHook ? "✓" : "✗"}`)
-console.log(`  agentic : ${agenticHook ? "✓" : "✗"}`)
 
-if (!safetyHook && !memoryHook && !agenticHook) {
+if (!safetyHook && !memoryHook) {
   console.error("\n[FAIL] No MSP has tool.execute.after — wiring broken?")
   process.exit(1)
 }
@@ -78,7 +74,7 @@ async function fire(name: string, msp: Record<string, unknown>): Promise<void> {
 
 await fire("safety ", safety)
 await fire("memory ", memory)
-await fire("agentic", agentic)
+// (agentic dissolved; coverage now under runtime + cognition)
 
 console.log(`\n${fired}/3 hooks fired successfully`)
 if (errors.length > 0) {
@@ -87,7 +83,7 @@ if (errors.length > 0) {
   process.exit(1)
 }
 
-if (fired < 2) {
+if (fired < 1) {
   console.error(`\n[FAIL] Only ${fired} hooks fired — mergeHooks() may be dropping hook keys`)
   process.exit(1)
 }

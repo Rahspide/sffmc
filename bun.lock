@@ -9,99 +9,32 @@
         "safe-regex": "^2.1.1",
       },
     },
-    "packages/agentic": {
-      "name": "@sffmc/agentic",
-      "version": "0.14.3",
+    "packages/cognition": {
+      "name": "@sffmc/cognition",
+      "version": "0.15.0",
       "dependencies": {
-        "@sffmc/shared": "workspace:*",
+        "@sffmc/utilities": "workspace:*",
       },
-    },
-    "packages/auto-max": {
-      "name": "@sffmc/auto-max",
-      "version": "0.14.3",
-      "dependencies": {
-        "@sffmc/shared": "workspace:*",
-      },
-    },
-    "packages/compose": {
-      "name": "@sffmc/compose",
-      "version": "0.14.3",
-      "dependencies": {
-        "@sffmc/shared": "workspace:*",
-      },
-    },
-    "packages/eos-stripper": {
-      "name": "@sffmc/eos-stripper",
-      "version": "0.14.3",
-      "dependencies": {
-        "@sffmc/shared": "workspace:*",
-      },
-    },
-    "packages/extra": {
-      "name": "@sffmc/extra",
-      "version": "0.14.3",
-      "dependencies": {
-        "@sffmc/shared": "workspace:*",
-      },
-    },
-    "packages/health": {
-      "name": "@sffmc/health",
-      "version": "0.14.3",
-      "dependencies": {
-        "@sffmc/shared": "workspace:*",
-      },
-    },
-    "packages/log-whitelist": {
-      "name": "@sffmc/log-whitelist",
-      "version": "0.14.3",
-      "dependencies": {
-        "@sffmc/shared": "workspace:*",
-      },
-    },
-    "packages/max-mode": {
-      "name": "@sffmc/max-mode",
-      "version": "0.14.3",
-      "dependencies": {
-        "@sffmc/shared": "workspace:*",
-        "yaml": "^2.0.0",
+      "devDependencies": {
+        "@types/bun": "1.3.14",
+        "bun-types": "1.3.14",
+        "typescript": "^6.0.3",
       },
     },
     "packages/memory": {
       "name": "@sffmc/memory",
-      "version": "0.14.3",
+      "version": "0.15.0",
       "dependencies": {
-        "@sffmc/shared": "workspace:*",
+        "@sffmc/utilities": "workspace:*",
         "chokidar": "^5.0.0",
         "yaml": "^2.0.0",
       },
     },
-    "packages/rules": {
-      "name": "@sffmc/rules",
-      "version": "0.14.3",
+    "packages/runtime": {
+      "name": "@sffmc/runtime",
+      "version": "0.15.0",
       "dependencies": {
-        "@sffmc/shared": "workspace:*",
-        "yaml": "^2.0.0",
-      },
-    },
-    "packages/safety": {
-      "name": "@sffmc/safety",
-      "version": "0.14.3",
-      "dependencies": {
-        "@sffmc/shared": "workspace:*",
-      },
-    },
-    "packages/watchdog": {
-      "name": "@sffmc/watchdog",
-      "version": "0.14.3",
-      "dependencies": {
-        "@sffmc/shared": "workspace:*",
-      },
-    },
-    "packages/workflow": {
-      "name": "@sffmc/workflow",
-      "version": "0.14.3",
-      "dependencies": {
-        "@sffmc/shared": "workspace:*",
+        "@sffmc/utilities": "workspace:*",
         "quickjs-emscripten": "0.32.0",
         "yaml": "^2.5.0",
       },
@@ -111,9 +44,17 @@
         "typescript": "^6.0.3",
       },
     },
-    "shared": {
-      "name": "@sffmc/shared",
-      "version": "0.14.3",
+    "packages/safety": {
+      "name": "@sffmc/safety",
+      "version": "0.15.0",
+      "dependencies": {
+        "@sffmc/utilities": "workspace:*",
+        "yaml": "^2.5.0",
+      },
+    },
+    "packages/utilities": {
+      "name": "@sffmc/utilities",
+      "version": "0.15.0",
       "dependencies": {
         "yaml": "^2.0.0",
       },
@@ -130,37 +71,19 @@
 
     "@jitl/quickjs-wasmfile-release-sync": ["@jitl/quickjs-wasmfile-release-sync@0.32.0", "", { "dependencies": { "@jitl/quickjs-ffi-types": "0.32.0" } }, "sha512-BKNDI/TPBfGlLNGYpLrhcDGXmIk4xHm4MRAisOBnOzpXVn9HZWsfmMAc9WMBrAHjvvds6HOikKeaOBKdPdpVrg=="],
 
-    "@sffmc/agentic": ["@sffmc/agentic@workspace:packages/agentic"],
-
-    "@sffmc/auto-max": ["@sffmc/auto-max@workspace:packages/auto-max"],
-
-    "@sffmc/compose": ["@sffmc/compose@workspace:packages/compose"],
-
-    "@sffmc/eos-stripper": ["@sffmc/eos-stripper@workspace:packages/eos-stripper"],
-
-    "@sffmc/extra": ["@sffmc/extra@workspace:packages/extra"],
-
-    "@sffmc/health": ["@sffmc/health@workspace:packages/health"],
-
-    "@sffmc/log-whitelist": ["@sffmc/log-whitelist@workspace:packages/log-whitelist"],
-
-    "@sffmc/max-mode": ["@sffmc/max-mode@workspace:packages/max-mode"],
+    "@sffmc/cognition": ["@sffmc/cognition@workspace:packages/cognition"],
 
     "@sffmc/memory": ["@sffmc/memory@workspace:packages/memory"],
 
-    "@sffmc/rules": ["@sffmc/rules@workspace:packages/rules"],
+    "@sffmc/runtime": ["@sffmc/runtime@workspace:packages/runtime"],
 
     "@sffmc/safety": ["@sffmc/safety@workspace:packages/safety"],
 
-    "@sffmc/shared": ["@sffmc/shared@workspace:shared"],
-
-    "@sffmc/watchdog": ["@sffmc/watchdog@workspace:packages/watchdog"],
-
-    "@sffmc/workflow": ["@sffmc/workflow@workspace:packages/workflow"],
+    "@sffmc/utilities": ["@sffmc/utilities@workspace:packages/utilities"],
 
     "@types/bun": ["@types/bun@1.3.14", "", { "dependencies": { "bun-types": "1.3.14" } }, "sha512-h1hFqFVcvAvD9j9K7ZW7vd82aSA+rTdznZa+5bwvCwqSB1jmmfLcbIWhOLx1/+boy/xmjgCs/OMUL8hRJSmnPw=="],
 
-    "@types/node": ["@types/node@25.9.3", "", { "dependencies": { "undici-types": ">=7.24.0 <7.24.7" } }, "sha512-603BddQMv3pUcr4U2dhujk83N2tTDVr/34wII2B6bJy6g+8WD6yUb11jszNs0gdi4PesVWl7ABt8nYMVpnLUcg=="],
+    "@types/node": ["@types/node@26.0.1", "", { "dependencies": { "undici-types": "~8.3.0" } }, "sha512-fc3KiUoBt6kie0N9bIW3E47vZsuaMf0PM2AaUpLCLT0s/LvX1nxAim6Fc049cNxODPpGm6qRAuUOB86SkRuPQw=="],
 
     "bun-types": ["bun-types@1.3.14", "", { "dependencies": { "@types/node": "*" } }, "sha512-4N0ig0fEomHt5R0KCFWjovxow98rIoRwKolrYdCcknNwMekCXRnWEUvgu5soYV8QXtVsrUD8B95MBOZGPvr6KQ=="],
 
@@ -180,7 +103,7 @@
 
     "typescript": ["typescript@6.0.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw=="],
 
-    "undici-types": ["undici-types@7.24.6", "", {}, "sha512-WRNW+sJgj5OBN4/0JpHFqtqzhpbnV0GuB+OozA9gCL7a993SmU+1JBZCzLNxYsbMfIeDL+lTsphD5jN5N+n0zg=="],
+    "undici-types": ["undici-types@8.3.0", "", {}, "sha512-j375ScV60dom+YkPFIfTLcOiPxkN/buHz5GobjLhixFuANaNs3C9l4GmrWqejgXWJ7BbJcFYpTEUkS1Ge8bpZQ=="],
 
     "yaml": ["yaml@2.9.0", "", { "bin": { "yaml": "bin.mjs" } }, "sha512-2AvhNX3mb8zd6Zy7INTtSpl1F15HW6Wnqj0srWlkKLcpYl/gMIMJiyuGq2KeI2YFxUPjdlB+3Lc10seMLtL4cA=="],
   }

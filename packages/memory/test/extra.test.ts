@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
-// @sffmc/extra — see ../../LICENSE
+// @sffmc/memory (extra features) — see ../../LICENSE
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from "bun:test";
 import { mkdtempSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { type PluginContext } from "@sffmc/shared";
+import { type PluginContext } from "@sffmc/utilities";
 
 /**
  * loadServer sets HOME to a temp dir for the duration of the test so that
@@ -30,8 +30,8 @@ afterAll(() => {
 
 const loadServer = async (
   config: Record<string, unknown> = {},
-): Promise<Awaited<ReturnType<(typeof import("../../extra/src/index"))["default"]["server"]>>> => {
-  const mod = await import("../../extra/src/index");
+): Promise<Awaited<ReturnType<(typeof import("../src/index.ts"))["default"]["server"]>>> => {
+  const mod = await import("../src/index.ts");
   const ctx: PluginContext = {
     projectRoot: "/tmp/test-project",
     config: {},
@@ -39,11 +39,11 @@ const loadServer = async (
   return await mod.default.server(ctx);
 };
 
-describe("@sffmc/extra plugin", () => {
+describe("@sffmc/memory plugin (extra features)", () => {
   it("default export shape: { id, server }", async () => {
-    const mod = await import("../../extra/src/index");
+    const mod = await import("../src/index.ts");
     expect(mod.default).toBeDefined();
-    expect(mod.default.id).toBe("@sffmc/extra");
+    expect(mod.default.id).toBe("@sffmc/memory");
     expect(typeof mod.default.server).toBe("function");
   });
 
@@ -91,9 +91,9 @@ describe("@sffmc/extra plugin", () => {
   });
 
   it("factory functions return { tool, hooks } shape (so index.ts can spread)", async () => {
-    const { createCheckpointTool } = await import("../../extra/src/checkpoint");
-    const { createJudgeTool } = await import("../../extra/src/judge");
-    const { createDreamTool } = await import("../../extra/src/dream");
+    const { createCheckpointTool } = await import("../src/extra/checkpoint.ts");
+    const { createJudgeTool } = await import("../src/extra/judge.ts");
+    const { createDreamTool } = await import("../src/extra/dream.ts");
 
     const cp = createCheckpointTool({ enabled: false });
     expect(cp.tool).toBeDefined();
@@ -118,9 +118,9 @@ describe("@sffmc/extra plugin", () => {
 // values, so behavior is unchanged when no YAML is present) and that
 // overrides flow through unchanged.
 
-describe("@sffmc/extra — initial release migration", () => {
+describe("@sffmc/utilities — initial release migration", () => {
   it("checkpoint defaults match prior hardcoded values (max checkpoint file size, max restored messages)", async () => {
-    const { createCheckpointTool } = await import("../../extra/src/checkpoint");
+    const { createCheckpointTool } = await import("../src/extra/checkpoint.ts");
     // Call without optional fields — must match prior 10 MiB / 50 behavior.
     const cp = createCheckpointTool({ enabled: false });
     expect(cp.tool).toBeDefined();
@@ -128,13 +128,13 @@ describe("@sffmc/extra — initial release migration", () => {
     // The factory is a closure over maxFileSize/maxRestoredMessages. We
     // verify behavior indirectly: the legacy helpers (readToolCalls) still
     // work with the defaults.
-    const { readToolCalls, __setCheckpointDir } = await import("../../extra/src/checkpoint");
+    const { readToolCalls, __setCheckpointDir } = await import("../src/extra/checkpoint.ts");
     __setCheckpointDir(tempHome!);
     expect(readToolCalls("nonexistent-session-xyz")).toEqual([]);
   });
 
   it("checkpoint accepts explicit maxFileSize + maxRestoredMessages overrides (max checkpoint file size, max restored messages)", async () => {
-    const { createCheckpointTool } = await import("../../extra/src/checkpoint");
+    const { createCheckpointTool } = await import("../src/extra/checkpoint.ts");
     // Non-default values; verify the factory accepts them without throwing.
     const cp = createCheckpointTool({
       enabled: false,
@@ -146,7 +146,7 @@ describe("@sffmc/extra — initial release migration", () => {
   });
 
   it("dream factory accepts dedupThreshold/clusterThreshold/maxEntries overrides (Jaccard dedup threshold, Jaccard cluster threshold, dream max entries)", async () => {
-    const { createDreamTool, DREAM_DEDUP_THRESHOLD, DREAM_CLUSTER_THRESHOLD, MAX_DREAM_ENTRIES } = await import("../../extra/src/dream");
+    const { createDreamTool, DREAM_DEDUP_THRESHOLD, DREAM_CLUSTER_THRESHOLD, MAX_DREAM_ENTRIES } = await import("../src/extra/dream.ts");
     // Verify the exported constants still match the prior hardcoded values.
     expect(DREAM_DEDUP_THRESHOLD).toBe(0.9);
     expect(DREAM_CLUSTER_THRESHOLD).toBe(0.3);
@@ -176,20 +176,20 @@ describe("@sffmc/extra — initial release migration", () => {
 //   (a) defaults match v0.14.2 hardcoded values (50 / 5_000 / 50)
 //   (b) overrides change observable behavior
 
-describe("@sffmc/extra — second release migration (checkpoint buffer flush threshold, periodic flush interval, max in-memory session buffers)", () => {
+describe("@sffmc/utilities — second release migration (checkpoint buffer flush threshold, periodic flush interval, max in-memory session buffers)", () => {
   it("default constants exported by checkpoint.ts match v0.14.2 values", async () => {
     const {
       DEFAULT_FLUSH_THRESHOLD,
       DEFAULT_FLUSH_INTERVAL_MS,
       DEFAULT_MAX_BUFFER_SESSIONS,
-    } = await import("../../extra/src/checkpoint");
+    } = await import("../src/extra/checkpoint.ts");
     expect(DEFAULT_FLUSH_THRESHOLD).toBe(50);
     expect(DEFAULT_FLUSH_INTERVAL_MS).toBe(5_000);
     expect(DEFAULT_MAX_BUFFER_SESSIONS).toBe(50);
   });
 
   it("factory accepts flushThreshold / flushIntervalMs / maxBufferedSessions overrides (buffer flush threshold, periodic flush interval, max in-memory session buffers)", async () => {
-    const { createCheckpointTool } = await import("../../extra/src/checkpoint");
+    const { createCheckpointTool } = await import("../src/extra/checkpoint.ts");
     const cp = createCheckpointTool({
       enabled: true,
       flushThreshold: 3,
@@ -202,7 +202,7 @@ describe("@sffmc/extra — second release migration (checkpoint buffer flush thr
 
   it("flushThreshold override changes buffer-flush behavior (buffer flush threshold, b-1)", async () => {
     const { createCheckpointTool, filePath, __setCheckpointDir, readToolCalls } = await import(
-      "../../extra/src/checkpoint"
+      "../src/extra/checkpoint.ts"
     );
     const testDir = mkdtempSync(join(tmpdir(), "sffmc-e3-threshold-"));
     try {
@@ -230,7 +230,7 @@ describe("@sffmc/extra — second release migration (checkpoint buffer flush thr
 
   it("maxBufferedSessions override changes LRU eviction behavior (max in-memory session buffers, b-2)", async () => {
     const { createCheckpointTool, filePath, __setCheckpointDir, readToolCalls } = await import(
-      "../../extra/src/checkpoint"
+      "../src/extra/checkpoint.ts"
     );
     const testDir = mkdtempSync(join(tmpdir(), "sffmc-e5-maxbuf-"));
     try {
@@ -260,7 +260,7 @@ describe("@sffmc/extra — second release migration (checkpoint buffer flush thr
 
   it("flushIntervalMs override is reflected in the periodic timer (periodic flush interval, b-3)", async () => {
     const { createCheckpointTool, filePath, __setCheckpointDir, readToolCalls } = await import(
-      "../../extra/src/checkpoint"
+      "../src/extra/checkpoint.ts"
     );
     const testDir = mkdtempSync(join(tmpdir(), "sffmc-e4-interval-"));
     try {

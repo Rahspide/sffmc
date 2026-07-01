@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// @sffmc/extra — Judge tests
+// @sffmc/utilities — Judge tests
 
 import { describe, it, expect } from "bun:test";
 import {
@@ -15,7 +15,7 @@ import {
   type JudgeExecuteResult,
   type JudgeScore,
   type JudgeStreamChunk,
-} from "../../extra/src/judge";
+} from "../src/extra/judge.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -678,5 +678,344 @@ describe("judge prompt maxCandidates config", () => {
     expect(bad21.ok).toBe(false);
     if (bad21.ok) throw new Error("expected error");
     expect(bad21.error).toContain("maximum 20 candidates");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// M-3 characterization — createJudgeTool fallback heuristic + auto-hook
+// ---------------------------------------------------------------------------
+// createJudgeTool's execute() falls through to a length-based heuristic
+// when `config.ctx` has no session.message(). The auto-judge hook activates
+// when `judge_auto: true` AND a usable ctx is present. Both paths are
+// currently UNTESTED beyond the empty-hooks check; this block pins their
+// observable behavior so the M-3 extraction doesn't regress.
+
+describe("createJudgeTool fallback heuristic (no LLM ctx)", () => {
+  it("returns { ok: true, skipped: false, model: 'heuristic', latencyMs: 0 }", async () => {
+    const { tool } = createJudgeTool({
+      enabled: true,
+      model: "ignored-when-no-ctx",
+      rubric: "r",
+      // no ctx → fallback heuristic
+    });
+    const result = await tool.execute({
+      candidates: ["a".repeat(100), "b".repeat(500), "c".repeat(2000)],
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("expected ok");
+    expect(result.model).toBe("heuristic");
+    expect(result.latencyMs).toBe(0);
+  });
+
+  it("scores each candidate on length-derived correctness/completeness/conciseness (capped 0-10)", async () => {
+    const { tool } = createJudgeTool({
+      enabled: true,
+      model: "ignored-when-no-ctx",
+      rubric: "r",
+    });
+    const result = await tool.execute({
+      candidates: ["a".repeat(100), "b".repeat(500), "c".repeat(2000)],
+    });
+    if (!result.ok) throw new Error("expected ok");
+    expect(result.scores.length).toBe(3);
+    for (const s of result.scores) {
+      expect(s.correctness).toBeGreaterThanOrEqual(0);
+      expect(s.correctness).toBeLessThanOrEqual(10);
+      expect(s.completeness).toBeGreaterThanOrEqual(0);
+      expect(s.completeness).toBeLessThanOrEqual(10);
+      expect(s.conciseness).toBeGreaterThanOrEqual(0);
+      expect(s.conciseness).toBeLessThanOrEqual(10);
+    }
+  });
+
+  it("winner is the index of the candidate with the highest sum of scores", async () => {
+    // The 1500-char candidate scores correctness=10, completeness=10,
+    // conciseness=Math.min(10, round(800/1501))=1 → total=21
+    // The 50-char candidate scores correctness=Math.min(10, round(50/100))=0,
+    // completeness=Math.min(10, round(50/150))=0, conciseness=Math.min(10, round(800/51))=16→10
+    //   → total=10
+    // So the 1500-char candidate wins.
+    const { tool } = createJudgeTool({
+      enabled: true,
+      model: "ignored-when-no-ctx",
+      rubric: "r",
+    });
+    const result = await tool.execute({
+      candidates: ["x".repeat(50), "y".repeat(1500), "z".repeat(800)],
+    });
+    if (!result.ok) throw new Error("expected ok");
+    expect(result.winner).toBe(1);
+  });
+
+  it("reasoning field carries the 'Fallback heuristic' marker text", async () => {
+    const { tool } = createJudgeTool({
+      enabled: true,
+      model: "ignored-when-no-ctx",
+      rubric: "r",
+    });
+    const result = await tool.execute({
+      candidates: ["a", "b"],
+    });
+    if (!result.ok) throw new Error("expected ok");
+    expect(result.reasoning).toContain("Fallback heuristic");
+  });
+});
+
+describe("createJudgeTool auto-judge hook (judge_auto: true)", () => {
+  it("hook IS registered when judge_auto is true AND ctx has session.message()", () => {
+    const { hooks } = createJudgeTool({
+      enabled: true,
+      model: "m",
+      rubric: "r",
+      judge_auto: true,
+      ctx: mockCtx(mockJsonResponse([{ correctness: 8, completeness: 8, conciseness: 8 }, { correctness: 7, completeness: 7, conciseness: 7 }], 0, "ok")),
+    });
+    expect(hooks["experimental.chat.messages.transform"]).toBeTypeOf("function");
+  });
+
+  it("hook is NOT registered when judge_auto is true BUT no ctx (or no session.message)", () => {
+    const { hooks } = createJudgeTool({
+      enabled: true,
+      model: "m",
+      rubric: "r",
+      judge_auto: true,
+      // no ctx
+    });
+    expect(hooks["experimental.chat.messages.transform"]).toBeUndefined();
+  });
+
+  it("hook pushes a 'Judge Verdict' assistant message when a candidate marker is present", async () => {
+    const { hooks } = createJudgeTool({
+      enabled: true,
+      model: "m",
+      rubric: "r",
+      judge_auto: true,
+      ctx: mockCtx(
+        mockJsonResponse(
+          [
+            { correctness: 9, completeness: 9, conciseness: 9 },
+            { correctness: 5, completeness: 5, conciseness: 5 },
+          ],
+          0,
+          "Candidate 0 is clearly better.",
+        ),
+      ),
+    });
+    const transform = hooks["experimental.chat.messages.transform"];
+    expect(transform).toBeTypeOf("function");
+    if (!transform) throw new Error("expected transform");
+
+    const data: { messages: Array<{ role: string; content: string }> } = {
+      messages: [
+        { role: "user", content: "do something" },
+        {
+          role: "assistant",
+          content: `some result\n<!-- EXTRA_JUDGE_CANDIDATES: ${JSON.stringify(["first output", "second output"])} -->`,
+        },
+      ],
+    };
+    await transform(undefined, data);
+
+    // The hook appends a verdict message — count should now be 3.
+    expect(data.messages.length).toBe(3);
+    const last = data.messages[data.messages.length - 1];
+    expect(last.role).toBe("assistant");
+    expect(last.content).toContain("Judge Verdict");
+    expect(last.content).toContain("Winner: Candidate #0");
+    expect(last.content).toContain("Reasoning: Candidate 0 is clearly better.");
+  });
+
+  it("hook is a no-op when no candidate marker is present in any message", async () => {
+    const { hooks } = createJudgeTool({
+      enabled: true,
+      model: "m",
+      rubric: "r",
+      judge_auto: true,
+      ctx: mockCtx(
+        mockJsonResponse(
+          [
+            { correctness: 9, completeness: 9, conciseness: 9 },
+            { correctness: 5, completeness: 5, conciseness: 5 },
+          ],
+          0,
+          "ignored",
+        ),
+      ),
+    });
+    const transform = hooks["experimental.chat.messages.transform"];
+    if (!transform) throw new Error("expected transform");
+    const data: { messages: Array<{ role: string; content: string }> } = {
+      messages: [
+        { role: "user", content: "just a question, no marker here" },
+        { role: "assistant", content: "and no marker in the assistant message either" },
+      ],
+    };
+    await transform(undefined, data);
+    // No verdict added; messages unchanged.
+    expect(data.messages.length).toBe(2);
+  });
+
+  it("hook swallows LLM call failures silently (no throw, no message push)", async () => {
+    let called = 0;
+    const failingCtx: NonNullable<JudgeConfig["ctx"]> = {
+      client: {
+        session: {
+          message: async () => {
+            called++;
+            throw new Error("synthetic LLM failure");
+          },
+        },
+      },
+    };
+    const { hooks } = createJudgeTool({
+      enabled: true,
+      model: "m",
+      rubric: "r",
+      judge_auto: true,
+      ctx: failingCtx,
+    });
+    const transform = hooks["experimental.chat.messages.transform"];
+    if (!transform) throw new Error("expected transform");
+    const data: { messages: Array<{ role: string; content: string }> } = {
+      messages: [
+        {
+          role: "assistant",
+          content: `<!-- EXTRA_JUDGE_CANDIDATES: ${JSON.stringify(["x", "y"])} -->`,
+        },
+      ],
+    };
+    // Should NOT throw — the auto-hook is best-effort.
+    await transform(undefined, data);
+    expect(called).toBe(1);
+    expect(data.messages.length).toBe(1); // no verdict added on failure
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Medium function split — judge prompt + extraction + stream helpers
+// ---------------------------------------------------------------------------
+// The continuation arc (Task 2.2b) extracts formatJudgeCandidateBlocks /
+// extractJudgeSessionText / emitJudgeResultChunks / parseJudgeMarkerContent
+// from the four ≥20 LOC functions in the prompt + call layers. These
+// tests pin the OBSERVABLE behavior of each extracted helper so the
+// orchestrators (buildJudgePrompt, callJudge, callJudgeStream,
+// extractCandidatesFromMessages) keep producing the documented output.
+
+describe("buildJudgePrompt prompt structure", () => {
+  it("system message contains 'expert judge' role marker + rubric verbatim", () => {
+    // Pin the system prompt role string and rubric inclusion. The
+    // rubric's exact text is interpolated — losing it would silently
+    // change the LLM's evaluation criteria.
+    const { system } = buildJudgePrompt(["a", "b"], "Score on accuracy.");
+    expect(system).toContain("expert judge");
+    expect(system).toContain("Score on accuracy.");
+  });
+
+  it("user message header 'Evaluate the following N candidate outputs' (exact phrasing) + numbered code blocks", () => {
+    // Pin the extracted formatJudgeCandidateBlocks output: each entry
+    // formatted as 'Candidate #i:\n```<text>\n```' joined by '\n\n',
+    // and the user header containing 'Evaluate the following N'.
+    const { user } = buildJudgePrompt(
+      ["alpha output", "beta output", "gamma output"],
+      "r",
+    );
+    // Header must be present BEFORE the first code block.
+    expect(user).toMatch(/^Evaluate the following 3 candidate outputs\./);
+    // Each block must contain a numbered code fence with the candidate text.
+    expect(user).toContain("Candidate #0:\n```\nalpha output\n```");
+    expect(user).toContain("Candidate #1:\n```\nbeta output\n```");
+    expect(user).toContain("Candidate #2:\n```\ngamma output\n```");
+    // Output JSON spec must be present AFTER the candidate blocks.
+    expect(user).toContain('"scores": [');
+    expect(user).toContain('"winner": <index of best candidate, 0-based>');
+    expect(user).toContain('"reasoning": "');
+  });
+});
+
+describe("extractCandidatesFromMessages marker parsing", () => {
+  it("returns null when no message contains the marker", () => {
+    const out = extractCandidatesFromMessages([
+      { role: "user", content: "no marker here" },
+      { role: "assistant", content: "neither here" },
+    ]);
+    expect(out).toBeNull();
+  });
+
+  it("parses and returns the array when a message contains valid 2+ candidate JSON", () => {
+    const out = extractCandidatesFromMessages([
+      { role: "user", content: "do something" },
+      {
+        role: "assistant",
+        content: `<!-- EXTRA_JUDGE_CANDIDATES: ${JSON.stringify(["first", "second"])} -->`,
+      },
+    ]);
+    expect(out).toEqual(["first", "second"]);
+  });
+
+  it("skips marker with <2 candidates (length validation requires ≥2)", () => {
+    const out = extractCandidatesFromMessages([
+      {
+        role: "assistant",
+        content: `<!-- EXTRA_JUDGE_CANDIDATES: ${JSON.stringify(["only one"])} -->`,
+      },
+    ]);
+    // Length < 2 → returns null (no marker → no candidates → caller is skipped)
+    expect(out).toBeNull();
+  });
+
+  it("skips invalid JSON inside marker and keeps scanning subsequent messages", () => {
+    // First message has a malformed marker; second has a valid one →
+    // the scan MUST continue and return the second's array.
+    const out = extractCandidatesFromMessages([
+      { role: "assistant", content: `<!-- EXTRA_JUDGE_CANDIDATES: {not json} -->` },
+      {
+        role: "assistant",
+        content: `<!-- EXTRA_JUDGE_CANDIDATES: ${JSON.stringify(["alpha", "beta"])} -->`,
+      },
+    ]);
+    expect(out).toEqual(["alpha", "beta"]);
+  });
+
+  it("skips non-string content (e.g. message with typed array content) without throwing", () => {
+    // Type-safety guard — the parsing only runs on string content.
+    const out = extractCandidatesFromMessages([
+      { role: "assistant", content: "pure string message" },
+    ]);
+    expect(out).toBeNull();
+  });
+});
+
+describe("callJudgeStream chunk emission order", () => {
+  it("emits scores → winner → reasoning → complete in that order", async () => {
+    // Pin the extracted emitJudgeResultChunks order. The chunk order
+    // is a downstream contract — reordering would break any consumer
+    // that processes each chunk stage as it arrives.
+    const chunks: JudgeStreamChunk[] = [];
+    await callJudgeStream(
+      ["first", "second"],
+      "r",
+      "test-model",
+      mockCtx(
+        mockJsonResponse(
+          [
+            { correctness: 9, completeness: 9, conciseness: 9 },
+            { correctness: 5, completeness: 5, conciseness: 5 },
+          ],
+          0,
+          "winner is candidate 0",
+        ),
+      ),
+      (chunk) => chunks.push(chunk),
+    );
+    const types = chunks.map((c) => c.type);
+    expect(types).toEqual(["scores", "winner", "reasoning", "complete"]);
+    // Each chunk carries the expected payload.
+    const scoresChunk = chunks[0] as Extract<JudgeStreamChunk, { type: "scores" }>;
+    expect(scoresChunk.scores.length).toBe(2);
+    const winnerChunk = chunks[1] as Extract<JudgeStreamChunk, { type: "winner" }>;
+    expect(winnerChunk.winner).toBe(0);
+    const reasoningChunk = chunks[2] as Extract<JudgeStreamChunk, { type: "reasoning" }>;
+    expect(reasoningChunk.reasoning).toBe("winner is candidate 0");
+    expect(chunks[3].type).toBe("complete");
   });
 });

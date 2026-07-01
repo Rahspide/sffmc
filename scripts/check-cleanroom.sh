@@ -41,6 +41,12 @@ EXCLUDE_PATTERNS=(
   "packages/compose/codemap.md"
   "packages/agentic/test/compose.test.ts"
   "packages/agentic/skills/"
+  "packages/cognition/src/compose/skills/"
+  "packages/cognition/src/health/src/index.ts"
+  "packages/safety/codemap.md"
+  "packages/memory/codemap.md"
+  "packages/runtime/codemap.md"
+  "packages/utilities/codemap.md"
   "codemap.md"
 )
 

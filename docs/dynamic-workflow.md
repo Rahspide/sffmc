@@ -1,6 +1,6 @@
 # Dynamic Workflow Engine
 
-**Shipped**: 2026-06-14 · **Version**: v0.6.0 (historical — see CHANGELOG) · **Package**: `@sffmc/workflow` · **LOC**: ~1500
+**Shipped**: 2026-06-14 · **Version**: v0.6.0 (historical — see CHANGELOG) · **Package**: `@sffmc/runtime` · **LOC**: ~1500
 
 ## What it is
 
@@ -246,7 +246,7 @@ an exception — the whole batch crashes. An exception from the sandbox =
 **Detect the failure reason** via the runtime's event bus:
 
 ```ts
-import { createEventBus, WorkflowRuntime } from "@sffmc/workflow"
+import { createEventBus, WorkflowRuntime } from "@sffmc/runtime"
 
 const runtime = new WorkflowRuntime(ctx)
 runtime.events.on("workflow:agent_failed", (e) => {

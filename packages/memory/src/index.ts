@@ -5,8 +5,8 @@
 //  release: replaces prior standalone memory impl with mergeHooks() of 4 sub-features.
 
 import { server as memoryServer, defaultConfig as memoryDefaultConfig, type MemoryConfig } from "./plugin.ts"
-import { checkpointServer, judgeServer, dreamServer } from "../../extra/src/index.ts"
-import { loadConfig, mergeHooks, type PluginContext, type PluginServer } from "@sffmc/shared";
+import { checkpointServer, judgeServer, dreamServer } from "./extra/index.ts"
+import { loadConfig, mergeHooks, type PluginContext, type PluginServer } from "@sffmc/utilities";
 
 export const id = "@sffmc/memory"
 

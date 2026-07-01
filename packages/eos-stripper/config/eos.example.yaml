@@ -1,6 +1,0 @@
-patterns:                        # leave empty to use DEFAULT_EOS_PATTERNS
-  - '</s>'
-  - '<|endoftext|>'
-  - '<|im_end|>'
-  - '<|eot_id|>'
-log_stripped_count: true

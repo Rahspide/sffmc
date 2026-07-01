@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test";
-import { stripEos, looksLikeEosOnly, DEFAULT_EOS_PATTERNS } from "../../eos-stripper/src/patterns";
+import { stripEos, looksLikeEosOnly, DEFAULT_EOS_PATTERNS } from "../src/eos-stripper/patterns.ts";
 
 describe("stripEos", () => {
   it("strips single EOS token from end", () => {
@@ -116,14 +116,14 @@ describe("looksLikeEosOnly", () => {
 
 describe("Plugin entry", () => {
   it("exports default object with id and server function", async () => {
-    const mod = await import("../../eos-stripper/src/index");
+    const mod = await import("../src/eos-stripper/index");
     expect(mod.default).toBeDefined();
-    expect(mod.default.id).toBe("@sffmc/eos-stripper");
+    expect(mod.default.id).toBe("@sffmc/safety");
     expect(typeof mod.default.server).toBe("function");
   });
 
   it("server returns expected hooks", async () => {
-    const mod = await import("../../eos-stripper/src/index");
+    const mod = await import("../src/eos-stripper/index");
     const hooks = await mod.default.server({
       projectRoot: "/tmp/test-project",
       config: {},
@@ -132,7 +132,7 @@ describe("Plugin entry", () => {
   });
 
   it("text.complete strips EOS from end", async () => {
-    const mod = await import("../../eos-stripper/src/index");
+    const mod = await import("../src/eos-stripper/index");
     const hooks = await mod.default.server({
       projectRoot: "/tmp/test-project",
       config: {},
@@ -147,7 +147,7 @@ describe("Plugin entry", () => {
   });
 
   it("text.complete replaces EOS-only text with empty", async () => {
-    const mod = await import("../../eos-stripper/src/index");
+    const mod = await import("../src/eos-stripper/index");
     const hooks = await mod.default.server({
       projectRoot: "/tmp/test-project",
       config: {},
@@ -162,7 +162,7 @@ describe("Plugin entry", () => {
   });
 
   it("text.complete ignores text with no EOS tokens", async () => {
-    const mod = await import("../../eos-stripper/src/index");
+    const mod = await import("../src/eos-stripper/index");
     const hooks = await mod.default.server({
       projectRoot: "/tmp/test-project",
       config: {},
@@ -177,7 +177,7 @@ describe("Plugin entry", () => {
   });
 
   it("text.complete preserves EOS tokens in the middle of text", async () => {
-    const mod = await import("../../eos-stripper/src/index");
+    const mod = await import("../src/eos-stripper/index");
     const hooks = await mod.default.server({
       projectRoot: "/tmp/test-project",
       config: {},
@@ -192,7 +192,7 @@ describe("Plugin entry", () => {
   });
 
   it("text.complete handles whitespace-only EOS", async () => {
-    const mod = await import("../../eos-stripper/src/index");
+    const mod = await import("../src/eos-stripper/index");
     const hooks = await mod.default.server({
       projectRoot: "/tmp/test-project",
       config: {},

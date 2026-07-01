@@ -1,5 +1,5 @@
 import type { MemoryEntry } from "./memory";
-import { isSensitiveSourcePath } from "@sffmc/shared";
+import { isSensitiveSourcePath } from "@sffmc/utilities";
 import { RECON_AGENTS_BUDGET, RECON_TASKTREE_BUDGET } from "./constants.ts";
 
 export { RECON_AGENTS_BUDGET, RECON_TASKTREE_BUDGET };

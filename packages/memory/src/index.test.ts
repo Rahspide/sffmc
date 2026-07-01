@@ -3,7 +3,7 @@
 
 import { describe, test, expect } from "bun:test"
 import memory, { id, server } from "./index.ts"
-import type { PluginContext } from "@sffmc/shared"
+import type { PluginContext } from "@sffmc/utilities"
 
 describe("@sffmc/memory", () => {
   const ctx = {} as PluginContext

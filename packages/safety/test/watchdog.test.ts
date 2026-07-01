@@ -1,7 +1,7 @@
 import { describe, it, expect, jest, afterEach } from "bun:test";
-import { FailureCounter } from "../../watchdog/src/counter";
-import { buildPromotionFragment } from "../../watchdog/src/promote";
-import { buildRecoveryVerdict } from "../../watchdog/src/verdict";
+import { FailureCounter } from "../src/watchdog/counter.ts";
+import { buildPromotionFragment } from "../src/watchdog/promote.ts";
+import { buildRecoveryVerdict } from "../src/watchdog/verdict.ts";
 
 describe("FailureCounter", () => {
   it("tracks consecutive failures and triggers promotion at threshold", () => {
@@ -128,14 +128,14 @@ describe("buildRecoveryVerdict", () => {
 
 describe("Plugin entry", () => {
   it("exports default object with id and server function", async () => {
-    const mod = await import("../../watchdog/src/index");
+    const mod = await import("../src/watchdog/index");
     expect(mod.default).toBeDefined();
-    expect(mod.default.id).toBe("@sffmc/watchdog");
+    expect(mod.default.id).toBe("@sffmc/safety");
     expect(typeof mod.default.server).toBe("function");
   });
 
   it("server returns expected hooks", async () => {
-    const mod = await import("../../watchdog/src/index");
+    const mod = await import("../src/watchdog/index");
     const hooks = await mod.default.server({
       projectRoot: "/tmp/test-project",
       config: {},
@@ -147,7 +147,7 @@ describe("Plugin entry", () => {
   });
 
   it("command.execute.before resets on /max", async () => {
-    const mod = await import("../../watchdog/src/index");
+    const mod = await import("../src/watchdog/index");
     const hooks = await mod.default.server({
       projectRoot: "/tmp/test-project",
       config: {},
@@ -160,7 +160,7 @@ describe("Plugin entry", () => {
   });
 
   it("event resets counters on session.created", async () => {
-    const mod = await import("../../watchdog/src/index");
+    const mod = await import("../src/watchdog/index");
     const hooks = await mod.default.server({
       projectRoot: "/tmp/test-project",
       config: {},
@@ -171,7 +171,7 @@ describe("Plugin entry", () => {
   });
 
   it("ignores filtered error classes", async () => {
-    const mod = await import("../../watchdog/src/index");
+    const mod = await import("../src/watchdog/index");
     const hooks = await mod.default.server({
       projectRoot: "/tmp/test-project",
       config: {},
@@ -194,7 +194,7 @@ describe("tool.execute.after error detection", () => {
   });
 
   async function createHooks() {
-    const mod = await import("../../watchdog/src/index");
+    const mod = await import("../src/watchdog/index");
     return await mod.default.server({
       projectRoot: "/tmp/test-project",
       config: {},

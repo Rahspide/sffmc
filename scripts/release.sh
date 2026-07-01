@@ -11,7 +11,7 @@ set -euo pipefail
 
 # -- defaults ----------------------------------------------------------
 DRY_RUN=true
-ONLY=""      # if set, only publish this package (e.g. "shared" or "safety")
+ONLY=""      # if set, only publish this package (e.g. "utilities" or "safety")
 VERBOSE=false
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -26,11 +26,11 @@ Usage: $0 [flags]
 Flags:
   --actual            Actually publish (default is dry-run)
   --dry-run           Dry-run only (default; explicit form)
-  --only=<pkg>        Publish only <pkg> (e.g. "shared" or "safety")
+  --only=<pkg>        Publish only <pkg> (e.g. "utilities" or "safety")
   -v, --verbose       Verbose output
   -h, --help          Show this help
 
-Publish order: shared/ first, then packages/ alphabetically.
+Publish order: utilities first (alphabetically), then the rest alphabetically.
 
 Precondition checks (fail-fast before any publish):
   1. Version consistency: root and all packages/* at the same version
@@ -147,7 +147,7 @@ check_bun() {
 plan_publishes() {
   echo ""
   echo "Publish plan:"
-  echo "  1. shared/ (@sffmc/shared)"
+  echo "  1. packages/utilities/ (@sffmc/utilities, depends-first)"
   local i=2
   for p in "$REPO_ROOT"/packages/*/; do
     local pkg_name
@@ -225,11 +225,11 @@ main() {
   # -- publish: shared first --
   local errors=0
 
-  if [[ -z "$ONLY" || "$ONLY" == "shared" ]]; then
-    if [[ -f "$REPO_ROOT/shared/package.json" ]]; then
-      run_publish "$REPO_ROOT/shared" || ((errors++))
+  if [[ -z "$ONLY" || "$ONLY" == "utilities" ]]; then
+    if [[ -f "$REPO_ROOT/packages/utilities/package.json" ]]; then
+      run_publish "$REPO_ROOT/packages/utilities" || ((errors++))
     else
-      warn "shared/package.json not found — skipping"
+      warn "packages/utilities/package.json not found — skipping"
     fi
   fi
 

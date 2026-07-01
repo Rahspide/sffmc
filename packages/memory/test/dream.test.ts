@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// @sffmc/extra — Dream tests
+// @sffmc/utilities — Dream tests
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "bun:test";
 import { Database } from "bun:sqlite";
@@ -7,14 +7,16 @@ import {
   createDreamTool,
   clearCronTimer,
   isDreamLocked,
+  snapshotActiveDreamState,
   nameClusterViaLLM,
   DEFAULT_ARCHIVE_PATH,
   DREAM_SNIPPET_LENGTH,
   DREAM_LLM_SNIPPET_LENGTH,
+  MAX_OVERFLOW,
   type DreamResult,
   type RichPluginContext,
   type MemoryRow,
-} from "../../extra/src/dream";
+} from "../src/extra/dream.ts";
 import { mkdirSync, existsSync, readFileSync, unlinkSync, rmdirSync, rmSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { homedir, tmpdir } from "node:os";
@@ -1806,6 +1808,498 @@ describe("Dream", () => {
           expect(preview).toBe(contents[i]);
         }
       }
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // M-3 characterization — runDream refactor safety net
+  // -------------------------------------------------------------------------
+  // These tests pin specific early-exit and control-flow branches of runDream
+  // that the upcoming extraction (loadAndCacheMemories / dedupRows /
+  // findStaleEntries / clusterSimilarRows / summarizeCluster) must preserve.
+  // Each test targets a branch the existing 17 top-level tests do not cover.
+
+  describe("runDream — M-3 refactor safety net", () => {
+    it("scanned > maxEntries → skips dedup/cluster, returns { ok: true, errors: [skip msg] }", async () => {
+      const db = openTestDB();
+      seedDB(db, 10);
+      db.close();
+
+      const { tool } = createDreamTool({
+        enabled: true,
+        threshold: 50,
+        intervalHours: 0,
+        storagePath: TEST_DB_PATH,
+        maxEntries: 5, // 10 > 5 → must skip
+      });
+
+      const result = await tool.execute();
+      expect(result.ok).toBe(true);
+      expect(result.scanned).toBe(10);
+      // All three counters must be 0 — no work was done.
+      expect(result.deduped).toBe(0);
+      expect(result.archived).toBe(0);
+      expect(result.summarized).toBe(0);
+      // The skip reason must be in errors[0] — visible to operators/UI.
+      expect(result.errors.length).toBe(1);
+      expect(result.errors[0]).toMatch(/exceed MAX_DREAM_ENTRIES/);
+      // The DB must be UNCHANGED — skip means no reads-after-initial.
+      const db2 = openTestDB();
+      expect(countRows(db2)).toBe(10);
+      db2.close();
+    });
+
+    it("scanned > maxEntries in dry-run mode: dry_run is true and DB still unchanged", async () => {
+      const db = openTestDB();
+      seedDB(db, 10);
+      db.close();
+
+      const { tool } = createDreamTool({
+        enabled: true,
+        threshold: 50,
+        intervalHours: 0,
+        storagePath: TEST_DB_PATH,
+        maxEntries: 5,
+      });
+
+      const result = await tool.execute({ dry_run: true });
+      expect(result.ok).toBe(true);
+      expect(result.dry_run).toBe(true);
+      expect(result.scanned).toBe(10);
+      expect(result.deduped).toBe(0);
+      expect(result.archived).toBe(0);
+      expect(result.summarized).toBe(0);
+
+      const db2 = openTestDB();
+      expect(countRows(db2)).toBe(10);
+      db2.close();
+    });
+
+    it("cluster algorithm: 6 highly-similar entries → exactly 1 cluster, all 6 summarized", async () => {
+      const db = openTestDB();
+      const now = Math.floor(Date.now() / 1000);
+      // Six entries sharing ≥70% tokens (above DREAM_CLUSTER_THRESHOLD=0.3)
+      // so they all fall into one cluster. The 5-iteration cap inside the
+      // greedy cluster-expander must converge (1-2 iterations suffice when
+      // all members mutually exceed the threshold).
+      const base =
+        "rust async runtime tokio reactor epoll kqueue io_uring scheduler task waker future pin projection lifetime borrow checker ownership";
+      for (let i = 0; i < 6; i++) {
+        db.run(
+          "INSERT INTO memory_entries (source_path, section, content, importance_score, last_accessed, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+          [`test/cluster-${i}.md`, null, base + ` word${i}`, 0.5, now, now - i],
+        );
+      }
+      expect(countRows(db)).toBe(6);
+      db.close();
+
+      const { tool } = createDreamTool({
+        enabled: true,
+        threshold: 50,
+        intervalHours: 0,
+        storagePath: TEST_DB_PATH,
+      });
+
+      const result = await tool.execute();
+      expect(result.ok).toBe(true);
+      // All 6 source entries must be folded into 1 summary row.
+      expect(result.summarized).toBe(6);
+      const db2 = openTestDB();
+      const rows = db2
+        .query("SELECT * FROM memory_entries")
+        .all() as Array<{ source_path: string; content: string }>;
+      expect(rows.length).toBe(1);
+      expect(rows[0].source_path).toBe("dream-summary");
+      // The summary must be the concatenation fallback (no ctx) — pinned
+      // so the cluster processing path stays observably identical after
+      // the M-3 extraction.
+      expect(rows[0].content).toContain("DREAM-SUMMARY");
+      db2.close();
+    });
+
+    it("setupDreamCron: intervalHours=0 → clearCronTimer() is a no-op (no timer registered)", () => {
+      // The factory must NOT register a cron timer when intervalHours is 0.
+      // isDreamLocked()/clearCronTimer() are the only windows into the
+      // internal timer state — both should be in their "no-op" baseline
+      // after createDreamTool returns.
+      clearCronTimer();
+      expect(isDreamLocked()).toBe(false);
+      // Pre-condition: the singleton timer slot is null before the factory
+      // allocates a new state (or it holds a stale handle from a prior test).
+      // Either way, clearCronTimer() must be idempotent — the timer slot
+      // after createDreamTool returns is null because intervalHours=0
+      // short-circuits the setup before any setInterval runs.
+      const before = (createDreamTool as unknown as { _activeDreamState?: { cronTimer: ReturnType<typeof setInterval> | null } })._activeDreamState;
+      expect(before?.cronTimer ?? null).toBeNull();
+      createDreamTool({
+        enabled: true,
+        threshold: 50,
+        intervalHours: 0,
+        storagePath: TEST_DB_PATH,
+      });
+      // clearCronTimer must remain a no-op (timer is null on the new factory).
+      expect(() => clearCronTimer()).not.toThrow();
+      // Lock state is still false — disabled-or-no-timer factory never sets it.
+      expect(isDreamLocked()).toBe(false);
+    });
+
+    it("setupDreamCron: enabled:false → clearCronTimer() is a no-op regardless of intervalHours", () => {
+      // Disabled factories must not register a cron timer even when
+      // intervalHours is set. This guards the early-return on
+      // `!config.enabled || config.intervalHours <= 0`.
+      clearCronTimer();
+      createDreamTool({
+        enabled: false,
+        threshold: 50,
+        intervalHours: 24,
+        storagePath: TEST_DB_PATH,
+      });
+      expect(() => clearCronTimer()).not.toThrow();
+      expect(isDreamLocked()).toBe(false);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Medium function split — prompt + extraction sub-helpers (continued)
+  // -------------------------------------------------------------------------
+  // The continuation arc (Task 2.2b) extracts buildNameClusterPrompt /
+  // buildSummarizeClusterPrompt / extractResponseText from nameClusterViaLLM
+  // and summarizeViaLLM, plus tryLLMClusterNaming / tryLLMClusterSummary
+  // from summarizeClusterContent. These tests pin the OBSERVABLE behavior
+  // of those extractions: when nameClusterViaLLM / summarizeViaLLM run,
+  // the LLM must receive messages with the exact documented strings
+  // (system marker + user header), and the response text-extraction must
+  // produce the same fallback behavior (name → 'untitled cluster',
+  // summary → concatenateSummary) on empty LLM output.
+
+  describe("nameClusterViaLLM prompt structure", () => {
+    it("system message contains the 'topic-namer' role marker", async () => {
+      // Pin the extracted buildNameClusterPrompt's system string. If the
+      // refactor accidentally rewrites the prompt (e.g. swapping 'topic'
+      // for 'subject'), the LLM mock still returns the canned name and
+      // the function-level test would not catch it — but THIS test
+      // fails fast on the captured message.
+      let capturedSysMsg = "";
+      const mockCtx: RichPluginContext = {
+        client: {
+          session: {
+            message: async (params) => {
+              capturedSysMsg = params.messages.find((m) => m.role === "system")?.content ?? "";
+              return { content: [{ type: "text", text: "topic-name" }] };
+            },
+          },
+        },
+      };
+
+      const cluster: MemoryRow[] = [
+        {
+          id: 1,
+          source_path: "src/a.ts",
+          section: null,
+          content: "rust borrow checker lifetimes trait bounds ownership",
+          importance_score: 0.5,
+          last_accessed: null,
+          created_at: 1000,
+        },
+        {
+          id: 2,
+          source_path: "src/b.ts",
+          section: null,
+          content: "rust async runtime tokio reactor epoll scheduler",
+          importance_score: 0.5,
+          last_accessed: null,
+          created_at: 1001,
+        },
+        {
+          id: 3,
+          source_path: "src/c.ts",
+          section: null,
+          content: "rust pattern matching enums Option Result iterator chain",
+          importance_score: 0.5,
+          last_accessed: null,
+          created_at: 1002,
+        },
+      ];
+
+      await nameClusterViaLLM(cluster, mockCtx, "test-model");
+      expect(capturedSysMsg).toContain("topic-namer");
+      expect(capturedSysMsg).toContain("3-5 word phrase");
+    });
+
+    it("user message header is 'Name the topic of these N related memory entries' (exact phrasing)", async () => {
+      // Pin the extracted buildNameClusterPrompt's user-prefix string.
+      // The exact phrasing ("related memory entries") is a contract with
+      // the LLM prompt — silently dropping "related" would degrade naming
+      // quality without any other test catching it.
+      let capturedUserMsg = "";
+      const mockCtx: RichPluginContext = {
+        client: {
+          session: {
+            message: async (params) => {
+              capturedUserMsg = params.messages.find((m) => m.role === "user")?.content ?? "";
+              return { content: [{ type: "text", text: "x" }] };
+            },
+          },
+        },
+      };
+
+      const cluster: MemoryRow[] = Array.from({ length: 5 }, (_, i) => ({
+        id: i + 1,
+        source_path: `src/file${i}.md`,
+        section: null,
+        content: `entry ${i} about auth`,
+        importance_score: 0.5,
+        last_accessed: null,
+        created_at: 1000 + i,
+      }));
+
+      await nameClusterViaLLM(cluster, mockCtx, "test-model");
+      // Header must be present, BEFORE any entry separator ('\n\n').
+      const header = capturedUserMsg.split("\n\n")[0];
+      expect(header).toBe("Name the topic of these 5 related memory entries:");
+    });
+
+    it("extractResponseText fallback: empty LLM output → returns 'untitled cluster'", async () => {
+      // Pin the extracted extractResponseText behavior on nameClusterViaLLM:
+      // if the response.content array contains only empty strings OR is
+      // empty, the function must return "untitled cluster" (NOT throw,
+      // NOT return empty string). This is the contract that prevents the
+      // cluster row from being labeled with an empty cluster_name field.
+      const emptyCtx: RichPluginContext = {
+        client: {
+          session: {
+            message: async () => ({
+              content: [{ type: "text", text: "" }], // empty text → extractResponseText → ""
+            }),
+          },
+        },
+      };
+
+      const cluster: MemoryRow[] = [
+        {
+          id: 1,
+          source_path: "x.md",
+          section: null,
+          content: "y",
+          importance_score: 0.5,
+          last_accessed: null,
+          created_at: 1000,
+        },
+      ];
+
+      const result = await nameClusterViaLLM(cluster, emptyCtx, "test-model");
+      expect(result).toBe("untitled cluster");
+    });
+  });
+
+  describe("summarizeClusterContent prompt structure (via runDream integration)", () => {
+    it("summarize LLM receives system 'memory summarizer' marker + user 'Summarize these N entries' header", async () => {
+      // summarizeViaLLM is private; pin its prompt through the
+      // runDream integration (6 similar entries → 1 cluster → 1 LLM
+      // summarization call). The mock captures the system + user
+      // messages and we assert the doc'd prompt content.
+      const db = openTestDB();
+      const now = Math.floor(Date.now() / 1000);
+      const base = "rust borrow checker lifetimes trait bounds ownership ref";
+      // Shared tokens above 0.3 cluster threshold, unique per entry →
+      // exactly 1 cluster of 6 entries.
+      for (let i = 0; i < 6; i++) {
+        db.run(
+          "INSERT INTO memory_entries (source_path, section, content, importance_score, last_accessed, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+          [`test/cluster-${i}.md`, null, base + ` uniquetoken${i}`, 0.5, now - i, now - i],
+        );
+      }
+      db.close();
+
+      let capturedSysMsg = "";
+      let capturedUserMsg = "";
+      let summarizeCallCount = 0;
+      const mockCtx: RichPluginContext = {
+        client: {
+          session: {
+            message: async (params) => {
+              const sysMsg = params.messages.find((m) => m.role === "system")?.content ?? "";
+              const userMsg = params.messages.find((m) => m.role === "user")?.content ?? "";
+              if (sysMsg.includes("memory summarizer")) {
+                capturedSysMsg = sysMsg;
+                capturedUserMsg = userMsg;
+                summarizeCallCount++;
+                return { content: [{ type: "text", text: "captured summary text" }] };
+              }
+              // topic-namer — return canned name, no need to inspect
+              return { content: [{ type: "text", text: "captured topic" }] };
+            },
+          },
+        },
+      };
+
+      const { tool } = createDreamTool({
+        enabled: true,
+        threshold: 50,
+        intervalHours: 0,
+        storagePath: TEST_DB_PATH,
+        ctx: mockCtx,
+      });
+
+      const result = await tool.execute();
+      expect(result.ok).toBe(true);
+      expect(result.summarized).toBe(6);
+      expect(summarizeCallCount).toBe(1);
+
+      // System prompt pins.
+      expect(capturedSysMsg).toContain("memory summarizer");
+      expect(capturedSysMsg).toContain("concise 1-3 sentence");
+      // User header pins — exact first line before '\n\n'.
+      const header = capturedUserMsg.split("\n\n")[0];
+      expect(header).toBe("Summarize these 6 related memory entries:");
+    });
+
+    it("summarize LLM empty output → fall back to concatenateSummary (DREAM-SUMMARY marker present)", async () => {
+      // Pin the extractResponseText fallback path inside summarizeViaLLM:
+      // when the LLM returns an empty string, the function must fall back
+      // to concatenateSummary (NOT throw, NOT return empty) so the
+      // summary row still contains the cluster content.
+      const db = openTestDB();
+      const now = Math.floor(Date.now() / 1000);
+      const base = "auth jwt tokens api requests session management oauth";
+      for (let i = 0; i < 6; i++) {
+        db.run(
+          "INSERT INTO memory_entries (source_path, section, content, importance_score, last_accessed, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+          [`test/fallback-${i}.md`, "auth", base + ` word${i}`, 0.5, now - i, now - i],
+        );
+      }
+      db.close();
+
+      const emptyCtx: RichPluginContext = {
+        client: {
+          session: {
+            message: async (params) => {
+              const sysMsg = params.messages.find((m) => m.role === "system")?.content ?? "";
+              if (sysMsg.includes("memory summarizer")) {
+                return { content: [{ type: "text", text: "" }] }; // empty → fall back
+              }
+              return { content: [{ type: "text", text: "topic" }] };
+            },
+          },
+        },
+      };
+
+      const { tool } = createDreamTool({
+        enabled: true,
+        threshold: 50,
+        intervalHours: 0,
+        storagePath: TEST_DB_PATH,
+        ctx: emptyCtx,
+      });
+
+      const result = await tool.execute();
+      expect(result.ok).toBe(true);
+      const db2 = openTestDB();
+      const rows = db2
+        .query("SELECT content FROM memory_entries")
+        .all() as Array<{ content: string }>;
+      db2.close();
+      // The summary row MUST contain the concatenation fallback marker.
+      expect(rows.length).toBe(1);
+      expect(rows[0].content).toContain("DREAM-SUMMARY");
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Hot-path tweaks (audit defense-in-depth) — defense-in-depth guards on
+  // the audit-flagged Jaccard and cron-timer leaks. Independent of the
+  // cluster algorithm itself: the first test clamps the effective cap so a
+  // misconfigured maxEntries cannot push the O(n^2) loops past the
+  // production budget; the second clears the prior factory's cron timer
+  // in the multi-factory case (otherwise the leak persists even after the
+  // singleton ref moves on).
+  // -------------------------------------------------------------------------
+
+  describe("hot-path tweaks (defense-in-depth)", () => {
+    it("runDream clamps effective cap to MAX_OVERFLOW when maxEntries config exceeds it", async () => {
+      // Pin the MAX_OVERFLOW inner-loop guard: a misconfigured maxEntries
+      // (e.g., 1_000_000) MUST NOT bypass the production 5000-entry O(n^2)
+      // budget. With the clamp in loadAndCacheMemories, runDream early-exits
+      // via the skip-on-overflow path before entering the Jaccard loops.
+      const db = openTestDB();
+      seedDB(db, MAX_OVERFLOW + 1); // 5001 rows — over the hard cap
+      db.close();
+
+      const { tool } = createDreamTool({
+        enabled: true,
+        threshold: 50,
+        intervalHours: 0,
+        storagePath: TEST_DB_PATH,
+        maxEntries: 1_000_000, // misconfig — clamp should force 5000
+      });
+
+      const start = Date.now();
+      const result = await tool.execute();
+      const elapsedMs = Date.now() - start;
+
+      // Skip result, not quadratic-loop result.
+      expect(result.ok).toBe(true);
+      expect(result.scanned).toBe(MAX_OVERFLOW + 1);
+      expect(result.deduped).toBe(0);
+      expect(result.archived).toBe(0);
+      expect(result.summarized).toBe(0);
+      expect(result.errors.length).toBe(1);
+      expect(result.errors[0]).toMatch(/exceed MAX_DREAM_ENTRIES/);
+      // Skip path must short-circuit — well under 2s wall-clock for 5k rows.
+      expect(elapsedMs).toBeLessThan(2000);
+      // DB must be unchanged (skip = no reads-after-initial).
+      const db2 = openTestDB();
+      expect(countRows(db2)).toBe(MAX_OVERFLOW + 1);
+      db2.close();
+    });
+
+    it("createDreamTool called twice clears the prior factory's cron timer (multi-factory leak)", () => {
+      // Pin the multi-factory cron-timer cleanup: when createDreamTool is
+      // called a second time with cron enabled, the FIRST factory's
+      // setInterval MUST be cleared (otherwise it leaks — the singleton
+      // _activeDreamState only retains the LATEST factory's handle).
+      //
+      // We assert observable side-effects via a snapshot of the prior
+      // factory's state captured BEFORE the second factory replaces it.
+      // If the leak were present, the captured state.cronTimer would
+      // remain a live Interval handle even after createDreamTool#2 runs.
+      clearCronTimer();
+
+      const { tool: toolA } = createDreamTool({
+        enabled: true,
+        threshold: 50,
+        intervalHours: 24, // cron enabled — timer set on factory A
+        storagePath: TEST_DB_PATH,
+      });
+      // _activeDreamState now points at factoryA — capture a snapshot.
+      const factoryAState = snapshotActiveDreamState();
+      expect(factoryAState).not.toBeNull();
+      expect(factoryAState!.cronTimer).not.toBeNull();
+
+      // Second factory with cron also enabled. After this,
+      // _activeDreamState replaces factoryA's state with factoryB's. The
+      // fix must clear factoryA's cronTimer BEFORE the replacement so the
+      // prior handle is released.
+      const { tool: toolB } = createDreamTool({
+        enabled: true,
+        threshold: 50,
+        intervalHours: 24,
+        storagePath: TEST_DB_PATH,
+      });
+      const factoryBState = snapshotActiveDreamState();
+      expect(factoryBState).not.toBeNull();
+      expect(factoryBState!.cronTimer).not.toBeNull();
+
+      // The captured factoryA state must now have a NULL cronTimer slot —
+      // the createDreamTool entry point cleared the prior factory's timer
+      // before swapping _activeDreamState, so the old handle was released
+      // and the slot reset to null.
+      expect(factoryAState!.cronTimer).toBeNull();
+
+      // Cleanup: clear the active factory's timer for clean shutdown.
+      clearCronTimer();
+      void toolA;
+      void toolB;
     });
   });
 });

@@ -180,13 +180,13 @@ The publish step runs `bun run scripts/release.sh --actual`, which:
    - Tag `v0.9.0` exists (soft warning, not a hard fail)
 
 2. **Publishes** in this order:
-   - `shared/` (`@sffmc/shared`)
+   - `shared/` (`@sffmc/utilities`)
    - `packages/*/` alphabetically — 13 composite/standalone packages
-     (`@sffmc/agentic`, `@sffmc/auto-max`, `@sffmc/compose`,
-     `@sffmc/eos-stripper`, `@sffmc/extra`, `@sffmc/health`,
-     `@sffmc/log-whitelist`, `@sffmc/max-mode`, `@sffmc/memory`,
-     `@sffmc/rules`, `@sffmc/safety`, `@sffmc/watchdog`,
-     `@sffmc/workflow`)
+     (`@sffmc/runtime + @sffmc/cognition`, `@sffmc/safety`, `@sffmc/cognition`,
+     `@sffmc/safety`, `@sffmc/memory`, `@sffmc/cognition`,
+     `@sffmc/safety`, `@sffmc/cognition`, `@sffmc/memory`,
+     `@sffmc/safety`, `@sffmc/safety`, `@sffmc/safety`,
+     `@sffmc/runtime`)
 
 3. **Uses `bun publish --access public --tolerate-republish`** per
    package, so re-running the step on a partial publish doesn't
@@ -232,6 +232,6 @@ drone repo add Rahspide/sffmc
 - [`.drone.yml`](../.drone.yml) — the pipeline definition
 - [`scripts/release.sh`](../scripts/release.sh) — the publish helper
 - [`scripts/audit-public-content.sh`](../scripts/audit-public-content.sh) — public-content leak audit
-- [`scripts/run-health.ts`](../scripts/run-health.ts) — `@sffmc/health` check runner
+- [`scripts/run-health.ts`](../scripts/run-health.ts) — `@sffmc/cognition` check runner
 - [`RELEASE.md`](../RELEASE.md) — high-level release notes
 - [`CHANGELOG.md`](../CHANGELOG.md) — version history

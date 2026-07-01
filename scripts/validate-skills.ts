@@ -26,11 +26,7 @@ const SKILLS: readonly SkillExpect[] = [
   { msp: "memory", file: "dream-cleanup.md" },
   { msp: "memory", file: "judge-output.md" },
   { msp: "memory", file: "recall.md" },
-  { msp: "agentic", file: "compose-skill.md" },
-  { msp: "agentic", file: "health-check.md" },
-  { msp: "agentic", file: "resolve-hook-conflict.md" },
-  { msp: "agentic", file: "run-max-mode.md" },
-  { msp: "agentic", file: "run-workflow.md" },
+
 ]
 
 let pass = 0

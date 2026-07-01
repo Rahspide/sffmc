@@ -4,12 +4,12 @@
 // SFFMC safety MSP — composes watchdog, rules, auto-max, eos-stripper, log-whitelist.
 //  release: wires all 5 modules via mergeHooks().
 
-import { server as watchdogServer } from "../../watchdog/src/index.ts"
-import { server as rulesServer } from "../../rules/src/index.ts"
-import { server as autoMaxServer } from "../../auto-max/src/index.ts"
-import { server as eosServer } from "../../eos-stripper/src/index.ts"
-import { server as logServer } from "../../log-whitelist/src/index.ts"
-import { mergeHooks, type PluginContext, type PluginServer } from "@sffmc/shared";
+import { server as watchdogServer } from "./watchdog/index.ts"
+import { server as rulesServer } from "./rules/index.ts"
+import { server as autoMaxServer } from "./auto-max/index.ts"
+import { server as eosServer } from "./eos-stripper/index.ts"
+import { server as logServer } from "./log-whitelist/index.ts"
+import { mergeHooks, type PluginContext, type PluginServer } from "@sffmc/utilities";
 
 export const id = "@sffmc/safety"
 
