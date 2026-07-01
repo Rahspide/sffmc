@@ -4,12 +4,18 @@
 
 # SFFMC
 
-**OpenCode plugin suite — 2 composites + 3 standalones, MIT licensed. v0.15.0.**
+**OpenCode plugin suite — 2 composites + 3 standalones. MIT licensed. v0.15.0.**
 
 [![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
-[![Version 0.14.8](https://img.shields.io/badge/version-0.14.8-success)](https://github.com/Rahspide/sffmc/releases)
+[![npm version](https://img.shields.io/npm/v/%40sffmc%2Fsafety?label=%40sffmc%2Fsafety)](https://www.npmjs.com/package/@sffmc/safety)
+[![npm version](https://img.shields.io/npm/v/%40sffmc%2Fmemory?label=%40sffmc%2Fmemory)](https://www.npmjs.com/package/@sffmc/memory)
+[![npm version](https://img.shields.io/npm/v/%40sffmc%2Fruntime?label=%40sffmc%2Fruntime)](https://www.npmjs.com/package/@sffmc/runtime)
+[![npm version](https://img.shields.io/npm/v/%40sffmc%2Fcognition?label=%40sffmc%2Fcognition)](https://www.npmjs.com/package/@sffmc/cognition)
+[![npm version](https://img.shields.io/npm/v/%40sffmc%2Futilities?label=%40sffmc%2Futilities)](https://www.npmjs.com/package/@sffmc/utilities)
 
-[**Packages**](./packages) &nbsp;·&nbsp; [**Getting started**](./docs/getting-started.md) &nbsp;·&nbsp; [**Contributing**](./CONTRIBUTING.md) &nbsp;·&nbsp; [**Changelog**](./CHANGELOG.md)
+[**GitHub release**](https://github.com/Rahspide/sffmc/releases/tag/v0.15.0)
+&nbsp;·&nbsp;
+[**Getting started**](./docs/getting-started.md) &nbsp;·&nbsp; [**Contributing**](./CONTRIBUTING.md) &nbsp;·&nbsp; [**Changelog**](./CHANGELOG.md)
 
 </div>
 
@@ -19,42 +25,67 @@
 
 SFFMC is a Bun-workspace monorepo of OpenCode plugins that port the productivity
 wins from Xiaomi's MiMo-Code fork into vanilla OpenCode — no fork required.
-One curl command and you get tool-failure recovery,
-destructive-op safety gates, cross-session memory recall, parallel reasoning
-with judge selection, a sandboxed JavaScript workflow engine, and 18 markdown
-compose skills.
+One `sffmc init` command (or a few lines in `opencode.json`) and you get
+tool-failure recovery, destructive-op safety gates, cross-session memory recall,
+parallel reasoning with judge selection, a sandboxed JavaScript workflow engine,
+and 18 markdown compose skills.
 
-The repo ships as 14 npm packages under the `@sffmc/*` scope. Three of them are
-**composites** — `@sffmc/safety` (5 governance features) and `@sffmc/memory` (FTS5 recall + checkpoint/judge/dream opt-ins). Three standalone packages: `@sffmc/runtime` (sandboxed JS workflow orchestrator), `@sffmc/cognition` (parallel reasoning + compose skills + health diagnostics), and `@sffmc/utilities` (shared SDK library; **not a plugin entry**, only consumed by other packages as `workspace:*` dep).
-each of which is a thin wrapper that composes several sub-features into one
-`mergeHooks()` from `@sffmc/utilities`. The three standalones
-packages are the individual sub-features; they still work standalone for
-backward compatibility.
+The repo ships as **5 npm packages** under the `@sffmc/*` scope:
 
-Every plugin is a **composite**: it reads any hook payload
-freely but writes only to its own slot. No module-level exports, no shared
-mutable state, no cross-plugin coupling. Load any combination — all three
-composites + standalones — they compose cleanly. The previously-dissolved `@sffmc/agentic` composite has been split into `@sffmc/runtime` + `@sffmc/cognition`; users must register both explicitly.
+| Package | Type | What it does |
+|---|---|---|
+| `@sffmc/safety`    | composite   | 5 governance features (rules, watchdog, auto-max, eos-stripper, log-whitelist) |
+| `@sffmc/memory`    | composite   | FTS5 recall + checkpoint / judge / dream opt-ins |
+| `@sffmc/runtime`   | standalone  | Sandboxed JavaScript workflow orchestrator (quickjs-emscripten) |
+| `@sffmc/cognition` | standalone  | Parallel reasoning (max-mode) + 18 compose skills + health diagnostics |
+| `@sffmc/utilities` | **library** | Shared SDK. **Not a plugin entry** — only consumed via `workspace:*` dep by the other 4. |
+
+Each composite is a thin wrapper that uses `mergeHooks()` from `@sffmc/utilities`
+to combine its sub-features into one plugin entry. Standalones register themselves
+directly. Every plugin is a **composite**: it reads any hook payload freely but
+writes only to its own slot. No module-level exports, no shared mutable state,
+no cross-plugin coupling. Load any combination — they compose cleanly.
+
+Prior releases shipped `@sffmc/agentic` as a single monolithic composite.
+Starting in v0.15.0, that composite is dissolved into `@sffmc/runtime` and
+`@sffmc/cognition` — register both explicitly if you were using it.
 
 ## Why use it?
 
-- **Composable.** Load one composite package or all three, or pick individual
-  sub-features. `mergeHooks()` handles hook collision for you.
+- **Installable from npm.** v0.15.0 is the first version where `npm install
+  @sffmc/safety` resolves a public registry package.
+- **Composable.** Load all 4 plugins or pick individual standalones.
+  `mergeHooks()` handles hook collision for you.
 - **Zero shared state.** Every plugin is composite. No side effects from load order.
-- **Drop-in.** `curl ... | sh` then restart OpenCode. No build step, no npm
-  install, no configuration required to start.
 - **MIT licensed.** Ported from MiMo-Code (Xiaomi) plus SFFMC team originals.
   Use freely in commercial and private projects.
 
 ## Install
 
-> **v0.15.0** — first version installable from **npm**. Pick one of:
+> **v0.15.0** is the first version installable from **npm**. Pick one of:
 
-### Option A — install via npm (recommended)
+### Option A — install via the `sffmc` CLI (recommended, all platforms)
+
+The `sffmc` CLI writes the right entries to `opencode.json` for you and resolves
+the npm packages at install time, so you don't paste JSON by hand:
 
 ```bash
-# After running sffmc init, each package is installed via npm at install time.
-# Or pin a specific version in your opencode.json:
+# 1. install the CLI globally (once)
+npm install -g @sffmc/safety @sffmc/memory @sffmc/runtime @sffmc/cognition
+
+# 2. register everything in opencode.json
+sffmc init
+```
+
+That's it. Restart OpenCode and the 4 plugins load via npm on first import.
+Run `sffmc doctor` (or call the `sffmc_health` tool) to verify.
+
+### Option B — manual edit of `opencode.json`
+
+If you prefer to hand-edit (e.g. for reproducible dotfiles), paste this into
+your `opencode.json` **as file content** — not into a terminal:
+
+```json
 {
   "plugins": {
     "@sffmc/safety":    "npm:@sffmc/safety@^0.15.0",
@@ -65,12 +96,19 @@ composites + standalones — they compose cleanly. The previously-dissolved `@sf
 }
 ```
 
-```bash
-# Or install the registry packages globally for inspection:
-npm install -g @sffmc/safety @sffmc/memory @sffmc/runtime @sffmc/cognition
-```
+> ⚠️ **Do not paste the JSON into PowerShell** — it would be parsed as
+> a script block. Edit the file in your editor, or write it from PowerShell
+> like this:
+>
+> ```powershell
+> @"{\"plugins\":{\"@sffmc/safety\":\"npm:@sffmc/safety@^0.15.0\",...}}"@
+> | Set-Content -Path "$HOME\.sffmc\opencode.json"
+> ```
+>
+> See [`docs/install.md`](./docs/install.md#windows-powershell) for a complete
+> PowerShell-safe walkthrough.
 
-### Option B — one-liner installer (legacy `file://` mode)
+### Option C — one-liner installer (legacy `file://` mode)
 
 ```bash
 # macOS / Linux
@@ -81,7 +119,7 @@ irm https://raw.githubusercontent.com/Rahspide/sffmc/main/install.ps1 | iex
 ```
 
 The one-liner clones the repo to `~/.sffmc/plugins/sffmc` and runs
-`sffmc init` to add 3 `file://` entries to your `opencode.json`.
+`sffmc init` to add 4 `file://` entries to your `opencode.json`.
 Restart OpenCode, then verify with `sffmc doctor` or the `sffmc_health`
 tool in any chat session.
 

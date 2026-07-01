@@ -4,12 +4,18 @@
 
 # SFFMC
 
-**Набор плагинов для OpenCode — 3 композитных пакета, 10 под-фич, лицензия MIT.**
+**Набор плагинов OpenCode — 2 композитных + 3 автономных. Лицензия MIT. v0.15.0.**
 
 [![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
-[![Version 0.14.8](https://img.shields.io/badge/version-0.14.8-success)](https://github.com/Rahspide/sffmc/releases)
+[![npm version](https://img.shields.io/npm/v/%40sffmc%2Fsafety?label=%40sffmc%2Fsafety)](https://www.npmjs.com/package/@sffmc/safety)
+[![npm version](https://img.shields.io/npm/v/%40sffmc%2Fmemory?label=%40sffmc%2Fmemory)](https://www.npmjs.com/package/@sffmc/memory)
+[![npm version](https://img.shields.io/npm/v/%40sffmc%2Fruntime?label=%40sffmc%2Fruntime)](https://www.npmjs.com/package/@sffmc/runtime)
+[![npm version](https://img.shields.io/npm/v/%40sffmc%2Fcognition?label=%40sffmc%2Fcognition)](https://www.npmjs.com/package/@sffmc/cognition)
+[![npm version](https://img.shields.io/npm/v/%40sffmc%2Futilities?label=%40sffmc%2Futilities)](https://www.npmjs.com/package/@sffmc/utilities)
 
-[**Пакеты**](./packages) &nbsp;·&nbsp; [**Начало работы**](./docs/getting-started.md) &nbsp;·&nbsp; [**Contributing**](./CONTRIBUTING.md) &nbsp;·&nbsp; [**Changelog**](./CHANGELOG.md)
+[**Релиз на GitHub**](https://github.com/Rahspide/sffmc/releases/tag/v0.15.0)
+&nbsp;·&nbsp;
+[**Начало работы**](./docs/getting-started.md) &nbsp;·&nbsp; [**Contributing**](./CONTRIBUTING.md) &nbsp;·&nbsp; [**Changelog**](./CHANGELOG.md)
 
 </div>
 
@@ -19,40 +25,97 @@
 
 SFFMC — это монорепозиторий плагинов OpenCode на базе Bun-workspace, который
 переносит преимущества продуктивности из форка MiMo-Code от Xiaomi в чистый
-OpenCode — без необходимости форка. Одна команда curl — и вы получаете
-восстановление после сбоев инструментов, защитные шлюзы для деструктивных
-операций, кросс-сессионное восстановление памяти, параллельное рассуждение
-с выбором победителя, изолированный движок workflow на JavaScript и
-18 markdown-скиллов для compose.
+OpenCode — без необходимости форка. Одна команда `sffmc init` (или несколько
+строк в `opencode.json`) — и вы получаете восстановление после сбоев
+инструментов, защитные шлюзы для деструктивных операций, кросс-сессионное
+восстановление памяти, параллельное рассуждение с выбором победителя,
+изолированный движок workflow на JavaScript и 18 markdown-скиллов для compose.
 
-Репозиторий поставляется как 14 npm-пакетов в скоупе `@sffmc/*`. Три из них —
-**композитные пакеты** — `@sffmc/safety`, `@sffmc/memory` и `@sffmc/agentic` —
-каждый из которых представляет собой тонкую обёртку, объединяющую несколько
-под-фич в один дефолтный экспорт с помощью `mergeHooks()` из `@sffmc/shared`.
-Оставшиеся 10 пакетов — это отдельные под-фичи; они по-прежнему работают
-автономно для обратной совместимости.
+Репозиторий поставляется как **5 npm-пакетов** в скоупе `@sffmc/*`:
 
-Каждый плагин является **композитным**: он свободно читает любой hook payload,
-но пишет только в свой слот. Нет экспортов на уровне модуля, нет общего
-изменяемого состояния, нет связности между плагинами. Загружайте любую
-комбинацию — все три композитных пакета, отдельные под-фичи или их микс —
-и они чисто компонуются.
+| Пакет | Тип | Описание |
+|---|---|---|
+| `@sffmc/safety`    | композит  | 5 governance-фич (rules, watchdog, auto-max, eos-stripper, log-whitelist) |
+| `@sffmc/memory`    | композит  | FTS5-поиск + checkpoint / judge / dream опции |
+| `@sffmc/runtime`   | автономный | Песочница workflow-оркестратора на JavaScript (quickjs-emscripten) |
+| `@sffmc/cognition` | автономный | Параллельное рассуждение (max-mode) + 18 compose-скиллов + health-диагностика |
+| `@sffmc/utilities` | **библиотека** | Общий SDK. **Не точка входа плагина** — используется только через `workspace:*` остальными 4 пакетами. |
+
+Каждый композит — это тонкая обёртка, которая использует `mergeHooks()` из
+`@sffmc/utilities` для объединения своих под-фич в одну точку входа.
+Автономные пакеты регистрируются сами. Каждый плагин является
+**композитным**: он свободно читает любой hook payload, но пишет только в
+свой слот. Нет экспортов на уровне модуля, нет общего изменяемого состояния,
+нет связности между плагинами. Загружайте любую комбинацию — они чисто
+компонуются.
+
+В предыдущих релизах `@sffmc/agentic` поставлялся как единый композитный
+пакет. Начиная с v0.15.0 этот композит расформирован на `@sffmc/runtime` и
+`@sffmc/cognition` — если вы использовали agentic, зарегистрируйте оба
+явно.
 
 ## Зачем использовать?
 
-- **Компонуемо.** Загрузите один композитный пакет или все три, либо выберите
-  отдельные под-фичи. `mergeHooks()` берёт на себя разрешение конфликтов хуков.
+- **Устанавливается через npm.** v0.15.0 — это первая версия, где `npm install
+  @sffmc/safety` подтягивает публичный пакет из реестра.
+- **Компонуемо.** Загрузите все 4 плагина или выберите отдельные автономные
+  пакеты. `mergeHooks()` берёт на себя разрешение конфликтов хуков.
 - **Нет общего состояния.** Каждый плагин композитный. Никаких побочных
   эффектов от порядка загрузки.
-- **Drop-in.** `curl ... | sh`, затем перезапустите OpenCode. Никаких шагов
-  сборки, никаких `npm install`, никакой конфигурации для старта.
-- **Проверено в бою.** 903 юнит-теста в 50 файлах. Длительный агентский тест:
-  96% прохождение на 121 ходу, покрывающий 41 паттерн и 12 блоков покрытия
-  плагинов.
-- **Лицензия MIT.** Портировано из MiMo-Code (Xiaomi) плюс оригиналы команды
-  SFFMC. Свободное использование в коммерческих и частных проектах.
+- **Лицензия MIT.** Портировано из MiMo-Code (Xiaomi) плюс оригиналы
+  команды SFFMC. Свободное использование в коммерческих и частных проектах.
 
 ## Установка
+
+> **v0.15.0** — первая версия, устанавливаемая из **npm**. Выберите один из
+> трёх способов:
+
+### Способ A — через CLI `sffmc` (рекомендуется, все платформы)
+
+CLI `sffmc` сам прописывает нужные записи в `opencode.json` и подтягивает npm-пакеты
+при первой загрузке — ничего копировать вручную не нужно:
+
+```bash
+# 1. установите CLI глобально (один раз)
+npm install -g @sffmc/safety @sffmc/memory @sffmc/runtime @sffmc/cognition
+
+# 2. зарегистрируйте всё в opencode.json
+sffmc init
+```
+
+Готово. Перезапустите OpenCode — 4 плагина подгрузятся через npm при первом
+импорте. Запустите `sffmc doctor` (или вызовите инструмент `sffmc_health`)
+для проверки.
+
+### Способ Б — ручное редактирование `opencode.json`
+
+Если предпочитаете редактировать вручную (например, для воспроизводимых
+dotfiles), вставьте это в **содержимое файла** `opencode.json`, а **не в
+терминал**:
+
+```json
+{
+  "plugins": {
+    "@sffmc/safety":    "npm:@sffmc/safety@^0.15.0",
+    "@sffmc/memory":    "npm:@sffmc/memory@^0.15.0",
+    "@sffmc/runtime":   "npm:@sffmc/runtime@^0.15.0",
+    "@sffmc/cognition": "npm:@sffmc/cognition@^0.15.0"
+  }
+}
+```
+
+> ⚠️ **Не вставляйте JSON в PowerShell** — он распарсит его как script-block.
+> Редактируйте файл в редакторе, либо запишите через PowerShell так:
+>
+> ```powershell
+> @"{\"plugins\":{\"@sffmc/safety\":\"npm:@sffmc/safety@^0.15.0\",...}}"@
+> | Set-Content -Path "$HOME\.sffmc\opencode.json"
+> ```
+>
+> Полная пошаговая инструкция для PowerShell:
+> [`docs/install.md`](./docs/install.md#windows-powershell).
+
+### Способ В — однострочный установщик (legacy `file://` режим)
 
 ```bash
 # macOS / Linux
@@ -63,7 +126,7 @@ irm https://raw.githubusercontent.com/Rahspide/sffmc/main/install.ps1 | iex
 ```
 
 Однострочник клонирует репозиторий в `~/.sffmc/plugins/sffmc` и запускает
-`sffmc init`, чтобы добавить 3 записи `file://` в ваш `opencode.json`.
+`sffmc init`, чтобы добавить 4 записи `file://` в ваш `opencode.json`.
 Перезапустите OpenCode, затем проверьте с помощью `sffmc doctor` или
 инструмента `sffmc_health` в любой сессии чата.
 
@@ -78,42 +141,57 @@ cd ~/.sffmc/plugins/sffmc
 
 | Команда | Эффект |
 |---|---|
-| `sffmc init` | Авто-определение конфига + добавление 3 композитных плагинов (safety, memory, agentic) |
-| `sffmc init --all` | Добавить все 13 пакетов |
-| `sffmc init --only workflow,compose` | Выбрать конкретные пакеты |
+| `sffmc init` | Авто-определение конфига + добавление 2 композитных плагинов + 2 автономных (safety, memory, runtime, cognition) |
+| `sffmc init --all` | Добавить все 5 пакетов (но utilities — это библиотека, а не плагин) |
+| `sffmc init --only runtime,cognition,safety` | Выбрать конкретные пакеты |
 | `sffmc update` | `git pull --ff-only` + повторная синхронизация конфига |
-| `sffmc doctor` | Запуск 13-проверочной диагностики |
+| `sffmc doctor` | Запуск 9-проверочной диагностики |
 | `sffmc uninstall` | Удаление всех записей SFFMC из конфига |
 
 См. [`docs/install.md`](./docs/install.md) для полного руководства (закреплённые
 версии, настройка PATH, решение проблем).
 
-## Что нового в v0.14.8
+## Что нового в v0.15.0
 
-- **Документация разделена на английский + русский.** `README.md` теперь только
-  на английском; переключатель языка в начале ссылается на `README.ru.md`.
-  `CHANGELOG.md` теперь только на английском; русские переводы находятся в
-  `CHANGELOG.ru.md`. Оба новых файла содержат то же содержимое, что и оригинал
-  в билингвальном inline-формате, просто разделены для более удобной навигации
-  по языкам. Изменений в коде нет — те же 14 пакетов, то же поведение.
+v0.15.0 выпускает сразу две вещи:
+
+- **5-пакетный лейаут.** Предыдущий лейаут из 13 пакетов свёрнут в **2 композитных + 3 автономных**:
+
+  | | |
+  |---|---|
+  | `@sffmc/safety` | композит — 5 governance-фич (rules, watchdog, auto-max, eos-stripper, log-whitelist) |
+  | `@sffmc/memory` | композит — FTS5-поиск + checkpoint / judge / dream опции |
+  | `@sffmc/runtime` | автономный — песочница workflow-оркестратора (quickjs-emscripten) |
+  | `@sffmc/cognition` | автономный — параллельное рассуждение (max-mode) + 18 compose-скиллов + health-диагностика |
+  | `@sffmc/utilities` | библиотека — общий SDK (через `workspace:*`, **не точка входа плагина**) |
+
+- **Первый публичный релиз на npm.** Все 4 устанавливаемых пакета теперь в
+  публичном реестре. См. раздел **Установка** выше — новый синтаксис
+  `npm:` для `opencode.json`.
+
+⚠️ **Ломающее изменение.** Обновите регистрации плагинов. См.
+[`CHANGELOG.md`](./CHANGELOG.md) — секция v0.15.0 с полной таблицей
+переименований. Запустите `sffmc init` после обновления для чистой миграции.
 
 <details>
 <summary>Хотите отдельные под-фичи вместо этого? (после `sffmc init --all`)</summary>
 
-Все 10 пакетов под-фич по-прежнему работают автономно для обратной совместимости:
+В v0.15.0 отдельные под-фичи стали подпапками композитов. Если вы
+использовали `sffmc init --all` с `--only=<sub-feature>`, эти пути
+больше не доступны напрямую — переключитесь на композитные пакеты:
 
-| Под-фича | Автономный путь |
+| Старая под-фича (v0.14.x) | Теперь подпапка |
 |---|---|
-| watchdog | `file:///path/to/SFFMC/packages/watchdog/src/index.ts` |
-| rules | `file:///path/to/SFFMC/packages/rules/src/index.ts` |
-| auto-max | `file:///path/to/SFFMC/packages/auto-max/src/index.ts` |
-| eos-stripper | `file:///path/to/SFFMC/packages/eos-stripper/src/index.ts` |
-| log-whitelist | `file:///path/to/SFFMC/packages/log-whitelist/src/index.ts` |
-| extra | `file:///path/to/SFFMC/packages/extra/src/index.ts` |
-| max-mode | `file:///path/to/SFFMC/packages/max-mode/src/index.ts` |
-| workflow | `file:///path/to/SFFMC/packages/workflow/src/index.ts` |
-| compose | `file:///path/to/SFFMC/packages/compose/src/index.ts` |
-| health | `file:///path/to/SFFMC/packages/health/src/index.ts` |
+| watchdog | `@sffmc/safety/src/watchdog` |
+| rules | `@sffmc/safety/src/rules` |
+| auto-max | `@sffmc/safety/src/auto-max` |
+| eos-stripper | `@sffmc/safety/src/eos-stripper` |
+| log-whitelist | `@sffmc/safety/src/log-whitelist` |
+| extra (checkpoint/judge/dream) | `@sffmc/memory/src/extra` |
+| workflow | `@sffmc/runtime/src` |
+| max-mode | `@sffmc/cognition/src/max-mode` |
+| compose | `@sffmc/cognition/src/compose` |
+| health | `@sffmc/cognition/src/health` |
 
 </details>
 
@@ -133,79 +211,64 @@ cd ~/.sffmc/plugins/sffmc
 
 ## Архитектура
 
-Каждый композитный пакет представляет собой тонкую обёртку, которая импортирует
-свои под-фичи и передаёт их в `mergeHooks()` из `@sffmc/shared`. Слияние
-классифицирует хуки на TRANSFORM, GATE, SIDE_EFFECT и tool — так хуки
-мутации вывода выстраиваются в цепочку, шлюзы разрешений агрегируются, а
-побочные эффекты выполняются независимо без конфликтов. Результат — единый
-дефолтный экспорт, который ведёт себя точно так же, как загрузка всех
-под-фич по отдельности, но с гарантированным порядком хуков.
+Каждый композитный пакет (`@sffmc/safety`, `@sffmc/memory`) представляет собой
+тонкую обёртку, которая импортирует свои под-фичи и передаёт их в `mergeHooks()`
+из `@sffmc/utilities`. Слияние классифицирует хуки на TRANSFORM, GATE,
+SIDE_EFFECT и tool — хуки мутации вывода выстраиваются в цепочку, шлюзы
+разрешений агрегируются, а побочные эффекты выполняются независимо без
+конфликтов. Результат — единый дефолтный экспорт, который ведёт себя точно
+так же, как загрузка всех под-фич по отдельности, но с гарантированным
+порядком хуков.
 
 ```
-opencode.json (3 file:// записи)
-          |
-     +----+----+
-     |         |
- [safety]  [memory]  [agentic]        <- композитные пакеты (тонкие обёртки)
-     |         |         |
-     |    +----+----+    |
-     |    |    |    |    |
-     v    v    v    v    v
-  +--+--+ +--+--+ +--+--+ +--+--+ +--+--+
-  |watch| |rules| |auto| |eos- | |log- |
-  |dog  | |     | |max | |strip| |white|
-  +-----+ +-----+ +----+ +-----+ +-----+
-    safety под-фичи (5)
+opencode.json (4 file:// или npm: записи)
+                    |
+            +-------+-------+
+            |               |
+       [safety]          [memory]              <- композитные пакеты
+            |               |
+   +--------+----+    +------+-----+
+   |  rules,    |    |  extra/     |
+   |  watchdog, |    |  (checkpt,  |
+   |  auto-max, |    |  judge,     |
+   |  eos-strip,|    |  dream)     |
+   |  log-wl    |    +-------------+
+   +-----------+
+   5 governance-фич
 
-  +--+--+ +--+--+ +--+--+ +--+--+
-  |mem- | |extra| |max- | |work-|
-  |core | |     | |mode | |flow |
-  +-----+ +-----+ +-----+ +-----+
-    memory под-фичи (2)       agentic под-фичи (4)
+       [runtime]   [cognition]                <- автономные пакеты
 
-                   +--+--+ +--+--+
-                   |comp-| |heal-|
-                   |ose  | |th   |
-                   +-----+ +-----+
-
-  +---------------------------------------------------+
-  |                @sffmc/shared (SDK)                 |
+  +-----------------------------------------------------------+
+  |             @sffmc/utilities (библиотека SDK)             |
   |  loadConfig  |  PluginContext  |  mergeHooks  |  EventBus  |
-  +---------------------------------------------------+
+  +-----------------------------------------------------------+
 ```
 
 Под-фичи композитны: каждая регистрирует свои хуки и пишет только в своё
-пространство имён. Общий SDK предоставляет типобезопасную загрузку конфига из
-`~/.config/SFFMC/<name>.yaml`, минимальный тип контекста плагина, типизированную
-шину событий и композер `mergeHooks`.
+пространство имён. Общий SDK (`@sffmc/utilities`) предоставляет типобезопасную
+загрузку конфига из `~/.config/SFFMC/<name>.yaml`, минимальный тип контекста
+плагина, типизированную шину событий и композер `mergeHooks`. Это
+**библиотека** (consumed via `workspace:*`), не точка входа плагина.
 
 ## Пакеты
 
-| Пакет | Композит | Роль | Статус |
+| Пакет | Тип | Роль | Статус |
 |---|---|---|---|
-| [`@sffmc/safety`](./packages/safety/README.md) | safety | Восстановление после сбоев инструментов + шлюзы деструктивных операций + гигиена логов | stable |
-| [`@sffmc/memory`](./packages/memory/README.md) | memory | Кросс-сессионный FTS5-recall + opt-in checkpoint/judge/dream | stable |
-| [`@sffmc/agentic`](./packages/agentic/README.md) | agentic | Параллельное рассуждение + изолированный workflow + compose-скиллы + health | stable |
-| [`@sffmc/watchdog`](./packages/watchdog/README.md) | safety | Скользящий счётчик на 3 сбоя + автовосстановление | stable |
-| [`@sffmc/rules`](./packages/rules/README.md) | safety | YAML-шлюз allow/deny для деструктивных команд | stable |
-| [`@sffmc/auto-max`](./packages/auto-max/README.md) | safety | Авто-эскалация в max-mode, управляемая watchdog | stable |
-| [`@sffmc/eos-stripper`](./packages/eos-stripper/README.md) | safety | Удаление EOS-токенов из вывода локальной модели | stable |
-| [`@sffmc/log-whitelist`](./packages/log-whitelist/README.md) | safety | Защита permission-лога от спама при долгих запусках демона | stable |
-| [`@sffmc/extra`](./packages/extra/README.md) | memory | Opt-in бандл: checkpoint, judge, dream | stable |
-| [`@sffmc/max-mode`](./packages/max-mode/README.md) | agentic | Параллельные черновики + выбор победителя | stable |
-| [`@sffmc/workflow`](./packages/workflow/README.md) | agentic | Изолированный JS-оркестратор (quickjs-emscripten WASM) | stable |
-| [`@sffmc/compose`](./packages/compose/README.md) | agentic | 18 markdown-скиллов для типовых workflow (планирование, TDD, верификация, делегирование задач и т.д.) | stable |
-| [`@sffmc/health`](./packages/health/README.md) | agentic | Диагностика плагинов с выводом в JSON | stable |
-| [`@sffmc/shared`](./shared/README.md) | — | SDK: loadConfig, PluginContext, EventBus, mergeHooks | stable |
+| [`@sffmc/safety`](./packages/safety/README.md)    | композит     | 5 governance-фич (rules, watchdog, auto-max, eos-stripper, log-whitelist) | stable |
+| [`@sffmc/memory`](./packages/memory/README.md)    | композит     | Кросс-сессионный FTS5-recall + opt-in checkpoint/judge/dream | stable |
+| [`@sffmc/runtime`](./packages/runtime/README.md)  | автономный   | Песочница workflow-оркестратора на JavaScript (quickjs-emscripten WASM) | stable |
+| [`@sffmc/cognition`](./packages/cognition/README.md) | автономный | Параллельное рассуждение (max-mode) + 18 compose-скиллов + health | stable |
+| [`@sffmc/utilities`](./packages/utilities/README.md) | **библиотека** | SDK: loadConfig, PluginContext, EventBus, mergeHooks. **Не точка входа плагина.** | stable |
 
 ## Пример хука
 
 Минимальный плагин OpenCode, который удаляет EOS-токены из вывода локальной
-модели. Импортируйте `@sffmc/shared`, объявите интерфейс конфига с дефолтами,
-зарегистрируйтесь на хук `experimental.text.complete` и измените вывод.
+модели. Импортируйте `@sffmc/utilities`, объявите интерфейс конфига с
+дефолтами, зарегистрируйтесь на хук `experimental.text.complete` и
+измените вывод.
 
 ```ts
-import { loadConfig, type PluginContext } from "@sffmc/shared"
+import { loadConfig, type PluginContext } from "@sffmc/utilities"
 
 interface EosConfig { markers: string[] }
 const defaults: EosConfig = { markers: ["<|im_end|>", "<|endoftext|>"] }
@@ -228,34 +291,37 @@ export default {
 
 ```jsonc
 {
-  "plugin": [
-    "file:///path/to/SFFMC/packages/safety/src/index.ts",
-    "file:///path/to/SFFMC/packages/memory/src/index.ts",
-    "file:///path/to/SFFMC/packages/agentic/src/index.ts"
+  "plugins": [
+    "npm:@sffmc/safety@^0.15.0",
+    "npm:@sffmc/memory@^0.15.0",
+    "npm:@sffmc/runtime@^0.15.0",
+    "npm:@sffmc/cognition@^0.15.0"
   ]
 }
 ```
 
 Перезапустите OpenCode. Плагин загружается, читает свой YAML-конфиг (откатываясь
 к дефолтам, если файл отсутствует) и удаляет EOS-маркеры из каждого ответа
-модели. Компонуйте с другими плагинами, добавляя дополнительные записи `file://`
-— каждая из них пишет в свой слот.
+модели. Компонуйте с другими плагинами, добавляя дополнительные записи —
+каждая из них пишет в свой слот.
 
 ## Конфигурация
 
 Все плагины читают YAML-конфиг из `~/.config/SFFMC/`. Создайте нужные файлы;
 отсутствующие файлы откатываются к безопасным дефолтам.
 
-**`~/.config/SFFMC/watchdog.yaml`** — пороги сбоев и поведение восстановления:
+**`~/.config/SFFMC/safety.yaml`** — пороги сбоев и поведение восстановления
+(под-ключ `watchdog`):
 
 ```yaml
-max_failures: 3
-recovery_prompt: "The last 3 tool calls failed. Pause and diagnose the root cause before continuing."
-auto_promote_model: true
-promote_model: null  # inherits session primary model
+watchdog:
+  max_failures: 3
+  recovery_prompt: "The last 3 tool calls failed. Pause and diagnose the root cause before continuing."
+  auto_promote_model: true
 ```
 
-**`~/.config/SFFMC/extra.yaml`** — opt-in продвинутые фичи памяти (все выключены по умолчанию):
+**`~/.config/SFFMC/memory.yaml`** — opt-in продвинутые фичи памяти (все
+выключены по умолчанию, под-ключи `checkpoint` / `judge` / `dream`):
 
 ```yaml
 checkpoint:
@@ -277,37 +343,40 @@ dream:
 - **[Аудит порядка загрузки](./docs/load-order-audit.md)** — порядок регистрации хуков и обоснование
 - **[Справка по Workflow](./docs/dynamic-workflow.md)** — внутренности песочницы, бюджеты, модель ошибок
 - **[Примеры Workflow](./docs/workflow-examples.md)** — пять готовых к копированию workflow
-- **[Решение о реструктуризации v0.9.0](./CHANGELOG.md)** — см. запись v0.9.0,
-  чтобы узнать, почему паттерн композиции из 3 композитных пакетов заменил
-  установку по под-фичам
+- **[Таблица миграции v0.15.0](./CHANGELOG.md#v0150)** — обновление со старых
+  13 пакетов на 5 новых
 
 ## Contributing
 
 Pull requests приветствуются. Каждая под-фича — это автономный TypeScript-модуль
-в `packages/<name>/src/`. Композитные пакеты — это тонкие обёртки в
-`packages/<name>/src/index.ts`, которые компонуют под-фичи через `mergeHooks()`.
-Прочтите [CONTRIBUTING.md](./CONTRIBUTING.md) для полного workflow: именование
-веток, требования к тестам, стиль кода, чек-лист PR.
+в подпапке `src/<feature>/` одного из 5 пакетов. Композитные пакеты — это тонкие
+обёртки в `packages/<name>/src/index.ts`, которые компонуют свои под-фичи
+через `mergeHooks()`. Прочтите [CONTRIBUTING.md](./CONTRIBUTING.md) для полного
+workflow: именование веток, требования к тестам, стиль кода, чек-лист PR.
 
 ## Благодарности
 
 SFFMC портирует фичи из [XiaomiMiMo/MiMo-Code](https://github.com/XiaomiMiMo/MiMo-Code).
 Все портированные фичи сохраняют оригинальную атрибуцию апстрима в заголовках
 файлов исходников. Команда SFFMC внесла слой композиции композитных пакетов
-(`mergeHooks`), SDK `@sffmc/shared` и четыре оригинальные под-фичи:
-auto-max, eos-stripper, log-whitelist и health.
+(`mergeHooks`), библиотеку SDK `@sffmc/utilities` и четыре оригинальные
+под-фичи: auto-max, eos-stripper, log-whitelist и health.
 
-| Возможность | Пакет SFFMC | Описание |
-|---|---|---|
-| Watchdog | `@sffmc/watchdog` | Скользящий счётчик на 3 сбоя + вердикт восстановления |
-| Rules | `@sffmc/rules` | YAML-шлюз allow/deny для деструктивных команд |
-| Memory | `@sffmc/memory` | FTS5 SQLite + восстановление контекста в начале сессии |
-| Checkpoint | `@sffmc/extra` | Возобновление с 200K + миграция схемы |
-| Judge | `@sffmc/extra` | Вердикт по множеству критериев с потоковым режимом |
-| Max Mode | `@sffmc/max-mode` | Параллельные черновики + выбор победителя |
-| Dream | `@sffmc/extra` | Именование кластеров + очистка памяти |
-| Compose | `@sffmc/compose` | 18 markdown-скиллов |
-| Dynamic Workflow | `@sffmc/workflow` | Изолированный JS-оркестратор |
+| Возможность | Где в v0.15.0 |
+|---|---|
+| Watchdog | `@sffmc/safety/src/watchdog` |
+| Rules | `@sffmc/safety/src/rules` |
+| Auto-Max | `@sffmc/safety/src/auto-max` |
+| EOS-Stripper | `@sffmc/safety/src/eos-stripper` |
+| Log-Whitelist | `@sffmc/safety/src/log-whitelist` |
+| Memory (FTS5) | `@sffmc/memory/src` |
+| Checkpoint | `@sffmc/memory/src/extra/checkpoint` |
+| Judge | `@sffmc/memory/src/extra/judge` |
+| Dream | `@sffmc/memory/src/extra/dream` |
+| Dynamic Workflow | `@sffmc/runtime` |
+| Max-Mode | `@sffmc/cognition/src/max-mode` |
+| Compose (18 скиллов) | `@sffmc/cognition/src/compose/skills` |
+| Health | `@sffmc/cognition/src/health` |
 
 ## Лицензия
 

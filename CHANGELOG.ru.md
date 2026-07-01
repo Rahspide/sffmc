@@ -1,6 +1,105 @@
 # SFFMC Журнал изменений (Russian)
 
-## v0.14.8 (2026-06-28)
+## v0.15.0 (2026-07-01)
+
+> ⚠️ **Ломающее изменение.** 13 пакетов → 5. v0.14.x → v0.15.0 требует обновления
+> регистраций плагинов и путей импорта.
+
+### Изменено (консолидация 13 → 5 пакетов)
+
+- **Консолидация пакетов** — 14 workspace-членов (13 пакетов + `shared/`) сведены в 5 пакетов:
+  - `@sffmc/runtime` (был `@sffmc/workflow`)
+  - `@sffmc/cognition` (был `@sffmc/max-mode` + `@sffmc/compose` + `@sffmc/health`; заменяет расформированный `@sffmc/agentic`)
+  - `@sffmc/safety` (5 governance-автономных теперь внутренние подпапки: rules, watchdog, auto-max, eos-stripper, log-whitelist)
+  - `@sffmc/memory` (включает `extra/` как подпапку — checkpoint / judge / dream)
+  - `@sffmc/utilities` (был `shared/`)
+  - `@sffmc/safety` и `@sffmc/memory` остаются композитами; их `composes[]` теперь пуст (члены — внутренние подпапки)
+- **Композит `@sffmc/agentic` расформирован** — пользователи должны явно зарегистрировать `@sffmc/runtime` и `@sffmc/cognition` в массиве `plugins[]` файла `opencode.json`
+- **Импорты обновлены по всему коду** — `@sffmc/{workflow,max-mode,compose,health,rules,watchdog,auto-max,eos-stripper,log-whitelist,extra,agentic,shared}` → `@sffmc/{runtime,cognition,safety,memory,utilities}` соответственно
+- **Первый публичный релиз на npm** — все 4 устанавливаемых пакета (safety, memory, runtime, cognition) теперь публично доступны в реестре npm. `@sffmc/utilities` публикуется как библиотека.
+
+### Добавлено (Phase 1 + Phase 2 work — 47 пунктов аудита закрыто)
+
+- **`@sffmc/utilities`**: интерфейс `FsOps` + `defaultFsOps` + `createMockFsOps()` для тестируемого файлового I/O
+- **`@sffmc/utilities`**: `unixNow()` + `__setClock()` + `__resetClock()` для контроля времени в тестах
+- **`@sffmc/utilities`**: `isSafeRunID()` + `safeRunID()` + `RUN_ID_REGEX` для валидации идентификаторов
+- **God-object extract**: класс `WorkflowRuntime` (1296 LOC) разделён на `CounterManager`, `WorkflowEventEmitter`, `OutcomeStore`, `WorkflowActivation`, `FlushManager` — каждый со своей ответственностью
+- **God-object extract**: `packages/extra/src/checkpoint.ts` (1296 LOC) разделён на 13 сфокусированных модулей в `packages/extra/src/checkpoint/`
+- **Split длинных функций**: `runDream` (259→117 LOC), `runSandboxed` (175→99 LOC), `createJudgeTool` (158→123 LOC), `createDreamTool` (157→57 LOC), плюс 19 других оркестраторов через извлечение приватных помощников
+- **Примитивы тестируемости** подключены в 4 пакетах: `mockFsOps`, time-travel через `__setClock`, экспорт `safeRunID`, инъекция `FsOps` в `WorkflowPersistence`
+
+### Исправлено (8 высокоприоритетных находок аудита)
+
+- **Имена**: 4 высокоэффективных переименования (`o` → `agentOpts` × 2; `sanitizeResult` → `sanitizeValue`; `n` → `candidateCount`; `result` → `scratch`)
+- **Hot-path фиксы**: defense-in-depth clamp `MAX_OVERFLOW` в `loadAndCacheMemories`; очистка cron-таймера фабрики в `createDreamTool` (предыдущая фабрика оставляла процесс висеть)
+- **Module-level state** перенесён в instance-поля: `fsyncPendingPaths` + `fsyncTimer` → поля экземпляра `WorkflowPersistence`; `lockMap` → новый класс `Concurrency`
+- **Утечка памяти в `this.runs`** — `WorkflowRuntime.close()` теперь очищает `this.runs`; при завершении прогона (complete/fail/cancel) соответствующая запись удаляется
+- **Ops**: регенерирован `bun.lock` (workspace-версии 0.14.3 → 0.15.0); удалён висячий симлинк `better-sqlite3`
+
+### Миграция
+
+| Старый npm | Новый npm | Действие |
+|---|---|---|
+| `@sffmc/workflow` | `@sffmc/runtime` | rename |
+| `@sffmc/max-mode` | `@sffmc/cognition` | rename |
+| `@sffmc/compose` | `@sffmc/cognition` | rename (композит включает) |
+| `@sffmc/health` | `@sffmc/cognition` | rename (композит включает) |
+| `@sffmc/rules` | `@sffmc/safety` | rename (композит включает) |
+| `@sffmc/watchdog` | `@sffmc/safety` | rename (композит включает) |
+| `@sffmc/auto-max` | `@sffmc/safety` | rename (композит включает) |
+| `@sffmc/eos-stripper` | `@sffmc/safety` | rename (композит включает) |
+| `@sffmc/log-whitelist` | `@sffmc/safety` | rename (композит включает) |
+| `@sffmc/extra` | `@sffmc/memory` | rename (композит включает) |
+| `@sffmc/agentic` | *(удалён)* | заменить на **две записи**: `@sffmc/runtime` и `@sffmc/cognition` в `opencode.json plugins[]` |
+| `@sffmc/safety` | `@sffmc/safety` | без изменений |
+| `@sffmc/memory` | `@sffmc/memory` | без изменений |
+| `@sffmc/shared` | `@sffmc/utilities` | rename (**библиотека**, не плагин) |
+
+> **Замечание по `@sffmc/utilities`:** это не точка входа плагина. Потребители,
+> использующие SDK как библиотеку, должны обновить свои импорты; **не** добавляйте
+> `"@sffmc/utilities": {}` в массив `plugins[]`.
+
+### Установка (v0.15.0)
+
+```bash
+# 1. установите CLI глобально
+npm install -g @sffmc/safety @sffmc/memory @sffmc/runtime @sffmc/cognition
+
+# 2. зарегистрируйте в opencode.json
+sffmc init
+```
+
+Или вручную в `~/.config/opencode/opencode.json`:
+
+```jsonc
+{
+  "plugins": [
+    "npm:@sffmc/safety@^0.15.0",
+    "npm:@sffmc/memory@^0.15.0",
+    "npm:@sffmc/runtime@^0.15.0",
+    "npm:@sffmc/cognition@^0.15.0"
+  ]
+}
+```
+
+### Статистика
+
+- 88 коммитов с v0.14.9
+- 296 файлов изменено (+11,510 / −9,259)
+- 1046 тестов (1045 pass / 1 skip / 0 fail) в 69 файлах
+- `bun audit`: 0 известных уязвимостей в графе зависимостей
+
+### Кому следует обновиться срочно
+
+- Пользователям v0.14.x с настроенными `opencode.json plugins[]` — ссылки на
+  старые имена пакетов перестанут разрешаться из npm-реестра (для v0.14.x они
+  существуют только в зеркале реестра SFFMC; в публичном npm их нет).
+- Пользователям `sffmc init --only workflow,compose,...` — старые `--only`
+  флаги приведут к ошибкам; используйте новые имена (`runtime`, `cognition`, etc.).
+
+---
+
+## v0.14.9 (2026-06-28)
 
 ### Изменено
 
