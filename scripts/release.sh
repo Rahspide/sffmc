@@ -144,18 +144,20 @@ check_bun() {
   fi
 }
 
-# -- plan --------------------------------------------------------------
 plan_publishes() {
   echo ""
   echo "Publish plan:"
-  echo "  1. packages/utilities/ (@sffmc/utilities, depends-first)"
-  local i=2
+  local i=1
   for p in "$REPO_ROOT"/packages/*/; do
     local pkg_name
     pkg_name=$(basename "$p")
     local pkg_full
     pkg_full=$(jq -r .name "$p/package.json" 2>/dev/null || echo "?")
-    echo "  $i. packages/${pkg_name}/ (${pkg_full})"
+    if [[ "$pkg_name" == "utilities" ]]; then
+      echo "  $i. packages/${pkg_name}/ (${pkg_full}, depends-first)"
+    else
+      echo "  $i. packages/${pkg_name}/ (${pkg_full})"
+    fi
     ((i++))
   done
   echo ""
