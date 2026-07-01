@@ -15,6 +15,7 @@ ONLY=""      # if set, only publish this package (e.g. "utilities" or "safety")
 VERBOSE=false
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+VERSION=$(jq -r .version "$REPO_ROOT/package.json")
 
 # -- help --------------------------------------------------------------
 show_help() {
@@ -37,7 +38,7 @@ Precondition checks (fail-fast before any publish):
   2. Working tree clean (git status --porcelain)
   3. npm login (npm whoami)
   4. npm org sffmc exists (npm org ls sffmc)
-  5. git tag v0.9.0 exists (warns if missing)
+  5. git tag v${VERSION} exists (warns if missing)
 
 Exit codes:
   0  success
@@ -128,11 +129,11 @@ check_npm_org() {
 }
 
 check_tag() {
-  info "Checking git tag v0.9.0 exists..."
-  if git -C "$REPO_ROOT" rev-parse "v0.9.0" >/dev/null 2>&1; then
-    echo -e "  ${GREEN}tag v0.9.0 exists${NC}"
+  info "Checking git tag ${VERSION} exists..."
+  if git -C "$REPO_ROOT" rev-parse "v${VERSION}" >/dev/null 2>&1; then
+    echo -e "  ${GREEN}tag v${VERSION} exists${NC}"
   else
-    warn "git tag v0.9.0 not found. Publishing without tag gate."
+    warn "git tag v${VERSION} not found. Publishing without tag gate."
   fi
 }
 
@@ -143,18 +144,20 @@ check_bun() {
   fi
 }
 
-# -- plan --------------------------------------------------------------
 plan_publishes() {
   echo ""
   echo "Publish plan:"
-  echo "  1. packages/utilities/ (@sffmc/utilities, depends-first)"
-  local i=2
+  local i=1
   for p in "$REPO_ROOT"/packages/*/; do
     local pkg_name
     pkg_name=$(basename "$p")
     local pkg_full
     pkg_full=$(jq -r .name "$p/package.json" 2>/dev/null || echo "?")
-    echo "  $i. packages/${pkg_name}/ (${pkg_full})"
+    if [[ "$pkg_name" == "utilities" ]]; then
+      echo "  $i. packages/${pkg_name}/ (${pkg_full}, depends-first)"
+    else
+      echo "  $i. packages/${pkg_name}/ (${pkg_full})"
+    fi
     ((i++))
   done
   echo ""
@@ -187,6 +190,15 @@ run_publish() {
     info "PUBLISH: ${pkg_name}@${pkg_version} (in ${pkg_dir#$REPO_ROOT/})"
     if (cd "$pkg_dir" && bun publish --access public --tolerate-republish); then
       echo -e "  ${GREEN}published OK${NC}"
+      # Force-dist-tag refresh: npm registry sometimes lags the package doc
+      # index after publish (tarball is 200 but registry.npmjs.org/<pkg>
+      # returns "Not Found" until the next sync). Re-setting the existing
+      # dist-tag forces re-index. Cheap, idempotent, harmless.
+      if command -v npm &>/dev/null; then
+        if npm dist-tag add "${pkg_name}@${pkg_version}" "${pkg_version}" &>/dev/null; then
+          echo "  dist-tag refreshed"
+        fi
+      fi
     else
       error "publish FAILED for ${pkg_name}"
       return 1
@@ -233,10 +245,13 @@ main() {
     fi
   fi
 
-  # -- publish: packages alphabetically --
+  # -- publish: packages alphabetically (utilities already published first) --
   for p in "$REPO_ROOT"/packages/*/; do
     local pkg_base
     pkg_base=$(basename "$p")
+    if [[ "$pkg_base" == "utilities" ]]; then
+      continue  # already published above as depends-first
+    fi
     if [[ -z "$ONLY" || "$ONLY" == "$pkg_base" ]]; then
       if [[ -f "$p/package.json" ]]; then
         run_publish "$p" || ((errors++))

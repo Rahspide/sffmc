@@ -48,6 +48,30 @@ composites + standalones — they compose cleanly. The previously-dissolved `@sf
 
 ## Install
 
+> **v0.15.0** — first version installable from **npm**. Pick one of:
+
+### Option A — install via npm (recommended)
+
+```bash
+# After running sffmc init, each package is installed via npm at install time.
+# Or pin a specific version in your opencode.json:
+{
+  "plugins": {
+    "@sffmc/safety":    "npm:@sffmc/safety@^0.15.0",
+    "@sffmc/memory":    "npm:@sffmc/memory@^0.15.0",
+    "@sffmc/runtime":   "npm:@sffmc/runtime@^0.15.0",
+    "@sffmc/cognition": "npm:@sffmc/cognition@^0.15.0"
+  }
+}
+```
+
+```bash
+# Or install the registry packages globally for inspection:
+npm install -g @sffmc/safety @sffmc/memory @sffmc/runtime @sffmc/cognition
+```
+
+### Option B — one-liner installer (legacy `file://` mode)
+
 ```bash
 # macOS / Linux
 curl -fsSL https://raw.githubusercontent.com/Rahspide/sffmc/main/install.sh | sh
@@ -76,34 +100,28 @@ cd ~/.sffmc/plugins/sffmc
 | `sffmc init --all` | Add all 5 packages |
 | `sffmc init --only workflow,compose` | Pick specific packages |
 | `sffmc update` | `git pull --ff-only` + re-sync config |
-| `sffmc doctor` | Run 13-check diagnostic |
+| `sffmc doctor` | Run 9-check diagnostic |
 | `sffmc uninstall` | Remove all SFFMC entries from config |
 
 See [`docs/install.md`](./docs/install.md) for the full guide (pinned versions, PATH setup, troubleshooting).
 
-## What's new in v0.14.8
+## What's new in v0.15.0
 
-- **Documentation split into English + Russian.** `README.md` is now English-only; a language picker banner at the top links to `README.ru.md`. `CHANGELOG.md` is now English-only; Russian translations live in `CHANGELOG.ru.md`. Both new files contain the same content as the original bilingual inline format, just split for cleaner per-language navigation. **v0.15.0 BREAKING**: code consolidation; 13 packages → 5. See CHANGELOG.md migration table for `@sffmc/<old>` → `@sffmc/<new>` mapping.
+v0.15.0 ships two things at once:
 
-<details>
-<summary>Want individual sub-features instead? (after `sffmc init --all`)</summary>
+- **5-package layout.** The previous 13-package workspace collapses to **2 composites + 3 standalones**:
 
-All 10 sub-feature packages still work standalone for backward compatibility:
+  | | |
+  |---|---|
+  | `@sffmc/safety` | composite — 5 governance features (rules, watchdog, auto-max, eos-stripper, log-whitelist) |
+  | `@sffmc/memory` | composite — FTS5 recall + checkpoint / judge / dream opt-ins |
+  | `@sffmc/runtime` | standalone — sandboxed JS workflow orchestrator (quickjs-emscripten) |
+  | `@sffmc/cognition` | standalone — parallel reasoning (max-mode) + 18 compose skills + health diagnostics |
+  | `@sffmc/utilities` | library — shared SDK (consumed via `workspace:*`, **not** a plugin entry) |
 
-| Sub-feature | Standalone path |
-|---|---|
-| watchdog | `file:///path/to/SFFMC/packages/watchdog/src/index.ts` |
-| rules | `file:///path/to/SFFMC/packages/rules/src/index.ts` |
-| auto-max | `file:///path/to/SFFMC/packages/auto-max/src/index.ts` |
-| eos-stripper | `file:///path/to/SFFMC/packages/eos-stripper/src/index.ts` |
-| log-whitelist | `file:///path/to/SFFMC/packages/log-whitelist/src/index.ts` |
-| extra | `file:///path/to/SFFMC/packages/extra/src/index.ts` |
-| max-mode | `file:///path/to/SFFMC/packages/max-mode/src/index.ts` |
-| workflow | `file:///path/to/SFFMC/packages/workflow/src/index.ts` |
-| compose | `file:///path/to/SFFMC/packages/compose/src/index.ts` |
-| health | `file:///path/to/SFFMC/packages/health/src/index.ts` |
+- **First public npm release.** All 4 installable packages are now on the public registry. See **Install** above for the new `npm:` pin syntax in `opencode.json`.
 
-</details>
+⚠️ **Breaking change.** Update your plugin registrations. See [`CHANGELOG.md`](./CHANGELOG.md) v0.15.0 entry for the full 14-row migration map. Run `sffmc init` after upgrading to migrate cleanly.
 
 ## Contents
 
@@ -129,7 +147,7 @@ collision. The result is a single default export that behaves exactly like
 loading all sub-features individually, but with guaranteed hook ordering.
 
 ```
-opencode.json (3 file:// entries)
+opencode.json (4 file:// entries)
          |
     +----+----+
     |         |
