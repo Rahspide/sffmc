@@ -9,7 +9,7 @@ Memory composes 2 sub-features via `mergeHooks()`:
 | Sub-feature | Description |
 |---|---|
 | `memory-core` | FTS5 SQLite index + chokidar watcher + context-recall injection (internal, in `packages/memory/src/plugin.ts`) |
-| [`@sffmc/utilities`](../extra/README.md) | 3 opt-in named tools: `extra_checkpoint`, `extra_judge`, `extra_dream` (disabled by default; enable per-feature in `~/.config/SFFMC/extra.yaml`) |
+| [`@sffmc/utilities`](../utilities/README.md) | 3 opt-in named tools: `extra_checkpoint`, `extra_judge`, `extra_dream` (disabled by default; enable per-feature in `~/.config/SFFMC/extra.yaml`) |
 
 ## Opt-in configuration
 

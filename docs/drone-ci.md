@@ -132,8 +132,8 @@ environment variables named after the secret (e.g. `npm_token` →
 The end-to-end release flow is:
 
 1. **Bump versions** in each `packages/*/package.json` and
-   `shared/package.json` (or use `bun run version:list` to see the
-   current state). Keep all 14 packages on the same version.
+   `package.json (root)` (or use `bun run version:list` to see the
+   current state). Keep all 5 packages on the same version.
 
 2. **Commit + push** the version bumps to `main`. Wait for CI to pass
    (the five feedback-loop steps).
@@ -147,12 +147,12 @@ The end-to-end release flow is:
 
 4. **Watch the build** in the Drone UI. The pipeline will:
    - Re-run the four tag-gates on the tag commit
-   - Run `publish` (publishes all 14 packages to npm in dependency
-     order — `shared/` first, then `packages/*` alphabetically)
+   - Run `publish` (publishes all 5 packages to npm in dependency
+     order — "shared/" first (dependencies), then `packages/*` alphabetically)
    - Run `notify` (logs to drone; posts to Slack/Discord if
      `slack_webhook` is set)
 
-5. **If publish fails partway** (e.g. 8 of 14 packages published, then
+5. **If publish fails partway** (e.g. 8 of 5 packages published, then
    network error), retry with:
 
    ```bash
@@ -209,7 +209,7 @@ publish fails:
 | Tag-gate failed (test/typecheck/audit/health) | Fix the underlying issue, push a new commit, delete the old tag, re-tag |
 | Publish failed (network / npm 5xx) | `drone build promote Rahspide/sffmc <build> <target>` |
 | `npm_token` is invalid | Update the secret (`drone secret update`), then promote the build |
-| All 14 packages published but step exited non-zero | Inspect the build log; usually a post-publish hook failed — promote to retry |
+| All 5 packages published but step exited non-zero | Inspect the build log; usually a post-publish hook failed — promote to retry |
 
 ## HMAC signature
 

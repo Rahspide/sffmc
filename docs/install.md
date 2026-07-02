@@ -32,7 +32,7 @@ cd ~/.sffmc/plugins/sffmc
    (or `$SFFMC_INSTALL_DIR` if the env var is set).
 2. Runs `sffmc init`, which detects your `opencode.json`, backs it up, and
    adds 3 `file://` entries for the composite packages — `safety`, `memory`,
-   and `agentic`.
+   and adding 4 entries for `safety`, `memory`, `runtime`, `cognition`.
 3. Restart OpenCode. Done.
 
 ## `sffmc` CLI reference
@@ -46,13 +46,13 @@ export PATH="$HOME/.sffmc/plugins/sffmc/bin:$PATH"
 
 | Command | What it does |
 |---|---|
-| `sffmc init` | Add 3 composite plugin paths (safety/memory/agentic) to opencode.json |
-| `sffmc init --all` | Add all 13 plugin paths |
+| `sffmc init` | Add 3 composite plugin paths (safety/memory/runtime/cognition) to opencode.json |
+| `sffmc init --all` | Add all 5 plugin paths (utilities is a library, installed separately via npm if needed) |
 | `sffmc init --only p1,p2,...` | Add specific packages (comma-separated names) |
 | `sffmc init --yes` | Skip the confirmation prompt |
 | `sffmc update` | `git pull --ff-only` + re-run init to sync config |
 | `sffmc uninstall` | Remove all SFFMC `file://` entries from opencode.json |
-| `sffmc doctor` | Run 13-check diagnostic (`bun run scripts/run-health.ts`) |
+| `sffmc doctor` | Run 9-check diagnostic (`bun run scripts/run-health.ts`) |
 | `sffmc path` | Print the install directory |
 | `sffmc help` | Show usage |
 
@@ -65,13 +65,13 @@ By default the one-liner installs the `main` branch. Pin a version with
 the `SFFMC_VERSION` env var:
 
 ```bash
-SFFMC_VERSION=v0.11.1 curl -fsSL https://raw.githubusercontent.com/Rahspide/sffmc/main/install.sh | sh
+SFFMC_VERSION=v0.15.0 curl -fsSL https://raw.githubusercontent.com/Rahspide/sffmc/main/install.sh | sh
 ```
 
 Or override the install directory:
 
 ```bash
-SFFMC_INSTALL_DIR=/opt/sffmc SFFMC_VERSION=v0.11.1 curl -fsSL ... | sh
+SFFMC_INSTALL_DIR=/opt/sffmc SFFMC_VERSION=v0.15.0 curl -fsSL ... | sh
 ```
 
 ## What `sffmc init` adds to opencode.json
@@ -83,7 +83,8 @@ The default (minimal) install adds three lines:
   "plugin": [
     "file:///home/you/.sffmc/plugins/sffmc/packages/safety/src/index.ts",
     "file:///home/you/.sffmc/plugins/sffmc/packages/memory/src/index.ts",
-    "file:///home/you/.sffmc/plugins/sffmc/packages/agentic/src/index.ts"
+    "file:///home/you/.sffmc/plugins/sffmc/packages/runtime/src/index.ts",
+    "file:///home/you/.sffmc/plugins/sffmc/packages/cognition/src/index.ts"
   ]
 }
 ```

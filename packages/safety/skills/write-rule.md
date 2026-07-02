@@ -47,7 +47,7 @@ Rules plugin uses 1s `setInterval` polling. After writing, the new rule is activ
 
 ## Verification
 
-After writing, run `bun test packages/rules/` to confirm YAML parses. Then test the rule by attempting the blocked action.
+After writing, run `bun test packages/safety/src/rules/` to confirm YAML parses. Then test the rule by attempting the blocked action.
 
 ## Why This Skill Exists
 

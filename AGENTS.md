@@ -13,7 +13,7 @@ Before working on any task, read `codemap.md` to understand:
 - Directory responsibilities and design patterns
 - Data flow and integration points between modules
 
-For deep work on a specific folder, also read that folder's `codemap.md` (e.g. `packages/runtime/codemap.md` for the workflow engine).
+For deep work on a specific folder, also read that folder's `codemap.md` (e.g. `packages/runtime/codemap.md` for the runtime engine).
 
 ## Architecture: composite
 
@@ -103,4 +103,4 @@ If you have two OpenCode instances (development + production), you can restart t
 Read-only dependency source repositories are available under
 `.slim/clonedeps/repos/` for inspection. Do not edit these clones.
 
-- `.slim/clonedeps/repos/justjake__quickjs-emscripten/` — `justjake/quickjs-emscripten` at `df4efb9ef2cb25c417ecb57986da462d11b244ed` (v0.32.0); the QuickJS sandbox engine used by `packages/workflow/src/sandbox.ts`. Reach for this source when debugging handle leaks, deadline-interrupt semantics, or marshal-in/marshal-out edge cases in the workflow sandbox. Not needed for ordinary workflow development.
+- `.slim/clonedeps/repos/justjake__quickjs-emscripten/` — `justjake/quickjs-emscripten` at `df4efb9ef2cb25c417ecb57986da462d11b244ed` (v0.32.0); the QuickJS sandbox engine used by `packages/runtime/src/sandbox.ts`. Reach for this source when debugging handle leaks, deadline-interrupt semantics, or marshal-in/marshal-out edge cases in the workflow sandbox. Not needed for ordinary workflow development.

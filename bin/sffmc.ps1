@@ -32,20 +32,20 @@ Usage: sffmc <command> [options]
 Commands:
   init [--minimal|--all|--only <pkg,...>|--yes]
                               Add SFFMC plugin paths to opencode.json.
-                              --minimal (default): 3 composite packages
-                              --all:            all 13 packages
+                              --minimal (default): 2 composites + 2 standalones
+                              --all:            all 5 packages (utilities is a library, not a plugin entry)
                               --only p1,p2,...: specific packages
                               --yes:            skip confirmation prompt
   update                      git pull + re-init
   uninstall                   Remove all SFFMC entries from opencode.json
-  doctor                      Run 13-check diagnostic
+  doctor                      Run 9-check diagnostic
   path                        Print install directory
   help                        Show this help
 
 Examples:
-  sffmc init                  # Default: safety, memory, agentic
-  sffmc init --all            # All 13 packages
-  sffmc init --only workflow,compose,health  # Specific packages
+  sffmc init                  # Default: safety, memory, runtime, cognition
+  sffmc init --all            # All 5 packages
+  sffmc init --only runtime,cognition  # Specific packages
   sffmc update                # Pull latest + re-sync config
   sffmc doctor                # Full diagnostic
   sffmc uninstall             # Remove all entries
@@ -64,27 +64,15 @@ function Get-ConfigPath {
 
 # --- list of all plugin directories -----------------------------------
 $PLUGIN_DIRS = @(
+    "packages\runtime\src\index.ts",
+    "packages\cognition\src\index.ts",
     "packages\safety\src\index.ts",
-    "packages\memory\src\index.ts",
-    "packages\agentic\src\index.ts",
-    "packages\watchdog\src\index.ts",
-    "packages\rules\src\index.ts",
-    "packages\auto-max\src\index.ts",
-    "packages\eos-stripper\src\index.ts",
-    "packages\log-whitelist\src\index.ts",
-    "packages\extra\src\index.ts",
-    "packages\max-mode\src\index.ts",
-    "packages\workflow\src\index.ts",
-    "packages\compose\src\index.ts",
-    "packages\health\src\index.ts"
+    "packages\memory\src\index.ts"
 )
 
 $PKG_MAP = @{
-    "safety"        = 0;  "memory"        = 1;  "agentic"       = 2;
-    "watchdog"      = 3;  "rules"         = 4;  "auto-max"      = 5;
-    "eos-stripper"  = 6;  "log-whitelist" = 7;  "extra"         = 8;
-    "max-mode"      = 9;  "workflow"      = 10; "compose"       = 11;
-    "health"        = 12
+    "runtime"      = 0;  "cognition"    = 1;
+    "safety"       = 2;  "memory"       = 3
 }
 
 function Resolve-Plugins {
@@ -144,12 +132,12 @@ function Invoke-Init {
     $wanted = @()
     switch ($mode) {
         "minimal" {
-            $wanted = Resolve-Plugins "safety,memory,agentic"
-            Write-Info "Minimal install: adding 3 composite packages (safety, memory, agentic)"
+            $wanted = Resolve-Plugins "safety,memory,runtime,cognition"
+            Write-Info "Minimal install: adding 2 composites + 2 standalones (safety, memory, runtime, cognition)"
         }
         "all" {
-            $wanted = Resolve-Plugins "safety,memory,agentic,watchdog,rules,auto-max,eos-stripper,log-whitelist,extra,max-mode,workflow,compose,health"
-            Write-Info "Full install: adding all 13 packages"
+            $wanted = Resolve-Plugins "safety,memory,runtime,cognition"
+            Write-Info "Full install: adding all 5 packages (utilities is a library, installed separately via npm if needed)"
         }
         "only" {
             $wanted = Resolve-Plugins $only
@@ -299,7 +287,7 @@ function Invoke-Doctor {
         exit 2
     }
 
-    Write-Info "Running 13-check diagnostic..."
+    Write-Info "Running 9-check diagnostic..."
     Push-Location $SFFMC_DIR
     try {
         bun run $healthScript

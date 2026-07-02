@@ -26,7 +26,7 @@ assignees: ''
 - OpenCode version: (e.g. 1.17.6)
 - Bun version: (output of `bun --version`)
 - OS: (e.g. CachyOS / Arch)
-- Composite package(s) used: (safety / memory / agentic / which sub-features)
+- Composite package(s) used: (safety / memory / runtime + cognition / which sub-features)
 
 ## Logs
 

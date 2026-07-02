@@ -12,11 +12,11 @@ Prevents runaway failure cascades, blocks destructive commands via YAML gates, a
 
 | Sub-feature | Purpose | MiMo origin |
 |---|---|---|
-| [watchdog](../watchdog/README.md) | 3-failure counter with auto-recovery and model promotion | MiMo origin |
-| [rules](../rules/README.md) | YAML safety gates (denylist, command block, output pattern) | MiMo origin |
-| [auto-max](../auto-max/README.md) | Auto-escalation to max-mode when failures cascade | SFFMC (inspired by MiMo) |
-| [eos-stripper](../eos-stripper/README.md) | Strips local-model EOS tokens from `text.complete` output | SFFMC |
-| [log-whitelist](../log-whitelist/README.md) | Prevents 12GB+ permission log accumulation | SFFMC |
+| [watchdog](#sub-features) | 3-failure counter with auto-recovery and model promotion | MiMo origin |
+| [rules](#sub-features) | YAML safety gates (denylist, command block, output pattern) | MiMo origin |
+| [auto-max](#sub-features) | Auto-escalation to max-mode when failures cascade | SFFMC (inspired by MiMo) |
+| [eos-stripper](#sub-features) | Strips local-model EOS tokens from `text.complete` output | SFFMC |
+| [log-whitelist](#sub-features) | Prevents 12GB+ permission log accumulation | SFFMC |
 
 ## Hooks registered
 

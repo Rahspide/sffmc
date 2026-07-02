@@ -43,14 +43,14 @@ do not share a schema, and SFFMC's defaults are safe to start with.
    presence per package.
 4. **Migrate workflows incrementally.** The plugin you load first should be
    `safety` (it only adds recovery and gate hooks), then `memory`, then
-   `agentic`. Add `workflow` last so the sandbox is opt-in.
+   `cognition`. Add `workflow` last so the sandbox is opt-in.
 
 ## Sanity checks
 
 ```bash
 # Inside an OpenCode session, call:
 sffmc_health({})
-# Expected: 12 ok / 0 fail / 0 warn.
+# Expected: 9 ok / 0 fail / 0 warn.
 ```
 
 ## When to stay on MiMo

@@ -66,7 +66,7 @@ bun test
 bun run test:watch
 
 # Run one package
-cd packages/workflow && bun test
+cd packages/<name> && bun test
 
 # Type-check (uses bun build --no-bundle, no global tsc needed)
 bun run typecheck
@@ -111,7 +111,8 @@ Then add the 3 composite plugin paths to `~/.config/opencode/opencode.json`:
   "plugin": [
     "file:///home/you/dev/sffmc/packages/safety/src/index.ts",
     "file:///home/you/dev/sffmc/packages/memory/src/index.ts",
-    "file:///home/you/dev/sffmc/packages/agentic/src/index.ts"
+    "file:///home/you/dev/sffmc/packages/runtime/src/index.ts",
+    "file:///home/you/dev/sffmc/packages/cognition/src/index.ts"
   ]
 }
 ```
@@ -161,4 +162,4 @@ OpenCode restart.
 
 ## Release process
 
-See [RELEASE.md](RELEASE.md). v0.10.0 is the current release; future tags may be published per-plugin.
+See [RELEASE.md](RELEASE.md). v0.15.1 is the current release; future tags may be published per-plugin.

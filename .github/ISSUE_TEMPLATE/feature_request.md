@@ -20,4 +20,4 @@ assignees: ''
 
 ## Affected packages
 
-<!-- Which SFFMC packages would this touch? (safety / memory / agentic / which sub-feature) -->
+<!-- Which SFFMC packages would this touch? (safety / memory / runtime + cognition / which sub-feature) -->
