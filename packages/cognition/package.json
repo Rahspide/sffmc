@@ -1,6 +1,6 @@
 {
   "name": "@sffmc/cognition",
-  "version": "0.15.1",
+  "version": "0.15.2",
   "type": "module",
   "main": "src/index.ts",
   "scripts": {
@@ -30,5 +30,19 @@
     "package.json",
     "src/**/*.ts",
     "src/compose/skills/**/*.md"
-  ]
+  ],
+  "description": "Standalone package: max-mode parallel reasoning with judge selection + 18 markdown compose skills + plugin health diagnostics.",
+  "keywords": [
+    "sffmc",
+    "opencode",
+    "plugin",
+    "cognition",
+    "max-mode",
+    "skills",
+    "health"
+  ],
+  "bugs": {
+    "url": "https://github.com/Rahspide/sffmc/issues"
+  },
+  "homepage": "https://github.com/Rahspide/sffmc/tree/main/packages/cognition#readme"
 }

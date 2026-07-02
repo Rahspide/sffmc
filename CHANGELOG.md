@@ -1,3 +1,17 @@
+## v0.15.2 (2026-07-02)
+
+> Maintenance release. **No breaking changes.** Recommend upgrade for anyone installing from npm.
+
+### Fixed
+
+- **Empty npm package pages** — `packages/utilities`, `packages/cognition`, `packages/runtime` shipped in v0.15.0/v0.15.1 without `description`, `keywords`, `bugs`, or `homepage` fields in their `package.json`. The npm registry page rendered as "no description" even though the tarball itself was complete. Added human-readable descriptions + keyword arrays + bugs/homepage links (matching what `@sffmc/safety` and `@sffmc/memory` already had).
+
+### Added
+
+- **Russian CHANGELOG entries** for v0.15.0 and v0.15.1 in `CHANGELOG.ru.md` — bilingual documentation gap closed.
+
+## v0.15.1 (2026-07-02)
+
 # SFFMC Changelog
 
 ## v0.15.1 (2026-07-02)

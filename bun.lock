@@ -11,7 +11,7 @@
     },
     "packages/cognition": {
       "name": "@sffmc/cognition",
-      "version": "0.15.1",
+      "version": "0.15.2",
       "dependencies": {
         "@sffmc/utilities": "workspace:*",
       },
@@ -23,7 +23,7 @@
     },
     "packages/memory": {
       "name": "@sffmc/memory",
-      "version": "0.15.1",
+      "version": "0.15.2",
       "dependencies": {
         "@sffmc/utilities": "workspace:*",
         "chokidar": "^5.0.0",
@@ -32,7 +32,7 @@
     },
     "packages/runtime": {
       "name": "@sffmc/runtime",
-      "version": "0.15.1",
+      "version": "0.15.2",
       "dependencies": {
         "@sffmc/utilities": "workspace:*",
         "quickjs-emscripten": "0.32.0",
@@ -46,7 +46,7 @@
     },
     "packages/safety": {
       "name": "@sffmc/safety",
-      "version": "0.15.1",
+      "version": "0.15.2",
       "dependencies": {
         "@sffmc/utilities": "workspace:*",
         "yaml": "^2.5.0",
@@ -54,7 +54,7 @@
     },
     "packages/utilities": {
       "name": "@sffmc/utilities",
-      "version": "0.15.1",
+      "version": "0.15.2",
       "dependencies": {
         "yaml": "^2.0.0",
       },

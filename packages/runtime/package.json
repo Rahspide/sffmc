@@ -1,6 +1,6 @@
 {
   "name": "@sffmc/runtime",
-  "version": "0.15.1",
+  "version": "0.15.2",
   "type": "module",
   "main": "src/index.ts",
   "scripts": {
@@ -31,5 +31,19 @@
     "README.md",
     "package.json",
     "src/**/*.ts"
-  ]
+  ],
+  "description": "Standalone package: sandboxed JavaScript workflow orchestrator (quickjs-emscripten). Spawns sub-tasks, fans out work in parallel, pipelines multi-step jobs without losing context.",
+  "keywords": [
+    "sffmc",
+    "opencode",
+    "plugin",
+    "workflow",
+    "orchestrator",
+    "sandbox",
+    "quickjs-emscripten"
+  ],
+  "bugs": {
+    "url": "https://github.com/Rahspide/sffmc/issues"
+  },
+  "homepage": "https://github.com/Rahspide/sffmc/tree/main/packages/runtime#readme"
 }

@@ -1,6 +1,6 @@
 {
   "name": "@sffmc/utilities",
-  "version": "0.15.1",
+  "version": "0.15.2",
   "type": "module",
   "main": "src/index.ts",
   "scripts": {
@@ -26,5 +26,17 @@
     "README.md",
     "package.json",
     "src/**/*.ts"
-  ]
+  ],
+  "description": "Shared SDK library for SFFMC plugins \u2014 loadConfig, mergeHooks, EventBus, FsOps, redactSecrets. Not a plugin entry; consumed via workspace:* by the other 4 packages.",
+  "keywords": [
+    "sffmc",
+    "opencode",
+    "sdk",
+    "library",
+    "plugin-infrastructure"
+  ],
+  "bugs": {
+    "url": "https://github.com/Rahspide/sffmc/issues"
+  },
+  "homepage": "https://github.com/Rahspide/sffmc/tree/main/packages/utilities#readme"
 }
