@@ -37,11 +37,9 @@
 - **`docs/install.md`** — `SFFMC_VERSION=v0.15.0` (×2) → `SFFMC_VERSION=v0.15.3`.
 - **`CHANGELOG.md`** — устаревшие ссылки «v0.14.7» (×2) → «v0.14.9» (v0.14.7 никогда не выходил; auto-миграция отгружена в v0.14.9).
 
-#### Phantom-ссылки на файлы (зачистка)
+#### Внутренняя гигиена
 
-- **`packages/utilities/src/redact-secrets.ts` извлечён `MIN_TOKEN_LENGTH`** — 4 паттерна (`api-key-assignment`, `token-assignment`, `bearer-header`) все хардкодили `{16,}` дублированно. Теперь строятся через `RegExp`-конструктор с интерполяцией `${MIN_TOKEN_LENGTH}` при загрузке модуля. Снижает риск дрейфа при изменении порога.
-- **11 файлов в исходниках** — ссылки на `.slim/deepwork/hardcode-audit-2026-06.md` и `.slim/deepwork/phase-2-3-hardcode-migration-plan.md` (phantom-файлы, отсутствуют в git) заменены на краткое историческое примечание со ссылкой на CHANGELOG.md v0.14.5. Затронуты: `packages/memory/src/extra/{dream,index,judge}.ts`, `packages/cognition/src/{compose,max-mode}/*`, `packages/safety/src/watchdog/index.ts`.
-- **`packages/utilities/src/fs-ops.ts`** — ссылка на phantom `docs/superpowers/plans/2026-06-30-v0.15.0-implementation.md` заменена.
+- Устаревшие ссылки на внутренние плановые файлы зачищены в исходниках и одной утилите. Изменений в поведении нет.
 
 # SFFMC Журнал изменений (Russian)
 

@@ -37,11 +37,9 @@
 - **`docs/install.md`** — `SFFMC_VERSION=v0.15.0` (×2) → `SFFMC_VERSION=v0.15.3`.
 - **`CHANGELOG.md`** — "v0.14.7" stale references (×2) → "v0.14.9" (v0.14.7 never released; auto-migration shipped in v0.14.9).
 
-#### Phantom file refs (cleanup)
+#### Internal hygiene
 
-- **`packages/utilities/src/redact-secrets.ts` MIN_TOKEN_LENGTH extracted** — 4 patterns (`api-key-assignment`, `token-assignment`, `bearer-header`) all hardcoded `{16,}` duplicated. Now built via `RegExp` constructor with `${MIN_TOKEN_LENGTH}` interpolation at module load. Reduces drift risk if threshold changes.
-- **11 source files** — references to `.slim/deepwork/hardcode-audit-2026-06.md` and `.slim/deepwork/phase-2-3-hardcode-migration-plan.md` (phantom files, not in git) replaced with brief historical note pointing to CHANGELOG.md v0.14.5. Affects: `packages/memory/src/extra/{dream,index,judge}.ts`, `packages/cognition/src/{compose,max-mode}/*`, `packages/safety/src/watchdog/index.ts`.
-- **`packages/utilities/src/fs-ops.ts`** — reference to phantom `docs/superpowers/plans/2026-06-30-v0.15.0-implementation.md` replaced.
+- Stale references to internal planning files cleaned up across source files and one utility. No behavior change.
 
 # SFFMC Changelog
 

@@ -152,8 +152,12 @@ Production-facing documents (`CHANGELOG.md`, `CHANGELOG.ru.md`, GitHub Release b
 - "Worktree (not yet committed)" or "main will be 1 commit ahead of origin/main" sections (git state is not user-facing)
 - "Pre-commit gates (all green at v$X.Y.Z)" sections with typecheck/test counts (CI status belongs in release process notes, not in the public release)
 - "subagent-driven разбор смежных проблем" / "post-v0.15.2 codebase audit" / "subagent review of adjacent problems" parentheticals (the methodology of how we found the issues is internal)
+- "(phantom, not in git)" / "(отсутствуют в git)" methodology explanations for why a file path is being cleaned up — users don't need the meta
+- Long lists of internal file paths touched by a cleanup ("Затронуты: packages/memory/..., packages/cognition/...") — collapse to "stale references cleaned up across N source files"
+- Implementation details like "now built via `RegExp` constructor with `${X}` interpolation at module load" or "снижает риск дрейфа" — describe the user-visible result instead ("X constant extracted", no behavior change)
+- Recommendations to the maintainer ("leave as-is", "revisit if a future audit demands X", "reduces drift risk if threshold changes") in the public release body — the release body describes what's shipped, not what to do next
 - References to internal tooling IDs, internal task codes, council reviews, agent names, private file paths under `.slim/`
-- Recommendations to the maintainer ("leave as-is", "revisit if a future audit demands X") in the public release body — the release body describes what's shipped, not what to do next
+- The entire "Internal hygiene" / "Internal cleanup" sections when zero user-visible behavior changed — just delete the section (users don't need to know you cleaned up code comments)
 
 **Where internal narration goes instead:**
 
