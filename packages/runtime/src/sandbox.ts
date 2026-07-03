@@ -13,7 +13,10 @@ import {
 import type { SandboxConstraints } from "./types"
 import {
   SCRIPT_DEADLINE_MS,
+  getSandboxFastMs,
+  getSandboxFastWindow,
   getSandboxMemoryMB,
+  getSandboxSlowMs,
   getSandboxStackSize,
 } from "./constants.ts"
 
@@ -333,9 +336,9 @@ function evalAndReturn(ctx: QuickJSContext, code: string, label: string): QuickJ
  *  one in the recursive chain — the first timer may have already fired and
  *  rescheduled itself). */
 function startMicrotaskPump(rt: QuickJSRuntime): { stop: () => void } {
-  const FAST_MS = 1
-  const SLOW_MS = 50
-  const FAST_WINDOW = 50
+  const FAST_MS = getSandboxFastMs()
+  const SLOW_MS = getSandboxSlowMs()
+  const FAST_WINDOW = getSandboxFastWindow()
   let pumpTimer: ReturnType<typeof setTimeout> | undefined
   let idleTicks = 0
 
