@@ -1,22 +1,22 @@
 ## v0.15.3 (2026-07-03)
 
-> Maintenance-релиз. **Ломающих изменений нет.** 25+ исправлений по итогам аудита post-v0.15.2. Рекомендуем обновиться всем, кого затронули результаты аудита.
+> Maintenance-релиз. **Ломающих изменений нет.** 25+ исправлений: конфигурационные разрывы, безопасность, health-проверки, дрейф документации, устаревшие ссылки. Рекомендуем обновиться всем, особенно на многопользовательских системах (фикс `mkdir` mode) и пользователям v0.14.5/v0.14.7/v0.14.8.
 
 ### Исправлено
 
 #### Конфигурационные разрывы (v0.14.5 завышал «21 значение настраивается»)
 
-- **Sandbox pump cadence теперь читает `WorkflowExtendedConfig`** — `packages/runtime/src/sandbox.ts:336-338` использовал inline `const SLOW_MS = 50; const FAST_WINDOW = 50` вместо существующих геттеров `getSandboxSlowMs()` / `getSandboxFastWindow()`. Теперь YAML-переопределения (`sandboxSlowMs`, `sandboxFastWindow`, `sandboxFastMs`) пользователя вступают в силу. Закрывает wiring-разрыв v0.14.x, отмеченный аудитом post-v0.15.2.
-- **Дебаунс `FlushManager` теперь читает `getFlushDebounceMs()`** — `packages/runtime/src/flush-manager.ts:44` имел `private static readonly DEBOUNCE_MS = 250`, затеняющий геттер. Конструктор принимает необязательный параметр `debounceMs`; `runtime.ts` передаёт `getFlushDebounceMs()`. Тот же фикс, что и для sandbox pump.
-- **Fsync coalesce в `WorkflowPersistence` теперь читает `getFsyncCoalesceMs()`** — `persistence.ts:172` имел `const FSYNC_COALESCE_MS = 50`, затеняющий геттер. `scheduleFsync()` в строке 261 теперь вызывает `getFsyncCoalesceMs()`. Закрывает deferred wiring-контракт в `phase2-batch-c-w22-fsync.test.ts`.
+- **Sandbox pump cadence теперь читает `WorkflowExtendedConfig`** — `packages/runtime/src/sandbox.ts:336-338` использовал inline `const SLOW_MS = 50; const FAST_WINDOW = 50` вместо существующих геттеров `getSandboxSlowMs()` / `getSandboxFastWindow()`. Теперь YAML-переопределения (`sandboxSlowMs`, `sandboxFastWindow`, `sandboxFastMs`) пользователя вступают в силу.
+- **Дебаунс `FlushManager` теперь читает `getFlushDebounceMs()`** — `packages/runtime/src/flush-manager.ts:44` имел `private static readonly DEBOUNCE_MS = 250`, затеняющий геттер. Конструктор принимает необязательный параметр `debounceMs`; `runtime.ts` передаёт `getFlushDebounceMs()`.
+- **Fsync coalesce в `WorkflowPersistence` теперь читает `getFsyncCoalesceMs()`** — `persistence.ts:172` имел `const FSYNC_COALESCE_MS = 50`, затеняющий геттер. `scheduleFsync()` в строке 261 теперь вызывает `getFsyncCoalesceMs()`.
 - **`SAFE_REPETITION_LIMIT` экспортирован из utilities** — `packages/safety/src/rules/rules.ts:16` имел `const SAFE_REGEX_LIMIT = 25`, дублирующий `packages/utilities/src/config.ts:17`. Теперь экспортируется как `SAFE_REPETITION_LIMIT` из `@sffmc/utilities` и импортируется в `safety/rules`. Единый источник истины для ReDoS-порога.
 
 #### Безопасность
 
 - **Все 5 вызовов `mkdir` в runtime persistence теперь используют `mode: 0o700`** — `persistence.ts:220,369,412,427,484` ранее вызывали `mkdir(this.dir, { recursive: true })` без `mode`, оставляя runtime data-каталог читаемым для других пользователей в многопользовательских системах. Приводит runtime в соответствие с memory/dream/checkpoint, использующими `mode: 0o700` с v0.12.1.
-- **`migrateLegacyDataPaths()` удалена** — экспортировалась, но никогда не подключалась к bootstrap-пути, поэтому никогда не могла сработать. Функция якобы мигрировала `~/.config/SFFMC` → `~/.config/sffmc` при первом запуске; на практике её никто не вызывал. Утверждение v0.11.1 CHANGELOG «11 пакетов обновлено» было неподтверждённым. Канонический путь остаётся uppercase `SFFMC/` для обратной совместимости. Если будущая миграция в lowercase желательна, она должна быть подключена в `activation.ts` и отгружена как плановое breaking-изменение.
+- **`migrateLegacyDataPaths()` удалена** — экспортировалась, но никогда не подключалась к bootstrap-пути, поэтому никогда не могла сработать. Функция якобы мигрировала `~/.config/SFFMC` → `~/.config/sffmc` при первом запуске; на практике её никто не вызывал. Канонический путь остаётся uppercase `SFFMC/` для обратной совместимости. Если будущая миграция в lowercase желательна, она должна быть подключена в `activation.ts` и отгружена как плановое breaking-изменение.
 - **5 новых паттернов редактирования** — `packages/utilities/src/redact-secrets.ts:118` правило `cloud-credential` расширено для покрытия: GitHub fine-grained PAT (`github_pat_*`), GitHub OAuth/user/scope токенов (`gho_*`/`ghu_*`/`ghs_*`/`ghr_*`), GitLab PAT (`glpat-*`), Discord bot-токенов (префикс `d_*`), Stripe live-ключей (`sk_live_*`, `rk_live_*`) и JWT (три base64url-сегмента, разделённые точками).
-- **Защита `redactSecrets()` по `MAX_CONTENT_BYTES`** — экспортируется новый `MAX_CONTENT_BYTES = 1_048_576` (1 МиБ). Входы больше этого возвращаются неизменёнными с `{ oversize: true, categories: ["oversize"] }`, чтобы вызывающий код мог разделить на чанки или предупредить. Закрывает разрыв «нет верхней границы размера входа» аудита v0.12.1.
+- **Защита `redactSecrets()` по `MAX_CONTENT_BYTES`** — экспортируется новый `MAX_CONTENT_BYTES = 1_048_576` (1 МиБ). Входы больше этого возвращаются неизменёнными с `{ oversize: true, categories: ["oversize"] }`, чтобы вызывающий код мог разделить на чанки или предупредить.
 
 #### Health-плагин
 
@@ -42,25 +42,6 @@
 - **`packages/utilities/src/redact-secrets.ts` извлечён `MIN_TOKEN_LENGTH`** — 4 паттерна (`api-key-assignment`, `token-assignment`, `bearer-header`) все хардкодили `{16,}` дублированно. Теперь строятся через `RegExp`-конструктор с интерполяцией `${MIN_TOKEN_LENGTH}` при загрузке модуля. Снижает риск дрейфа при изменении порога.
 - **11 файлов в исходниках** — ссылки на `.slim/deepwork/hardcode-audit-2026-06.md` и `.slim/deepwork/phase-2-3-hardcode-migration-plan.md` (phantom-файлы, отсутствуют в git) заменены на краткое историческое примечание со ссылкой на CHANGELOG.md v0.14.5. Затронуты: `packages/memory/src/extra/{dream,index,judge}.ts`, `packages/cognition/src/{compose,max-mode}/*`, `packages/safety/src/watchdog/index.ts`.
 - **`packages/utilities/src/fs-ops.ts`** — ссылка на phantom `docs/superpowers/plans/2026-06-30-v0.15.0-implementation.md` заменена.
-
-### Закрытые задачи (реализация не нужна)
-
-- **Schema refactor** (было «дизайн в `docs/v0-14-m4-schema-design.md`, 990 строк, запланировано на v0.15») — **закрыто как устаревшее**. 990-строчный дизайн-док никогда не существовал в git (нет в HEAD, ветках или dangling objects). Phase 1 отгружен в v0.14.3 (`schema-journal.ts` — ручной валидатор для журнальных событий), конкретно закрывая находку Manriel-аудита «Journal JSON parsed without schema validation». Консолидация 13→5 пакетов (v0.15.0) делает любые Phases 2-N дизайна спорными — оригинальный дизайн предполагал другую раскладку пакетов (rules/safety/memory/workflow как отдельные пакеты). Принятие `zod`/`effect.Schema` добавило бы runtime-зависимость с маргинальной пользой по сравнению с текущим 207-LOC ручным валидатором. Рекомендация: оставить поверхность журнала как есть; вернуться к рассмотрению, если будущий аудит потребует более широкой унификации схемы.
-
-### Worktree (ещё не закоммичено)
-
-- `main` будет на 1 коммит впереди `origin/main` после этого релиза. Предыдущий worktree-коммит (`2c78b31 docs(changelog): clean v0.14.9 duplicates, restore title, rebuild CHANGELOG.ru.md`) включён.
-
-### Pre-commit шлюзы (все зелёные на v0.15.3)
-
-- typecheck ✓
-- test 1045 pass / 1 skip / 0 fail (9705 expect-вызовов)
-- audit-load-order ✓
-- audit:public ✓
-- audit:redos 17/17 pass
-- cleanroom ✓
-- run-health 10 ok / 3 warn / 0 fail
-- bun-install-frozen ✓
 
 # SFFMC Журнал изменений (Russian)
 

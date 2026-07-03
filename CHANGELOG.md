@@ -1,22 +1,22 @@
 ## v0.15.3 (2026-07-03)
 
-> Maintenance release. **No breaking changes.** 25+ fixes from a post-v0.15.2 codebase audit. Recommend upgrade for everyone who hit any of the audit findings.
+> Maintenance release. **No breaking changes.** 25+ fixes covering config gaps, security, health checks, docs drift, and stale references. Recommend upgrade for everyone, especially on multi-user systems (mkdir mode fix) and v0.14.5/v0.14.7/v0.14.8 holdouts.
 
 ### Fixed
 
 #### Configuration gaps (v0.14.5's "21 values configurable" overstated)
 
-- **Sandbox pump cadence now reads `WorkflowExtendedConfig`** — `packages/runtime/src/sandbox.ts:336-338` was using inline `const SLOW_MS = 50; const FAST_WINDOW = 50` instead of the existing `getSandboxSlowMs()` / `getSandboxFastWindow()` getters. Now user YAML overrides (`sandboxSlowMs`, `sandboxFastWindow`, `sandboxFastMs`) take effect. Closes the v0.14.x wiring gap flagged by the post-v0.15.2 audit.
-- **`FlushManager` debounce now reads `getFlushDebounceMs()`** — `packages/runtime/src/flush-manager.ts:44` had `private static readonly DEBOUNCE_MS = 250` shadowing the config getter. Constructor takes optional `debounceMs` parameter; `runtime.ts` passes `getFlushDebounceMs()`. Same fix as sandbox pump.
-- **`WorkflowPersistence` fsync coalesce now reads `getFsyncCoalesceMs()`** — `persistence.ts:172` had `const FSYNC_COALESCE_MS = 50` shadowing the config getter. `scheduleFsync()` at line 261 now calls `getFsyncCoalesceMs()`. Closes the deferred wiring contract in `phase2-batch-c-w22-fsync.test.ts`.
+- **Sandbox pump cadence now reads `WorkflowExtendedConfig`** — `packages/runtime/src/sandbox.ts:336-338` was using inline `const SLOW_MS = 50; const FAST_WINDOW = 50` instead of the existing `getSandboxSlowMs()` / `getSandboxFastWindow()` getters. Now user YAML overrides (`sandboxSlowMs`, `sandboxFastWindow`, `sandboxFastMs`) take effect.
+- **`FlushManager` debounce now reads `getFlushDebounceMs()`** — `packages/runtime/src/flush-manager.ts:44` had `private static readonly DEBOUNCE_MS = 250` shadowing the config getter. Constructor takes optional `debounceMs` parameter; `runtime.ts` passes `getFlushDebounceMs()`.
+- **`WorkflowPersistence` fsync coalesce now reads `getFsyncCoalesceMs()`** — `persistence.ts:172` had `const FSYNC_COALESCE_MS = 50` shadowing the config getter. `scheduleFsync()` at line 261 now calls `getFsyncCoalesceMs()`.
 - **`SAFE_REPETITION_LIMIT` exported from utilities** — `packages/safety/src/rules/rules.ts:16` had `const SAFE_REGEX_LIMIT = 25` duplicating `packages/utilities/src/config.ts:17`. Now exported as `SAFE_REPETITION_LIMIT` from `@sffmc/utilities` and imported by `safety/rules`. Single source of truth for the ReDoS cutoff.
 
 #### Security
 
 - **All 5 runtime persistence `mkdir` calls now use `mode: 0o700`** — `persistence.ts:220,369,412,427,484` previously called `mkdir(this.dir, { recursive: true })` without `mode`, leaving the runtime data dir readable by other users on multi-user systems. Brings runtime in line with memory/dream/checkpoint which already use `mode: 0o700` since v0.12.1.
-- **`migrateLegacyDataPaths()` removed** — exported but never wired into any bootstrap path, so it could never fire. The function pretended to migrate `~/.config/SFFMC` → `~/.config/sffmc` on first run; in practice nothing called it. v0.11.1 CHANGELOG claim "11 packages updated" was unsupported. Canonical path stays uppercase `SFFMC/` for backward compatibility. If a future migration to lowercase is desired, it must be wired into `activation.ts` and ship as a planned breaking change.
+- **`migrateLegacyDataPaths()` removed** — exported but never wired into any bootstrap path, so it could never fire. The function pretended to migrate `~/.config/SFFMC` → `~/.config/sffmc` on first run; in practice nothing called it. Canonical path stays uppercase `SFFMC/` for backward compatibility. If a future migration to lowercase is desired, it must be wired into `activation.ts` and ship as a planned breaking change.
 - **5 new redaction patterns** — `packages/utilities/src/redact-secrets.ts:118` `cloud-credential` rule expanded to cover: GitHub fine-grained PAT (`github_pat_*`), GitHub OAuth/user/scope tokens (`gho_*`/`ghu_*`/`ghs_*`/`ghr_*`), GitLab PAT (`glpat-*`), Discord bot tokens (`d_*` prefix), Stripe live keys (`sk_live_*`, `rk_live_*`), and JWTs (three base64url segments separated by dots).
-- **`redactSecrets()` `MAX_CONTENT_BYTES` guard** — exports new `MAX_CONTENT_BYTES = 1_048_576` (1 MiB). Inputs larger than this return unchanged with `{ oversize: true, categories: ["oversize"] }` so callers can chunk-stream or warn. Closes the "no upper bound on input size" gap in v0.12.1 audit.
+- **`redactSecrets()` `MAX_CONTENT_BYTES` guard** — exports new `MAX_CONTENT_BYTES = 1_048_576` (1 MiB). Inputs larger than this return unchanged with `{ oversize: true, categories: ["oversize"] }` so callers can chunk-stream or warn.
 
 #### Health plugin
 
@@ -42,25 +42,6 @@
 - **`packages/utilities/src/redact-secrets.ts` MIN_TOKEN_LENGTH extracted** — 4 patterns (`api-key-assignment`, `token-assignment`, `bearer-header`) all hardcoded `{16,}` duplicated. Now built via `RegExp` constructor with `${MIN_TOKEN_LENGTH}` interpolation at module load. Reduces drift risk if threshold changes.
 - **11 source files** — references to `.slim/deepwork/hardcode-audit-2026-06.md` and `.slim/deepwork/phase-2-3-hardcode-migration-plan.md` (phantom files, not in git) replaced with brief historical note pointing to CHANGELOG.md v0.14.5. Affects: `packages/memory/src/extra/{dream,index,judge}.ts`, `packages/cognition/src/{compose,max-mode}/*`, `packages/safety/src/watchdog/index.ts`.
 - **`packages/utilities/src/fs-ops.ts`** — reference to phantom `docs/superpowers/plans/2026-06-30-v0.15.0-implementation.md` replaced.
-
-### Closed tasks (no implementation needed)
-
-- **Schema refactor** (was "design done in `docs/v0-14-m4-schema-design.md`, 990 lines, planned for v0.15") — **closed as superseded**. The 990-line design doc never existed in git (not in HEAD, branches, or dangling objects). Phase 1 shipped in v0.14.3 (`schema-journal.ts` hand-rolled validator for journal events), addressing the Manriel audit "Journal JSON parsed without schema validation" finding concretely. The 13→5 package consolidation (v0.15.0) makes any Phases 2-N design moot — the original design assumed a different package layout (rules/safety/memory/workflow as separate packages). Adopting `zod`/`effect.Schema` would add a runtime dep with marginal benefit over the current 207-LOC hand-rolled validator. Recommendation: leave the journal surface as-is; revisit if a future audit demands broader schema unification.
-
-### Worktree (not yet committed)
-
-- `main` will be 1 commit ahead of `origin/main` after this release. The previous worktree commit (`2c78b31 docs(changelog): clean v0.14.9 duplicates, restore title, rebuild CHANGELOG.ru.md`) is included.
-
-### Pre-commit gates (all green at v0.15.3)
-
-- typecheck ✓
-- test 1045 pass / 1 skip / 0 fail (9705 expect calls)
-- audit-load-order ✓
-- audit:public ✓
-- audit:redos 17/17 pass
-- cleanroom ✓
-- run-health 10 ok / 3 warn / 0 fail
-- bun-install-frozen ✓
 
 # SFFMC Changelog
 

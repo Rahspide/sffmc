@@ -141,3 +141,26 @@ The user said "fix empty packages + Russian CHANGELOG". I bumped the version to 
 - Are the changes **functional code** (bug fix, new feature) or **display metadata** (CHANGELOG text, package.json `description` field)? Display-only = no version bump
 - Would `npm install <existing-version>` still work without the change? If **yes**, no version bump
 - Is this the user's FIRST request to publish in this session, or have they explicitly engaged with the release flow? Implied consent is not consent
+
+## Production docs hygiene rule (learned from v0.15.3 release, 2026-07-03)
+
+Production-facing documents (`CHANGELOG.md`, `CHANGELOG.ru.md`, GitHub Release body, `README.md`, user-facing `docs/*.md`) describe **what changed and why it matters to users**. They do not contain internal process narration.
+
+**Do not put in production docs:**
+
+- "Closed task: schema refactor — closed as superseded" sections with reasoning about why something isn't done (decision rationale belongs in commit messages or `memory-bank/`, not in user-facing changelogs)
+- "Worktree (not yet committed)" or "main will be 1 commit ahead of origin/main" sections (git state is not user-facing)
+- "Pre-commit gates (all green at v$X.Y.Z)" sections with typecheck/test counts (CI status belongs in release process notes, not in the public release)
+- "subagent-driven разбор смежных проблем" / "post-v0.15.2 codebase audit" / "subagent review of adjacent problems" parentheticals (the methodology of how we found the issues is internal)
+- References to internal tooling IDs, internal task codes, council reviews, agent names, private file paths under `.slim/`
+- Recommendations to the maintainer ("leave as-is", "revisit if a future audit demands X") in the public release body — the release body describes what's shipped, not what to do next
+
+**Where internal narration goes instead:**
+
+- Commit messages (subject + body)
+- `memory-bank/` (gitignored project memory) or `/tmp/` session-local files
+- PR descriptions and review threads
+- The plan/ spec docs under `docs/superpowers/` if they exist
+- Internal `release.sh` logs
+
+**Test before writing user-facing prose:** would a user installing `npm install @sffmc/<pkg>` and reading the GitHub Release care about this sentence? If not, move it to internal docs.
