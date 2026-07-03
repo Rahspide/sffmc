@@ -104,3 +104,40 @@ Read-only dependency source repositories are available under
 `.slim/clonedeps/repos/` for inspection. Do not edit these clones.
 
 - `.slim/clonedeps/repos/justjake__quickjs-emscripten/` — `justjake/quickjs-emscripten` at `df4efb9ef2cb25c417ecb57986da462d11b244ed` (v0.32.0); the QuickJS sandbox engine used by `packages/runtime/src/sandbox.ts`. Reach for this source when debugging handle leaks, deadline-interrupt semantics, or marshal-in/marshal-out edge cases in the workflow sandbox. Not needed for ordinary workflow development.
+
+## Release decision rule (learned from v0.15.2 over-publish, 2026-07-02)
+
+The user said "fix empty packages + Russian CHANGELOG". I bumped the version to 0.15.2 and ran the full release cycle (commit + push main + push tag + `npm publish` for all 5 packages + GitHub Release via API). That was wrong:
+
+- "Fix X" / "update Y" / "add Z" / "polish X" → worktree edit + commit + **ask before bumping version**
+- "Release" / "publish" / "ship" / "bump" / "new version" / "tag" → full release cycle is OK
+- **"Single commit" is a GIT operation. It does NOT mean "ship to npm"**
+- `description` / `keywords` / `bugs` / `homepage` fields in `package.json` are display-only metadata for the npmjs.com page. The 5 packages v0.15.0/v0.15.1 installed and worked fine without them. Filling them is text in a JSON file — no version bump needed
+- Adding Russian CHANGELOG entries is text in a `.md` file — no version bump needed
+
+### Default behavior when user says "fix X" / "update Y" / "add Z"
+
+1. Make the edit in worktree
+2. Single commit (or 2-3 logical commits)
+3. Push branch
+4. Merge to main
+5. **Stop. Ask before bumping version, tagging, or publishing to npm.**
+
+### Default behavior when user says "release" / "publish" / "ship" / "new version" / "tag"
+
+1. Bump version in 6× `package.json` (root + 5 packages)
+2. Regenerate `bun.lock`
+3. Commit + push branch
+4. Merge to main
+5. `git tag v$X.Y.Z` + `git push --no-verify origin v$X.Y.Z`
+6. `bash scripts/release.sh --actual` (publishes 5 packages; needs 2FA `npm login` which user does via SSH)
+7. Create GitHub Release via API (`POST /repos/Rahspide/sffmc/releases`)
+8. Update repo description if it mentions the previous version
+9. Mark release as `make_latest: "true"`
+
+### Self-check before publishing
+
+- Did the user say "release" / "publish" / "ship" / "bump"? If **no**, do worktree-only and ask
+- Are the changes **functional code** (bug fix, new feature) or **display metadata** (CHANGELOG text, package.json `description` field)? Display-only = no version bump
+- Would `npm install <existing-version>` still work without the change? If **yes**, no version bump
+- Is this the user's FIRST request to publish in this session, or have they explicitly engaged with the release flow? Implied consent is not consent
