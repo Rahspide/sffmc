@@ -13,8 +13,12 @@ const log = createLogger("sffmc/shared")
 /**
  * Default star-height-1 repetition limit for `validateSafeRegex`.
  * Matches the limit used by `scripts/check-redos.ts` for built-in rules.
+ *
+ * Exported as `SAFE_REPETITION_LIMIT` so other packages (e.g. safety/rules)
+ * share the same threshold instead of duplicating `const X = 25` literals
+ * that drift independently.
  */
-const DEFAULT_SAFE_REPETITION_LIMIT = 25
+export const SAFE_REPETITION_LIMIT = 25
 
 /**
  * Validate a regex pattern is not vulnerable to ReDoS (catastrophic backtracking).
@@ -33,7 +37,7 @@ export function validateSafeRegex(
   opts?: { limit?: number },
 ): boolean {
   try {
-    return safeRegex(pattern, { limit: opts?.limit ?? DEFAULT_SAFE_REPETITION_LIMIT })
+    return safeRegex(pattern, { limit: opts?.limit ?? SAFE_REPETITION_LIMIT })
   } catch {
     // Defensive: safe-regex itself catches errors and returns false, but
     // any wrapper-level failure (e.g., import misconfig) is treated as

@@ -27,7 +27,7 @@ import { AGENTS_FILE } from "./constants.ts";
 export interface MemoryConfig {
   storagePath: string
   tailChars: number
-    // .slim/deepwork/hardcode-audit-2026-06.md
+    // the v0.14.x hardcode audit (file not in git; see CHANGELOG.md v0.14.5)
   /** Character budget for the memory section in recon injection.
    *  Defaults to 6144 (matches the prior hardcoded value). */
   reconMemoryBudget: number
@@ -38,7 +38,7 @@ export interface MemoryConfig {
    *  are skipped (with a warn log) to prevent OOM from large crafted
    *  AGENTS.md files. Defaults to 100 KiB. */
   agentsMaxSize: number
-    // .slim/deepwork/phase-2-3-hardcode-migration-plan.md §2.2
+    // the v0.14.x hardcode migration plan (file not in git; see CHANGELOG.md v0.14.5) §2.2
   /** Max memories to include in recon injection (defaults to 20,
    *  the prior hardcoded value). Raising this directly increases LLM
    *  context consumption. */

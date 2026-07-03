@@ -1,7 +1,7 @@
 import { parse as parseYaml, Schema } from "yaml";
 import { readFileSync, existsSync, statSync } from "fs";
 import safeRegex from "safe-regex";
-import { createLogger } from "@sffmc/utilities";
+import { createLogger, SAFE_REPETITION_LIMIT } from "@sffmc/utilities";
 
 const log = createLogger("rules");
 
@@ -10,10 +10,11 @@ export type Action = "allow" | "deny" | "ask";
 const VALID_ACTIONS = new Set<Action>(["allow", "deny", "ask"]);
 
 // ReDoS guard for `command_match` patterns. Mirrors the redact-secrets
-// approach (star-height ≤ 1, repetition limit 25) — a `false` return from
-// `safe-regex` means the pattern is potentially catastrophic and must not be
-// compiled (or evaluated against attacker-controlled bash input).
-const SAFE_REGEX_LIMIT = 25;
+// approach (star-height ≤ 1, repetition limit 25 — sourced from
+// `@sffmc/utilities/SAFE_REPETITION_LIMIT` for a single source of truth).
+// A `false` return from `safe-regex` means the pattern is potentially
+// catastrophic and must not be compiled (or evaluated against
+// attacker-controlled bash input).
 
 export interface RuleMatch {
   tool: string;
@@ -66,7 +67,7 @@ export function compileRules(rawRules: Rules): {
       continue;
     }
     const patternSource = rule.match.command_match;
-    if (!safeRegex(patternSource, { limit: SAFE_REGEX_LIMIT })) {
+    if (!safeRegex(patternSource, { limit: SAFE_REPETITION_LIMIT })) {
       const msg = `unsafe command_match (ReDoS) — rule skipped: /${patternSource}/`;
       log.warn(msg);
       errors.push(msg);

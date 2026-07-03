@@ -30,17 +30,15 @@ SCAN_INCLUDE_ARGS=()
 for ext in "${SCAN_INCLUDE[@]}"; do SCAN_INCLUDE_ARGS+=("--include=$ext"); done
 
 # Files to always exclude (gate, audit, and check patterns themselves).
+# v0.15.3 cleanup: removed dead references to `packages/compose/`,
+# `packages/agentic/` (dissolved in v0.15.0 P-1 consolidation into
+# `packages/cognition/`), and the legacy `shared/` directory.
 EXCLUDE_PATTERNS=(
   "node_modules"
   "scripts/cleanroom-terms.txt"
   "scripts/check-cleanroom.sh"
   "scripts/audit-public-content.sh"
   "scripts/long-agent-test-v090.ts"
-  "packages/compose/skills/"
-  "packages/compose/README.md"
-  "packages/compose/codemap.md"
-  "packages/agentic/test/compose.test.ts"
-  "packages/agentic/skills/"
   "packages/cognition/src/compose/skills/"
   "packages/cognition/src/health/src/index.ts"
   "packages/safety/codemap.md"
@@ -54,7 +52,7 @@ EXCLUDE_PATTERNS=(
 log "1/4 external URLs..."
 EXTERNAL_URLS=$(grep -rPn "${SCAN_INCLUDE_ARGS[@]}" \
   'https?://(?![Pp]?(github\.com/Rahspide/sffmc|github\.com/davisjam/safe-regex|localhost|127\.0\.0\.1|registry\.npmjs\.org|agentskills\.io|opensource\.org|spdx\.org)\b)' \
-  packages/ shared/ bin/ scripts/ .drone.yml 2>/dev/null \
+  packages/ bin/ scripts/ .drone.yml 2>/dev/null \
   | grep -vE "/(test|spec)/" || true)
 if [ -n "$EXTERNAL_URLS" ]; then
   err "external URLs found (only github.com/Rahspide/sffmc and localhost allowed):"
@@ -66,7 +64,7 @@ log "2/4 internal paths/hosts..."
 INTERNAL=$(grep -rEn "${SCAN_INCLUDE_ARGS[@]}" \
   -e "/data/projects" -e "/home/opencode" -e "nipogi" -e "maggot" -e "tailscale" \
   -e "192\.168\.[0-9]+" -e "100\.[0-9]+\.[0-9]+\.[0-9]+" \
-  packages/ shared/ bin/ scripts/ docs/ *.md 2>/dev/null || true)
+  packages/ bin/ scripts/ docs/ *.md 2>/dev/null || true)
 for ex in "${EXCLUDE_PATTERNS[@]}"; do INTERNAL=$(echo "$INTERNAL" | grep -v "$ex" || true); done
 if [ -n "$INTERNAL" ]; then
   err "internal paths/hosts found:"
@@ -86,7 +84,7 @@ fi
 while IFS= read -r term; do
   [[ -z "$term" || "$term" =~ ^# ]] && continue
   HITS=$(grep -rEn "\b${term}\b" "${SCAN_INCLUDE_ARGS[@]}" \
-    packages/ shared/ bin/ scripts/ docs/ *.md 2>/dev/null || true)
+    packages/ bin/ scripts/ docs/ *.md 2>/dev/null || true)
   for ex in "${EXCLUDE_PATTERNS[@]}"; do HITS=$(echo "$HITS" | grep -v "$ex" || true); done
   HITS=$(echo "$HITS" | grep -vE "$ALLOWLIST_REGEX" || true)
   if [ -n "$HITS" ]; then
@@ -98,7 +96,7 @@ done < "$BANNED_TERMS_FILE"
 # 3b. Generic [A-Z]\d+(\.\d+)? pattern (catches unlabeled IDs)
 GENERIC_ID_HITS=$(grep -rPn "$GENERIC_ID_REGEX" "${SCAN_INCLUDE_ARGS[@]}" \
   --exclude-dir=dist --exclude-dir=node_modules \
-  packages/ shared/ bin/ scripts/ docs/ *.md 2>/dev/null || true)
+  packages/ bin/ scripts/ docs/ *.md 2>/dev/null || true)
 for ex in "${EXCLUDE_PATTERNS[@]}"; do GENERIC_ID_HITS=$(echo "$GENERIC_ID_HITS" | grep -v "$ex" || true); done
 # Filter out regex literals in source code (e.g., `[a-zA-Z0-9]` matches Z0).
 GENERIC_ID_HITS=$(echo "$GENERIC_ID_HITS" | grep -v "const m = /" || true)
@@ -113,7 +111,7 @@ fi
 log "4/4 external plugin/gateway references..."
 PLUGIN_HITS=$(grep -rEn --include="*.ts" --include="*.js" --include="*.mjs" --include="*.cjs" --include="*.json" \
   -e "9router" -e "icm-hybrid" -e "icm-bridge" -e "@icm/" -e "@mcp/" -e "opencode-root" -e "@tarquinen/opencode-dcp" \
-  packages/ shared/ bin/ scripts/ 2>/dev/null \
+  packages/ bin/ scripts/ 2>/dev/null \
   | grep -vE "/(test|spec)/" \
   || true)
 if [ -n "$PLUGIN_HITS" ]; then

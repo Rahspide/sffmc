@@ -4,7 +4,7 @@ import { RECON_AGENTS_BUDGET, RECON_TASKTREE_BUDGET } from "./constants.ts";
 
 export { RECON_AGENTS_BUDGET, RECON_TASKTREE_BUDGET };
 
-// .slim/deepwork/hardcode-audit-2026-06.md.
+// the v0.14.x hardcode audit (file not in git; see CHANGELOG.md v0.14.5).
 //
 // `memory` and `checkpoint` were hardcoded at 6144 chars each. They are
 // now configurable via `MemoryConfig.reconMemoryBudget` and

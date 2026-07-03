@@ -23,6 +23,7 @@
 
 import type { CounterManager } from "./counter-manager.ts"
 import type { WorkflowPersistence } from "./persistence.ts"
+import { getFlushDebounceMs } from "./constants.ts"
 import { createLogger } from "@sffmc/utilities"
 
 const log = createLogger("workflow")
@@ -35,15 +36,21 @@ export interface FlushableCounters {
   runID: string
 }
 
-/** Debounce timer per runID. Each `scheduleFlush()` within the 250ms
+/** Debounce timer per runID. Each `scheduleFlush()` within the debounce
  *  window collapses to a single `flushNow()` fire; the timer is unref'd so
  *  it doesn't keep the runtime alive at shutdown (the runtime's `close()`
- *  also clears all pending timers explicitly). */
+ *  also clears all pending timers explicitly). Window comes from
+ *  `getFlushDebounceMs()` so user YAML overrides take effect. */
 export class FlushManager {
   private readonly flushTimers = new Map<string, ReturnType<typeof setTimeout>>()
-  private static readonly DEBOUNCE_MS = 250
+  private readonly debounceMs: number
 
-  constructor(private readonly persistence: WorkflowPersistence) {}
+  constructor(
+    private readonly persistence: WorkflowPersistence,
+    debounceMs?: number,
+  ) {
+    this.debounceMs = debounceMs ?? getFlushDebounceMs()
+  }
 
   /** Schedule a debounced flush for `entry.runID`. If a timer is already
    *  pending for this runID, this is a no-op — the existing timer fires
@@ -54,7 +61,7 @@ export class FlushManager {
     const t = setTimeout(() => {
       this.flushTimers.delete(runID)
       this.flushNow(entry)
-    }, FlushManager.DEBOUNCE_MS)
+    }, this.debounceMs)
     t.unref?.()
     this.flushTimers.set(runID, t)
   }

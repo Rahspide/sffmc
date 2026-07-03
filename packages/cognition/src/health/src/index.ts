@@ -675,6 +675,18 @@ export const checkChangelogCurrency = createCheck("changelog_currency", async (r
     };
   }
 
+  // Read CHANGELOG.ru.md (v0.15.0+ bilingual promise). Warn (not fail)
+  // if it's missing or out of sync — the bilingual docs are aspirational,
+  // not a hard contract, so we don't block CI on it.
+  const changelogRuPath = join(repoRoot, "CHANGELOG.ru.md");
+  let changelogRuText: string | null = null;
+  let changelogRuMissing = false;
+  try {
+    changelogRuText = await readFile(changelogRuPath, "utf-8");
+  } catch {
+    changelogRuMissing = true;
+  }
+
   // Extract the most recent version entry
   const versionMatch = changelogText.match(/^##\s+v(\d+\.\d+\.\d+)/m);
   if (!versionMatch) {
@@ -686,20 +698,56 @@ export const checkChangelogCurrency = createCheck("changelog_currency", async (r
 
   const changelogVersion = versionMatch[1];
 
-  if (changelogVersion === rootVersion) {
+  // v0.15.3: also verify CHANGELOG.ru.md (bilingual) is in sync. Treat
+  // missing RU file or missing top version as warn — not a hard fail
+  // because RU translations can lag a release by a session.
+  let ruDetails: string[] = []
+  if (changelogRuMissing) {
+    ruDetails.push("CHANGELOG.ru.md missing (bilingual gap)")
+  } else if (changelogRuText) {
+    const ruVersionMatch = changelogRuText.match(/^##\s+v(\d+\.\d+\.\d+)/m)
+    if (!ruVersionMatch) {
+      ruDetails.push("CHANGELOG.ru.md has no version section")
+    } else if (ruVersionMatch[1] !== changelogVersion) {
+      ruDetails.push(`CHANGELOG.ru.md v${ruVersionMatch[1]} lags CHANGELOG.md v${changelogVersion}`)
+    }
+  }
+
+  if (changelogVersion !== rootVersion) {
     return {
-      status: "ok",
-      detail: `CHANGELOG v${changelogVersion} matches root package.json (${rootVersion})`,
-    };
+      status: "warn",
+      detail: `CHANGELOG v${changelogVersion} does not match root package.json (${rootVersion})` +
+        (ruDetails.length ? `; ${ruDetails.join("; ")}` : ""),
+    }
+  }
+
+  if (ruDetails.length) {
+    return {
+      status: "warn",
+      detail: `CHANGELOG v${changelogVersion} matches root package.json; ${ruDetails.join("; ")}`,
+    }
   }
 
   return {
-    status: "warn",
-    detail: `CHANGELOG v${changelogVersion} does not match root package.json (${rootVersion})`,
+    status: "ok",
+    detail: `CHANGELOG v${changelogVersion} matches root package.json (${rootVersion})`,
+  }
+});
+
+// Check 11: removed in v0.15.3 — `@sffmc/utilities` is now a permanent
+// library shipped alongside the 5 plugins (not an opt-in bundle). The
+// old "extra opt-in" check looked for `packages/extra/`, which was
+// merged into `@sffmc/memory` during the v0.15.0 13→5 consolidation.
+// Stale string preserved only for downstream log scrapers that grep
+// for "extra_opt_in" — the function returns "ok" unconditionally.
+export const checkExtraOptIn = createCheck("extra_opt_in", async (_repoRoot) => {
+  return {
+    status: "ok",
+    detail: "@sffmc/utilities is now a permanent library (v0.15.0+); no opt-in required",
   };
 });
 
-// Check 11: @sffmc/utilities opt-in status (informational only)
+/* The original `extra_opt_in` check (kept commented for archaeology):
 export const checkExtraOptIn = createCheck("extra_opt_in", async (repoRoot) => {
   const extraDir = join(repoRoot, "packages", "extra");
   if (!(await fileExists(extraDir))) {
@@ -743,6 +791,7 @@ export const checkExtraOptIn = createCheck("extra_opt_in", async (repoRoot) => {
     };
   }
 });
+*/
 
 // Check 12: Category split (MiMo ports vs SFFMC originals)
 export const checkCategorySplit = createCheck("category_split", async (repoRoot) => {
@@ -872,13 +921,13 @@ export const checkCompositeStructure = createCheck("composite_structure", async 
   if (warnings.length > 0) {
     return {
       status: "warn",
-      detail: `3 composites valid (safety/memory/agentic), ${warnings.length} warning(s): ${warnings.join("; ")}`,
+      detail: `${expectedComposites.length} composites valid (${expectedComposites.join("/")}), ${warnings.length} warning(s): ${warnings.join("; ")}`,
     };
   }
 
   return {
     status: "ok",
-    detail: `3 composites valid: safety (5 features), memory (4 features), agentic (4 features)`,
+    detail: `${expectedComposites.length} composites valid: ${expectedComposites.join(" + ")}`,
   };
 });
 

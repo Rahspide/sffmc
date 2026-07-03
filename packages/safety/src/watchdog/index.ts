@@ -11,7 +11,7 @@ interface WatchdogConfig {
   promote_model: string | null;
   error_class_filter: string[];
   log_failures: boolean;
-    // .slim/deepwork/phase-2-3-hardcode-migration-plan.md §2.7
+    // the v0.14.x hardcode migration plan (file not in git; see CHANGELOG.md v0.14.5) §2.7
   /** watchdog log file — how many recent failures to include in the promotion fragment
    *  injected into the system prompt when a tool gets stuck. Defaults to
    *  5 (matches the prior hardcoded value). Validation: 1 ≤ x ≤ 50. */

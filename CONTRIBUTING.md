@@ -162,4 +162,4 @@ OpenCode restart.
 
 ## Release process
 
-See [RELEASE.md](RELEASE.md). v0.15.1 is the current release; future tags may be published per-plugin.
+See [RELEASE.md](RELEASE.md). v0.15.3 is the current release; future tags may be published per-plugin.

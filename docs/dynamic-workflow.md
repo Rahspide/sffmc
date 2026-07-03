@@ -37,7 +37,7 @@ The workflow engine solves this differently:
 - State lives outside the context window — in SQLite + JSONL journal
 - On process crash, workflow resumes from the last checkpoint
 - Hard caps prevent budget runaway (1000 lifecycle agents,
-  2M tokens, 16 concurrent, 12 hours wall-clock)
+  2M tokens, 16 concurrent, 1 hour wall-clock)
 
 Result: one workflow replaces 5-10 manual sessions and costs the same
 tokens those sessions would cost individually (often less,
@@ -265,7 +265,7 @@ When using the workflow tool via `createWorkflowTool(runtime)`, observability li
 | **Lifecycle agents** | 1000 | `config.maxLifecycleAgents` |
 | **Steps per run** | 200 | `config.maxSteps` |
 | **Concurrent agents** | 16 | Global semaphore (auto = 2×CPU) |
-| **Wall-clock** | 12 hours | `config.maxWallClockMs` |
+| **Wall-clock** | 1 hour | `config.maxWallClockMs` |
 | **Tokens** | 2 000 000 | `config.maxTokens` |
 
 When any cap is reached — agent() starts returning `null` (reason:
@@ -302,7 +302,8 @@ const page = await agent("fetch: " + url, {
 })
 ```
 
-Direct MCP bindings are planned for a future release.
+Direct MCP bindings via `mcp.list()` and `mcp.call(name, args)` are
+available since v0.14.0 (see `packages/runtime/src/mcp.ts`).
 
 ## Sandbox isolation
 
@@ -316,7 +317,7 @@ Workflow scripts execute inside a **quickjs-emscripten** WASM sandbox:
   pathname)
 - **Memory limit**: 64 MB
 - **Instruction limit**: 5 000 000 (interrupts infinite loops)
-- **Wall-clock deadline**: 12 hours per script
+- **Wall-clock deadline**: 1 hour per script
 
 An attempt to `require("fs")`, `process.exit()`, or `fetch()` will throw
 ReferenceError.

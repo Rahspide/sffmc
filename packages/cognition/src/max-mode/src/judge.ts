@@ -15,7 +15,7 @@ export interface Verdict {
  * is now `judgeDraftMaxChars` (default 8000, matches the prior literal).
  * Configurable via `MaxModeConfig.judgeDraftMaxChars` in
  * `~/.config/SFFMC/max-mode.yaml`. See
- * .slim/deepwork/phase-2-3-hardcode-migration-plan.md §2.6.
+ * the v0.14.x hardcode migration plan (file not in git; see CHANGELOG.md v0.14.5) §2.6.
  */
 export function buildJudgePrompt(
   candidates: Candidate[],

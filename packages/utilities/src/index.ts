@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/utilities — see ../../LICENSE
 
-export { loadConfig } from "./config.ts"
+export { loadConfig, SAFE_REPETITION_LIMIT, validateSafeRegex } from "./config.ts"
 export type { PluginContext } from "./context.ts"
 export { __listBuiltinRedactionRules, __resetRedactionCache, ensureRedactionRules, isSensitiveFilename, isSensitiveSourcePath, redactSecrets } from "./redact-secrets.ts"
 export type { RedactionCategory, RedactionResult } from "./redact-secrets.ts"
@@ -36,7 +36,6 @@ export {
   DEFAULT_MEMORY_DB_PATH,
   JOURNAL_EXT,
   MEMORY_DB_FILENAME,
-  migrateLegacyDataPaths,
 } from "./paths.ts"
 export { SECONDS_PER_DAY, __resetClock, __setClock, unixNow } from "./time.ts"
 export { defaultFsOps, createMockFsOps } from "./fs-ops.ts"

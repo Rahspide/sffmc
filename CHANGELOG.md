@@ -1,3 +1,67 @@
+## v0.15.3 (2026-07-03)
+
+> Maintenance release. **No breaking changes.** 25+ fixes from a post-v0.15.2 codebase audit. Recommend upgrade for everyone who hit any of the audit findings.
+
+### Fixed
+
+#### Configuration gaps (v0.14.5's "21 values configurable" overstated)
+
+- **Sandbox pump cadence now reads `WorkflowExtendedConfig`** — `packages/runtime/src/sandbox.ts:336-338` was using inline `const SLOW_MS = 50; const FAST_WINDOW = 50` instead of the existing `getSandboxSlowMs()` / `getSandboxFastWindow()` getters. Now user YAML overrides (`sandboxSlowMs`, `sandboxFastWindow`, `sandboxFastMs`) take effect. Closes the v0.14.x wiring gap flagged by the post-v0.15.2 audit.
+- **`FlushManager` debounce now reads `getFlushDebounceMs()`** — `packages/runtime/src/flush-manager.ts:44` had `private static readonly DEBOUNCE_MS = 250` shadowing the config getter. Constructor takes optional `debounceMs` parameter; `runtime.ts` passes `getFlushDebounceMs()`. Same fix as sandbox pump.
+- **`WorkflowPersistence` fsync coalesce now reads `getFsyncCoalesceMs()`** — `persistence.ts:172` had `const FSYNC_COALESCE_MS = 50` shadowing the config getter. `scheduleFsync()` at line 261 now calls `getFsyncCoalesceMs()`. Closes the deferred wiring contract in `phase2-batch-c-w22-fsync.test.ts`.
+- **`SAFE_REPETITION_LIMIT` exported from utilities** — `packages/safety/src/rules/rules.ts:16` had `const SAFE_REGEX_LIMIT = 25` duplicating `packages/utilities/src/config.ts:17`. Now exported as `SAFE_REPETITION_LIMIT` from `@sffmc/utilities` and imported by `safety/rules`. Single source of truth for the ReDoS cutoff.
+
+#### Security
+
+- **All 5 runtime persistence `mkdir` calls now use `mode: 0o700`** — `persistence.ts:220,369,412,427,484` previously called `mkdir(this.dir, { recursive: true })` without `mode`, leaving the runtime data dir readable by other users on multi-user systems. Brings runtime in line with memory/dream/checkpoint which already use `mode: 0o700` since v0.12.1.
+- **`migrateLegacyDataPaths()` removed** — exported but never wired into any bootstrap path, so it could never fire. The function pretended to migrate `~/.config/SFFMC` → `~/.config/sffmc` on first run; in practice nothing called it. v0.11.1 CHANGELOG claim "11 packages updated" was unsupported. Canonical path stays uppercase `SFFMC/` for backward compatibility. If a future migration to lowercase is desired, it must be wired into `activation.ts` and ship as a planned breaking change.
+- **5 new redaction patterns** — `packages/utilities/src/redact-secrets.ts:118` `cloud-credential` rule expanded to cover: GitHub fine-grained PAT (`github_pat_*`), GitHub OAuth/user/scope tokens (`gho_*`/`ghu_*`/`ghs_*`/`ghr_*`), GitLab PAT (`glpat-*`), Discord bot tokens (`d_*` prefix), Stripe live keys (`sk_live_*`, `rk_live_*`), and JWTs (three base64url segments separated by dots).
+- **`redactSecrets()` `MAX_CONTENT_BYTES` guard** — exports new `MAX_CONTENT_BYTES = 1_048_576` (1 MiB). Inputs larger than this return unchanged with `{ oversize: true, categories: ["oversize"] }` so callers can chunk-stream or warn. Closes the "no upper bound on input size" gap in v0.12.1 audit.
+
+#### Health plugin
+
+- **`checkCompositeStructure` no longer hardcodes "3 composites"** — message now uses `expectedComposites.length` and joins the actual list (`safety + memory`). Was stale since v0.15.0 dissolved `@sffmc/agentic`.
+- **`checkExtraOptIn` refactored** — was looking for the deleted `packages/extra/` directory and reading `~/.config/SFFMC/extra.yaml`. Both paths are gone since v0.15.0 (extra moved to `@sffmc/memory`, utilities became a permanent library). Function still exists for log-scraper compatibility but returns `ok` with a "permanent library, no opt-in required" detail.
+- **`checkChangelogCurrency` now also verifies `CHANGELOG.ru.md`** — the bilingual docs promise is a soft contract (warn, not fail). Reports missing RU file or out-of-sync top version.
+
+#### Audit script
+
+- **`scripts/audit-load-order.py` error message fixed** — claimed `expected 14` packages but actually checks `== 5`. Updated to `expected 5`.
+- **`scripts/check-cleanroom.sh` cleaned up** — removed dead EXCLUDE_PATTERNS for deleted `packages/compose/`, `packages/agentic/` (dissolved in v0.15.0 P-1). Removed `shared/` from grep scopes (directory no longer exists post-consolidation).
+
+#### Documentation drift
+
+- **`docs/dynamic-workflow.md`** — "12 hours wall-clock" → "1 hour wall-clock" (×3 refs; was Manriel v0.12.1 reduction that never propagated to docs). "Direct MCP bindings planned" → "available since v0.14.0" (was false, mcp.list()/mcp.call() shipped in v0.14.0).
+- **`bin/sffmc` (bash) help text updated** — "13 packages / 13-check diagnostic" → "5 packages / 9-check diagnostic" (v0.15.1 fixed PowerShell only). `--minimal` flag description: "3 composite packages" → "4 packages (2 composites + 2 most-used standalones)".
+- **`CONTRIBUTING.md`** — "v0.15.1 is the current release" → "v0.15.3 is the current release".
+- **`docs/install.md`** — `SFFMC_VERSION=v0.15.0` (×2) → `SFFMC_VERSION=v0.15.3`.
+- **`CHANGELOG.md`** — "v0.14.7" stale references (×2) → "v0.14.9" (v0.14.7 never released; auto-migration shipped in v0.14.9).
+
+#### Phantom file refs (cleanup)
+
+- **`packages/utilities/src/redact-secrets.ts` MIN_TOKEN_LENGTH extracted** — 4 patterns (`api-key-assignment`, `token-assignment`, `bearer-header`) all hardcoded `{16,}` duplicated. Now built via `RegExp` constructor with `${MIN_TOKEN_LENGTH}` interpolation at module load. Reduces drift risk if threshold changes.
+- **11 source files** — references to `.slim/deepwork/hardcode-audit-2026-06.md` and `.slim/deepwork/phase-2-3-hardcode-migration-plan.md` (phantom files, not in git) replaced with brief historical note pointing to CHANGELOG.md v0.14.5. Affects: `packages/memory/src/extra/{dream,index,judge}.ts`, `packages/cognition/src/{compose,max-mode}/*`, `packages/safety/src/watchdog/index.ts`.
+- **`packages/utilities/src/fs-ops.ts`** — reference to phantom `docs/superpowers/plans/2026-06-30-v0.15.0-implementation.md` replaced.
+
+### Closed tasks (no implementation needed)
+
+- **Schema refactor** (was "design done in `docs/v0-14-m4-schema-design.md`, 990 lines, planned for v0.15") — **closed as superseded**. The 990-line design doc never existed in git (not in HEAD, branches, or dangling objects). Phase 1 shipped in v0.14.3 (`schema-journal.ts` hand-rolled validator for journal events), addressing the Manriel audit "Journal JSON parsed without schema validation" finding concretely. The 13→5 package consolidation (v0.15.0) makes any Phases 2-N design moot — the original design assumed a different package layout (rules/safety/memory/workflow as separate packages). Adopting `zod`/`effect.Schema` would add a runtime dep with marginal benefit over the current 207-LOC hand-rolled validator. Recommendation: leave the journal surface as-is; revisit if a future audit demands broader schema unification.
+
+### Worktree (not yet committed)
+
+- `main` will be 1 commit ahead of `origin/main` after this release. The previous worktree commit (`2c78b31 docs(changelog): clean v0.14.9 duplicates, restore title, rebuild CHANGELOG.ru.md`) is included.
+
+### Pre-commit gates (all green at v0.15.3)
+
+- typecheck ✓
+- test 1045 pass / 1 skip / 0 fail (9705 expect calls)
+- audit-load-order ✓
+- audit:public ✓
+- audit:redos 17/17 pass
+- cleanroom ✓
+- run-health 10 ok / 3 warn / 0 fail
+- bun-install-frozen ✓
+
 # SFFMC Changelog
 
 ## v0.15.2 (2026-07-02)
@@ -104,7 +168,7 @@
 
 ### Changed
 
-- **Checkpoint file format v2** — adds indexed random access and CRC32 integrity to the on-disk JSONL layout. v2 files include per-line byte offsets in the header and a CRC32 of the body bytes; each body line also carries a per-line CRC. v1 files remain readable; existing v1 data is migrated to v2 via `migrateV1ToV2(sessionID, dir?)` (explicit call in v0.14.6; auto on first v2 write is planned for v0.14.7).
+- **Checkpoint file format v2** — adds indexed random access and CRC32 integrity to the on-disk JSONL layout. v2 files include per-line byte offsets in the header and a CRC32 of the body bytes; each body line also carries a per-line CRC. v1 files remain readable; existing v1 data is migrated to v2 via `migrateV1ToV2(sessionID, dir?)` (explicit call in v0.14.6; auto on first v2 write shipped in v0.14.9).
 
 ### Added
 
@@ -114,7 +178,7 @@
 
 ### Migration
 
-v1 to v2 is one-way. Once a file is v2, the reader does not rewrite it as v1. v1 readers continue to work on v1 files. Auto-migration on first v2 write is planned for v0.14.7, which will drop v1 reader support.
+v1 to v2 is one-way. Once a file is v2, the reader does not rewrite it as v1. v1 readers continue to work on v1 files. Auto-migration on first v2 write is planned for v0.14.9, which will drop v1 reader support.
 
 ## v0.14.5 (2026-06-21)
 
@@ -218,11 +282,13 @@ Redaction helper + grace period + MCP integration + docs polish redo. 5 commits 
 
 ### Deferred to v0.15
 
-- **Checkpoint format change** (was deferred from v0.12.1, not re-scheduled)
-- **Schema refactor** (design done in `v0-14-m4-schema-design.md`, 990 lines; implementation planned for v0.15)
-- Hardcode audit findings (60 items — see `.slim/deepwork/hardcode-audit-2026-06.md`)
-- PEM key body redaction (out of scope for v0.14)
-- ReDoS checker promotion to CI gate
+> **Status note (post-v0.15.2 audit, 2026-07-03):** the original "planned for v0.15" timeline slipped as the project pivoted to the v0.15.0 package consolidation (13 → 5 packages). 2 of 5 items were silently completed in v0.14.1 — see that release's "Added" / "Fixed" sections above. The other 3 reference phantom files (the 990-line design doc and the hardcode audit markdown are not in git history) and need a clean re-spec before any future implementation work.
+
+- **Checkpoint format change** (was deferred from v0.12.1, not re-scheduled) — *not done*
+- **Schema refactor** (design file `docs/v0-14-m4-schema-design.md` not in git; needs re-spec from current `schema.ts` 68 LOC + `schema-journal.ts` 207 LOC) — *not done*
+- Hardcode audit findings (audit file `.slim/deepwork/hardcode-audit-2026-06.md` not in repo; v0.14.5 already shipped 21-value migration to `~/.config/sffmc/{package}.yaml`, remaining ~151 numeric literals need re-scan) — *partially done*
+- **PEM key body redaction** (out of scope for v0.14) — ✅ shipped in [v0.14.1](#v0141-2026-06-19) "Fixed"
+- **ReDoS checker promotion to CI gate** — ✅ shipped in [v0.14.1](#v0141-2026-06-19) "Added"
 
 ## v0.12.1 (2026-06-19)
 

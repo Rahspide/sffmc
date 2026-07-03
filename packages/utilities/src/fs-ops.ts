@@ -11,7 +11,7 @@
 // separate async refactor (constructor-injection through
 // `WorkflowPersistence`).
 //
-// See docs/superpowers/plans/2026-06-30-v0.15.0-implementation.md,
+// See the v0.15.0 implementation plan (file not in git; design choices summarized in CHANGELOG.md v0.15.0),
 // Task 2.3.
 
 import {

@@ -99,7 +99,7 @@ export interface JudgeConfig {
   judge_auto?: boolean;
   /** PluginContext for LLM calls. Required for real judging. */
   ctx?: RichPluginContext;
-    // .slim/deepwork/phase-2-3-hardcode-migration-plan.md §2.5
+    // the v0.14.x hardcode migration plan (file not in git; see CHANGELOG.md v0.14.5) §2.5
   /** judge prompt — max number of candidates the judge will accept per call. Also
    *  used as the JSON-Schema `maxItems` for the `candidates` parameter.
    *  Defaults to `DEFAULT_MAX_CANDIDATES` (8). Validated to the 2-20 range

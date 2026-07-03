@@ -10,7 +10,7 @@ import { homedir } from "node:os"
 import { createInterface } from "node:readline"
 import type { WorkflowRun, WorkflowStep, JournalEvent, WorkflowStatus } from "./types.ts"
 import { applySchema } from "./schema.ts"
-import { ensureWorkflowConfig, getDbFilename, getWorkflowConfigSync, getWorkflowDataDir } from "./constants.ts"
+import { ensureWorkflowConfig, getDbFilename, getFsyncCoalesceMs, getWorkflowConfigSync, getWorkflowDataDir } from "./constants.ts"
 import { validateJournalEvent } from "./schema-journal.ts"
 import { createLogger, defaultFsOps, type FsOps, safeRunID, unixNow } from "@sffmc/utilities"
 // Re-exported so existing test consumers (e.g. `foundation.test.ts`,
@@ -164,12 +164,9 @@ function rowToRun(row: Record<string, unknown>): WorkflowRun {
 // force-flush — calling it from one test would fsync another test's pending
 // paths, hiding regressions. Promoted to per-instance fields on
 // `WorkflowPersistence` so each instance tracks and flushes its own pending
-// paths. The constant `FSYNC_COALESCE_MS` stays at module scope (read-only,
-// not mutable, no per-instance variation — and the deferred-wiring contract
-// in `phase2-batch-c-w22-fsync.test.ts` keeps it pinned at 50 here until the
-// dedicated migration replaces the hardcode with `getFsyncCoalesceMs()`).
-
-const FSYNC_COALESCE_MS = 50
+// paths. `fsyncCoalesceMs` now reads from `getFsyncCoalesceMs()` so user
+// YAML overrides take effect (closes the deferred wiring contract in
+// `phase2-batch-c-w22-fsync.test.ts`).
 
 // ---------------------------------------------------------------------------
 // WorkflowPersistence class
@@ -220,7 +217,7 @@ export class WorkflowPersistence {
       this.db = opts.db
       this._owned = false
     } else {
-      this.fs.mkdir(this.dir, { recursive: true })
+      this.fs.mkdir(this.dir, { recursive: true, mode: 0o700 })
       this.db = new Database(dbPathForDir(this.dir))
       applySchema(this.db)
       this._owned = true
@@ -261,7 +258,7 @@ export class WorkflowPersistence {
    *  lets the process exit even if a coalesce window is open. */
   private scheduleFsync(): void {
     if (this.fsyncTimer !== null) return
-    this.fsyncTimer = setTimeout(() => this.flushFsync(), FSYNC_COALESCE_MS)
+    this.fsyncTimer = setTimeout(() => this.flushFsync(), getFsyncCoalesceMs())
     this.fsyncTimer.unref?.()
   }
 
@@ -369,7 +366,7 @@ export class WorkflowPersistence {
 
   async writeScript(runID: string, source: string): Promise<void> {
     safeRunID(runID)
-    await mkdir(this.dir, { recursive: true })
+    await mkdir(this.dir, { recursive: true, mode: 0o700 })
     await writeFile(this.scriptPath(runID), source, "utf-8")
   }
 
@@ -412,7 +409,7 @@ export class WorkflowPersistence {
    *  module scope — appends only enqueue fsync on THIS persistence's set. */
   appendJournalSync(runID: string, event: JournalEvent): void {
     safeRunID(runID)
-    this.fs.mkdir(this.dir, { recursive: true })
+    this.fs.mkdir(this.dir, { recursive: true, mode: 0o700 })
     const jpath = this.journalPath(runID)
     if (!this.fs.exists(jpath)) {
       //  append: write v1 header so future readers can detect format
@@ -427,7 +424,7 @@ export class WorkflowPersistence {
   /** Async journal append — for log/phase events. */
   async appendJournal(runID: string, event: JournalEvent): Promise<void> {
     safeRunID(runID)
-    await mkdir(this.dir, { recursive: true })
+    await mkdir(this.dir, { recursive: true, mode: 0o700 })
     await appendFile(this.journalPath(runID), JSON.stringify(event) + "\n")
   }
 
@@ -484,7 +481,7 @@ export class WorkflowPersistence {
    *  and silently skip). See journal audit. */
   async clearJournal(runID: string): Promise<void> {
     safeRunID(runID)
-    await mkdir(this.dir, { recursive: true })
+    await mkdir(this.dir, { recursive: true, mode: 0o700 })
     const jpath = this.journalPath(runID)
     await writeFile(jpath, JSON.stringify({ v: 1 }) + "\n", "utf-8")
   }

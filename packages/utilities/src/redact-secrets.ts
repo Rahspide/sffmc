@@ -20,6 +20,22 @@ import { createLogger } from "./logger.ts"
 
 const log = createLogger("sffmc/shared")
 
+/**
+ * Minimum length for an inline credential value to be redacted.
+ *
+ * Used by the api-key / token / bearer / basic-auth patterns below to avoid
+ * matching trivial short strings (e.g. `key=ab`, `token=xyz`) that are almost
+ * certainly noise rather than secrets. Single source of truth — change here
+ * to widen/narrow across all 4 patterns at once.
+ */
+export const MIN_TOKEN_LENGTH = 16
+
+/** Hard upper bound on input size accepted by `redactSecrets()`. Inputs
+ *  larger than this are returned unchanged with `oversize: true` set in
+ *  the result. 1 MiB covers any realistic chat/file payload; chunks larger
+ *  than this should be processed by the caller in segments. */
+export const MAX_CONTENT_BYTES = 1_048_576
+
 /** Categories of redaction, used as the marker suffix `[REDACTED:<id>]`. */
 export type RedactionCategory =
   | "env-file"
@@ -39,6 +55,7 @@ export type RedactionCategory =
   | "private-key-pem"
   | "filename-rule"
   | "sourcepath-rule"
+  | "oversize"
 
 /** Result of redacting a string. */
 export interface RedactionResult {
@@ -48,6 +65,9 @@ export interface RedactionResult {
   categories: ReadonlyArray<RedactionCategory>
   /** Count of redactions applied. Useful for telemetry and test assertions. */
   count: number
+  /** True if the input exceeded `MAX_CONTENT_BYTES` and was returned
+   *  unchanged without scanning. Callers should chunk-stream or warn. */
+  oversize?: boolean
 }
 
 /** Internal rule shape — not exported. */
@@ -95,12 +115,29 @@ const BUILTIN_RULES: ReadonlyArray<RedactionRule> = [
   // the whole match with a single `[REDACTED:private-key-pem]` marker.
   { id: "private-key-pem", pattern: /-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP |ENCRYPTED )?PRIVATE KEY-----[\s\S]*?-----END (?:RSA |EC |DSA |OPENSSH |PGP |ENCRYPTED )?PRIVATE KEY-----/g, description: "PEM-armored private key blocks (header + body + footer)" },
   // D — inline credential assignments
-  { id: "api-key-assignment", pattern: /(api[_-]?key|apikey)\s*[=:]\s*["']?([A-Za-z0-9_+\-\/=]{16,})["']?/gi, description: "api_key=... or apiKey: ..." },
+  // Patterns below use `MIN_TOKEN_LENGTH` (16) as the threshold for
+  // what counts as a "real" token. The constant is interpolated once
+  // at module load via the `RegExp` constructor so all 4 patterns
+  // share a single source of truth — bump the constant and all 4
+  // thresholds move together.
+  { id: "api-key-assignment", pattern: new RegExp(`(api[_-]?key|apikey)\\s*[=:]\\s*["']?([A-Za-z0-9_+\\-\\/=]{${MIN_TOKEN_LENGTH},})["']?`, "gi"), description: "api_key=... or apiKey: ..." },
   { id: "password-assignment", pattern: /(password|passwd|pwd)\s*[=:]\s*["']?([^\s"']{6,})["']?/gi, description: "password=... or pwd: ..." },
-  { id: "token-assignment", pattern: /(?:access[_-]?token|auth[_-]?token|bearer)\s*[=:]\s*["']?([A-Za-z0-9_+\-\/\.=]{16,})["']?/gi, description: "access_token=..., auth_token: ..., bearer=..." },
-  { id: "bearer-header", pattern: /(?:authorization|auth):\s*bearer\s+([A-Za-z0-9_+\-\/\.=]{16,})/gi, description: "Authorization: Bearer <token>" },
+  { id: "token-assignment", pattern: new RegExp(`(?:access[_-]?token|auth[_-]?token|bearer)\\s*[=:]\\s*["']?([A-Za-z0-9_+\\-\\/\\.=]{${MIN_TOKEN_LENGTH},})["']?`, "gi"), description: "access_token=..., auth_token: ..., bearer=..." },
+  { id: "bearer-header", pattern: new RegExp(`(?:authorization|auth):\\s*bearer\\s+([A-Za-z0-9_+\\-\\/\\.=]{${MIN_TOKEN_LENGTH},})`, "gi"), description: "Authorization: Bearer <token>" },
   { id: "basic-auth-header", pattern: /(?:authorization|auth):\s*basic\s+([A-Za-z0-9+\/=]{8,})/gi, description: "Authorization: Basic <base64>" },
-  { id: "cloud-credential", pattern: /(AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_\-]{35}|ghp_[A-Za-z0-9]{36}|sk-[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]+)/g, description: "AWS/GCP/GitHub/OpenAI/Slack tokens" },
+  // E — provider-specific credential patterns (v0.15.3 expansion).
+  // Each alternative is anchored to the token's known prefix / shape so
+  // false-positive rate stays near zero. The `ghp_` form (legacy GitHub PAT)
+  // is joined by `github_pat_` (fine-grained, ~22 chars of base62 + base32
+  // suffix) and `gho_`/`ghu_`/`ghs_`/`ghr_` for OAuth/user-token/scope/etc.
+  // GitLab: `glpat-` prefix + 20 chars. Discord bot tokens are base64 with
+  // three dots — match the prefix `d_` (rare false-positive risk on user
+  // content, but Discord IDs use snowflakes not base64). Stripe live keys
+  // are `sk_live_` + 24+ chars; restricted keys are `rk_live_`. JWTs are
+  // three base64url segments separated by dots; the long random middle
+  // segment is the credential, but the first/last segments also leak info
+  // about the issuer/claims — match the whole structure.
+  { id: "cloud-credential", pattern: /(AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_\-]{35}|gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{82}|glpat-[A-Za-z0-9_\-]{20}|[A-Za-z0-9_\-]{24,}\.[A-Za-z0-9_\-]{6,}\.[A-Za-z0-9_\-]{20,}|sk-[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]+|sk_live_[A-Za-z0-9]{24,}|rk_live_[A-Za-z0-9]{24,})/g, description: "AWS/GCP/GitHub (incl. fine-grained PAT)/OpenAI/Slack/Discord/Stripe/GitLab/JWT tokens" },
 ]
 
 /** User-facing config shape. Read from `~/.config/sffmc/redact-secrets.yaml`. */
@@ -312,6 +349,22 @@ export function isSensitiveSourcePath(sourcePath: string): boolean {
  */
 export function redactSecrets(content: string): RedactionResult {
   if (!content) return { redacted: content, categories: [], count: 0 }
+  // v0.15.3: guard against runaway inputs. redactSecrets() runs each
+  // BUILTIN_RULES pattern (now 11+) over the entire content with a
+  // single `String.prototype.match()` — that's O(N × rules) and the
+  // 11 patterns each have linear scan semantics, so the worst case
+  // for a multi-MB blob is tens of millions of regex backtrack steps.
+  // Cap at 1 MiB; oversized content is returned unchanged with a
+  // `categories` marker so callers can flag it (and the caller decides
+  // whether to chunk-stream, reject, or log a warning).
+  if (content.length > MAX_CONTENT_BYTES) {
+    return {
+      redacted: content,
+      categories: ["oversize"],
+      count: 0,
+      oversize: true,
+    }
+  }
   const rules = getCachedRulesSync()
   let redacted = content
   const categories: RedactionCategory[] = []

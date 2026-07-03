@@ -12,20 +12,20 @@ interface MaxModeConfig {
   judge_model: string;
   budget_cap_multiplier: number;
   dry_run: boolean;
-    // .slim/deepwork/phase-2-3-hardcode-migration-plan.md §2.6
+    // the v0.14.x hardcode migration plan (file not in git; see CHANGELOG.md v0.14.5) §2.6
   /** max-mode checkpoint integration — hard cap on the number of parallel LLM candidates. Safety
    *  limit: prevents accidental bursts (e.g. `n_candidates: 100` firing
    *  100 parallel API calls). Enforced at runtime as
    *  `Math.min(config.n, maxCandidates)`. Default 10 matches the prior
    *  module-level const. Validation: 1 ≤ x ≤ 50. */
   maxCandidates: number;
-    // .slim/deepwork/phase-2-3-hardcode-migration-plan.md §2.6
+    // the v0.14.x hardcode migration plan (file not in git; see CHANGELOG.md v0.14.5) §2.6
   /** max-mode chokidar migration — max chars of each candidate draft sent to the judge. Truncates
    *  long drafts before they enter the judge prompt so a 50-candidate
    *  batch × 8k draft stays under the model's context window. Default
    *  8000 matches the prior literal. Validation: 500 ≤ x ≤ 32000. */
   judgeDraftMaxChars: number;
-    // .slim/deepwork/phase-2-3-hardcode-migration-plan.md §3.max-mode dream integration
+    // the v0.14.x hardcode migration plan (file not in git; see CHANGELOG.md v0.14.5) §3.max-mode dream integration
   /** max-mode dream integration — confidence value stamped on the verdict whenever the judge path
    *  falls back (SDK offline, parse error, or empty/invalid response).
    *  Semantically distinct from a judge-reported confidence: a verdict

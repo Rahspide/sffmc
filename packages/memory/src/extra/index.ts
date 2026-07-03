@@ -36,7 +36,7 @@ export interface ExtraConfig {
   checkpoint_max_file_size: number;
   /** max restored messages — max messages restored from a single checkpoint (default 50). */
   checkpoint_max_restored_messages: number;
-    // .slim/deepwork/phase-2-3-hardcode-migration-plan.md §2.3
+    // the v0.14.x hardcode migration plan (file not in git; see CHANGELOG.md v0.14.5) §2.3
   /** buffer flush threshold — buffer flush threshold (tool calls buffered before disk flush). */
   checkpoint_flush_threshold: number;
   /** periodic flush interval — periodic flush interval in ms. */

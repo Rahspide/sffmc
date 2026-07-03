@@ -2,7 +2,7 @@
 // @sffmc/cognition — see ../../LICENSE
 //
 // second release migration test (v0.14.3) — max-mode max-mode checkpoint integration + max-mode chokidar migration.
-// See .slim/deepwork/phase-2-3-hardcode-migration-plan.md §2.6.
+// See the v0.14.x hardcode migration plan (file not in git; see CHANGELOG.md v0.14.5) §2.6.
 //
 // Verifies the two new YAML-configurable fields on MaxModeConfig:
 //

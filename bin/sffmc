@@ -36,19 +36,19 @@ ${BOLD}Usage:${RESET} sffmc <command> [options]
 ${BOLD}Commands:${RESET}
   init [--minimal|--all|--only <pkg,...>|--yes]
                               Add SFFMC plugin paths to opencode.json.
-                              --minimal (default): 3 composite packages
-                              --all:            all 13 packages
+                              --minimal (default): 4 packages (2 composites + 2 most-used standalones)
+                              --all:            all 5 packages
                               --only p1,p2,...: specific packages
                               --yes:            skip confirmation prompt
   update                      git pull + re-init
   uninstall                   Remove all SFFMC entries from opencode.json
-  doctor                      Run 13-check diagnostic
+  doctor                      Run 9-check diagnostic
   path                        Print install directory
   help                        Show this help
 
 ${BOLD}Examples:${RESET}
   sffmc init                  # Default: safety, memory, runtime, cognition
-  sffmc init --all            # All 13 packages
+  sffmc init --all            # All 5 packages (2 composite + 3 standalone)
   sffmc init --only runtime,cognition,safety  # Specific packages
   sffmc init --yes            # Skip confirmation
   sffmc update                # Pull latest + re-sync config
@@ -155,7 +155,7 @@ cmd_init() {
       ;;
     all)
       mapfile -t wanted < <(resolve_plugins "safety,memory,runtime,cognition")
-      info "Full install: adding all 13 packages"
+      info "Full install: adding all 5 packages (2 composite + 3 standalone)"
       ;;
     only)
       mapfile -t wanted < <(resolve_plugins "$only")
@@ -318,7 +318,7 @@ cmd_doctor() {
     exit 2
   fi
 
-  info "Running 13-check diagnostic..."
+  info "Running 9-check diagnostic..."
   cd "$SFFMC_DIR"
   bun run "$health_script"
 }

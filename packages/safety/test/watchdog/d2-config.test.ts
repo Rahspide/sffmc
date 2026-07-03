@@ -2,7 +2,7 @@
 // @sffmc/safety — see ../../LICENSE
 //
 // second release migration test (watchdog log file) — see
-// .slim/deepwork/phase-2-3-hardcode-migration-plan.md §2.7
+// the v0.14.x hardcode migration plan (file not in git; see CHANGELOG.md v0.14.5) §2.7
 //
 // Verifies the new YAML-configurable field on WatchdogConfig:
 //   - watchdog log file  recentFailuresLimit   (default 5, limit passed to FailureCounter.getRecentFailures)

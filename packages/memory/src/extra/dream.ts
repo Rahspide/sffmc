@@ -97,21 +97,21 @@ export interface DreamConfig {
   ctx?: RichPluginContext;
   /** Model for LLM summarization. Defaults to "". */
   summaryModel?: string;
-    // .slim/deepwork/hardcode-audit-2026-06.md
+    // the v0.14.x hardcode audit (file not in git; see CHANGELOG.md v0.14.5)
   /** Jaccard dedup threshold. Defaults to `DREAM_DEDUP_THRESHOLD` (0.9). */
   dedupThreshold?: number;
   /** Jaccard cluster threshold. Defaults to `DREAM_CLUSTER_THRESHOLD` (0.3). */
   clusterThreshold?: number;
   /** Max entries processed per dream cycle. Defaults to `MAX_DREAM_ENTRIES` (5000). */
   maxEntries?: number;
-    // .slim/deepwork/phase-2-3-hardcode-migration-plan.md §2.4
+    // the v0.14.x hardcode migration plan (file not in git; see CHANGELOG.md v0.14.5) §2.4
   /** JSONL path for archived memory entries. When empty, the
    *  default `DEFAULT_ARCHIVE_PATH` (`~/.local/share/sffmc/extra/dream-archive.jsonl`)
    *  is used. Set this to relocate the archive (e.g. on a different volume).
    *  Changing it mid-session after dream has already archived entries will
    *  split the archive across two files — set it before the  dream run. */
   archivePath?: string;
-    // .slim/deepwork/phase-2-3-hardcode-migration-plan.md §3.3
+    // the v0.14.x hardcode migration plan (file not in git; see CHANGELOG.md v0.14.5) §3.3
   /** Max characters per entry in the concatenated summary (also used
    *  by `nameClusterViaLLM` to build the topic-naming prompt). Defaults to
    *  `DREAM_SNIPPET_LENGTH` (100). Recommended range: 20 ≤ x ≤ 1000. */

@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/utilities — see ../../LICENSE
-import { rename } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { createLogger } from "./logger.ts";
@@ -21,40 +20,26 @@ export const JOURNAL_EXT = ".jsonl";
  *  the same line-delimited JSON. */
 export const CHECKPOINT_EXT = JOURNAL_EXT;
 
-/** Compose the standard XDG-style config dir for SFFMC. The uppercase
- *  `SFFMC` namespace is the legacy location; `migrateLegacyDataPaths()`
- *  is responsible for moving it to lowercase on first run. */
+/** Compose the standard XDG-style config dir for SFFMC.
+ *  The uppercase `SFFMC` namespace is the canonical on-disk location
+ *  (kept for backward compatibility — pre-v0.15 installs wrote here). */
 export const configHome = (home: string = homedir()): string =>
   join(home, ".config", "SFFMC");
 
-/** Compose the standard XDG-style data dir for SFFMC. */
+/** Compose the standard XDG-style data dir for SFFMC.
+ *  Same backward-compat note as `configHome`. */
 export const dataHome = (home: string = homedir()): string =>
   join(home, ".local", "share", "SFFMC");
 
-/** Resolve the default on-disk path for the memory index.
- *  Path intentionally uses the uppercase `SFFMC` namespace (the legacy
- *  source-of-truth location pre-migration). `migrateLegacyDataPaths()` is
- *  responsible for moving this to lowercase on first run. */
+/** Resolve the default on-disk path for the memory index. */
 export const DEFAULT_MEMORY_DB_PATH = (home: string = homedir()): string =>
   join(dataHome(home), "memory", MEMORY_DB_FILENAME);
 
-let _migrated = false;
-export async function migrateLegacyDataPaths(): Promise<void> {
-  if (_migrated) return;
-  _migrated = true;
-  const home = homedir();
-  try {
-    await rename(join(home, ".config", "SFFMC"), join(home, ".config", "sffmc"));
-  } catch (e: unknown) {
-    if (e && typeof e === "object" && "code" in e && (e as { code: string }).code !== "ENOENT") {
-      log.warn("Legacy config migration failed:", (e as Error).message);
-    }
-  }
-  try {
-    await rename(join(home, ".local", "share", "SFFMC"), join(home, ".local", "share", "sffmc"));
-  } catch (e: unknown) {
-    if (e && typeof e === "object" && "code" in e && (e as { code: string }).code !== "ENOENT") {
-      log.warn("Legacy data migration failed:", (e as Error).message);
-    }
-  }
-}
+// Note: a prior `migrateLegacyDataPaths()` helper lived here (v0.11.1
+// Manriel audit follow-up). It was exported but never wired into the
+// bootstrap path, so it could never fire. Removed in v0.15.3 — the
+// canonical path stays uppercase `SFFMC/` for backward compatibility.
+// If a future migration to lowercase `sffmc/` is desired, it should be
+// wired into plugin `activation.ts` (call once at startup, guarded by
+// a "did we already migrate" marker file) and ship as a planned
+// breaking change with a CHANGELOG entry, not as silent code.

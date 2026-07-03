@@ -69,7 +69,7 @@ export type DefaultSkillName = (typeof DEFAULT_SKILLS)[number]
 // skills directory override (filesystem) — `VALID_SKILLS` becomes **filesystem-discovered** when `skillsDir`
 //     is set, falling back to the hardcoded `DEFAULT_SKILLS` list when
 //     the config value is empty. The risk note in the migration plan
-//     (phase-2-3-hardcode-migration-plan.md §2.9) is preserved: skill
+//     (the v0.14.x hardcode migration plan, file not in git; see CHANGELOG.md v0.14.5) is preserved: skill
 //     availability changes when files are added/removed, so users who
 //     depend on a stable skill name should set the override before
 //     first run.

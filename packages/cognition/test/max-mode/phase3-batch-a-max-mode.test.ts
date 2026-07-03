@@ -2,7 +2,7 @@
 // @sffmc/cognition — see ../../LICENSE
 //
 // third release migration test (v0.14.3) — max-mode max-mode dream integration.
-// See .slim/deepwork/phase-2-3-hardcode-migration-plan.md §3.6.
+// See the v0.14.x hardcode migration plan (file not in git; see CHANGELOG.md v0.14.5) §3.6.
 //
 // Verifies the new YAML-configurable field on MaxModeConfig:
 //
