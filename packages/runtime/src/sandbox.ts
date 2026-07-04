@@ -78,9 +78,21 @@ globalThis.URL = class URL {
 // When the runtime does not wire MCP support, both globals are set to no-ops
 // (mcpList returns []; mcpCall rejects with a clear error). Scripts can
 // therefore use mcp.list() and mcp.call(name, args) unconditionally.
+//
+// mcp.bind(name) and mcp.bindAll() are also exposed so guest scripts can
+// pull typed handles once (e.g. const search = mcp.bind("github_search"))
+// and invoke them like local functions. bindAll() returns a record of
+// every tool currently registered with the parent.
 globalThis.mcp = {
   list: (...args) => globalThis.mcpList(...args),
   call: (...args) => globalThis.mcpCall(...args),
+  bind: (name) => (args) => globalThis.mcpCall(name, args),
+  bindAll: async () => {
+    const names = await globalThis.mcpList();
+    const out = {};
+    for (const n of names) out[n] = (args) => globalThis.mcpCall(n, args);
+    return out;
+  },
 };
 `
 

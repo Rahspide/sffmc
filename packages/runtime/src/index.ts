@@ -37,6 +37,7 @@ export { registerBuiltin, getBuiltin, loadBuiltin, listBuiltins } from "./builti
 export { createEventBus, WorkflowEventEmitter } from "./events.ts"
 export { createWorkflowTool } from "./tool.ts"
 export { WorkflowRuntime, type RuntimeOpts } from "./runtime.ts"
+export { startWorkflowWatcher, type WorkflowFileChangedEvent } from "./workflow-watcher.ts"
 
 export const id = "@sffmc/runtime"
 export const server = async (ctx: PluginContext) => {

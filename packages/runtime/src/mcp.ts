@@ -252,12 +252,24 @@ export class McpBridge {
  *  `dispatch` callback is what actually invokes the MCP tool — wired in by the
  *  runtime so the bridge stays SDK-agnostic (testable in isolation).
  *
- *  Returned shape: `{ mcp: { list, call } }` — the runtime adds this to the
- *  SandboxPrimitives it passes to `runSandboxed`. */
+ *  Returned shape:
+ *    - `list()` — read-only metadata (not budget-tracked)
+ *    - `call(name, args)` — single-shot dispatch with budget + recursion
+ *    - `bind(name)` — returns a `(args) => Promise<unknown>` callable that
+ *      forwards to `call()`. Lets scripts grab a typed handle once and
+ *      invoke it directly, without re-passing the tool name.
+ *    - `bindAll()` — `bind()` for every tool in the parent's registry,
+ *      returned as `Record<string, callable>`. Convenience for
+ *      `const { github_search } = await mcp.bindAll()` style destructuring. */
 export function makeMcpPrimitives(
   bridge: McpBridge,
   dispatch: (name: string, args: unknown) => Promise<unknown>,
-): { list: () => Promise<string[]>; call: (name: string, args: unknown) => Promise<unknown> } {
+): {
+  list: () => Promise<string[]>
+  call: (name: string, args: unknown) => Promise<unknown>
+  bind: (name: string) => (args: unknown) => Promise<unknown>
+  bindAll: () => Promise<Record<string, (args: unknown) => Promise<unknown>>>
+} {
   return {
     /** Return the parent's MCP tool list (read-only). Resolved at call-time
      *  from the parent context — the guest sees a fresh view each call. */
@@ -293,6 +305,30 @@ export function makeMcpPrimitives(
       } finally {
         bridge.leaveDispatch()
       }
+    },
+
+    /** Bind a single MCP tool name to a host-side callable. The returned
+     *  function routes through `call()` so budget + recursion guards
+     *  apply identically — this is just a syntactic shortcut.
+     *
+     *  Does NOT validate that `name` exists in the parent registry: the
+     *  underlying `dispatch()` returns a meaningful error for unknown
+     *  tools, so we let that propagate rather than introducing a parallel
+     *  validation step that could drift. */
+    bind(name: string): (args: unknown) => Promise<unknown> {
+      return (args: unknown) => this.call(name, args)
+    },
+
+    /** Bind every tool in the parent's registry. Re-fetches the list on
+     *  every call so the result reflects the parent's current tool set
+     *  (tools can be added/removed at runtime via the SDK). */
+    async bindAll(): Promise<Record<string, (args: unknown) => Promise<unknown>>> {
+      const names = await this.list()
+      const out: Record<string, (args: unknown) => Promise<unknown>> = {}
+      for (const name of names) {
+        out[name] = this.bind(name)
+      }
+      return out
     },
   }
 }

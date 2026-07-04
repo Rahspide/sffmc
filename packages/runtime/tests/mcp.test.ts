@@ -321,6 +321,41 @@ describe("mcp.ts: makeMcpPrimitives dispatch", () => {
     // Cleanup — release the 8 holds.
     for (let i = 0; i < 8; i++) bridge.leaveDispatch()
   })
+
+  test("mcp.bind(name) returns a callable that routes through call()", async () => {
+    const bridge = new McpBridge(10)
+    const dispatch = async (name: string, args: unknown) => ({ echo: name, args })
+    const prim = makeMcpPrimitives(bridge, dispatch)
+    const search = prim.bind("github_search")
+    const out = await search({ q: "sffmc" })
+    expect(out).toEqual({ echo: "github_search", args: { q: "sffmc" } })
+    expect(bridge.callCount).toBe(1)
+  })
+
+  test("mcp.bindAll() returns a record of all current tools", async () => {
+    const bridge = new McpBridge(10)
+    const dispatch = async (name: string) => ({ ok: name })
+    const prim = makeMcpPrimitives(bridge, dispatch)
+    // Stub list() via the bridge to return 2 tools.
+    ;(prim as unknown as { list: () => Promise<string[]> }).list = async () => ["a", "b"]
+    const bound = await prim.bindAll()
+    expect(Object.keys(bound).sort()).toEqual(["a", "b"])
+    expect(bridge.callCount).toBe(0)
+    const out = await bound.a(null)
+    expect(out).toEqual({ ok: "a" })
+    expect(bridge.callCount).toBe(1)
+  })
+
+  test("mcp.bind budget/recursion guards apply through the bound callable", async () => {
+    const bridge = new McpBridge(1)
+    const dispatch = async () => ({ ok: true })
+    const prim = makeMcpPrimitives(bridge, dispatch)
+    const bound = prim.bind("tool")
+    await bound(null)
+    expect(bridge.callCount).toBe(1)
+    await expect(bound(null)).rejects.toThrow(/MCP budget exceeded/)
+    expect(bridge.callCount).toBe(1)
+  })
 })
 
 // ===========================================================================

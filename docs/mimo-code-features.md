@@ -2188,7 +2188,7 @@ mistake absence for error:
 | Cross-process resume lock semantics | `runtime.ts:1154-1157` explicitly states cross-process resume is "out of scope for MR104 P2-1"; no further detail. |
 | Plugin authoring guide | Not in `docs/`. The plugin SDK is in `packages/plugin/src/index.ts` and there is one example file `packages/plugin/src/example.ts`. |
 | Build / release instructions | `docs/build-release.md` exists but is the only entry; full SST/deploy flow is in `sst.config.ts`. |
-| Hot-reload of workflows | Not implemented; `workflow()` resolves scripts by file path, but a changed file does not invalidate already-running runs unless `script_sha` differs on next `resume()`. |
+| Hot-reload of workflows | `workflow()` resolves scripts by file path on every call. `startWorkflowWatcher(workspace)` exposes `node:fs.watch` on each configured workflow subdirectory (`.sffmc/workflows/`, `.claude/workflows/`, walking up the tree); the watcher emits a `workflow:file-changed` event so consumers can invalidate caches or abort affected runs. Already-running runs continue with cached content until `resume()` notices a `script_sha` mismatch. |
 
 These gaps are **not** claimed to be limitations of MiMo-Code; they are
 simply items the public documentation does not currently cover.
