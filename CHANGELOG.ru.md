@@ -333,6 +333,8 @@ Workflow Resume Passthrough + 6 приоритетных покрывающих 
 ### Изменено
 
 - **Канонизация путей**: `~/.local/share/SFFMC` и `~/.config/SFFMC` автоматически переименовываются в нижний регистр `sffmc` при следующей загрузке плагина (одноразово, идемпотентно). Обновлены все 11 пакетов.
+
+  > **Отменено в v0.15.3**: хелпер авто-переименования (`migrateLegacyDataPaths()` в `packages/utilities/src/paths.ts`) был экспортирован, но ни разу не вызывался из какого-либо bootstrap-пути, поэтому переименование ни разу не выполнилось. Канонический путь на диске остаётся uppercase `SFFMC/` (функция удалена в v0.15.3, хелпер не будет возвращаться без отдельного breaking-change релиза).
 - **Общий логгер**: 40+ вызовов `console.warn`/`console.log` заменены на общий хелпер `createLogger(prefix)` в 8 пакетах (auto-max, eos-stripper, extra, log-whitelist, max-mode, safety, watchdog, workflow).
 - **Импорты композитного workspace**: композитные пакеты safety, agentic и memory теперь используют workspace-импорты `@sffmc/<name>` вместо относительных путей.
 - **Тестовые утилиты**: 4 тестовых хелпера добавлены в `@sffmc/workflow` (`makeMockCtx`, `makeSlowMockCtx`, `makeCountingMockCtx`, `makeRuntimeWithMockCtx`) в `tests/test-utils.ts`.

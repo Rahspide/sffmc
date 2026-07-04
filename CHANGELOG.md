@@ -369,6 +369,8 @@ Post-v0.11.0 cleanup. No API changes.
 ### Changed
 
 - **Path canonicalization**: `~/.local/share/SFFMC` and `~/.config/SFFMC` auto-rename to lowercase `sffmc` on next plugin load (one-shot, idempotent). All 11 packages updated.
+
+  > **Retracted in v0.15.3**: the auto-rename helper (`migrateLegacyDataPaths()` in `packages/utilities/src/paths.ts`) was exported but never actually called from any bootstrap path, so no rename ever fired. The canonical on-disk path remains uppercase `SFFMC/` (the function was removed in v0.15.3 and the helper will not be re-introduced without a planned breaking-change release).
 - **Shared logger**: 40+ `console.warn`/`console.log` calls replaced with a shared `createLogger(prefix)` helper across 8 packages (auto-max, eos-stripper, extra, log-whitelist, max-mode, safety, watchdog, workflow).
 - **Composite workspace imports**: safety, agentic, and memory composite packages now use `@sffmc/<name>` workspace imports instead of relative paths.
 - **Test utilities**: 4 test helpers added to `@sffmc/workflow` (`makeMockCtx`, `makeSlowMockCtx`, `makeCountingMockCtx`, `makeRuntimeWithMockCtx`) in `tests/test-utils.ts`.
