@@ -303,7 +303,9 @@ const page = await agent("fetch: " + url, {
 ```
 
 Direct MCP bindings via `mcp.list()` and `mcp.call(name, args)` are
-available since v0.14.0 (see `packages/runtime/src/mcp.ts`).
+available since v0.14.0; `mcp.bind(name)` and `mcp.bindAll()` (typed
+handles for each registered tool) are available since v0.15.4. See
+`packages/runtime/src/mcp.ts`.
 
 ## Sandbox isolation
 

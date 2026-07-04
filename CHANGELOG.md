@@ -1,3 +1,17 @@
+## v0.15.4 (2026-07-04)
+
+> Feature release. **No breaking changes.** Adds MCP `bind()` / `bindAll()` for direct tool handles, workflow file watcher, glob-pattern sanitization, and user-configurable `minTokenLength` for redaction.
+
+### Added
+
+- **`mcp.bind(name)` and `mcp.bindAll()`** — workflow scripts can now pull a typed handle to a single MCP tool (`const search = mcp.bind("github_search")`) or grab every available tool at once (`const { a, b } = await mcp.bindAll()`) instead of looking up by name on every call. The bound functions route through the same bridge, so budget + recursion guards still apply.
+- **`startWorkflowWatcher(workspace)`** — exposes `node:fs.watch` on every configured workflow subdirectory (`.sffmc/workflows/`, `.claude/workflows/`, walking up the tree). Emits `workflow:file-changed` events for `.ts`/`.js`/`.mjs`/`.cjs` adds/changes/removals. Built-in consumers can subscribe to invalidate caches or abort affected runs; the watcher itself has no opinion on what to do.
+- **`redact-secrets.yaml` accepts `minTokenLength`** — integer in `[4, 256]`, default `16`. Controls the threshold for `api-key-assignment`, `token-assignment`, and `bearer-header`. Out-of-range values are warned and the default is restored.
+
+### Fixed
+
+- **`WorkspaceJail.glob()` pattern sanitization** — patterns that, after `path.resolve` normalization, escape the workspace now throw at the boundary (e.g. `../*.ts`, `foo/../../bar`, `../../etc/passwd`) instead of being silently filtered by the per-entry realpath check. Empty patterns also throw. Patterns that resolve inside the workspace continue to work as before, including `**/*.md` and `subdir/*`.
+
 ## v0.15.3 (2026-07-03)
 
 > Maintenance release. **No breaking changes.** 25+ fixes covering config gaps, security, health checks, docs drift, and stale references. Recommend upgrade for everyone, especially on multi-user systems (mkdir mode fix) and v0.14.5/v0.14.7/v0.14.8 holdouts.
