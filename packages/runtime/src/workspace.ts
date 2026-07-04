@@ -1,10 +1,26 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/runtime — see ../../LICENSE
 
-import { readFile, writeFile, mkdir, access } from "node:fs/promises"
+import {
+  readFile,
+  writeFile,
+  mkdir,
+  access,
+  open,
+  constants as fsConstants,
+} from "node:fs/promises"
 import { realpathSync } from "node:fs"
 import { resolve, relative, isAbsolute, dirname } from "node:path"
 import { glob as globFs } from "node:fs/promises"
+
+/** POSIX `O_NOFOLLOW` flag (Linux/macOS). Refuses to follow a symlink at the
+ *  leaf of the path. Set to a sentinel value on platforms where it doesn't
+ *  exist (Windows). Used as defense-in-depth on the open call — see the
+ *  SECURITY NOTE in the `WorkspaceJail` class body. */
+const O_NOFOLLOW: number =
+  typeof fsConstants.O_NOFOLLOW === "number"
+    ? fsConstants.O_NOFOLLOW
+    : 0
 
 // ---------------------------------------------------------------------------
 // Lexical jail — class-based, no module-level state
@@ -91,17 +107,56 @@ export class WorkspaceJail {
   }
 
   // ── File primitives ────────────────────────────────────────────────────
-  // SECURITY NOTE: There is an inherent TOCTOU window between
-  // resolveInWorkspace() (symlink check) and the actual I/O operation.
-  // An attacker with local filesystem access could swap a directory with
-  // a symlink between check and use. The window is sub-microsecond and
-  // requires root or same-user access to exploit. For high-security
+  // SECURITY NOTE: TOCTOU window between `resolveInWorkspace()` (symlink
+  // check) and the actual I/O operation. The leaf component (the target
+  // file itself) is closed by `O_NOFOLLOW` below on platforms that expose
+  // it (Linux/macOS) — a symlink swap at the leaf fails at open() time
+  // with ELOOP. Component-level swaps (a parent directory replaced with
+  // a symlink between check and use) still require either root-level
+  // kernel mount privileges or same-user write access during the open
+  // window, and are out of scope for the portable fix. For high-security
   // environments, avoid symlinks in the workspace root.
+
+  /** Internal: read a file via `open(O_RDONLY | O_NOFOLLOW)` so a symlink
+   *  swap at the leaf fails at open time (ELOOP) instead of resolving
+   *  after our realpath check completed. */
+  private async safeRead(abs: string): Promise<string> {
+    if (O_NOFOLLOW) {
+      const handle = await open(abs, fsConstants.O_RDONLY | O_NOFOLLOW)
+      try {
+        const buf = Buffer.alloc(handle.statSync ? -1 : 0) // unused
+        const fh = await handle.readFile({ encoding: "utf-8" })
+        return fh as string
+      } finally {
+        await handle.close()
+      }
+    }
+    return readFile(abs, "utf-8")
+  }
+
+  /** Internal: write a file via `open(O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW)`
+   *  so a symlink swap at the leaf fails at open time. */
+  private async safeWrite(abs: string, content: string): Promise<void> {
+    if (O_NOFOLLOW) {
+      const handle = await open(
+        abs,
+        fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_TRUNC | O_NOFOLLOW,
+        0o644,
+      )
+      try {
+        await handle.writeFile(content, "utf-8")
+      } finally {
+        await handle.close()
+      }
+      return
+    }
+    await writeFile(abs, content, "utf-8")
+  }
 
   async readFile(userPath: string): Promise<string | null> {
     const abs = this.resolveInWorkspace(userPath)
     try {
-      return await readFile(abs, "utf-8")
+      return await this.safeRead(abs)
     } catch (e: unknown) {
       if ((e as NodeJS.ErrnoException).code === "ENOENT") return null
       throw e
@@ -111,7 +166,7 @@ export class WorkspaceJail {
   async writeFile(userPath: string, content: string): Promise<void> {
     const abs = this.resolveInWorkspace(userPath)
     await mkdir(dirname(abs), { recursive: true })
-    await writeFile(abs, content, "utf-8")
+    await this.safeWrite(abs, content)
   }
 
   async exists(userPath: string): Promise<boolean> {
