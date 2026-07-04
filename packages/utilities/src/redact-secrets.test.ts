@@ -217,6 +217,54 @@ describe("edge cases", () => {
     expect(isSensitiveFilename("/state/terraform.tfstate")).toBe(true)
   })
 
+  it("user minTokenLength=24 → 16-char tokens skipped, 24+ still redacted (22a)", async () => {
+    writeFileSync(
+      resolve(configDir, "redact-secrets.yaml"),
+      "minTokenLength: 24\n",
+      "utf-8",
+    )
+    __setRedactionConfigHome(configDir)
+    await ensureRedactionRules()
+    // Short token (16 chars) — would have matched at default threshold, skipped at 24.
+    const short = "api_key=abcdef1234567890" // 16 chars after the '='
+    const r1 = redactSecrets(short)
+    expect(r1.categories).not.toContain("api-key-assignment")
+    // Long token (32 chars) — still redacted.
+    const long = "api_key=abcdef1234567890abcdef1234567890" // 32 chars
+    const r2 = redactSecrets(long)
+    expect(r2.categories).toContain("api-key-assignment")
+  })
+
+  it("user minTokenLength=8 → 8-char tokens now redacted (22b)", async () => {
+    writeFileSync(
+      resolve(configDir, "redact-secrets.yaml"),
+      "minTokenLength: 8\n",
+      "utf-8",
+    )
+    __setRedactionConfigHome(configDir)
+    await ensureRedactionRules()
+    // 8-char token — would have been skipped at default threshold of 16.
+    const short = "api_key=abcdefgh" // 8 chars after the '='
+    const r = redactSecrets(short)
+    expect(r.categories).toContain("api-key-assignment")
+  })
+
+  it("out-of-range minTokenLength (2) → sanitize warns, falls back to default (22c)", async () => {
+    writeFileSync(
+      resolve(configDir, "redact-secrets.yaml"),
+      "minTokenLength: 2\n",
+      "utf-8",
+    )
+    __setRedactionConfigHome(configDir)
+    // Sanitize layer accepts missing; loadConfig's existing pattern is to
+    // warn + fall back to defaults on validation errors, so this stays
+    // consistent (no plugin crash on bad YAML). After fallback the default
+    // threshold of 16 is used.
+    await ensureRedactionRules()
+    const r = redactSecrets("api_key=abcdef1234567890") // 16 chars
+    expect(r.categories).toContain("api-key-assignment")
+  })
+
   it("invalid user regex → warns, ignores, doesn't crash (22)", async () => {
     writeFileSync(
       resolve(configDir, "redact-secrets.yaml"),

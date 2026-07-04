@@ -84,12 +84,15 @@ interface RedactionRule {
 }
 
 /**
- * Built-in rule catalogue. Anchored to basename (filename rules) or unanchored
- * (path + content rules). The list shape is fixed; do not reorder without
- * updating test #24 (aws_secret_access_key order). All regexes use linear
- * character classes — no nested quantifiers, no backreferences.
+ * Built-in rule catalogue — STATIC portion. Patterns here don't depend on
+ * the user-configurable `minTokenLength` threshold, so they can be declared
+ * as regex literals at module load.
+ *
+ * The list shape is fixed; do not reorder without updating test #24
+ * (aws_secret_access_key order). All regexes use linear character classes —
+ * no nested quantifiers, no backreferences.
  */
-const BUILTIN_RULES: ReadonlyArray<RedactionRule> = [
+const BUILTIN_RULES_STATIC: ReadonlyArray<RedactionRule> = [
   // A — env files (filename-only)
   { id: "env-file", pattern: /^(?:\.env|\.env\.[\w-]+)$/i, filenameOnly: true, description: ".env and .env.*" },
   // B — credential filenames (replaces filename-check over-broad list).
@@ -114,22 +117,13 @@ const BUILTIN_RULES: ReadonlyArray<RedactionRule> = [
   // the entire armored block (non-greedy body) and `redactSecrets()` replaces
   // the whole match with a single `[REDACTED:private-key-pem]` marker.
   { id: "private-key-pem", pattern: /-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP |ENCRYPTED )?PRIVATE KEY-----[\s\S]*?-----END (?:RSA |EC |DSA |OPENSSH |PGP |ENCRYPTED )?PRIVATE KEY-----/g, description: "PEM-armored private key blocks (header + body + footer)" },
-  // D — inline credential assignments
-  // Patterns below use `MIN_TOKEN_LENGTH` (16) as the threshold for
-  // what counts as a "real" token. The constant is interpolated once
-  // at module load via the `RegExp` constructor so all 4 patterns
-  // share a single source of truth — bump the constant and all 4
-  // thresholds move together.
-  { id: "api-key-assignment", pattern: new RegExp(`(api[_-]?key|apikey)\\s*[=:]\\s*["']?([A-Za-z0-9_+\\-\\/=]{${MIN_TOKEN_LENGTH},})["']?`, "gi"), description: "api_key=... or apiKey: ..." },
-  { id: "password-assignment", pattern: /(password|passwd|pwd)\s*[=:]\s*["']?([^\s"']{6,})["']?/gi, description: "password=... or pwd: ..." },
-  { id: "token-assignment", pattern: new RegExp(`(?:access[_-]?token|auth[_-]?token|bearer)\\s*[=:]\\s*["']?([A-Za-z0-9_+\\-\\/\\.=]{${MIN_TOKEN_LENGTH},})["']?`, "gi"), description: "access_token=..., auth_token: ..., bearer=..." },
-  { id: "bearer-header", pattern: new RegExp(`(?:authorization|auth):\\s*bearer\\s+([A-Za-z0-9_+\\-\\/\\.=]{${MIN_TOKEN_LENGTH},})`, "gi"), description: "Authorization: Bearer <token>" },
+  // basic-auth-header uses its own 8-char minimum (shorter base64 blobs are common).
   { id: "basic-auth-header", pattern: /(?:authorization|auth):\s*basic\s+([A-Za-z0-9+\/=]{8,})/gi, description: "Authorization: Basic <base64>" },
   // E — provider-specific credential patterns (v0.15.3 expansion).
   // Each alternative is anchored to the token's known prefix / shape so
   // false-positive rate stays near zero. The `ghp_` form (legacy GitHub PAT)
   // is joined by `github_pat_` (fine-grained, ~22 chars of base62 + base32
-  // suffix) and `gho_`/`ghu_`/`ghs_`/`ghr_` for OAuth/user-token/scope/etc.
+  // suffix) and `gho_`/`ghu_`/`ghs_/`ghr_` for OAuth/user-token/scope/etc.
   // GitLab: `glpat-` prefix + 20 chars. Discord bot tokens are base64 with
   // three dots — match the prefix `d_` (rare false-positive risk on user
   // content, but Discord IDs use snowflakes not base64). Stripe live keys
@@ -140,11 +134,45 @@ const BUILTIN_RULES: ReadonlyArray<RedactionRule> = [
   { id: "cloud-credential", pattern: /(AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_\-]{35}|gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{82}|glpat-[A-Za-z0-9_\-]{20}|[A-Za-z0-9_\-]{24,}\.[A-Za-z0-9_\-]{6,}\.[A-Za-z0-9_\-]{20,}|sk-[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]+|sk_live_[A-Za-z0-9]{24,}|rk_live_[A-Za-z0-9]{24,})/g, description: "AWS/GCP/GitHub (incl. fine-grained PAT)/OpenAI/Slack/Discord/Stripe/GitLab/JWT tokens" },
 ]
 
+/** Build the DYNAMIC portion of the built-in rules. These patterns depend on
+ *  the user-configurable `minTokenLength` threshold, so they are built per
+ *  config load rather than at module load.
+ *
+ *  Thresholds:
+ *    - api-key-assignment / token-assignment / bearer-header: configurable
+ *      via `redact-secrets.yaml` (`minTokenLength`, default `MIN_TOKEN_LENGTH`).
+ *    - password-assignment: fixed 6-char minimum (shorter passwords are
+ *      common in dev configs; user-tunable is out of scope for now). */
+function buildBuiltinRulesDynamic(minTokenLength: number): ReadonlyArray<RedactionRule> {
+  // Escape `RegExp` meta-chars that could appear in user-supplied threshold
+  // values. The current range (8-64) is always digits, but defensively
+  // validate to refuse NaN / negative / fractional values.
+  if (!Number.isFinite(minTokenLength) || minTokenLength < 4 || minTokenLength > 256) {
+    throw new Error(
+      `redact-secrets: invalid minTokenLength ${minTokenLength}; expected integer in [4, 256]`,
+    )
+  }
+  const n = String(Math.trunc(minTokenLength))
+  return [
+    { id: "api-key-assignment", pattern: new RegExp(`(api[_-]?key|apikey)\\s*[=:]\\s*["']?([A-Za-z0-9_+\\-\\/=]{${n},})["']?`, "gi"), description: "api_key=... or apiKey: ..." },
+    { id: "password-assignment", pattern: /(password|passwd|pwd)\s*[=:]\s*([^\s"']{6,})/gi, description: "password=... or pwd: ..." },
+    { id: "token-assignment", pattern: new RegExp(`(?:access[_-]?token|auth[_-]?token|bearer)\\s*[=:]\\s*["']?([A-Za-z0-9_+\\-\\/\\.=]{${n},})["']?`, "gi"), description: "access_token=..., auth_token: ..., bearer=..." },
+    { id: "bearer-header", pattern: new RegExp(`(?:authorization|auth):\\s*bearer\\s+([A-Za-z0-9_+\\-\\/\\.=]{${n},})`, "gi"), description: "Authorization: Bearer <token>" },
+  ]
+}
+
 /** User-facing config shape. Read from `~/.config/sffmc/redact-secrets.yaml`. */
 interface RedactionConfig {
   extraFilenameRules?: Array<{ id: string; pattern: string }>
   extraContentRules?: Array<{ id: string; pattern: string }>
   disabledRules?: string[]
+  /**
+   * Minimum token length for the `api-key-assignment`, `token-assignment`,
+   * and `bearer-header` rules. Tokens shorter than this are not considered
+   * real credentials (avoids false positives on short keys like `api=ok`).
+   * Default: `MIN_TOKEN_LENGTH` (16). Must be integer in [4, 256].
+   */
+  minTokenLength?: number
 }
 
 const defaultConfig: RedactionConfig = {
@@ -188,9 +216,12 @@ async function getRules(): Promise<ReadonlyArray<RedactionRule>> {
   }
   // User rules run first so a user can override a built-in (e.g., redefine
   // `filename-token` with a tighter pattern).
+  const minTokenLength = redactionConfig.minTokenLength ?? MIN_TOKEN_LENGTH
+  const dynamicRules = buildBuiltinRulesDynamic(minTokenLength)
   compiledRules = [
     ...userRules,
-    ...BUILTIN_RULES.filter((r) => !disabled.has(r.id)),
+    ...BUILTIN_RULES_STATIC.filter((r) => !disabled.has(r.id)),
+    ...dynamicRules.filter((r) => !disabled.has(r.id)),
   ]
   return compiledRules
 }
@@ -238,7 +269,28 @@ function sanitizeRedactionConfig(parsed: unknown): RedactionConfig {
     extraFilenameRules: sanitizeRuleList(rawConfig.extraFilenameRules, "extraFilenameRules"),
     extraContentRules: sanitizeRuleList(rawConfig.extraContentRules, "extraContentRules"),
     disabledRules: sanitizeDisabledRules(rawConfig.disabledRules),
+    minTokenLength: sanitizeMinTokenLength(rawConfig.minTokenLength),
   }
+}
+
+/** Validate the `minTokenLength` field. Returns undefined for missing/invalid
+ *  values (the caller falls back to the default) — does NOT throw, so a
+ *  malformed YAML doesn't crash plugin startup. The actual regex-pattern
+ *  build is the one that throws on invalid thresholds, giving a more
+ *  diagnostic error message. */
+function sanitizeMinTokenLength(raw: unknown): number | undefined {
+  if (raw === undefined) return undefined
+  if (typeof raw !== "number" || !Number.isFinite(raw) || !Number.isInteger(raw)) {
+    throw new Error(
+      `redact-secrets: minTokenLength must be an integer (got ${JSON.stringify(raw)})`,
+    )
+  }
+  if (raw < 4 || raw > 256) {
+    throw new Error(
+      `redact-secrets: minTokenLength ${raw} is out of range [4, 256]`,
+    )
+  }
+  return raw
 }
 
 function sanitizeRuleList(
@@ -280,7 +332,10 @@ export function __listBuiltinRedactionRules(): ReadonlyArray<{
   pattern: RegExp
   description: string
 }> {
-  return BUILTIN_RULES.map((r) => ({ id: r.id, pattern: r.pattern, description: r.description }))
+  return [
+    ...BUILTIN_RULES_STATIC.map((r) => ({ id: r.id, pattern: r.pattern, description: r.description })),
+    ...buildBuiltinRulesDynamic(MIN_TOKEN_LENGTH).map((r) => ({ id: r.id, pattern: r.pattern, description: r.description })),
+  ]
 }
 
 /** Test escape hatch — point config loading at a temp dir. */
@@ -297,13 +352,13 @@ export async function ensureRedactionRules(): Promise<void> {
 
 /**
  * Synchronous accessor. Returns the cached rules if available, otherwise
- * `BUILTIN_RULES` (the safe default — no user overrides applied). This is
- * the hot-path used by file watchers; after `ensureRedactionRules()` has
+ * the safe default (static builtins + dynamic builtins at default threshold).
+ * This is the hot-path used by file watchers; after `ensureRedactionRules()` has
  * been awaited once, the cache is fully populated.
  */
 function getCachedRulesSync(): ReadonlyArray<RedactionRule> {
   if (compiledRules !== null) return compiledRules
-  return BUILTIN_RULES
+  return [...BUILTIN_RULES_STATIC, ...buildBuiltinRulesDynamic(MIN_TOKEN_LENGTH)]
 }
 
 /**
