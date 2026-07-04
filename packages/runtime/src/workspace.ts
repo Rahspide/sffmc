@@ -125,7 +125,25 @@ export class WorkspaceJail {
   }
 
   async glob(pattern: string): Promise<string[]> {
-    // Use node:fs/promises.glob with cwd set to root.
+    // Pattern sanitization — reject patterns that, after `path.resolve`
+    // normalization, escape the workspace. node:fs/promises.glob treats
+    // `..` segments as path components (not glob meta-chars), so a pattern
+    // like `../etc/*` would otherwise surface matches the per-entry filter
+    // would silently drop. Fail loud at the boundary instead.
+    if (typeof pattern !== "string" || pattern.length === 0) {
+      throw new Error(`WorkspaceJail.glob: pattern must be non-empty string`)
+    }
+    const normalizedRoot = resolve(this.root)
+    const resolvedPattern = resolve(normalizedRoot, pattern)
+    if (
+      resolvedPattern !== normalizedRoot &&
+      !resolvedPattern.startsWith(normalizedRoot + "/")
+    ) {
+      throw new Error(
+        `WorkspaceJail.glob: pattern escapes workspace: ${JSON.stringify(pattern)}`,
+      )
+    }
+
     const matches: string[] = []
     for await (const entry of globFs(pattern, { cwd: this.root })) {
       // globFs returns paths relative to cwd (like "foo/bar" or "../outside")

@@ -285,9 +285,24 @@ describe("workspace.ts", () => {
     expect(files[0] <= files[files.length - 1]).toBe(true) // sorted
   })
 
-  test("glob filters escapes", async () => {
-    const files = await jail.glob("../*.ts")
-    expect(files.length).toBe(0)
+  test("glob throws on pattern that escapes workspace", async () => {
+    // Pattern sanitization rejects at the boundary (vs. silently filtering
+    // matches that the per-entry realpath check would drop). Fail loud.
+    await expect(jail.glob("../*.ts")).rejects.toThrow(/pattern escapes workspace/)
+    await expect(jail.glob("../../etc/passwd")).rejects.toThrow(/pattern escapes workspace/)
+    await expect(jail.glob("foo/../../bar")).rejects.toThrow(/pattern escapes workspace/)
+  })
+
+  test("glob allows nested patterns within workspace", async () => {
+    const files = await jail.glob("**/*.md")
+    expect(files).toContain("readme.md")
+    const nested = await jail.glob("subdir/*")
+    // Empty or hits; either is fine — the point is no throw.
+    expect(Array.isArray(nested)).toBe(true)
+  })
+
+  test("glob rejects empty / non-string pattern", async () => {
+    await expect(jail.glob("")).rejects.toThrow(/non-empty string/)
   })
 
   test("resolveInWorkspace throws on jail escape", () => {
