@@ -119,9 +119,14 @@ The user said "fix empty packages + Russian CHANGELOG". I bumped the version to 
 
 1. Make the edit in worktree
 2. Single commit (or 2-3 logical commits)
-3. Push branch
-4. Merge to main
-5. **Stop. Ask before bumping version, tagging, or publishing to npm.**
+3. **Stop. Show diff. Ask before pushing to remote AND before bumping version.**
+   (Repeat mistake 2026-07-04: pushing without ask is treated as overreach
+   even though "Fix X" historically included push in this rule. The bar
+   is now "ask before any remote mutation" — git push, npm publish, tag
+   push, GitHub Release API. Local commits + branch-state queries are
+   fine without ask.)
+4. After explicit "ok" / "push" / "release" — proceed.
+5. **Still ask** before bumping version, tagging, or publishing to npm.
 
 ### Default behavior when user says "release" / "publish" / "ship" / "new version" / "tag"
 
@@ -141,6 +146,27 @@ The user said "fix empty packages + Russian CHANGELOG". I bumped the version to 
 - Are the changes **functional code** (bug fix, new feature) or **display metadata** (CHANGELOG text, package.json `description` field)? Display-only = no version bump
 - Would `npm install <existing-version>` still work without the change? If **yes**, no version bump
 - Is this the user's FIRST request to publish in this session, or have they explicitly engaged with the release flow? Implied consent is not consent
+
+### Remote-mutation ask checklist (repeat-mistake fix, 2026-07-04)
+
+Any of these actions, even for "Fix X" or "fix X+publish", require an explicit user **YES** before proceeding:
+
+- `git push` to any remote (including `origin/main` after a worktree commit)
+- `git push --tags` / `git push origin v<X.Y.Z>`
+- `bash scripts/release.sh --actual` (npm publish)
+- `POST /repos/.../releases` (GitHub Release API)
+- `PATCH /repos/.../releases/...` (editing an existing GitHub Release)
+- `curl ... | sh` or any pipe-to-shell invocation that mutates remote state
+
+The user is the source of truth for "yes, ship it". If the user did not
+explicitly say "ship" / "publish" / "push" / "release" / "ok" / "yes" in
+their most recent message, STOP at the appropriate step in the rule
+above. State the diff or pending action and wait.
+
+Local-only actions (no remote mutation) do NOT require ask:
+- `git add`, `git commit`, `git status`, `git diff`, `git log`
+- Reading files, running tests, building, running scripts that only touch the local checkout
+- Editing `.claude/`, `AGENTS.md`, internal notes, `/tmp/` files
 
 ## Production docs hygiene rule (learned from v0.15.3 release, 2026-07-03)
 
