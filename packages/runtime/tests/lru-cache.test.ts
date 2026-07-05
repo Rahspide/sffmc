@@ -126,6 +126,110 @@ describe("BoundedLRU", () => {
     expect(lru.size).toBe(0)
     expect(lru.get("a")).toBeUndefined()
   })
+
+  test("capacity getter returns the configured maxSize (not size)", () => {
+    // The capacity is a static config value, not the current count.
+    // Locking this down so future refactors can't accidentally make it
+    // dynamic (e.g. returning size, or shrinking after eviction).
+    const lru = new BoundedLRU<string, number>(3)
+    expect(lru.capacity).toBe(3)
+    lru.set("a", 1)
+    expect(lru.capacity).toBe(3) // unchanged after insert
+    lru.set("b", 2)
+    lru.set("c", 3)
+    lru.set("d", 4) // evicts a
+    expect(lru.capacity).toBe(3) // unchanged after eviction
+    lru.clear()
+    expect(lru.capacity).toBe(3) // unchanged after clear
+    // size=0 case is interesting — capacity IS 0
+    expect(new BoundedLRU<string, number>(0).capacity).toBe(0)
+  })
+
+  test("get() does NOT bump recency (read-only lookup)", () => {
+    // Documented at lru.ts:35 — "Does NOT bump recency." If a future
+    // refactor changes this to MRU-on-read, the eviction order changes
+    // and the test on line 115 will fail. Locking down both behaviors.
+    const lru = new BoundedLRU<string, number>(3)
+    lru.set("a", 1)
+    lru.set("b", 2)
+    lru.set("c", 3)
+    // Read "a" multiple times — should remain oldest, not become MRU.
+    lru.get("a")
+    lru.get("a")
+    lru.get("a")
+    lru.set("d", 4) // "a" is still oldest → evicted
+    expect(lru.get("a")).toBeUndefined()
+    expect(lru.get("b")).toBe(2)
+    expect(lru.get("c")).toBe(3)
+    expect(lru.get("d")).toBe(4)
+  })
+
+  test("set() of existing key when at cap evicts oldest OTHER key (not the re-set one)", () => {
+    // At cap, re-setting an existing key should delete-then-insert (MRU),
+    // not double-evict. The oldest entry (other than the re-set one) is
+    // the one that gets evicted.
+    const lru = new BoundedLRU<string, number>(2)
+    lru.set("a", 1)
+    lru.set("b", 2)
+    // cap reached: [a, b]
+    lru.set("a", 11) // delete a (size=1), insert a (size=2, MRU). "b" still present.
+    expect(lru.size).toBe(2)
+    expect(lru.get("a")).toBe(11)
+    expect(lru.get("b")).toBe(2)
+    // Now insert c — should evict b (now oldest, since a was just touched).
+    lru.set("c", 3)
+    expect(lru.size).toBe(2)
+    expect(lru.get("a")).toBe(11)
+    expect(lru.get("b")).toBeUndefined() // b evicted
+    expect(lru.get("c")).toBe(3)
+  })
+
+  test("set() returns void (callers should not rely on a return value)", () => {
+    const lru = new BoundedLRU<string, number>(3)
+    const result = lru.set("a", 1)
+    expect(result).toBeUndefined()
+  })
+
+  test("delete() of just-inserted key returns true and removes it", () => {
+    // Corner case: insert + immediate delete. If the impl uses
+    // insert-then-check-size, delete might race. Test locks it down.
+    const lru = new BoundedLRU<string, number>(3)
+    lru.set("a", 1)
+    expect(lru.delete("a")).toBe(true)
+    expect(lru.get("a")).toBeUndefined()
+    expect(lru.size).toBe(0)
+    // After delete, set a new key — should work as if cache was empty.
+    lru.set("b", 2)
+    expect(lru.get("b")).toBe(2)
+  })
+
+  test("get() of just-evicted key returns undefined (not stale value)", () => {
+    const lru = new BoundedLRU<string, number>(2)
+    lru.set("a", 1)
+    lru.set("b", 2)
+    lru.set("c", 3) // evicts a
+    expect(lru.get("a")).toBeUndefined()
+    // re-inserting with a different value is reflected immediately
+    lru.set("a", 99)
+    expect(lru.get("a")).toBe(99)
+  })
+
+  test("two-arg interaction: delete() + set() preserves FIFO order of survivors", () => {
+    // After delete(a), the next set() should treat "a" as freshly inserted
+    // and place it at MRU. The other entries retain their relative order.
+    const lru = new BoundedLRU<string, number>(3)
+    lru.set("a", 1)
+    lru.set("b", 2)
+    lru.set("c", 3)
+    lru.delete("a") // [b, c]
+    lru.set("d", 4) // [b, c, d]
+    lru.set("e", 5) // evicts b → [c, d, e]
+    expect(lru.get("a")).toBeUndefined()
+    expect(lru.get("b")).toBeUndefined()
+    expect(lru.get("c")).toBe(3)
+    expect(lru.get("d")).toBe(4)
+    expect(lru.get("e")).toBe(5)
+  })
 })
 
 // ── Runtime integration: OutcomeStore wraps BoundedLRU ──────────────────
