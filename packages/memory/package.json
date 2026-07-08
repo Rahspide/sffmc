@@ -1,6 +1,6 @@
 {
   "name": "@sffmc/memory",
-  "version": "0.15.3",
+  "version": "0.15.4",
   "category": "msp",
   "type": "module",
   "main": "src/index.ts",
