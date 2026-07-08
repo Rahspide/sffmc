@@ -131,7 +131,15 @@ const BUILTIN_RULES_STATIC: ReadonlyArray<RedactionRule> = [
   // three base64url segments separated by dots; the long random middle
   // segment is the credential, but the first/last segments also leak info
   // about the issuer/claims — match the whole structure.
-  { id: "cloud-credential", pattern: /(AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_\-]{35}|gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{82}|glpat-[A-Za-z0-9_\-]{20}|[A-Za-z0-9_\-]{24,}\.[A-Za-z0-9_\-]{6,}\.[A-Za-z0-9_\-]{20,}|sk-[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]+|sk_live_[A-Za-z0-9]{24,}|rk_live_[A-Za-z0-9]{24,})/g, description: "AWS/GCP/GitHub (incl. fine-grained PAT)/OpenAI/Slack/Discord/Stripe/GitLab/JWT tokens" },
+  // v0.15.4: JWT segment quantifiers bounded to defeat polynomial
+  // backtracking on adversarial input. A 1 MiB string of `'a'` characters
+  // caused the previous `{24,}` / `{6,}` / `{20,}` to hang the regex
+  // engine — the engine tried every starting position and backtracked
+  // on each. Bounded quantifiers (`{24,200}` etc.) make each alternative
+  // O(n) and the alternation overall O(n * |alternatives|).
+  // JWT segments in practice: header ≤ ~64 chars, payload can be long
+  // (up to 8 KiB+), signature ≤ ~512 chars. 200/64/512 are generous.
+  { id: "cloud-credential", pattern: /(AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_\-]{35}|gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{82}|glpat-[A-Za-z0-9_\-]{20}|[A-Za-z0-9_\-]{24,200}\.[A-Za-z0-9_\-]{6,64}\.[A-Za-z0-9_\-]{20,512}|sk-[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]+|sk_live_[A-Za-z0-9]{24,}|rk_live_[A-Za-z0-9]{24,})/g, description: "AWS/GCP/GitHub (incl. fine-grained PAT)/OpenAI/Slack/Discord/Stripe/GitLab/JWT tokens" },
 ]
 
 /** Build the DYNAMIC portion of the built-in rules. These patterns depend on
