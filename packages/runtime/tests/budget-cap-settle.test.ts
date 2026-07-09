@@ -66,7 +66,7 @@ describe("Token cap run settlement", () => {
     // wait() must return — not hang — with budget_exceeded.
     const outcome = await runtime.wait({ runID, timeoutMs: 5_000 })
     expect(outcome.status).toBe("budget_exceeded")
-    expect(outcome.error).toMatch(/budget_exceeded/i)
+    expect(outcome.error).toMatch(/budget exceeded/i)
   })
 
   test("run with maxTokens=250 settles after second agent (together exceed)", async () => {
@@ -106,7 +106,7 @@ describe("Token cap run settlement", () => {
     const row = p.loadRun(runID)
     expect(row).not.toBeNull()
     expect(row!.status).toBe("budget_exceeded")
-    expect(row!.error).toMatch(/budget_exceeded/i)
+    expect(row!.error).toMatch(/budget exceeded/i)
   })
 
   test("settled run is removed from this.runs (no leak)", async () => {

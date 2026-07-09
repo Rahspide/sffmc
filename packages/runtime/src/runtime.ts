@@ -783,10 +783,10 @@ export class WorkflowRuntime {
   }
 
   /** v0.16.0 refactor (Phase 3): delegates to `RunCompleter.failRun()`.
-   *  The "budget_exceeded" magic-string classification, status guard,
+   *  The `BudgetExceededError`-based classification, status guard,
    *  persistence flush, event emit, and outcome-cache+runs-release are
    *  all in `src/run-completer.ts`. */
-  private failRun(entry: InternalRunEntry, error: string): void {
+  private failRun(entry: InternalRunEntry, error: string | Error): void {
     this.services.runCompleter.failRun(entry, error)
   }
 

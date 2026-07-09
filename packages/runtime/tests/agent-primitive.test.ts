@@ -6,6 +6,7 @@ import { AgentPrimitive } from "../src/agent-primitive.ts"
 import { journalKeyBase } from "../src/persistence.ts"
 import type { InternalRunEntry, AgentResult } from "../src/internal-run-entry.ts"
 import type { AgentOptions, AgentFailureReason } from "../src/types.ts"
+import { BudgetExceededError } from "../src/types.ts"
 
 // Fake counter state — the real CounterManager has many methods; we mock
 // just what the agent-primitive methods actually call.
@@ -59,7 +60,7 @@ function makeDeps(overrides: Partial<ConstructorParameters<typeof AgentPrimitive
         return llmResult
       },
       appendJournal: (runID: string, e: unknown) => journalAppends.push({ runID, entry: e }),
-      failRun: (entry: InternalRunEntry, error: string) => failedRuns.push({ entry, error }),
+      failRun: (entry: InternalRunEntry, error: string | Error) => failedRuns.push({ entry, error }),
       ...overrides,
     } as ConstructorParameters<typeof AgentPrimitive>[0],
     calls,
@@ -164,7 +165,9 @@ describe("AgentPrimitive", () => {
       const r = await primitive.executeAgentCall(entry, "test", {} as AgentOptions, "key1")
       expect(r).toBeNull()
       expect(f.failedRuns).toHaveLength(1)
-      expect(f.failedRuns[0]?.error).toMatch(/budget_exceeded/)
+      // gen-11 F-2.1: error is now a typed BudgetExceededError, not a magic string.
+      expect(f.failedRuns[0]?.error).toBeInstanceOf(BudgetExceededError)
+      expect((f.failedRuns[0]?.error as BudgetExceededError).message).toMatch(/budget/i)
     })
 
     it("returns null when deliverable is null (NoDeliverable)", async () => {

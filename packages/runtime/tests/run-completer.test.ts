@@ -4,6 +4,7 @@
 import { describe, it, expect, beforeEach } from "bun:test"
 import { RunCompleter } from "../src/run-completer.ts"
 import type { InternalRunEntry } from "../src/internal-run-entry.ts"
+import { BudgetExceededError, WorkflowStatus } from "../src/types.ts"
 
 // Minimal in-memory mocks for the 4 collaborators. Each is a plain object
 // capturing calls so the assertions can inspect side-effects.
@@ -133,17 +134,18 @@ describe("RunCompleter", () => {
       expect(fakePersistence.updates[0]?.error).toBe("boom")
     })
 
-    it('classifies "budget_exceeded" when error message contains "budget_exceeded"', () => {
+    it("transitions running → budget_exceeded when a BudgetExceededError is passed", () => {
       const entry = makeEntry()
-      completer.failRun(entry, "Token budget_exceeded: cap 1000 exceeded")
-      expect(entry.status).toBe("budget_exceeded")
-      expect(events._emitted[0]?.payload).toEqual({ runID: "run_test", status: "budget_exceeded", error: "Token budget_exceeded: cap 1000 exceeded" })
+      const message = "Token budget exceeded: cap 1000 exceeded"
+      completer.failRun(entry, new BudgetExceededError(message))
+      expect(entry.status).toBe(WorkflowStatus.BudgetExceeded)
+      expect(events._emitted[0]?.payload).toEqual({ runID: "run_test", status: "budget_exceeded", error: message })
     })
 
-    it('classifies "budget_exceeded" when error message contains "deadline exceeded"', () => {
+    it("does not classify a plain string error as budget_exceeded (no longer magic-string)", () => {
       const entry = makeEntry()
-      completer.failRun(entry, "deadline exceeded")
-      expect(entry.status).toBe("budget_exceeded")
+      completer.failRun(entry, "Token budget_exceeded: cap 1000 exceeded")
+      expect(entry.status).toBe("failed")
     })
 
     it("is a no-op when status !== running", () => {
@@ -228,6 +230,18 @@ describe("RunCompleter", () => {
       })
       // settleEntry itself should resolve, not throw
       await expect(completerWithLaunch.settleEntry(entry, "script", "name", [], "jail")).resolves.toBeUndefined()
+    })
+  })
+
+  // ── BudgetExceededError plumbing (gen-11 F-2.1) ──────────────────────
+
+  describe("BudgetExceededError", () => {
+    it("carries its message and is an Error instance", () => {
+      const e = new BudgetExceededError("cap 200 exceeded")
+      expect(e).toBeInstanceOf(Error)
+      expect(e).toBeInstanceOf(BudgetExceededError)
+      expect(e.name).toBe("BudgetExceededError")
+      expect(e.message).toBe("cap 200 exceeded")
     })
   })
 })

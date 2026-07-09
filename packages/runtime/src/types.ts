@@ -3,15 +3,38 @@
 
 import { DEFAULT_GRACE_PERIOD_MS, SCRIPT_DEADLINE_MS, WORKFLOW_LIMITS } from "./constants.ts"
 
-/** Status of a workflow run. */
-export type WorkflowStatus =
-  | "running"
-  | "completed"
-  | "failed"
-  | "cancelled"
-  | "crashed"
-  | "paused" // recoverable state — has journal to replay, distinct from crashed
-  | "budget_exceeded"
+/** Status of a workflow run. Const-object pattern (mirrors
+ *  `AgentFailureReason` at types.ts:135-143) so producers and consumers
+ *  reference the same identifier. Renaming a member here is a compile
+ *  error at every call site — eliminating the magic-string coupling that
+ *  previously existed between `failRun()` and the budget-exceeded
+ *  classifier (gen-11 F-2.1). */
+export const WorkflowStatus = {
+  Running: "running",
+  Completed: "completed",
+  Failed: "failed",
+  Cancelled: "cancelled",
+  Crashed: "crashed",
+  /** Recoverable state — has journal to replay, distinct from crashed. */
+  Paused: "paused",
+  BudgetExceeded: "budget_exceeded",
+} as const
+
+export type WorkflowStatus = (typeof WorkflowStatus)[keyof typeof WorkflowStatus]
+
+/** Typed exception signalling token-budget exhaustion. Raised by
+ *  `AgentPrimitive` when total token usage crosses the configured cap;
+ *  caught by `RunCompleter.failRun()` via `instanceof` and routed to
+ *  `WorkflowStatus.BudgetExceeded`. Replaces the prior magic-string
+ *  classifier (`error.includes("budget_exceeded")`) which silently
+ *  broke if anyone renamed the type's `"budget_exceeded"` member. */
+export class BudgetExceededError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "BudgetExceededError"
+    Object.setPrototypeOf(this, BudgetExceededError.prototype)
+  }
+}
 
 /** Row in the workflow_runs SQLite table. */
 export interface WorkflowRun {

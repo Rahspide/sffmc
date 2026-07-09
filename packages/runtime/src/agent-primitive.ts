@@ -19,7 +19,7 @@ import type { IAgentPrimitive } from "./runtime-services.ts"
 import { createLogger } from "@sffmc/utilities"
 import type { InternalRunEntry, AgentResult } from "./internal-run-entry.ts"
 import type { AgentOptions, AgentFailureReason } from "./types.ts"
-import { AgentFailureReason as AFR } from "./types.ts"
+import { AgentFailureReason as AFR, BudgetExceededError } from "./types.ts"
 
 const log = createLogger("workflow:agent-primitive")
 
@@ -40,8 +40,10 @@ export interface AgentPrimitiveDeps {
   }>
   /** Append a successful agent result to the journal. */
   appendJournal: (runID: string, entry: unknown) => void
-  /** Settle the run as failed (with the given error message). */
-  failRun: (entry: InternalRunEntry, error: string) => void
+  /** Settle the run as failed (with the given error). Accepts a string
+   *  (legacy callers) or an Error instance (the typed path used for
+   *  budget-exceeded classification — see `BudgetExceededError`). */
+  failRun: (entry: InternalRunEntry, error: string | Error) => void
 }
 
 export class AgentPrimitive implements IAgentPrimitive {
@@ -148,7 +150,7 @@ export class AgentPrimitive implements IAgentPrimitive {
         // Settle the run so this.runs drops it, entry.status flips to
         // "budget_exceeded", DB row updates, outcome resolves (so wait()
         // returns), and workflow:finished fires — all in one path.
-        this.deps.failRun(entry, `Token budget_exceeded: cap ${entry.cfg.maxTokens} exceeded`)
+        this.deps.failRun(entry, new BudgetExceededError(`Token budget exceeded: cap ${entry.cfg.maxTokens} exceeded`))
         return null
       }
 

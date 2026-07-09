@@ -20,6 +20,7 @@ import type { WorkflowPersistence } from "./persistence.ts"
 import type { WorkflowEventEmitter } from "./event-emitter.ts"
 import type { OutcomeStore, WorkflowOutcome } from "./outcome-store.ts"
 import type { WorkflowActivation } from "./activation.ts"
+import { BudgetExceededError, WorkflowStatus } from "./types.ts"
 
 export interface RunCompleterDeps {
   persistence: WorkflowPersistence
@@ -62,19 +63,22 @@ export class RunCompleter implements IRunCompleter {
     this.deps.runs.release(entry.runID)
   }
 
-  /** Mark the run as failed or budget_exceeded (the latter when the
-   *  error message contains the magic strings that the agent-failure
-   *  classifier emits). Guarded like completeRun. */
-  failRun(entry: InternalRunEntry, error: string): void {
+  /** Mark the run as failed or budget_exceeded (the latter when a
+   *  `BudgetExceededError` is passed). Guarded like completeRun. */
+  failRun(entry: InternalRunEntry, error: string | Error): void {
     if (entry.status !== "running") return
-    entry.status = error.includes("budget_exceeded") || error.includes("deadline exceeded")
-      ? "budget_exceeded"
-      : "failed"
-    const outcome = outcomeFor(entry, entry.status as "failed" | "budget_exceeded", { error })
+    entry.status = error instanceof BudgetExceededError
+      ? WorkflowStatus.BudgetExceeded
+      : WorkflowStatus.Failed
+    // Persist the original message: BudgetExceededError.message carries the
+    // human-readable cause (e.g. "Token budget exceeded: cap … exceeded"),
+    // and `.message` is the same as the input for plain strings.
+    const errorMessage = error instanceof Error ? error.message : error
+    const outcome = outcomeFor(entry, entry.status as "failed" | "budget_exceeded", { error: errorMessage })
     entry.resolveOutcome(outcome)
-    this.deps.persistence.updateRunStatus(entry.runID, entry.status, error)
+    this.deps.persistence.updateRunStatus(entry.runID, entry.status, errorMessage)
     this.deps.persistence.flushJournalSync()
-    this.deps.events.emit("workflow:finished", { runID: entry.runID, status: entry.status, error })
+    this.deps.events.emit("workflow:finished", { runID: entry.runID, status: entry.status, error: errorMessage })
     // v0.14.x C-2 — cache + release (see completeRun comment)
     this.deps.outcomes.put(entry.runID, outcome)
     this.deps.runs.release(entry.runID)

@@ -42,7 +42,7 @@ import type { WorkspaceJail } from "./workspace.ts"
 /** Narrow surface of `RunCompleter` that the orchestrator uses. */
 export interface IRunCompleter {
   completeRun(entry: InternalRunEntry, result?: unknown): void
-  failRun(entry: InternalRunEntry, error: string): void
+  failRun(entry: InternalRunEntry, error: string | Error): void
   settleEntry(
     entry: InternalRunEntry,
     script: string,

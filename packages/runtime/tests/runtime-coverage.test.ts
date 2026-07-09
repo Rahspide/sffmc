@@ -21,6 +21,7 @@ import { WorkflowRuntime } from "../src/runtime"
 import type { PluginContext } from "../src/runtime"
 import { WorkflowPersistence, computeScriptSha } from "../src/persistence.ts"
 import { CounterManager } from "../src/counter-manager.ts"
+import { BudgetExceededError } from "../src/types.ts"
 
 const mockCtx: PluginContext = {
   config: {},
@@ -167,15 +168,15 @@ describe("spawnAgent depth check", () => {
 })
 
 // ── #5: failRun() budget/deadline pattern matching ──────────────────────
-// runtime.ts:837-846 — when error includes "budget_exceeded" or
-// "deadline exceeded", entry.status becomes "budget_exceeded" (otherwise
-// "failed"). failRun is private, so we drive it via reflection.
+// runtime.ts:failRun() — when a `BudgetExceededError` is passed,
+// entry.status becomes "budget_exceeded" (otherwise "failed").
+// failRun is private, so we drive it via reflection.
 
 describe("failRun() budget_exceeded pattern matching", () => {
   test("failRun sets status to budget_exceeded when error matches budget/deadline pattern", () => {
     const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
     const failRun = (runtime as unknown as {
-      failRun: (entry: unknown, error: string) => void
+      failRun: (entry: unknown, error: string | Error) => void
     }).failRun.bind(runtime)
 
     function makeFakeEntry(runID: string): Record<string, unknown> {
@@ -211,19 +212,21 @@ describe("failRun() budget_exceeded pattern matching", () => {
 
     const sha = computeScriptSha("failRun-reflection-test")
 
-    // Case 1: "budget_exceeded" in error → status becomes "budget_exceeded"
+    // Case 1: BudgetExceededError → status becomes "budget_exceeded"
     const r1 = p.createRun("f1.ts", "failRun-budget", sha)
     const e1 = makeFakeEntry(r1)
-    failRun(e1, "Token budget_exceeded: out of money")
+    failRun(e1, new BudgetExceededError("Token budget exceeded: out of money"))
     expect(e1.status).toBe("budget_exceeded")
     expect(p.loadRun(r1)?.status).toBe("budget_exceeded")
 
-    // Case 2: "deadline exceeded" in error → status becomes "budget_exceeded"
+    // Case 2: plain string with "deadline exceeded" → status "failed"
+    // (gen-11 F-2.1: only BudgetExceededError triggers BudgetExceeded;
+    //  the legacy deadline-magic-string check has been removed)
     const r2 = p.createRun("f2.ts", "failRun-deadline", sha)
     const e2 = makeFakeEntry(r2)
     failRun(e2, "workflow script deadline exceeded")
-    expect(e2.status).toBe("budget_exceeded")
-    expect(p.loadRun(r2)?.status).toBe("budget_exceeded")
+    expect(e2.status).toBe("failed")
+    expect(p.loadRun(r2)?.status).toBe("failed")
 
     // Case 3: unrelated error → status becomes "failed"
     const r3 = p.createRun("f3.ts", "failRun-generic", sha)
