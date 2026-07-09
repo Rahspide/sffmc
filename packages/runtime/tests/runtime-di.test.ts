@@ -28,6 +28,7 @@ import type {
 } from "../src/runtime-services.ts"
 import type { InternalRunEntry } from "../src/internal-run-entry.ts"
 import type { WorkspaceJail } from "../src/workspace.ts"
+import { makeSemaphore } from "../src/concurrency.ts"
 
 function makeMockCtx(): PluginContext {
   return {
@@ -151,6 +152,21 @@ describe("WorkflowRuntime — DI (Dependency Inversion)", () => {
     })
     const rt = runtime as unknown as { services: RuntimeServices }
     expect(rt.services.childWorkflowPrimitive).toBe(mockChild)
+  })
+
+  test("globalSem mock is installed and reachable", () => {
+    // The global concurrency semaphore is the one non-trivial
+    // per-runtime field that the orchestrator passes into
+    // `AgentPrimitive` directly. Adding it to the DI container lets
+    // tests swap the cap (e.g. `makeSemaphore(1)` for strict
+    // serialization) without reflection or subclassing.
+    const ctx = makeMockCtx()
+    const fakeSem = makeSemaphore(1)
+    const runtime = new WorkflowRuntime(ctx, {
+      services: { globalSem: fakeSem },
+    })
+    const rt = runtime as unknown as { services: RuntimeServices }
+    expect(rt.services.globalSem).toBe(fakeSem)
   })
 
   test("overriding one service does not affect the others", () => {

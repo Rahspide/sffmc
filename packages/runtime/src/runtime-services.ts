@@ -28,6 +28,7 @@
 import type { InternalRunEntry } from "./internal-run-entry.ts"
 import type { AgentFailureReason, AgentOptions, AgentResult } from "./types.ts"
 import type { WorkspaceJail } from "./workspace.ts"
+import type { makeSemaphore } from "./concurrency.ts"
 
 // ---------------------------------------------------------------------------
 // Sub-component interfaces (SOLID, Interface Segregation Principle).
@@ -104,12 +105,22 @@ export interface IChildWorkflowPrimitive {
 }
 
 /** Sub-components container — the 4 sub-components the orchestrator
- *  delegates to via narrow interfaces. Tests can override one or more
- *  by passing `opts.services`. Production callers omit the opt and
- *  get the real implementations. */
+ *  delegates to via narrow interfaces, plus the global concurrency
+ *  semaphore used by `AgentPrimitive` to throttle concurrent LLM
+ *  calls. Tests can override one or more by passing `opts.services`.
+ *  Production callers omit the opt and get the real implementations.
+ *
+ *  `globalSem` is included here so tests can swap the concurrency
+ *  cap (e.g. a tighter semaphore for hermetic isolation) without
+ *  reaching into the runtime via reflection or subclassing. The
+ *  default construction (no `opts.services.globalSem`) keeps the
+ *  prior behaviour — `makeSemaphore(resolveMaxConcurrentAgents())`
+ *  reads the YAML-configured `maxConcurrentAgents` at construction
+ *  time. See `runtime.ts` constructor for the override precedence. */
 export interface RuntimeServices {
   runCompleter: IRunCompleter
   mcpDispatcher: IMcpDispatcher
   agentPrimitive: IAgentPrimitive
   childWorkflowPrimitive: IChildWorkflowPrimitive
+  globalSem: ReturnType<typeof makeSemaphore>
 }

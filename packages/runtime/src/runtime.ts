@@ -256,12 +256,21 @@ export class WorkflowRuntime {
     // v0.16.0-SOLID: store the sub-components container. Tests can supply
     // a partial container via `opts.services` to override individual
     // sub-components. Production callers omit the opt.
+    //
+    // `globalSem` lives in the container so tests can swap the
+    // concurrency cap (e.g. `makeSemaphore(1)` for hermetic
+    // isolation) without reflection or subclassing. Override
+    // precedence: `opts.services.globalSem` wins over the default
+    // `this.globalSem` constructed above. Placed after the spread so
+    // a missing/undefined override in `opts.services` falls back to
+    // `this.globalSem` rather than getting clobbered by `undefined`.
     this.services = {
       runCompleter: this.runCompleter,
       mcpDispatcher: this.mcpDispatcher,
       agentPrimitive: this.agentPrimitive,
       childWorkflowPrimitive: this.childWorkflowPrimitive,
       ...opts.services,
+      globalSem: opts.services?.globalSem ?? this.globalSem,
     }
 
     if (opts.gracePeriodMsOverride !== undefined) {
