@@ -296,7 +296,7 @@ See each package's README for its full config reference and defaults.
 
 - **[Getting started](./docs/getting-started.md)** — install, first workflow, debugging
 - **[Import from MiMo](./docs/import-from-mimo.md)** — migration guide for MiMo-Code users
-- **[Load order audit](./docs/load-order-audit.md)** — hook registration order and rationale
+- **[Hook audit info in codemap.md](./codemap.md#hook-categories)** — hook category dispatch (TRANSFORM / GATE / SIDE_EFFECT / tool) plus `bun run check:cleanroom` (0 conflicts expected) and `bun run audit:load-order` re-runs the AST-based conflict check on demand
 - **[Workflow reference](./docs/dynamic-workflow.md)** — sandbox internals, budgets, error model
 - **[Workflow examples](./docs/workflow-examples.md)** — five ready-to-copy workflows
 - **[v0.9.0 restructure decision](./CHANGELOG.md)** — see the v0.9.0 entry

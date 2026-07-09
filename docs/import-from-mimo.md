@@ -43,7 +43,7 @@ do not share a schema, and SFFMC's defaults are safe to start with.
    presence per package.
 4. **Migrate workflows incrementally.** The plugin you load first should be
    `safety` (it only adds recovery and gate hooks), then `memory`, then
-   `cognition`. Add `workflow` last so the sandbox is opt-in.
+   `cognition`. Add `runtime` last so the sandbox is opt-in.
 
 ## Sanity checks
 

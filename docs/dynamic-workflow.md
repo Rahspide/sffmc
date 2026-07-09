@@ -1,6 +1,6 @@
 # Dynamic Workflow Engine
 
-**Shipped**: 2026-06-14 · **Version**: v0.6.0 (historical — see CHANGELOG) · **Package**: `@sffmc/runtime` · **LOC**: ~1500
+**Shipped**: 2026-06-14 · **Version**: v0.15.4 (current; evolved from v0.6.0) · **Package**: `@sffmc/runtime` · **LOC**: ~1500
 
 ## What it is
 
@@ -163,7 +163,7 @@ const perLine = await pipeline(
 
 ### Where to store
 
-- `packages/workflow/builtin/` — built-in (deep-research)
+- `packages/runtime/builtin/` — built-in workflows (`deep-research`, `plan`, `tdd`, `refactor`, `security-audit`, `doc-gen`, `lib-migrate`)
 - `.sffmc/workflows/*.ts` — project-level
 - `.claude/workflows/*.ts` — legacy (Claude Code compatibility)
 

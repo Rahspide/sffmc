@@ -26,7 +26,7 @@
 ```yaml
 # ~/.config/sffmc/runtime.yaml
 sandbox:
-  max_wall_clock_ms: 28800000  # 8 hours, default
+  max_wall_clock_ms: 3600000   # 1 hour, default
   interrupt_grace_ms: 5000
 flush:
   threshold: 50                # buffered events before forced checkpoint
@@ -39,7 +39,7 @@ flush:
 // ~/.config/opencode/opencode.json
 {
   "plugins": [
-    "npm:@sffmc/runtime@^0.15.1"
+    "npm:@sffmc/runtime@^0.15.4"
   ]
 }
 ```

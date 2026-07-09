@@ -83,7 +83,7 @@ bun install
 - Both plugins auto-load, no config files needed
 
 **What you don't get yet** (in later releases):
-- Watchdog, Max Mode, Dynamic Workflow, Compose pack, Verify skill
+- Watchdog, Max Mode, Dynamic Workflow, Compose pack, Verify skill (all 5 are SFFMC builtins — pick the matching name from `sffmc/workflow` or `sffmc/compose`)
 
 ### 2. SFFMC → OpenCode
 
@@ -153,7 +153,7 @@ cp ~/.local/share/mimo/mimo.db ~/.local/share/opencode/opencode.db
 # 4. Install SFFMC plugins (see "OpenCode → SFFMC" above)
 ```
 
-**What you keep**: Memory (starts fresh in SFFMC — MiMo-Code's memory format is different), Rules (SFFMC rules are YAML, customizable). Max Mode and other features arrive in later releases.
+**What you keep**: Memory (starts fresh in SFFMC — MiMo-Code's memory format is different), Rules (SFFMC rules are YAML, customizable), Max Mode (`/max` command), all 7 built-in workflows (`deep-research`, `plan`, `tdd`, `refactor`, `security-audit`, `doc-gen`, `lib-migrate`). All shipped in v0.15.4.
 
 ## The 5 Issues to Know (Round 6 Must-Adds)
 
@@ -293,7 +293,7 @@ sqlite3 ~/.local/share/sffmc/memory/index.sqlite "SELECT count(*) FROM memory_en
 
 cd ~/.sffmc/plugins/sffmc
 bun test
-# Should show: 578 tests, 0 failures (30 files)
+# Should show: 1130 tests, 0 failures (74 files)
 ```
 
 ## References

@@ -1,6 +1,6 @@
 # @sffmc/memory
 
-> **This is the memory composite.** It composes 4 sub-features: `memory-core` (SQLite + context recall, inlined), plus `checkpoint` / `judge` / `dream` from `@sffmc/utilities` (all opt-in, disabled by default — flip flags in `~/.config/SFFMC/extra.yaml` per feature). The standalone `memory` package now exports the composite that wires the 4 sub-features via `mergeHooks()`.
+> **This is the memory composite.** It composes 2 sub-features: `memory-core` (SQLite + context recall, inlined), plus `checkpoint` / `judge` / `dream` from `@sffmc/utilities` (all opt-in, disabled by default — flip flags in `~/.config/SFFMC/extra.yaml` per feature). The standalone `memory` package now exports the composite that wires the 4 sub-features via `mergeHooks()`.
 
 ## Sub-features
 
@@ -81,7 +81,7 @@ default_importance: 0.5
 bun test packages/memory/
 ```
 
-20 tests across 2 files (`memory.test.ts` + `index.test.ts`).
+8 test files, ~120 cases across memory + extra tests (`memory.test.ts` + `index.test.ts`).
 
 ## License
 

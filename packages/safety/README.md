@@ -2,7 +2,6 @@
 
 > **Safety composite.** Bundles 5 sub-features for tool-failure recovery, destructive-op safety nets, and log hygiene. Replaces the need to load each sub-feature individually.
 
-safety composite — composes watchdog, rules, auto-max, eos-stripper, and log-whitelist via `mergeHooks()`.
 
 ## What it does
 
@@ -12,11 +11,11 @@ Prevents runaway failure cascades, blocks destructive commands via YAML gates, a
 
 | Sub-feature | Purpose | MiMo origin |
 |---|---|---|
-| [watchdog](#sub-features) | 3-failure counter with auto-recovery and model promotion | MiMo origin |
-| [rules](#sub-features) | YAML safety gates (denylist, command block, output pattern) | MiMo origin |
-| [auto-max](#sub-features) | Auto-escalation to max-mode when failures cascade | SFFMC (inspired by MiMo) |
-| [eos-stripper](#sub-features) | Strips local-model EOS tokens from `text.complete` output | SFFMC |
-| [log-whitelist](#sub-features) | Prevents 12GB+ permission log accumulation | SFFMC |
+| [watchdog](packages/safety/src/watchdog/) | 3-failure counter with auto-recovery and model promotion | MiMo origin |
+| [rules](packages/safety/src/rules/) | YAML safety gates (denylist, command block, output pattern) | MiMo origin |
+| [auto-max](packages/safety/src/auto-max/) | Auto-escalation to max-mode when failures cascade | SFFMC (inspired by MiMo) |
+| [eos-stripper](packages/safety/src/eos-stripper/) | Strips local-model EOS tokens from `text.complete` output | SFFMC |
+| [log-whitelist](packages/safety/src/log-whitelist/) | Prevents 12GB+ permission log accumulation | SFFMC |
 
 ## Hooks registered
 

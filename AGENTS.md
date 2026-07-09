@@ -98,7 +98,7 @@ If you have two OpenCode instances (development + production), you can restart t
 - [CONTRIBUTING.md](CONTRIBUTING.md) — plugin SDK reference, conventional commits
 - [RELEASE.md](RELEASE.md) — publication prep checklist (5 decisions)
 - [CHANGELOG.md](CHANGELOG.md) — per-version release notes
-- [docs/load-order-audit.md](docs/load-order-audit.md) — hook conflict analysis
+- [codemap.md#hook-categories](codemap.md#hook-categories) — hook category dispatch (TRANSFORM / GATE / SIDE_EFFECT / tool); re-run the AST-based conflict check via `bun run audit:load-order`
 
 ## Cloned Dependency Source
 

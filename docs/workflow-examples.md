@@ -111,6 +111,11 @@ able to search code and will return `null` (no-deliverable).
 
 ## 3. Security audit (parallel per file)
 
+> **Note:** `security-audit` is shipped as a built-in workflow in
+> `packages/runtime/builtin/`. You can just call it by name — no need
+> to write your own. The pattern below shows what a custom security
+> audit workflow WOULD look like.
+
 Parallel security audit — each file is checked by a separate
 agent, results are aggregated.
 
@@ -271,6 +276,11 @@ instead of `tools: ["read"]`.
 ---
 
 ## 5. Deep research (built-in, 6 phases)
+
+> **Note:** `deep-research` is shipped as a built-in workflow in
+> `packages/runtime/builtin/deep-research.ts`. You can just call it
+> by name — the example below shows the call shape, not a workflow
+> you need to write.
 
 The most complex built-in workflow. No code needed — just
 run by name:

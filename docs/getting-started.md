@@ -19,7 +19,7 @@ SFFMC is developed and tested on Linux (CachyOS / Arch-based, systemd). The plug
 
 ## 3. Install
 
-Add the SFFMC plugin paths to your `~/.config/opencode/opencode.json` under the `plugin` key. v0.9.0+ ships as **3 composite packages** — `@sffmc/safety`, `@sffmc/memory`) (composites) plus `@sffmc/runtime` and `@sffmc/cognition` (standalones) — each of which composes several sub-features into a single default export. The 10 sub-features (пять sub-фич в @sffmc/safety (правила, watchdog, auto-max, eos-stripper, log-whitelist) и три опциональных opt-in в @sffmc/memory (checkpoint, judge, dream)) are also individually available for backward compatibility. The recommended way to install is via the `sffmc` CLI, which adds the 3 composites by default and supports `--all` for the full 13-package set:
+Add the SFFMC plugin paths to your `~/.config/opencode/opencode.json` under the `plugin` key. SFFMC ships as **2 composite packages** — `@sffmc/safety`, `@sffmc/memory` — plus `@sffmc/runtime` and `@sffmc/cognition` (standalones) — each of which composes several sub-features into a single default export. The 8 sub-features (5 in `@sffmc/safety` (rules, watchdog, auto-max, eos-stripper, log-whitelist) and 3 optional opt-ins in `@sffmc/memory` (checkpoint, judge, dream)) are also individually available for backward compatibility. The recommended way to install is via the `sffmc` CLI, which adds 4 installable plugins by default (2 composites + 2 standalones):
 
 ```bash
 # macOS / Linux
@@ -29,7 +29,7 @@ curl -fsSL https://raw.githubusercontent.com/Rahspide/sffmc/main/install.sh | sh
 irm https://raw.githubusercontent.com/Rahspide/sffmc/main/install.ps1 | iex
 ```
 
-Under the hood `install.sh` clones the repo to `~/.sffmc/plugins/sffmc` and runs `sffmc init` (or `sffmc init --all` for the full 13-package set). To edit your plugin list manually, point each entry at a composite `src/index.ts` inside the monorepo:
+Under the hood `install.sh` clones the repo to `~/.sffmc/plugins/sffmc` and runs `sffmc init`. To edit your plugin list manually, point each entry at a composite `src/index.ts` inside the monorepo:
 
 ```jsonc
 {
@@ -42,7 +42,7 @@ Under the hood `install.sh` clones the repo to `~/.sffmc/plugins/sffmc` and runs
 }
 ```
 
-Or pick individual sub-features (`packages/<name>/src/index.ts` for any of the 10 sub-packages) for finer-grained control. Restart OpenCode after editing. The composites load in the order listed; that order is intentional and verified — see [load-order-audit.md](load-order-audit.md) for the full hook list and the reasoning behind each slot.
+Or pick individual sub-features (`packages/<name>/src/index.ts` for any of the 8 sub-features) for finer-grained control. Restart OpenCode after editing. The composites load in the order listed; that order is intentional and verified — see [codemap.md#hook-categories](../codemap.md#hook-categories) for the hook category dispatch and `bun run audit:load-order` to re-run the conflict check.
 
 To verify they loaded, open an OpenCode session and call any tool. If `@sffmc/runtime` is active, you'll see `workflow` in the tool list.
 
@@ -177,7 +177,7 @@ Resume replays cached agent results and continues from the next pending step. Th
 
 - **[README](../README.md)** — top-level overview, benchmark numbers, full feature list
 - **[import-from-mimo.md](import-from-mimo.md)** — porting guide for users coming from Xiaomi's MiMo-Code
-- **[load-order-audit.md](load-order-audit.md)** — full hook audit for plugin authors and reviewers
+- **[load-order audit info in codemap.md](../codemap.md#hook-categories)** — hook category dispatch; re-run via `bun run audit:load-order`
 - **[dynamic-workflow.md](dynamic-workflow.md)** — complete Workflow engine reference (budgets, sandbox internals, error model)
 - **[workflow-examples.md](workflow-examples.md)** — five more ready-to-copy workflows (api-migration, security-audit, daily-report, hello-world, deep-research)
 

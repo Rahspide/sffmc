@@ -21,7 +21,7 @@ Plus smaller helpers you might need:
 If you're authoring your own plugin and want `loadConfig` / `mergeHooks` / event typing:
 
 ```bash
-npm install --save-peer @sffmc/utilities@^0.15.1
+npm install --save-peer @sffmc/utilities@^0.15.4
 ```
 
 You do **not** add `@sffmc/utilities` to `opencode.json` `plugins[]`. It has no plugin entry — only TypeScript exports.

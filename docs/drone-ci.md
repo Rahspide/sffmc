@@ -12,7 +12,7 @@ the authoritative reference for the pipeline; this doc explains the
 Drone runs a single pipeline named `default` with the following steps.
 The first five steps run on **every push and pull request** to `main`,
 giving fast feedback during development. The remaining steps are gated
-on **tag pushes** matching `v*.*.*` (e.g. `v0.12.0`) and form the
+on **tag pushes** matching `v*.*.*` (e.g. `v0.15.4`) and form the
 publish workflow.
 
 ```
@@ -39,7 +39,7 @@ publish workflow.
 |---|---|---|
 | `install` | push / PR / tag | `bun install --frozen-lockfile` |
 | `typecheck` | push / PR / tag | `bun run typecheck` (0 errors) |
-| `test` | push / PR / tag | `bun run test:all` (29 test files, ~180 cases) |
+| `test` | push / PR / tag | `bun run test` (74 test files, ~1130 cases) |
 | `verify-load` | push / PR / tag | Load-order audit on the 3 composite packages |
 | `audit-public` | push / PR / tag | `scripts/audit-public-content.sh` (no leaks) |
 | `tag-gate-typecheck` | tag only | Re-run typecheck on the tag commit |
@@ -132,21 +132,19 @@ environment variables named after the secret (e.g. `npm_token` →
 The end-to-end release flow is:
 
 1. **Bump versions** in each `packages/*/package.json` and
-   `package.json (root)` (or use `bun run version:list` to see the
-   current state). Keep all 5 packages on the same version.
+   `package.json (root)` (use `git diff main -- package.json packages/*/package.json` to see the current state). Keep all 5 packages on the same version.
 
-2. **Commit + push** the version bumps to `main`. Wait for CI to pass
-   (the five feedback-loop steps).
+2. **Commit + push** the version bumps to `main`. Wait for CI to pass.
 
 3. **Tag the commit**:
 
    ```bash
-   git tag v0.12.0
-   git push origin v0.12.0
+   git tag v0.15.4
+   git push origin v0.15.4
    ```
 
 4. **Watch the build** in the Drone UI. The pipeline will:
-   - Re-run the four tag-gates on the tag commit
+   - Re-run the precommit chain on the tag commit
    - Run `publish` (publishes all 5 packages to npm in dependency
      order — "shared/" first (dependencies), then `packages/*` alphabetically)
    - Run `notify` (logs to drone; posts to Slack/Discord if

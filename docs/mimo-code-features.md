@@ -40,7 +40,7 @@ cross-session memory"* (`README.md:7`) and the GitHub repo description reads
 
 The project is published by XiaomiMiMo (GitHub organization id 208276378). The
 repository was created on **2026-06-10**, the latest release at the time of
-this document is **v0.1.1** (tagged 2026-06-15), and the main branch has been
+this document is **v0.1.5** (tagged 2026-07-07, latest as of last check; v0.15.4 release), and the main branch has been
 actively pushed to as recently as 2026-06-19. As of the snapshot:
 
 | Stat | Value | Source |
@@ -68,7 +68,7 @@ Top contributors (GitHub API `/contributors`):
 
 ### Architecture (high-level)
 
-The repository is a monorepo of 18 packages, of which the load-bearing ones are:
+The repository is a monorepo of 1 composite (compose) plus several satellite plugins (snapshot from v0.1.1, may have grown by v0.1.5); the load-bearing ones are:
 
 | Package | Purpose | Source root |
 | --- | --- | --- |
@@ -2124,7 +2124,7 @@ The local clone is shallow (single-commit), so permalinks are against
 | README | https://github.com/XiaomiMiMo/MiMo-Code/blob/main/README.md |
 | License | https://github.com/XiaomiMiMo/MiMo-Code/blob/main/LICENSE |
 | Contributing | https://github.com/XiaomiMiMo/MiMo-Code/blob/main/CONTRIBUTING.md |
-| Latest release (v0.1.1) | https://github.com/XiaomiMiMo/MiMo-Code/releases/tag/v0.1.1 |
+| Latest release (v0.1.5) | https://github.com/XiaomiMiMo/MiMo-Code/releases/tag/v0.1.5 |
 | Contributors | https://github.com/XiaomiMiMo/MiMo-Code/graphs/contributors |
 | Workflow runtime | https://github.com/XiaomiMiMo/MiMo-Code/blob/main/packages/opencode/src/workflow/runtime.ts |
 | Built-in `deep-research.js` | https://github.com/XiaomiMiMo/MiMo-Code/blob/main/packages/opencode/src/workflow/builtin/deep-research.js |

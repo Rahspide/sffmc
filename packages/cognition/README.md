@@ -21,7 +21,7 @@
 // ~/.config/opencode/opencode.json
 {
   "plugins": [
-    "npm:@sffmc/cognition@^0.15.1"
+    "npm:@sffmc/cognition@^0.15.4"
   ]
 }
 ```
