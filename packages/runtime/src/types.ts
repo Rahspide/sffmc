@@ -2,6 +2,7 @@
 // @sffmc/runtime — see ../../LICENSE
 
 import { DEFAULT_GRACE_PERIOD_MS, SCRIPT_DEADLINE_MS, WORKFLOW_LIMITS } from "./constants.ts"
+import type { OutcomeStore } from "./outcome-store.ts"
 
 /** Status of a workflow run. Const-object pattern (mirrors
  *  `AgentFailureReason` at types.ts:135-143) so producers and consumers
@@ -199,6 +200,14 @@ export interface WorkflowOutcome {
   tokensUsed: number
   durationMs: number
 }
+
+/** Typed `OutcomeStore` for workflow outcomes — the runtime's private
+ *  field and any test code that needs to construct or cast an outcome
+ *  cache both use this alias instead of re-spelling the generic
+ *  parameters at every call site (gen-11 F-2.7). The `OutcomeStore`
+ *  class itself stays generic (`<K, V>`) so other domains can keep
+ *  custom key/value shapes. */
+export type WorkflowOutcomeStore = OutcomeStore<string, WorkflowOutcome>
 
 /** Error class for workflow-level failures. */
 export class WorkflowError extends Error {

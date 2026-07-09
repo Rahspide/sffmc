@@ -40,6 +40,7 @@ import type {
   WorkflowStartInput,
   WorkflowStatusOutput,
   WorkflowOutcome,
+  WorkflowOutcomeStore,
   RunEntry,
 } from "./types.ts"
 import type { RuntimeServices } from "./runtime-services.ts"
@@ -207,7 +208,7 @@ export class WorkflowRuntime {
    *  `WORKFLOW_OUTCOMES_CACHE_SIZE` env var (default: 500). Evicted
    *  runIDs fall back to "unknown runID" — acceptable per the design
    *  comment above. Cleared by `close()`. */
-  private outcomes: OutcomeStore<string, WorkflowOutcome>
+  private outcomes: WorkflowOutcomeStore
 
   constructor(ctx: PluginContext, opts: RuntimeOpts = {}) {
     this.ctx = ctx
@@ -215,7 +216,10 @@ export class WorkflowRuntime {
     this.persistence = opts.persistence ?? new WorkflowPersistence()
     this.flushManager = new FlushManager(this.persistence)
     // OutcomeStore cache — bounded LRU so long-lived daemons don't grow
-    // indefinitely. Opt > env > 500 default.
+    // indefinitely. Opt > env > 500 default. The assignment is
+    // type-compatible with the `WorkflowOutcomeStore` alias field
+    // without an explicit cast (`OutcomeStore<string, WorkflowOutcome>`
+    // is exactly what the alias resolves to).
     this.outcomes = new OutcomeStore<string, WorkflowOutcome>(
       opts.completedOutcomesCacheSize ?? resolveOutcomesCacheSize(),
     )
