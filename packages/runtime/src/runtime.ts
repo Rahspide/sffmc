@@ -21,6 +21,7 @@ import { RuntimeConfig } from "./runtime-config.ts"
 import { RunCompleter } from "./run-completer.ts"
 import { McpDispatcher } from "./mcp-dispatcher.ts"
 import { AgentPrimitive } from "./agent-primitive.ts"
+import { ChildWorkflowPrimitive } from "./child-workflow-primitive.ts"
 
 import { parseMeta } from "./meta.ts"
 import { callLLM as callLLMModule } from "./llm-call.ts"
@@ -175,6 +176,11 @@ export class WorkflowRuntime {
    *  delegates `spawnAgent`, `executeAgentCall`, `runParallel`,
    *  `runPipeline`, `publishAgentFailed` to it. */
   private agentPrimitive: AgentPrimitive
+  /** v0.16.0 refactor (Phase 6): child workflow + journal helpers
+   *  extracted to `src/child-workflow-primitive.ts`. The runtime holds
+   *  an instance and delegates `spawnChildWorkflow`, `startChildWorkflow`,
+   *  `setPhase`, `appendLog` to it. */
+  private childWorkflowPrimitive: ChildWorkflowPrimitive
   /** v0.14.x C-2 — cached resolved outcomes for settled runs. The
    *  `completeRun` / `failRun` / `cancel` paths delete the entry from
    *  `this.runs` so its McpBridge / journalResults / AbortController /
@@ -226,6 +232,15 @@ export class WorkflowRuntime {
       callLLM: this.callLLM.bind(this) as AgentPrimitiveDeps["callLLM"],
       appendJournal: (runID: string, e: unknown) => this.persistence.appendJournalSync(runID, e),
       failRun: this.failRun.bind(this),
+    })
+    this.childWorkflowPrimitive = new ChildWorkflowPrimitive({
+      persistence: this.persistence,
+      events: this.events,
+      runs: this.runs,
+      scheduleFlush: this.scheduleFlush.bind(this),
+      startChildWorkflow: this.startChildWorkflow.bind(this),
+      appendJournal: (runID: string, e: unknown) => this.persistence.appendJournal(runID, e),
+      settleEntry: this.settleEntry.bind(this),
     })
     if (opts.gracePeriodMsOverride !== undefined) {
       this.runtimeConfig.setGracePeriodMs(opts.gracePeriodMsOverride)
@@ -665,96 +680,28 @@ export class WorkflowRuntime {
     return this.agentPrimitive.runPipeline(items, stages)
   }
 
-  /** workflow(nameOrScript, args?) — spawn a child workflow. */
+  /** v0.16.0 refactor (Phase 6): delegates to `ChildWorkflowPrimitive.spawn()`.
+   *  Journal cache lookup, script resolution, child sub-run launch, and
+   *  outcome waiting all live in `src/child-workflow-primitive.ts`. */
   private async spawnChildWorkflow(
     entry: InternalRunEntry,
     nameOrScript: string,
     childArgs: unknown,
     workflowOcc: Map<string, number>,
   ): Promise<unknown> {
-    const spec = String(nameOrScript)
-    const base = createHash("sha256")
-      .update(JSON.stringify({ spec, args: childArgs ?? null }))
-      .digest("hex")
-    const n = workflowOcc.get(base) ?? 0
-    workflowOcc.set(base, n + 1)
-    const key = "wf:" + base + ":" + n
-
-    // Journal hit
-    if (entry.journalResults.has(key)) {
-      entry.counters.recordJournalHit()
-      this.scheduleFlush(entry)
-      return entry.journalResults.get(key)
-    }
-
-    // Resolve child script
-    let childScript: string
-    try {
-      const workspace = entry.workspace ?? process.cwd()
-      const resolved = isInlineScript(spec)
-        ? { source: spec, meta: parseMeta(spec), kind: "inline" as const }
-        : await resolveWorkflow(spec, workspace)
-      childScript = resolved.source
-    } catch (e) {
-      throw new Error(`${WORKFLOW_STRUCTURAL_ERROR}: unknown workflow: ${JSON.stringify(spec)}`)
-    }
-
-    const childName = isInlineScript(spec) ? "inline:" + base.slice(0, 12) : spec
-
-    // Launch child sub-run
-    const childRunID = generateRunID()
-    entry.childRunIDs.add(childRunID)
-
-    const childEntry = await this.startChildWorkflow(entry, childScript, childName, childArgs, childRunID)
-
-    // Wait for child outcome
-    const childOutcome = await childEntry.outcomePromise
-
-    // Structural errors propagate
-    if (childOutcome.status === "failed" && childOutcome.error?.includes(WORKFLOW_STRUCTURAL_ERROR)) {
-      const idx = childOutcome.error.indexOf(WORKFLOW_STRUCTURAL_ERROR)
-      throw new Error(childOutcome.error.slice(idx))
-    }
-
-    // Runtime failure → null
-    if (childOutcome.status !== "completed") {
-      return null
-    }
-
-    const value = childOutcome.result ?? null
-
-    // Journal successful child
-    if (value !== null) {
-      this.persistence.appendJournalSync(entry.runID, {
-        t: "agent",
-        key,
-        result: value,
-        pass: entry.journalPass,
-      })
-    }
-
-    return value
+    return this.childWorkflowPrimitive.spawn(entry, nameOrScript, childArgs, workflowOcc)
   }
 
-  /** phase(title) — set the current phase for a run. */
+  /** v0.16.0 refactor (Phase 6): delegates to `ChildWorkflowPrimitive.setPhase()`.
+   *  Journal append + event emit live in `src/child-workflow-primitive.ts`. */
   private setPhase(entry: InternalRunEntry, title: string): void {
-    entry.currentPhase = title
-    this.persistence.appendJournal(entry.runID, {
-      t: "phase",
-      title,
-      pass: entry.journalPass,
-    })
-    this.events.emit("workflow:phase", { runID: entry.runID, title })
+    this.childWorkflowPrimitive.setPhase(entry, title)
   }
 
-  /** log(msg) — append a log message to the run journal. */
+  /** v0.16.0 refactor (Phase 6): delegates to `ChildWorkflowPrimitive.appendLog()`.
+   *  Journal append + event emit live in `src/child-workflow-primitive.ts`. */
   private appendLog(entry: InternalRunEntry, msg: string): void {
-    this.persistence.appendJournal(entry.runID, {
-      t: "log",
-      msg,
-      pass: entry.journalPass,
-    })
-    this.events.emit("workflow:log", { runID: entry.runID, message: msg })
+    this.childWorkflowPrimitive.appendLog(entry, msg)
   }
 
   // ── Private: MCP dispatch (per-run) ──────────────────────────────────────
@@ -801,6 +748,9 @@ export class WorkflowRuntime {
 
   // ── Private: child workflow ────────────────────────────────────────────
 
+  /** v0.16.0 refactor (Phase 6): delegates to `ChildWorkflowPrimitive.start()`.
+   *  Create-run + write-script + register + started-event all live in
+   *  `src/child-workflow-primitive.ts`. */
   private async startChildWorkflow(
     parent: InternalRunEntry,
     script: string,
@@ -808,26 +758,7 @@ export class WorkflowRuntime {
     args: unknown,
     _childRunID: string,
   ): Promise<InternalRunEntry> {
-    // Simplified: create a new entry, run it inline
-    const parsed = parseMeta(script)
-
-    const scriptSha = computeScriptSha(script)
-    // Child inherits parent's workspace so the whole workflow tree
-    // stays jailed to the same directory. Persisted so child resume also
-    // restores the same root.
-    const childWorkspace = parent.workspace
-    const runID = this.persistence.createRun(name, name, scriptSha, undefined, childWorkspace, args)
-    await this.persistence.writeScript(runID, script)
-
-    const entry = makeEntry({ runID, name: parsed.ok ? parsed.meta.name : name, cfg: parent.cfg, workspace: childWorkspace })
-
-    this.runs.register(runID, entry)
-
-    this.events.emit("workflow:started", { runID, name })
-
-    this.settleEntry(entry, script, name, args, new WorkspaceJail(childWorkspace ?? process.cwd()))
-
-    return entry
+    return this.childWorkflowPrimitive.start(parent, script, name, args, _childRunID)
   }
 
   // ── Private: completion ────────────────────────────────────────────────
