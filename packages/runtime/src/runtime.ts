@@ -20,6 +20,7 @@ import { FlushManager } from "./flush-manager.ts"
 import { RuntimeConfig } from "./runtime-config.ts"
 import { RunCompleter } from "./run-completer.ts"
 import { McpDispatcher } from "./mcp-dispatcher.ts"
+import { AgentPrimitive } from "./agent-primitive.ts"
 
 import { parseMeta } from "./meta.ts"
 import { callLLM as callLLMModule } from "./llm-call.ts"
@@ -169,6 +170,11 @@ export class WorkflowRuntime {
    *  `src/mcp-dispatcher.ts`. The runtime holds an instance and
    *  delegates `dispatchMcpList` / `dispatchMcpCall` to it. */
   private mcpDispatcher: McpDispatcher
+  /** v0.16.0 refactor (Phase 5): agent primitives extracted to
+   *  `src/agent-primitive.ts`. The runtime holds an instance and
+   *  delegates `spawnAgent`, `executeAgentCall`, `runParallel`,
+   *  `runPipeline`, `publishAgentFailed` to it. */
+  private agentPrimitive: AgentPrimitive
   /** v0.14.x C-2 — cached resolved outcomes for settled runs. The
    *  `completeRun` / `failRun` / `cancel` paths delete the entry from
    *  `this.runs` so its McpBridge / journalResults / AbortController /
@@ -212,6 +218,14 @@ export class WorkflowRuntime {
     })
     this.mcpDispatcher = new McpDispatcher({
       getCtx: () => this.ctx,
+    })
+    this.agentPrimitive = new AgentPrimitive({
+      globalSem: this.globalSem,
+      scheduleFlush: this.scheduleFlush.bind(this),
+      emitEvent: (name: string, payload: unknown) => this.events.emit(name, payload),
+      callLLM: this.callLLM.bind(this) as AgentPrimitiveDeps["callLLM"],
+      appendJournal: (runID: string, e: unknown) => this.persistence.appendJournalSync(runID, e),
+      failRun: this.failRun.bind(this),
     })
     if (opts.gracePeriodMsOverride !== undefined) {
       this.runtimeConfig.setGracePeriodMs(opts.gracePeriodMsOverride)
@@ -614,174 +628,41 @@ export class WorkflowRuntime {
 
   // ── Private: primitives (extracted from launchScript) ───────────────────
 
-  /** agent(task, opts?) — called from inside the sandbox. */
+  /** v0.16.0 refactor (Phase 5): delegates to `AgentPrimitive.spawnAgent()`.
+   *  Journal cache lookup, lifecycle/token/step caps, abort check, depth
+   *  check, and counter invariants all live in `src/agent-primitive.ts`. */
   private async spawnAgent(
     entry: InternalRunEntry,
     task: string,
     opts: AgentOptions | undefined,
     occ: Map<string, number>,
   ): Promise<AgentResult> {
-    const agentOpts = opts ?? {} as AgentOptions
-    const promptStr = String(task)
-
-    // Journal cache lookup
-    const base = journalKeyBase(promptStr, {
-      agentType: undefined,
-      model: agentOpts.model,
-      schema: agentOpts.schema,
-      phase: agentOpts.phase,
-    })
-    const n = occ.get(base) ?? 0
-    occ.set(base, n + 1)
-    const key = base + ":" + n
-
-    if (entry.journalResults.has(key)) {
-      entry.counters.recordJournalHit()
-      this.scheduleFlush(entry)
-      return entry.journalResults.get(key) as AgentResult
-    }
-
-    // Run under semaphore
-    return this.globalSem.run(async () => {
-      // Lifecycle cap
-      if (entry.counters.agentCountTotal >= entry.cfg.maxLifecycleAgents) {
-        if (!entry.capWarned) {
-          entry.capWarned = true
-          log.warn(`lifecycle cap ${entry.cfg.maxLifecycleAgents} reached for ${entry.runID}`)
-        }
-        this.publishAgentFailed(entry.runID, key, AFR.OverCap)
-        return null
-      }
-
-      // Token cap
-      if (entry.counters.tokensUsed >= entry.cfg.maxTokens) {
-        this.publishAgentFailed(entry.runID, key, AFR.OverCap)
-        return null
-      }
-
-      // Check maxSteps
-      if (entry.counters.succeeded + entry.counters.failed >= entry.cfg.maxSteps) {
-        this.publishAgentFailed(entry.runID, key, AFR.OverCap)
-        return null
-      }
-
-      // Abort check
-      if (entry.controller.signal.aborted) {
-        return null
-      }
-
-      // Depth check
-      const depth = agentOpts.depth ?? 0
-      if (depth > entry.cfg.maxDepth) {
-        throw new Error(`Workflow nesting depth (${depth}) exceeds maxDepth (${entry.cfg.maxDepth})`)
-      }
-
-      // Counter invariants: running++ before spawn
-      entry.counters.recordAgentStart()
-      this.scheduleFlush(entry)
-
-      return this.executeAgentCall(entry, promptStr, agentOpts, key)
-    })
+    return this.agentPrimitive.spawnAgent(entry, task, opts, occ)
   }
 
-  /** Internal: call LLM and process the result (extracted from spawnAgent to
-   *  keep the semaphore/cap-check flow and the LLM execution as separate concerns). */
+  /** v0.16.0 refactor (Phase 5): delegates to `AgentPrimitive.executeAgentCall()`.
+   *  LLM call, token tracking, deliverable extraction, journal append,
+   *  and error handling all live in `src/agent-primitive.ts`. */
   private async executeAgentCall(
     entry: InternalRunEntry,
     promptStr: string,
     agentOpts: AgentOptions,
     key: string,
   ): Promise<AgentResult | null> {
-    let reason: AgentFailureReason = AFR.ActorError
-    try {
-      const result = await this.callLLM(entry, promptStr, agentOpts)
-
-      // Track tokens
-      const tokens = result.info?.tokens
-      const totalTokens = (tokens?.input ?? 0) + (tokens?.output ?? 0)
-      entry.counters.addTokens(tokens?.input ?? 0, tokens?.output ?? 0)
-
-      // Check token cap
-      if (entry.counters.tokensUsed >= entry.cfg.maxTokens) {
-        this.events.emit("workflow:step_checkpoint", {
-          runID: entry.runID,
-          stepIndex: entry.counters.succeeded + entry.counters.failed,
-          costTokens: totalTokens,
-        })
-        entry.counters.recordAgentFail()
-        this.publishAgentFailed(entry.runID, key, AFR.OverCap)
-        this.scheduleFlush(entry)
-        // Settle the run so this.runs drops it, entry.status flips to
-        // "budget_exceeded", DB row updates, outcome resolves (so wait()
-        // returns), and workflow:finished fires — all in one path.
-        // failRun's pattern match on "budget_exceeded" in the error sets
-        // the right status. The previous code emitted workflow:finished
-        // directly but never settled the run: status stayed "running",
-        // the run entry leaked in this.runs, wait() hung forever, and
-        // subsequent agents kept executing.
-        this.failRun(entry, `Token budget_exceeded: cap ${entry.cfg.maxTokens} exceeded`)
-        return null
-      }
-
-      // Extract deliverable
-      const deliverable = agentOpts.schema
-        ? (result.structured ?? null)
-        : (result.structured ?? result.finalText ?? null)
-
-      if (deliverable === null) {
-        reason = AFR.NoDeliverable
-        entry.counters.recordAgentFail()
-        this.publishAgentFailed(entry.runID, key, reason)
-        this.scheduleFlush(entry)
-        return null
-      }
-
-      entry.counters.recordAgentSucceed()
-      this.scheduleFlush(entry)
-
-      // Journal successful result
-      this.persistence.appendJournalSync(entry.runID, {
-        t: "agent",
-        key,
-        result: deliverable,
-        pass: entry.journalPass,
-      })
-
-      return deliverable as AgentResult
-    } catch (e) {
-      reason = AFR.SpawnReject
-      entry.counters.recordAgentFail()
-      this.publishAgentFailed(entry.runID, key, reason)
-      this.scheduleFlush(entry)
-      return null
-    }
+    return this.agentPrimitive.executeAgentCall(entry, promptStr, agentOpts, key)
   }
 
-  /** parallel(thunks) — Promise.all wrapper. Handled by sandbox PRELUDE, but
-   *  provided here as a fallback for direct host invocations. */
+  /** v0.16.0 refactor (Phase 5): delegates to `AgentPrimitive.runParallel()`. */
   private async runParallel<T>(thunks: Array<() => Promise<T>>): Promise<Array<T | null>> {
-    const results: Array<T | null> = []
-    const promises = thunks.map((thunk) => thunk())
-    const settled = await Promise.all(promises)
-    for (const r of settled) results.push(r)
-    return results
+    return this.agentPrimitive.runParallel(thunks)
   }
 
-  /** pipeline(items, ...stages) — sequential stages. See runParallel for
-   *  same PRELUDE note. */
+  /** v0.16.0 refactor (Phase 5): delegates to `AgentPrimitive.runPipeline()`. */
   private async runPipeline<T>(
     items: T[],
     stages: Array<(acc: unknown, item: T, i: number) => Promise<unknown>>,
   ): Promise<Array<unknown>> {
-    const results: Array<unknown> = []
-    for (const item of items) {
-      let acc: unknown = item
-      for (let i = 0; i < stages.length; i++) {
-        acc = await stages[i](acc, item, i)
-      }
-      results.push(acc)
-    }
-    return results
+    return this.agentPrimitive.runPipeline(items, stages)
   }
 
   /** workflow(nameOrScript, args?) — spawn a child workflow. */
@@ -983,12 +864,10 @@ export class WorkflowRuntime {
     return this.runCompleter.settleEntry(entry, script, name, args, jail)
   }
 
+  /** v0.16.0 refactor (Phase 5): delegates to `AgentPrimitive.publishAgentFailed()`.
+   *  The try/catch around emit + log.debug is in `src/agent-primitive.ts`. */
   private publishAgentFailed(runID: string, agentKey: string, reason: AgentFailureReason): void {
-    try {
-      this.events.emit("workflow:agent_failed", { runID, agentKey, reason })
-    } catch (e) {
-      log.debug("publishAgentFailed emit error:", e)
-    }
+    this.agentPrimitive.publishAgentFailed(runID, agentKey, reason)
   }
 
   /** Schedule a debounced DB counter flush for `entry`. Delegates to
