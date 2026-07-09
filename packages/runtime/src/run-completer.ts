@@ -21,6 +21,7 @@ import type { WorkflowEventEmitter } from "./event-emitter.ts"
 import type { OutcomeStore, WorkflowOutcome } from "./outcome-store.ts"
 import type { WorkflowActivation } from "./activation.ts"
 import { BudgetExceededError, WorkflowStatus } from "./types.ts"
+import { toErrorMessage } from "./errors.ts"
 
 export interface RunCompleterDeps {
   persistence: WorkflowPersistence
@@ -104,7 +105,7 @@ export class RunCompleter implements IRunCompleter {
         this.completeRun(entry, result !== undefined ? result : undefined)
       }
     } catch (err) {
-      this.failRun(entry, err instanceof Error ? err.message : String(err))
+      this.failRun(entry, toErrorMessage(err))
     }
   }
 }

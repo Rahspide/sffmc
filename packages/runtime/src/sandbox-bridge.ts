@@ -13,6 +13,7 @@ import {
   type QuickJSHandle,
 } from "quickjs-emscripten"
 import { evalAndReturn } from "./sandbox-eval.ts"
+import { toErrorMessage } from "./errors.ts"
 
 /** An injected host function: receives already-marshaled JS args,
  *  returns a JS value or Promise. */
@@ -90,7 +91,7 @@ export function rejectHostPromise(
   err: unknown,
 ): void {
   if (!ctx.alive) return
-  const msg = err instanceof Error ? err.message : String(err)
+  const msg = toErrorMessage(err)
   const eh = ctx.newString(msg)
   deferred.reject(eh)
   eh.dispose()

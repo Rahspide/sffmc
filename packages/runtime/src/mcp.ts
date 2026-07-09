@@ -23,6 +23,7 @@
 // exhaust the parent's MCP quota.
 
 import { createLogger } from "@sffmc/utilities"
+import { toErrorMessage } from "./errors.ts"
 import type { RichPluginContext } from "@sffmc/utilities"
 
 const log = createLogger("workflow")
@@ -299,7 +300,7 @@ export function makeMcpPrimitives(
         bridge.recordCall(name, args)
         return result
       } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e)
+        const msg = toErrorMessage(e)
         bridge.recordError(name, args, msg)
         throw e
       } finally {

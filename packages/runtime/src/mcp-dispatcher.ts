@@ -16,6 +16,7 @@ import { discoverParentTools } from "./mcp.ts"
 import type { IMcpDispatcher } from "./runtime-services.ts"
 import type { PluginContext } from "./types.ts"
 import type { InternalRunEntry } from "./internal-run-entry.ts"
+import { toErrorMessage } from "./errors.ts"
 
 export interface McpDispatcherDeps {
   /** Lazy getter for the OpenCode plugin context. Lazy because the
@@ -79,7 +80,7 @@ export class McpDispatcher implements IMcpDispatcher {
       bridge.recordCall(name, args)
       return result
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e)
+      const msg = toErrorMessage(e)
       // recordCall already incremented callCount on the happy path; on a
       // failed SDK call we still want it counted as "attempted" so budget
       // reflects real SDK load, not just successes.
