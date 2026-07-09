@@ -19,6 +19,7 @@ import { resolveWorkflowScript } from "./script-resolver.ts"
 import { FlushManager } from "./flush-manager.ts"
 
 import { parseMeta } from "./meta.ts"
+import { callLLM as callLLMModule } from "./llm-call.ts"
 import {
   resolveWorkflow,
   isInlineScript,
@@ -950,51 +951,19 @@ export class WorkflowRuntime {
 
   // ── Private: LLM call ──────────────────────────────────────────────────
 
-  private async callLLM(
+  /** Delegate to the extracted `callLLM` module (see `src/llm-call.ts`).
+   *  Lifted out per the v0.16.0 refactor plan; the implementation is pure
+   *  over `this.ctx` + `entry` + `opts` + `prompt`, so it does not need any
+   *  runtime state. Kept as a method on this class (rather than a direct
+   *  import) to preserve the call-site shape for the 9-test call graph in
+   *  `runtime-coverage.test.ts` and the `runtime-flushNow` reflection
+   *  contract. */
+  private callLLM(
     entry: InternalRunEntry,
     prompt: string,
     opts: AgentOptions,
-  ): Promise<{
-    content: Array<{ type: string; text?: string; data?: string }>
-    info?: { tokens?: { input?: number; output?: number } }
-    structured?: unknown
-    finalText?: string
-  }> {
-    // Build messages
-    const systemPrompt = opts.schema
-      ? `You are a workflow step. Output valid JSON matching the requested schema.`
-      : `You are a workflow step. Output your result directly.`
-
-    const messages: Array<{ role: string; content: string }> = [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: prompt },
-    ]
-
-    // Resolve `tools: "INHERIT"` against the parent MCP tool set BEFORE the
-    // SDK call. Three cases:
-    //   - undefined → forward literal "INHERIT" (legacy default; SDK resolves)
-    //   - array → shallow-copy and forward (do NOT mutate caller's array)
-    //   - "INHERIT" → discover parent tools; if discovery surface missing,
-    //     fall back to the literal so the SDK still resolves it correctly.
-    // The MCP bridge lives in mcp.ts; this runtime method only wires the call.
-    const resolvedTools = await resolveInheritedTools(opts.tools, this.ctx)
-
-    // Use ctx.client.session.message() — bypasses Max Mode + tool.execute hooks
-    if (this.ctx.client?.session?.message) {
-      return this.ctx.client.session.message({
-        messages,
-        model: opts.model,
-        tools: resolvedTools,
-      }) as Promise<{
-        content: Array<{ type: string; text?: string; data?: string }>
-        info?: { tokens?: { input?: number; output?: number } }
-        structured?: unknown
-        finalText?: string
-      }>
-    }
-
-    // Fallback: no LLM client available — return empty
-    return { content: [{ type: "text", text: "workflow: no LLM client available" }] }
+  ): ReturnType<typeof callLLMModule> {
+    return callLLMModule(this.ctx as Parameters<typeof callLLMModule>[0], entry, prompt, opts)
   }
 
   // ── Private: child workflow ────────────────────────────────────────────
