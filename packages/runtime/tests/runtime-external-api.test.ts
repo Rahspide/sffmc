@@ -146,16 +146,6 @@ describe("WorkflowRuntime constructor", () => {
     expect(typeof runtime.events.emit).toBe("function")
     expect(typeof runtime.events.clearAll).toBe("function")
   })
-
-  test("accepts RuntimeOpts without throwing (configOverride + gracePeriodMsOverride)", () => {
-    const runtime = new WorkflowRuntime(mockCtx, {
-      persistence: p,
-      gracePeriodMsOverride: 60_000,
-      configOverride: { maxSteps: 50, maxTokens: 10_000 },
-      completedOutcomesCacheSize: 16,
-    })
-    expect(runtime).toBeInstanceOf(WorkflowRuntime)
-  })
 })
 
 describe("WorkflowRuntime events bus", () => {
@@ -211,22 +201,19 @@ describe("WorkflowRuntime.setGracePeriodMs", () => {
 
 describe("WorkflowRuntime.setConfig", () => {
   test("accepts a Partial<WorkflowConfig> and is observable via loadWorkflowConfig()", async () => {
-    const runtime = new WorkflowRuntime(mockCtx, {
-      persistence: p,
-      configOverride: { maxSteps: 7 },
-    })
-    // Observable: when `configOverride` is set, the subsequent async
+    const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
+    // Observable: when `setConfig(cfg)` is called post-construction
+    // (BEFORE the first start/resume), the subsequent async
     // `loadWorkflowConfig()` is a no-op (the override wins). We assert
     // that the call resolves AND that no YAML disk read was attempted by
     // simply verifying it doesn't throw / doesn't hang.
+    runtime.setConfig({ maxSteps: 7 })
     await expect(runtime.loadWorkflowConfig()).resolves.toBeUndefined()
   })
 
   test("accepts `null` to re-enable the YAML load (no-op outside tests with real YAML)", async () => {
-    const runtime = new WorkflowRuntime(mockCtx, {
-      persistence: p,
-      configOverride: { maxSteps: 7 },
-    })
+    const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
+    runtime.setConfig({ maxSteps: 7 })
     runtime.setConfig(null)
     // The setConfig(null) call must not throw; the subsequent
     // loadWorkflowConfig() will attempt a real YAML load and fall back to
@@ -559,10 +546,8 @@ describe("WorkflowRuntime.recoverOrphanedWorkflows", () => {
     const sha = computeScriptSha(label)
     const runID = p.createRun(`${label}.ts`, label, sha)
     // No journal yet, but in-grace takes precedence → still 'paused'.
-    const runtime = new WorkflowRuntime(mockCtx, {
-      persistence: p,
-      gracePeriodMsOverride: 5 * 60 * 1000,
-    })
+    const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
+    runtime.setGracePeriodMs(5 * 60 * 1000)
     await runtime.recoverOrphanedWorkflows()
     const row = p.loadRun(runID)
     expect(row!.status).toBe("paused")
@@ -582,10 +567,8 @@ describe("WorkflowRuntime.recoverOrphanedWorkflows", () => {
       runID,
     ])
 
-    const runtime = new WorkflowRuntime(mockCtx, {
-      persistence: p,
-      gracePeriodMsOverride: 60_000, // 1 min — row is way past grace
-    })
+    const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
+    runtime.setGracePeriodMs(60_000) // 1 min — row is way past grace
     await runtime.recoverOrphanedWorkflows()
     const row = p.loadRun(runID)
     expect(row!.status).toBe("paused")
@@ -601,10 +584,8 @@ describe("WorkflowRuntime.recoverOrphanedWorkflows", () => {
       runID,
     ])
 
-    const runtime = new WorkflowRuntime(mockCtx, {
-      persistence: p,
-      gracePeriodMsOverride: 60_000,
-    })
+    const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
+    runtime.setGracePeriodMs(60_000)
     await runtime.recoverOrphanedWorkflows()
     const row = p.loadRun(runID)
     expect(row!.status).toBe("crashed")
@@ -622,10 +603,8 @@ describe("WorkflowRuntime.recoverOrphanedWorkflows", () => {
         },
       },
     }
-    const runtime = new WorkflowRuntime(blockingCtx, {
-      persistence: p,
-      gracePeriodMsOverride: 60_000,
-    })
+    const runtime = new WorkflowRuntime(blockingCtx, { persistence: p })
+    runtime.setGracePeriodMs(60_000)
     const { runID } = await runtime.start({
       script: `export const meta = { name: "live-guard", description: "l", phases: [] }
         async function main() { await agent("noop"); return "x"; }`,

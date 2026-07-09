@@ -386,18 +386,17 @@ describe("private helpers: resolveConfig", () => {
     runtime.close()
   })
 
-  test("custom maxSteps via configOverride propagates to outcome.stepsTotal", async () => {
-    // `configOverride` is the synchronous test path for injecting
-    // a workflow config (skips the YAML load). The OpenCode provider's
-    // `ctx.config` is the LEGACY fallback only — the runtime prefers the
-    // SFFMC-loaded config from `loadWorkflowConfig()` or the test override.
-    const runtime = new WorkflowRuntime(
-      {
-        config: { maxSteps: 77, maxTokens: 2_000_000, maxWallClockMs: 3_600_000, perStepTimeoutMs: 120_000 },
-        client: { session: { message: mockCtx.client.session.message } },
-      },
-      { configOverride: { maxSteps: 77, maxTokens: 2_000_000, maxWallClockMs: 3_600_000, perStepTimeoutMs: 120_000 } },
-    )
+  test("custom maxSteps via runtime.setConfig propagates to outcome.stepsTotal", async () => {
+    // `runtime.setConfig(cfg)` (post-construction, before first start) is
+    // the synchronous test path for injecting a workflow config (skips the
+    // YAML load). The OpenCode provider's `ctx.config` is the LEGACY fallback
+    // only — the runtime prefers the SFFMC-loaded config from
+    // `loadWorkflowConfig()` or the test override.
+    const runtime = new WorkflowRuntime({
+      config: { maxSteps: 77, maxTokens: 2_000_000, maxWallClockMs: 3_600_000, perStepTimeoutMs: 120_000 },
+      client: { session: { message: mockCtx.client.session.message } },
+    })
+    runtime.setConfig({ maxSteps: 77, maxTokens: 2_000_000, maxWallClockMs: 3_600_000, perStepTimeoutMs: 120_000 })
     const { runID } = await runtime.start({
       script: `export const meta = { name: "cfg-maxsteps", description: "test", phases: [] }
         async function main() { return "ok"; }`,
@@ -408,17 +407,16 @@ describe("private helpers: resolveConfig", () => {
     runtime.close()
   })
 
-  test("custom maxTokens via configOverride caps agent calls", async () => {
-    // same as the maxSteps test above; the override path is now
-    // the documented way to inject a config in tests. ctx.config remains
-    // a fallback for code paths that haven't migrated yet.
+  test("custom maxTokens via runtime.setConfig caps agent calls", async () => {
+    // same as the maxSteps test above; `runtime.setConfig(cfg)` (post-
+    // construction, before first start) is the documented way to inject
+    // a config in tests. ctx.config remains a fallback for code paths that
+    // haven't migrated yet.
     // Each mock call uses 10+5=15 tokens. Cap at 100 → ~6 calls max.
     const { ctx, counts } = makeCountingMockCtx()
     ctx.config = { maxSteps: 200, maxTokens: 100, maxWallClockMs: 3_600_000, perStepTimeoutMs: 120_000 }
-    const runtime = new WorkflowRuntime(
-      ctx,
-      { configOverride: { maxSteps: 200, maxTokens: 100, maxWallClockMs: 3_600_000, perStepTimeoutMs: 120_000 } },
-    )
+    const runtime = new WorkflowRuntime(ctx)
+    runtime.setConfig({ maxSteps: 200, maxTokens: 100, maxWallClockMs: 3_600_000, perStepTimeoutMs: 120_000 })
 
     const { runID } = await runtime.start({
       script: `export const meta = { name: "cfg-tokens", description: "test", phases: [] }
@@ -443,17 +441,15 @@ describe("private helpers: resolveConfig", () => {
     runtime.close()
   }, 20000)
 
-  test("resume() re-resolves config from new runtime's configOverride", async () => {
-    // same idea as the original test, but uses `configOverride`
-    // (the new sync test API) to inject the runtime's config.
+  test("resume() re-resolves config from new runtime's setConfig", async () => {
+    // same idea as the original test, but uses `runtime.setConfig(cfg)`
+    // (post-construction, before first start) to inject the runtime's config.
     // Start with runtime1 (maxSteps=30)
-    const runtime1 = new WorkflowRuntime(
-      {
-        config: { maxSteps: 30, maxTokens: 2_000_000, maxWallClockMs: 3_600_000, perStepTimeoutMs: 120_000 },
-        client: { session: { message: mockCtx.client.session.message } },
-      },
-      { configOverride: { maxSteps: 30, maxTokens: 2_000_000, maxWallClockMs: 3_600_000, perStepTimeoutMs: 120_000 } },
-    )
+    const runtime1 = new WorkflowRuntime({
+      config: { maxSteps: 30, maxTokens: 2_000_000, maxWallClockMs: 3_600_000, perStepTimeoutMs: 120_000 },
+      client: { session: { message: mockCtx.client.session.message } },
+    })
+    runtime1.setConfig({ maxSteps: 30, maxTokens: 2_000_000, maxWallClockMs: 3_600_000, perStepTimeoutMs: 120_000 })
     const { runID } = await runtime1.start({
       script: `export const meta = { name: "resume-cfg", description: "test", phases: [] }
         async function main() { return "-run"; }`,
@@ -465,13 +461,11 @@ describe("private helpers: resolveConfig", () => {
     runtime1.close()
 
     // Runtime2 with maxSteps=80 resumes same runID
-    const runtime2 = new WorkflowRuntime(
-      {
-        config: { maxSteps: 80, maxTokens: 2_000_000, maxWallClockMs: 3_600_000, perStepTimeoutMs: 120_000 },
-        client: { session: { message: mockCtx.client.session.message } },
-      },
-      { configOverride: { maxSteps: 80, maxTokens: 2_000_000, maxWallClockMs: 3_600_000, perStepTimeoutMs: 120_000 } },
-    )
+    const runtime2 = new WorkflowRuntime({
+      config: { maxSteps: 80, maxTokens: 2_000_000, maxWallClockMs: 3_600_000, perStepTimeoutMs: 120_000 },
+      client: { session: { message: mockCtx.client.session.message } },
+    })
+    runtime2.setConfig({ maxSteps: 80, maxTokens: 2_000_000, maxWallClockMs: 3_600_000, perStepTimeoutMs: 120_000 })
     const resumeResult = await runtime2.resume({ runID })
     expect(resumeResult.runID).toBe(runID)
     expect(resumeResult.resumed).toBe(true)

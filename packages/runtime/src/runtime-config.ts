@@ -63,12 +63,14 @@ export class RuntimeConfig {
     this.gracePeriodMs = ms
   }
 
-  /** Synchronously inject a workflow config. Used by tests via
-   *  `RuntimeOpts.configOverride` to skip the async YAML load. Merges
-   *  onto `DEFAULT_WORKFLOW_CONFIG` via spread so missing keys fall back
-   *  to defaults, and new fields added to `WorkflowConfig` are auto-
-   *  populated. When set, subsequent `loadWorkflowConfig()` calls are
-   *  no-ops unless `null` is passed (which re-enables the YAML load). */
+  /** Synchronously inject a workflow config. Used by tests via the
+   *  post-construction `runtime.setConfig(cfg)` setter to skip the
+   *  async YAML load (call BEFORE the first `start()` / `resume()` so
+   *  the override is observed). Merges onto `DEFAULT_WORKFLOW_CONFIG`
+   *  via spread so missing keys fall back to defaults, and new fields
+   *  added to `WorkflowConfig` are auto-populated. When set, subsequent
+   *  `loadConfig()` calls are no-ops unless `null` is passed (which
+   *  re-enables the YAML load). */
   setConfig(cfg: Partial<WorkflowConfig> | null): void {
     if (cfg === null) {
       this.workflowConfig = null

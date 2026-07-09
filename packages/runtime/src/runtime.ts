@@ -102,17 +102,6 @@ export interface RuntimeOpts {
   /** Optional persistence instance. When omitted, a default on-disk
    *  persistence is created using XDG_DATA_HOME or ~/.local/share. */
   persistence?: WorkflowPersistence
-  /** Optional grace period override (ms). When provided, takes precedence
-   *  over both the user YAML config and the default. Used by tests to
-   *  inject a tighter window without round-tripping through the YAML. */
-  gracePeriodMsOverride?: number
-  /**  synchronous config override for tests. Skips the async YAML
-   *  load. When set, the runtime uses these values for maxSteps / maxTokens /
-   *  maxWallClockMs / perStepTimeoutMs in `resolveConfig()`. The SFFMC
-   *  extended config (maxDepth, maxLifecycleAgents, maxConcurrentAgents)
-   *  is unaffected — use `__setWorkflowConfig()` from constants.ts for
-   *  those. */
-  configOverride?: Partial<WorkflowConfig>
   /** Override for the completed-outcomes LRU capacity. Default: env var
    *  `WORKFLOW_OUTCOMES_CACHE_SIZE`, then 500. */
   completedOutcomesCacheSize?: number
@@ -276,13 +265,6 @@ export class WorkflowRuntime {
       ...opts.services,
       globalSem: opts.services?.globalSem ?? this.globalSem,
     }
-
-    if (opts.gracePeriodMsOverride !== undefined) {
-      this.runtimeConfig.setGracePeriodMs(opts.gracePeriodMsOverride)
-    }
-    if (opts.configOverride) {
-      this.runtimeConfig.setConfig(opts.configOverride)
-    }
   }
 
   /** workflow recovery grace period — set the grace period at runtime. Used by the index.ts config
@@ -293,12 +275,13 @@ export class WorkflowRuntime {
   }
 
   /**  synchronously inject a workflow config. Used by tests via
-   *  `RuntimeOpts.configOverride` to skip the async YAML load. Merges
-   *  onto `DEFAULT_WORKFLOW_CONFIG` via spread so missing keys fall back
-   *  to defaults, and new fields added to `WorkflowConfig` are auto-
-   *  populated (no compile-time drift). When set, subsequent
-   *  `loadWorkflowConfig()` calls are no-ops unless `null` is passed
-   *  (which re-enables the YAML load). */
+   *  post-construction `runtime.setConfig(cfg)` to skip the async YAML
+   *  load (call BEFORE the first `start()` / `resume()` so the override
+   *  is observed). Merges onto `DEFAULT_WORKFLOW_CONFIG` via spread so
+   *  missing keys fall back to defaults, and new fields added to
+   *  `WorkflowConfig` are auto-populated (no compile-time drift). When
+   *  set, subsequent `loadWorkflowConfig()` calls are no-ops unless
+   *  `null` is passed (which re-enables the YAML load). */
   setConfig(cfg: Partial<WorkflowConfig> | null): void {
     this.runtimeConfig.setConfig(cfg)
   }
@@ -326,7 +309,7 @@ export class WorkflowRuntime {
 
     // Workflow config — lazily load the SFFMC workflow config from `workflow.yaml`
     // before `resolveConfig()` reads it. Idempotent; no-op for tests
-    // that injected a config via `RuntimeOpts.configOverride`.
+    // that injected a config via `runtime.setConfig(cfg)` post-construction.
     await this.loadWorkflowConfig()
 
     // Resolve script

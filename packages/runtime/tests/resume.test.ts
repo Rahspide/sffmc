@@ -208,14 +208,16 @@ describe("persistence.loadJournal format compat", () => {
 })
 
 // ── §1c: recoverOrphanedWorkflows ──────────────────────────────────────────
-// Note: tests #12 and #13 use `gracePeriodMsOverride: 0` to bypass the workflow recovery grace period
-// grace check (added in v0.14). They exercise the legacy journal-presence
-// branch — the new grace behavior is covered by tests #24-#30 below.
+// Note: tests #12 and #13 use `runtime.setGracePeriodMs(0)` post-
+// construction to bypass the workflow recovery grace period check
+// (added in v0.14). They exercise the legacy journal-presence branch
+// — the new grace behavior is covered by tests #24-#30 below.
 
 describe("runtime.recoverOrphanedWorkflows", () => {
   test("marks running + no-journal as 'crashed' (#12)", async () => {
     const runID = makeRun("rec-crashed", false) // no journal
-    const runtime = new WorkflowRuntime(mockCtx, { persistence: p, gracePeriodMsOverride: 0 })
+    const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
+    runtime.setGracePeriodMs(0)
     await runtime.recoverOrphanedWorkflows()
     const row = p.loadRun(runID)
     expect(row?.status).toBe("crashed")
@@ -224,7 +226,8 @@ describe("runtime.recoverOrphanedWorkflows", () => {
 
   test("marks running + journal as 'paused' (#13)", async () => {
     const runID = makeRun("rec-paused", true) // has journal
-    const runtime = new WorkflowRuntime(mockCtx, { persistence: p, gracePeriodMsOverride: 0 })
+    const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
+    runtime.setGracePeriodMs(0)
     await runtime.recoverOrphanedWorkflows()
     const row = p.loadRun(runID)
     expect(row?.status).toBe("paused")
@@ -485,7 +488,8 @@ describe("v0.14 workflow recovery grace period grace period — positive cases",
   test("within grace + journal → paused (#24)", async () => {
     const runID = makeRun("g5-journal", true)
     ageRun(runID, 30_000) // 30s old
-    const runtime = new WorkflowRuntime(mockCtx, { persistence: p, gracePeriodMsOverride: 300_000 })
+    const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
+    runtime.setGracePeriodMs(300_000)
     await runtime.recoverOrphanedWorkflows()
     const row = p.loadRun(runID)
     expect(row?.status).toBe("paused")
@@ -495,7 +499,8 @@ describe("v0.14 workflow recovery grace period grace period — positive cases",
   test("within grace + no journal → paused (grace overrides journal) (#25)", async () => {
     const runID = makeRun("g5-nojournal", false)
     ageRun(runID, 30_000)
-    const runtime = new WorkflowRuntime(mockCtx, { persistence: p, gracePeriodMsOverride: 300_000 })
+    const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
+    runtime.setGracePeriodMs(300_000)
     await runtime.recoverOrphanedWorkflows()
     const row = p.loadRun(runID)
     expect(row?.status).toBe("paused")
@@ -505,7 +510,8 @@ describe("v0.14 workflow recovery grace period grace period — positive cases",
   test("past grace + journal → paused (journal preserves) (#26)", async () => {
     const runID = makeRun("g5-past-journal", true)
     ageRun(runID, 120_000) // 2 min old
-    const runtime = new WorkflowRuntime(mockCtx, { persistence: p, gracePeriodMsOverride: 60_000 }) // 1 min grace
+    const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
+    runtime.setGracePeriodMs(60_000) // 1 min grace
     await runtime.recoverOrphanedWorkflows()
     const row = p.loadRun(runID)
     expect(row?.status).toBe("paused")
@@ -515,7 +521,8 @@ describe("v0.14 workflow recovery grace period grace period — positive cases",
   test("past grace + no journal → crashed (zombie) (#27)", async () => {
     const runID = makeRun("g5-past-nojournal", false)
     ageRun(runID, 120_000)
-    const runtime = new WorkflowRuntime(mockCtx, { persistence: p, gracePeriodMsOverride: 60_000 })
+    const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
+    runtime.setGracePeriodMs(60_000)
     await runtime.recoverOrphanedWorkflows()
     const row = p.loadRun(runID)
     expect(row?.status).toBe("crashed")
@@ -525,7 +532,8 @@ describe("v0.14 workflow recovery grace period grace period — positive cases",
   test("past grace (10 min) + no journal → crashed (v0.12.0 regression-lock) (#28)", async () => {
     const runID = makeRun("g5-v12", false)
     ageRun(runID, 10 * 60_000)
-    const runtime = new WorkflowRuntime(mockCtx, { persistence: p, gracePeriodMsOverride: 300_000 })
+    const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
+    runtime.setGracePeriodMs(300_000)
     await runtime.recoverOrphanedWorkflows()
     const row = p.loadRun(runID)
     expect(row?.status).toBe("crashed")
@@ -538,7 +546,8 @@ describe("v0.14 workflow recovery grace period grace period — edge cases", () 
     const runID = makeRun("g5-cancelled")
     ageRun(runID, 30_000) // even within grace
     p.updateRunStatus(runID, "cancelled")
-    const runtime = new WorkflowRuntime(mockCtx, { persistence: p, gracePeriodMsOverride: 300_000 })
+    const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
+    runtime.setGracePeriodMs(300_000)
     await runtime.recoverOrphanedWorkflows()
     expect(p.loadRun(runID)?.status).toBe("cancelled")
   })
@@ -547,7 +556,8 @@ describe("v0.14 workflow recovery grace period grace period — edge cases", () 
     const runID = makeRun("g5-paused")
     ageRun(runID, 30_000)
     p.updateRunStatus(runID, "paused", "user-paused-before")
-    const runtime = new WorkflowRuntime(mockCtx, { persistence: p, gracePeriodMsOverride: 300_000 })
+    const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
+    runtime.setGracePeriodMs(300_000)
     await runtime.recoverOrphanedWorkflows()
     const row = p.loadRun(runID)
     expect(row?.status).toBe("paused")
@@ -557,7 +567,8 @@ describe("v0.14 workflow recovery grace period grace period — edge cases", () 
   test("gracePeriodMs=0 behaves like v0.12.0 (#31)", async () => {
     const runID = makeRun("g5-zero")
     ageRun(runID, 60_000) // past even 0ms
-    const runtime = new WorkflowRuntime(mockCtx, { persistence: p, gracePeriodMsOverride: 0 })
+    const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
+    runtime.setGracePeriodMs(0)
     await runtime.recoverOrphanedWorkflows()
     // No journal → falls to crashed branch (v0.12.0 behavior)
     expect(p.loadRun(runID)?.status).toBe("crashed")
@@ -566,7 +577,8 @@ describe("v0.14 workflow recovery grace period grace period — edge cases", () 
   test("two concurrent recoverOrphanedWorkflows() — second is no-op (#32)", async () => {
     const runID = makeRun("g5-concurrent", true)
     ageRun(runID, 30_000)
-    const runtime = new WorkflowRuntime(mockCtx, { persistence: p, gracePeriodMsOverride: 300_000 })
+    const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
+    runtime.setGracePeriodMs(300_000)
     // First call marks the row paused
     await runtime.recoverOrphanedWorkflows()
     expect(p.loadRun(runID)?.status).toBe("paused")
@@ -591,7 +603,8 @@ describe("v0.14 workflow recovery grace period grace period — resume integrati
     p.appendJournalSync(runID, { t: "log", msg: "pre-crash", pass: 1 })
     p.flushJournalSync()
     // Pre-state: row is running, age=30s. Recovery marks it paused.
-    const runtime = new WorkflowRuntime(mockCtx, { persistence: p, gracePeriodMsOverride: 300_000 })
+    const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
+    runtime.setGracePeriodMs(300_000)
     await runtime.recoverOrphanedWorkflows()
     expect(p.loadRun(runID)?.status).toBe("paused")
 
@@ -613,7 +626,8 @@ describe("v0.14 workflow recovery grace period grace period — resume integrati
         async function main() { return "ok"; }`,
     )
     p.updateRunStatus(runID, "crashed", "past grace, no journal")
-    const runtime = new WorkflowRuntime(mockCtx, { persistence: p, gracePeriodMsOverride: 300_000 })
+    const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
+    runtime.setGracePeriodMs(300_000)
     let capturedWasStatus: string | undefined
     runtime.events.on("workflow:resumed", (e: { wasStatus: string }) => {
       capturedWasStatus = e.wasStatus

@@ -44,8 +44,8 @@ export const server = async (ctx: PluginContext) => {
   // workflow recovery grace period — load user YAML config (gracePeriodMs + other workflow limits)
   // once at startup. The runtime reads `this.gracePeriodMs` directly so
   // `recoverOrphanedWorkflows()` can be called synchronously without
-  // hitting disk. Tests inject via `RuntimeOpts.gracePeriodMsOverride`
-  // to avoid the YAML round-trip.
+  // hitting disk. Tests inject via `runtime.setGracePeriodMs(N)` post-
+  // construction to avoid the YAML round-trip.
   const cfg = await loadConfig<typeof DEFAULT_WORKFLOW_CONFIG>("workflow", DEFAULT_WORKFLOW_CONFIG)
 
   const runtime = new WorkflowRuntime(ctx)

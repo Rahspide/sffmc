@@ -14,8 +14,8 @@
 //
 // These tests exercise the runtime directly and verify the config-aware
 // resolution path. They use `__setWorkflowConfig()` from constants.ts
-// for the extended config and the new
-// ``RuntimeOpts.configOverride` for the `WorkflowConfig`. Also
+// for the extended config and the post-construction
+// `runtime.setConfig(cfg)` setter for the `WorkflowConfig`. Also
 // the memory value is read at sandbox invocation time, so we spy on
 // `runSandboxed`.
 
@@ -275,28 +275,24 @@ describe(" launchScript memoryMB reads from SFFMC config", () => {
 // ---------------------------------------------------------------------------
 
 describe(" resolveConfig uses SFFMC config, ctx.config is fallback only", () => {
-  it("configOverride.maxSteps is used when set (SFFMC config wins)", () => {
-    const runtime = new WorkflowRuntime(baseCtx, {
-      persistence,
-      configOverride: { maxSteps: 50, maxTokens: 2_000_000, maxWallClockMs: 3_600_000, perStepTimeoutMs: 120_000 },
-    })
+  it("runtime.setConfig({maxSteps}) is used when set (SFFMC config wins)", () => {
+    const runtime = new WorkflowRuntime(baseCtx, { persistence })
+    runtime.setConfig({ maxSteps: 50, maxTokens: 2_000_000, maxWallClockMs: 3_600_000, perStepTimeoutMs: 120_000 })
     const cfg = (runtime as unknown as {
       resolveConfig: () => { maxSteps: number; maxTokens: number }
     }).resolveConfig()
     expect(cfg.maxSteps).toBe(50)
   })
 
-  it("configOverride wins over ctx.config (priority order)", () => {
-    // ctx.config.maxSteps = 99, configOverride.maxSteps = 11
+  it("runtime.setConfig() wins over ctx.config (priority order)", () => {
+    // ctx.config.maxSteps = 99, runtime.setConfig.maxSteps = 11
     // → resolveConfig.maxSteps must be 11 (override wins)
     const ctx: PluginContext = {
       ...baseCtx,
       config: { maxSteps: 99, maxTokens: 999_999, maxWallClockMs: 999, perStepTimeoutMs: 999 },
     }
-    const runtime = new WorkflowRuntime(ctx, {
-      persistence,
-      configOverride: { maxSteps: 11, maxTokens: 22, maxWallClockMs: 33, perStepTimeoutMs: 44 },
-    })
+    const runtime = new WorkflowRuntime(ctx, { persistence })
+    runtime.setConfig({ maxSteps: 11, maxTokens: 22, maxWallClockMs: 33, perStepTimeoutMs: 44 })
     const cfg = (runtime as unknown as {
       resolveConfig: () => { maxSteps: number; maxTokens: number; maxWallClockMs: number; perStepTimeoutMs: number }
     }).resolveConfig()
@@ -306,9 +302,9 @@ describe(" resolveConfig uses SFFMC config, ctx.config is fallback only", () => 
     expect(cfg.perStepTimeoutMs).toBe(44)
   })
 
-  it("ctx.config is the fallback when no configOverride is set", async () => {
-    // when configOverride is absent, loadWorkflowConfig() runs
-    // and loads from workflow.yaml. If the YAML file doesn't exist
+  it("ctx.config is the fallback when no setConfig() injection is set", async () => {
+    // when no runtime.setConfig() call precedes start, loadWorkflowConfig()
+    // runs and loads from workflow.yaml. If the YAML file doesn't exist
     // (the test default), the runtime falls back to ctx.config.
     const ctx: PluginContext = {
       ...baseCtx,
@@ -347,11 +343,9 @@ describe(" resolveConfig uses SFFMC config, ctx.config is fallback only", () => 
   })
 
   it("setConfig(null) re-enables the YAML load path on next start()", async () => {
-    // Inject a config via configOverride → start() works.
-    const runtime1 = new WorkflowRuntime(baseCtx, {
-      persistence,
-      configOverride: { maxSteps: 33, maxTokens: 2_000_000, maxWallClockMs: 3_600_000, perStepTimeoutMs: 120_000 },
-    })
+    // Inject a config via runtime.setConfig(cfg) → resolveConfig works.
+    const runtime1 = new WorkflowRuntime(baseCtx, { persistence })
+    runtime1.setConfig({ maxSteps: 33, maxTokens: 2_000_000, maxWallClockMs: 3_600_000, perStepTimeoutMs: 120_000 })
     const cfg1 = (runtime1 as unknown as {
       resolveConfig: () => { maxSteps: number }
     }).resolveConfig()
@@ -391,7 +385,7 @@ describe(" resolveConfig uses SFFMC config, ctx.config is fallback only", () => 
     }
 
     // Two concurrent calls — both hit the YAML-load path because no
-    // configOverride is set.
+    // runtime.setConfig() injection preceded.
     const p1 = runtime.loadWorkflowConfig()
     const p2 = runtime.loadWorkflowConfig()
     await Promise.all([p1, p2])
@@ -419,10 +413,8 @@ describe(" resolveConfig uses SFFMC config, ctx.config is fallback only", () => 
     // from DEFAULT_WORKFLOW_CONFIG via spread — no manual field list.
     // This guards against silent drops when WorkflowConfig gains new
     // fields: the spread auto-populates them.
-    const runtime = new WorkflowRuntime(baseCtx, {
-      persistence,
-      configOverride: { maxSteps: 100 },
-    })
+    const runtime = new WorkflowRuntime(baseCtx, { persistence })
+    runtime.setConfig({ maxSteps: 100 })
     const resolved = (runtime as unknown as {
       resolveConfig: () => Required<{
         maxSteps: number

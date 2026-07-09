@@ -50,9 +50,9 @@ afterAll(() => {
 describe("Token cap run settlement", () => {
   test("run with maxTokens=200 settles with status 'budget_exceeded' after first agent", async () => {
     // maxTokens=200 + 200 tokens per agent → first call triggers cap.
-    const runtime = new WorkflowRuntime(mockCtx, {
-      persistence: p,
-      configOverride: { maxSteps: 50, maxTokens: 200, maxWallClockMs: 60_000, perStepTimeoutMs: 5_000 },
+    const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
+    runtime.setConfig({
+      maxSteps: 50, maxTokens: 200, maxWallClockMs: 60_000, perStepTimeoutMs: 5_000,
     })
     const { runID } = await runtime.start({
       script: `export const meta = { name: "cap-first", description: "t", phases: [] }
@@ -71,9 +71,9 @@ describe("Token cap run settlement", () => {
 
   test("run with maxTokens=250 settles after second agent (together exceed)", async () => {
     // 250 max, 200/agent → first OK (200<250), second pushes to 400 → cap.
-    const runtime = new WorkflowRuntime(mockCtx, {
-      persistence: p,
-      configOverride: { maxSteps: 50, maxTokens: 250, maxWallClockMs: 60_000, perStepTimeoutMs: 5_000 },
+    const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
+    runtime.setConfig({
+      maxSteps: 50, maxTokens: 250, maxWallClockMs: 60_000, perStepTimeoutMs: 5_000,
     })
     const { runID } = await runtime.start({
       script: `export const meta = { name: "cap-second", description: "t", phases: [] }
@@ -92,9 +92,9 @@ describe("Token cap run settlement", () => {
   })
 
   test("DB row reflects 'budget_exceeded' status", async () => {
-    const runtime = new WorkflowRuntime(mockCtx, {
-      persistence: p,
-      configOverride: { maxSteps: 50, maxTokens: 200, maxWallClockMs: 60_000, perStepTimeoutMs: 5_000 },
+    const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
+    runtime.setConfig({
+      maxSteps: 50, maxTokens: 200, maxWallClockMs: 60_000, perStepTimeoutMs: 5_000,
     })
     const { runID } = await runtime.start({
       script: `export const meta = { name: "cap-db-status", description: "t", phases: [] }
@@ -110,9 +110,9 @@ describe("Token cap run settlement", () => {
   })
 
   test("settled run is removed from this.runs (no leak)", async () => {
-    const runtime = new WorkflowRuntime(mockCtx, {
-      persistence: p,
-      configOverride: { maxSteps: 50, maxTokens: 200, maxWallClockMs: 60_000, perStepTimeoutMs: 5_000 },
+    const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
+    runtime.setConfig({
+      maxSteps: 50, maxTokens: 200, maxWallClockMs: 60_000, perStepTimeoutMs: 5_000,
     })
     const { runID } = await runtime.start({
       script: `export const meta = { name: "cap-leak-check", description: "t", phases: [] }
@@ -129,9 +129,9 @@ describe("Token cap run settlement", () => {
   })
 
   test("workflow:finished event fires with status='budget_exceeded'", async () => {
-    const runtime = new WorkflowRuntime(mockCtx, {
-      persistence: p,
-      configOverride: { maxSteps: 50, maxTokens: 200, maxWallClockMs: 60_000, perStepTimeoutMs: 5_000 },
+    const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
+    runtime.setConfig({
+      maxSteps: 50, maxTokens: 200, maxWallClockMs: 60_000, perStepTimeoutMs: 5_000,
     })
 
     const finishedEvents: Array<{ runID: string; status: string }> = []
@@ -158,9 +158,9 @@ describe("Token cap run settlement", () => {
     // Pre-fix the late wait() hung forever because outcomePromise was never
     // resolved. Post-fix, the LRU caches the settled outcome so the late
     // call still gets the budget_exceeded shape (matches the C-2 design).
-    const runtime = new WorkflowRuntime(mockCtx, {
-      persistence: p,
-      configOverride: { maxSteps: 50, maxTokens: 200, maxWallClockMs: 60_000, perStepTimeoutMs: 5_000 },
+    const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
+    runtime.setConfig({
+      maxSteps: 50, maxTokens: 200, maxWallClockMs: 60_000, perStepTimeoutMs: 5_000,
     })
     const { runID } = await runtime.start({
       script: `export const meta = { name: "cap-late-wait", description: "t", phases: [] }
