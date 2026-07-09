@@ -44,7 +44,6 @@ export { journalKeyBase, journalKey } from "./journal-key.ts"
 // Extracted to ./paths.ts (v0.16.0 Phase 4)
 // ---------------------------------------------------------------------------
 
-import { StepsRepository } from "./steps.ts"
 import { defaultDataDir, dbPathForDir, eagerlyPopulateWorkflowConfig } from "./paths.ts"
 eagerlyPopulateWorkflowConfig()
 export { defaultDataDir, dbPathForDir, eagerlyPopulateWorkflowConfig } from "./paths.ts"
@@ -54,6 +53,10 @@ export { defaultDataDir, dbPathForDir, eagerlyPopulateWorkflowConfig } from "./p
 // ---------------------------------------------------------------------------
 
 import { rowToRun, RunsRepository } from "./runs.ts"
+import { StepsRepository } from "./steps.ts"
+import { FSyncCoalescer } from "./fsync-coalescer.ts"
+import { JournalRepository } from "./journal.ts"
+import { ScriptsRepository } from "./scripts.ts"
 export { rowToRun, RunsRepository } from "./runs.ts"
 
 // ---------------------------------------------------------------------------
@@ -94,17 +97,8 @@ export class WorkflowPersistence {
    *  separate async interface and broader refactor (see audit report
    *  §Easy-Win: constructor-inject WorkflowPersistence). */
   private fs: FsOps
-  /** Per-instance journal paths awaiting fsync (L-3, Task 2.7). Replaces the
-   *  module-level `fsyncPendingPaths` Set that previously leaked state
-   *  between tests and across multi-instance scenarios. Initialised lazily
-   *  in `appendJournalSync()` so the common no-append path costs zero
-   *  memory. */
-  private fsyncPendingPaths: Set<string> | null = null
-  /** Per-instance coalesce timer for the fsync window (L-3, Task 2.7). Null
-   *  when no fsync is pending; `setTimeout` handle while the 50ms window is
-   *  open. Per-instance so concurrent persistence instances don't share or
-   *  cancel each other's timers. */
-  private fsyncTimer: ReturnType<typeof setTimeout> | null = null
+  /** v0.16.0 refactor (Phase 7): fsync coalescing extracted to `FSyncCoalescer`. */
+  private fsyncCoalescer: FSyncCoalescer
   /** v0.16.0 refactor (Phase 5): run CRUD repository extracted to `./runs.ts`. */
   private runsRepo: RunsRepository
   /** v0.16.0 refactor (Phase 6): step CRUD repository extracted to `./steps.ts`. */
@@ -137,6 +131,13 @@ export class WorkflowPersistence {
     }
     this.runsRepo = new RunsRepository(this.db)
     this.stepsRepo = new StepsRepository(this.db)
+    this.fsyncCoalescer = new FSyncCoalescer(getFsyncCoalesceMs)
+    this.scriptsRepo = new ScriptsRepository(this.dir)
+    this.journalRepo = new JournalRepository(
+      this.dir,
+      this.fs,
+      (jpath: string) => this.fsyncCoalescer.add(jpath),
+    )
   }
 
   /** Data directory used for file artifacts. */
@@ -165,48 +166,17 @@ export class WorkflowPersistence {
     }
   }
 
-  // ── Journal fsync coalescing (per-instance, L-3) ──────────────────────
+  // ── Journal fsync coalescing — delegated to FSyncCoalescer (v0.16.0 Phase 7) ──
 
-  /** Arm a coalesced fsync if one isn't already pending. Idempotent —
-   *  multiple `appendJournalSync()` calls within the 50ms window collapse
-   *  to a single fsync that drains all pending paths. The `unref()` call
-   *  lets the process exit even if a coalesce window is open. */
-  private scheduleFsync(): void {
-    if (this.fsyncTimer !== null) return
-    this.fsyncTimer = setTimeout(() => this.flushFsync(), getFsyncCoalesceMs())
-    this.fsyncTimer.unref?.()
+  /** Arm a coalesced fsync if one isn't already pending. Delegates to
+   *  FSyncCoalescer (L-3, Task 2.7). */
+  private scheduleFsync(path: string): void {
+    this.fsyncCoalescer.add(path)
   }
 
-  /** Drain this instance's pending fsync set. Each path is opened RDONLY,
-   *  fsync'd, and closed — the RDONLY open is sufficient because fsync
-   *  flushes the kernel's page cache for that inode, which is the durable
-   *  surface that subsequent reads will see. Failures (file removed
-   *  mid-coalesce, EACCES) are best-effort and silently dropped; the
-   *  in-memory journal data is already durable from the perspective of a
-   *  reader who re-opens the file. */
+  /** Drain this instance's pending fsync set. */
   private flushFsync(): void {
-    if (this.fsyncTimer !== null) {
-      clearTimeout(this.fsyncTimer)
-      this.fsyncTimer = null
-    }
-    if (!this.fsyncPendingPaths || this.fsyncPendingPaths.size === 0) return
-    const paths = this.fsyncPendingPaths
-    this.fsyncPendingPaths = null
-    for (const p of paths) {
-      let fd: number
-      try {
-        fd = openSync(p, "r")
-      } catch {
-        continue // best-effort: file may have been removed
-      }
-      try {
-        fsyncSync(fd)
-      } catch {
-        // best-effort: surface in debug only
-      } finally {
-        try { closeSync(fd) } catch { /* ignore */ }
-      }
-    }
+    this.fsyncCoalescer.flush()
   }
 
   /** Force fsync of all pending journal writes for THIS instance. Call
@@ -214,7 +184,17 @@ export class WorkflowPersistence {
    *  recovery) to guarantee durability. Per-instance so callers never
    *  trigger a process-wide flush (L-3, Task 2.7). */
   flushJournalSync(): void {
-    this.flushFsync()
+    this.fsyncCoalescer.flush()
+  }
+
+  /** Test escape hatch (L-3 invariant): the per-instance fsync pending
+   *  paths set. Kept for `journal-race.test.ts` which checks that two
+   *  WorkflowPersistence instances have independent pending sets
+   *  (i.e. B.flushJournalSync() does not drain A's set). Delegates to
+   *  the FSyncCoalescer — the field is owned there now but the test
+   *  contract is unchanged. */
+  get fsyncPendingPaths(): Set<string> | null {
+    return this.fsyncCoalescer.paths()
   }
 
   // ── Run CRUD — delegated to RunsRepository (v0.16.0 Phase 5) ──────────
@@ -246,133 +226,42 @@ export class WorkflowPersistence {
     return this.runsRepo.listRunningRuns()
   }
 
-  // ── Script file IO ─────────────────────────────────────────────────────
+  // ── Script file IO — delegated to ScriptsRepository (v0.16.0 Phase 9) ───
 
-  private scriptPath(runID: string): string {
-    safeRunID(runID)
-    return path.join(this.dir, `${runID}${getWorkflowConfigSync().scriptExt}`)
-  }
+  private scriptsRepo: ScriptsRepository
 
   async writeScript(runID: string, source: string): Promise<void> {
-    safeRunID(runID)
-    await mkdir(this.dir, { recursive: true, mode: 0o700 })
-    await writeFile(this.scriptPath(runID), source, "utf-8")
+    return this.scriptsRepo.write(runID, source)
   }
 
   async readScript(runID: string): Promise<string | null> {
-    safeRunID(runID)
-    try {
-      return await readFile(this.scriptPath(runID), "utf-8")
-    } catch {
-      return null
-    }
+    return this.scriptsRepo.read(runID)
   }
 
-  // ── Journal IO (JSONL appended) ────────────────────────────────────────
+  // ── Journal IO — delegated to JournalRepository (v0.16.0 Phase 8) ──────
 
-  private journalPath(runID: string): string {
-    safeRunID(runID)
-    return path.join(this.dir, `${runID}${getWorkflowConfigSync().journalExt}`)
-  }
+  private journalRepo: JournalRepository
 
-  /** Cheap pre-check: does the journal file exist and have at least one byte?
-   *  Used by recoverOrphanedWorkflows() to decide 'paused' vs 'crashed'. */
   async hasJournalEvents(runID: string): Promise<boolean> {
-    safeRunID(runID)
-    try {
-      const s = await stat(this.journalPath(runID))
-      return s.size > 0
-    } catch {
-      return false // file doesn't exist
-    }
+    return this.journalRepo.hasJournalEvents(runID)
   }
 
-  /** Synchronous journal append — durable before the sandbox pump can be starved.
-   *  fsync is coalesced via a 50ms timer; call `this.flushJournalSync()`
-   *  for explicit durability at workflow lifecycle boundaries.
-   *  Writes a v1 header (`{"v":1}`) on the  append to a new journal
-   *  file. v0 journals (no header) remain backward-compatible — loadJournal
-   *  distinguishes header lines by the absence of a `t` field.
-   *
-   *  L-3 (Task 2.7): pending-fsync state lives on the instance, not at
-   *  module scope — appends only enqueue fsync on THIS persistence's set. */
   appendJournalSync(runID: string, event: JournalEvent): void {
-    safeRunID(runID)
-    this.fs.mkdir(this.dir, { recursive: true, mode: 0o700 })
-    const jpath = this.journalPath(runID)
-    if (!this.fs.exists(jpath)) {
-      //  append: write v1 header so future readers can detect format
-      this.fs.appendFile(jpath, JSON.stringify({ v: 1 }) + "\n")
-    }
-    this.fs.appendFile(jpath, JSON.stringify(event) + "\n")
-    if (this.fsyncPendingPaths === null) this.fsyncPendingPaths = new Set()
-    this.fsyncPendingPaths.add(jpath)
-    this.scheduleFsync()
+    this.journalRepo.appendSync(runID, event)
   }
 
-  /** Async journal append — for log/phase events. */
   async appendJournal(runID: string, event: JournalEvent): Promise<void> {
-    safeRunID(runID)
-    await mkdir(this.dir, { recursive: true, mode: 0o700 })
-    await appendFile(this.journalPath(runID), JSON.stringify(event) + "\n")
+    return this.journalRepo.append(runID, event)
   }
 
   async loadJournal(
     runID: string,
   ): Promise<{ results: Map<string, unknown>; pass: number }> {
-    safeRunID(runID)
-    const results = new Map<string, unknown>()
-    let maxPass = 0
-    let headerSeen = false
-    let lineNo = 0
-    try {
-      const stream = createReadStream(this.journalPath(runID), { encoding: "utf-8" })
-      const rl = createInterface({ input: stream, crlfDelay: Infinity })
-      for await (const line of rl) {
-        lineNo++
-        if (!line) continue
-        // v0.14.x — validate every parsed event against the
-        // JournalEvent discriminated union. Torn JSON lines (truncated by
-        // a crash mid-append), unknown event types, and missing required
-        // fields are all skipped silently with a structured debug log,
-        // matching the existing torn-line skip behavior but with explicit
-        // reason capture.
-        const v = validateJournalEvent(line, lineNo)
-        if (!v.ok) {
-          // `v.error.error === "v1 header line, not an event"` is a
-          // non-error case (intentional format marker) — skip silently.
-          // Everything else (malformed JSON, unknown `t`, missing fields)
-          // gets a debug log.
-          if (!v.error.error.startsWith("v1 header line")) {
-            log.debug(
-              `loadJournal(${runID}): skipping malformed event at line ${v.error.line}: ${v.error.error}`,
-            )
-          } else {
-            headerSeen = true
-          }
-          continue
-        }
-        const je = v.event
-        if (je.pass > maxPass) maxPass = je.pass
-        if (je.t === "agent") results.set(je.key, je.result)
-      }
-    } catch {
-      // file doesn't exist — empty results
-    }
-    void headerSeen // reserved for future v0→v1 migration diagnostics
-    return { results, pass: maxPass + 1 }
+    return this.journalRepo.load(runID)
   }
 
-  /** Clear the journal (truncate to v1 header). Used on sha-mismatch resume.
-   *  Writes `{"v":1}\n` instead of "" so that a concurrent appendJournalSync
-   *  within the 50ms fsync coalesce window does not land a raw event as the
-   *   line of the file (which loadJournal would treat as a torn header
-   *  and silently skip). See journal audit. */
   async clearJournal(runID: string): Promise<void> {
-    safeRunID(runID)
-    await mkdir(this.dir, { recursive: true, mode: 0o700 })
-    const jpath = this.journalPath(runID)
-    await writeFile(jpath, JSON.stringify({ v: 1 }) + "\n", "utf-8")
+    return this.journalRepo.clear(runID)
   }
 
   // ── Step CRUD — delegated to StepsRepository (v0.16.0 Phase 6) ─────────
