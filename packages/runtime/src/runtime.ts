@@ -19,6 +19,7 @@ import { resolveWorkflowScript } from "./script-resolver.ts"
 import { FlushManager } from "./flush-manager.ts"
 import { RuntimeConfig } from "./runtime-config.ts"
 import { RunCompleter } from "./run-completer.ts"
+import { McpDispatcher } from "./mcp-dispatcher.ts"
 
 import { parseMeta } from "./meta.ts"
 import { callLLM as callLLMModule } from "./llm-call.ts"
@@ -164,6 +165,10 @@ export class WorkflowRuntime {
    *  to it. Per-runtime class (not a module-level singleton) so tests
    *  that mock the dependencies get hermetic resets. */
   private runCompleter: RunCompleter
+  /** v0.16.0 refactor (Phase 4): MCP tool dispatch extracted to
+   *  `src/mcp-dispatcher.ts`. The runtime holds an instance and
+   *  delegates `dispatchMcpList` / `dispatchMcpCall` to it. */
+  private mcpDispatcher: McpDispatcher
   /** v0.14.x C-2 — cached resolved outcomes for settled runs. The
    *  `completeRun` / `failRun` / `cancel` paths delete the entry from
    *  `this.runs` so its McpBridge / journalResults / AbortController /
@@ -204,6 +209,9 @@ export class WorkflowRuntime {
       outcomes: this.outcomes,
       runs: this.runs,
       launchScript: this.launchScript.bind(this) as RunCompleterDeps["launchScript"],
+    })
+    this.mcpDispatcher = new McpDispatcher({
+      getCtx: () => this.ctx,
     })
     if (opts.gracePeriodMsOverride !== undefined) {
       this.runtimeConfig.setGracePeriodMs(opts.gracePeriodMsOverride)
@@ -877,59 +885,20 @@ export class WorkflowRuntime {
   // the dispatch fails closed with a typed error, never silently dropping the
   // call (mcp.ts makeMcpPrimitives handles the throw path).
 
+  /** v0.16.0 refactor (Phase 4): delegates to `McpDispatcher.list()`. */
   private async dispatchMcpList(entry: InternalRunEntry): Promise<string[]> {
-    const discovered = await discoverParentTools(this.ctx)
-    return discovered ?? []
+    return this.mcpDispatcher.list(entry)
   }
 
+  /** v0.16.0 refactor (Phase 4): delegates to `McpDispatcher.call()`.
+   *  Budget gate + recursion guard + SDK dispatch + bridge bookkeeping
+   *  all live in `src/mcp-dispatcher.ts`. */
   private async dispatchMcpCall(
     entry: InternalRunEntry,
     name: string,
     args: unknown,
   ): Promise<unknown> {
-    const bridge = entry.mcpBridge
-
-    // Budget gate (lifecycle cap of MCP calls per run).
-    const budgetReject = bridge.checkBudget()
-    if (budgetReject !== null) {
-      bridge.recordRejected(name, args, budgetReject)
-      throw new Error(`[workflow:mcp] ${budgetReject}`)
-    }
-
-    // Recursion guard — a misbehaving MCP tool that triggers another
-    // workflow agent (or another MCP call) is short-circuited before the
-    // SDK dispatch rather than after.
-    if (!bridge.enterDispatch()) {
-      bridge.recordRejected(name, args, "MCP recursion depth exceeded")
-      throw new Error(`[workflow:mcp] recursion depth limit exceeded`)
-    }
-
-    try {
-      // Dispatch through parent SDK. `ctx.client.tool.call` is the OpenCode
-      // convention (see agentic/runtime.ts in MiMo-Code for the upstream
-      // shape). When the surface is absent we fail closed with a typed
-      // error — the bridge still records the attempt for observability.
-      const tool = (this.ctx.client as { tool?: { call?: (n: string, a: unknown) => Promise<unknown> } } | undefined)?.tool
-      if (!tool?.call) {
-        bridge.recordError(name, args, "no MCP SDK surface available")
-        throw new Error(`[workflow:mcp] no MCP SDK surface available on ctx.client.tool.call`)
-      }
-
-      const result = await tool.call(name, args)
-      bridge.recordCall(name, args)
-      return result
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e)
-      // recordCall already incremented callCount on the happy path; on a
-      // failed SDK call we still want it counted as "attempted" so budget
-      // reflects real SDK load, not just successes.
-      if (!msg.includes("no MCP SDK surface")) {
-        bridge.recordError(name, args, msg)
-      }
-      throw e
-    } finally {
-      bridge.leaveDispatch()
-    }
+    return this.mcpDispatcher.call(entry, name, args)
   }
 
   // ── Private: LLM call ──────────────────────────────────────────────────
