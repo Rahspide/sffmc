@@ -171,6 +171,15 @@ function readObject(r: Reader): Record<string, unknown> {
   for (;;) {
     skipTrivia(r)
     const key = readKey(r)
+    // Defense in depth: reject `__proto__` and similar prototype-pollution
+    // keys. Object literal `{__proto__: ...}` would set [[Prototype]] on
+    // the result object via Object.prototype's __proto__ accessor. We
+    // already strip the key in `readKey` (only ASCII identifier chars
+    // pass), but the bug was real before that check: see test
+    // `nested __proto__ in array element` in meta.test.ts.
+    if (key === "__proto__" || key === "constructor" || key === "prototype") {
+      throw new ParseFail(`forbidden key '${key}' in meta literal at offset ${r.pos}`)
+    }
     skipTrivia(r)
     if (r.text[r.pos] !== ":") throw new ParseFail(`expected ':' after key '${key}' at offset ${r.pos}`)
     r.pos++
