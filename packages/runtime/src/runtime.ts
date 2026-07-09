@@ -18,6 +18,7 @@ import { makeEntry, outcomeFor, type InternalRunEntry } from "./internal-run-ent
 import { resolveWorkflowScript } from "./script-resolver.ts"
 import { FlushManager } from "./flush-manager.ts"
 import { RuntimeConfig } from "./runtime-config.ts"
+import { RunCompleter } from "./run-completer.ts"
 
 import { parseMeta } from "./meta.ts"
 import { callLLM as callLLMModule } from "./llm-call.ts"
@@ -157,6 +158,12 @@ export class WorkflowRuntime {
    *  `setConfig(null)` between cases get hermetic resets by constructing
    *  a new runtime. */
   private runtimeConfig: RuntimeConfig
+  /** v0.16.0 refactor (Phase 3): run completion lifecycle extracted
+   *  to `src/run-completer.ts`. The runtime holds an instance and
+   *  delegates the public surface (completeRun, failRun, settleEntry)
+   *  to it. Per-runtime class (not a module-level singleton) so tests
+   *  that mock the dependencies get hermetic resets. */
+  private runCompleter: RunCompleter
   /** v0.14.x C-2 — cached resolved outcomes for settled runs. The
    *  `completeRun` / `failRun` / `cancel` paths delete the entry from
    *  `this.runs` so its McpBridge / journalResults / AbortController /
@@ -177,26 +184,33 @@ export class WorkflowRuntime {
 
   constructor(ctx: PluginContext, opts: RuntimeOpts = {}) {
     this.ctx = ctx
+    this.globalSem = makeSemaphore(resolveMaxConcurrentAgents())
+    this.persistence = opts.persistence ?? new WorkflowPersistence()
+    this.flushManager = new FlushManager(this.persistence)
+    // OutcomeStore cache — bounded LRU so long-lived daemons don't grow
+    // indefinitely. Opt > env > 500 default.
+    this.outcomes = new OutcomeStore<string, WorkflowOutcome>(
+      opts.completedOutcomesCacheSize ?? resolveOutcomesCacheSize(),
+    )
     //  resolve at constructor time (not module init) so the
     // semaphore respects a config the caller may set via
     // `__setWorkflowConfig()` before constructing the runtime.
     this.runtimeConfig = new RuntimeConfig({
       getCtxConfig: () => this.ctx.config,
     })
-    this.globalSem = makeSemaphore(resolveMaxConcurrentAgents())
-    this.persistence = opts.persistence ?? new WorkflowPersistence()
-    this.flushManager = new FlushManager(this.persistence)
+    this.runCompleter = new RunCompleter({
+      persistence: this.persistence,
+      events: this.events,
+      outcomes: this.outcomes,
+      runs: this.runs,
+      launchScript: this.launchScript.bind(this) as RunCompleterDeps["launchScript"],
+    })
     if (opts.gracePeriodMsOverride !== undefined) {
       this.runtimeConfig.setGracePeriodMs(opts.gracePeriodMsOverride)
     }
     if (opts.configOverride) {
       this.runtimeConfig.setConfig(opts.configOverride)
     }
-    // OutcomeStore cache — bounded LRU so long-lived daemons don't grow
-    // indefinitely. Opt > env > 500 default.
-    this.outcomes = new OutcomeStore<string, WorkflowOutcome>(
-      opts.completedOutcomesCacheSize ?? resolveOutcomesCacheSize(),
-    )
   }
 
   /** workflow recovery grace period — set the grace period at runtime. Used by the index.ts config
@@ -968,43 +982,19 @@ export class WorkflowRuntime {
 
   // ── Private: completion ────────────────────────────────────────────────
 
+  /** v0.16.0 refactor (Phase 3): delegates to `RunCompleter.completeRun()`.
+   *  The status guard, outcome creation, persistence flush, event emit,
+   *  and outcome-cache+runs-release are all in `src/run-completer.ts`. */
   private completeRun(entry: InternalRunEntry, result?: unknown): void {
-    // Guard: if cancel()/failRun() already settled the entry, do not overwrite.
-    // Without this, a still-pending sandbox .then() races a cancel() call and
-    // overwrites entry.status / DB row from "cancelled" → "completed".
-    if (entry.status !== "running") return
-    entry.status = "completed"
-    const outcome = outcomeFor(entry, "completed", { result })
-    entry.resolveOutcome(outcome)
-    this.persistence.updateRunStatus(entry.runID, "completed")
-    this.persistence.flushJournalSync()
-    this.events.emit("workflow:finished", { runID: entry.runID, status: "completed" })
-    // v0.14.x C-2 — cache the resolved outcome (late wait() callers still
-    // need it) then drop the entry from `this.runs` so the McpBridge,
-    // journalResults Map, childRunIDs Set, AbortController, and closures
-    // are GC-eligible. Without this, every completed run leaks its
-    // entry for the lifetime of the runtime.
-    this.outcomes.put(entry.runID, outcome)
-    this.runs.release(entry.runID)
+    this.runCompleter.completeRun(entry, result)
   }
 
+  /** v0.16.0 refactor (Phase 3): delegates to `RunCompleter.failRun()`.
+   *  The "budget_exceeded" magic-string classification, status guard,
+   *  persistence flush, event emit, and outcome-cache+runs-release are
+   *  all in `src/run-completer.ts`. */
   private failRun(entry: InternalRunEntry, error: string): void {
-    if (entry.status !== "running") return
-    entry.status = error.includes("budget_exceeded") || error.includes("deadline exceeded")
-      ? "budget_exceeded"
-      : "failed"
-    const outcome = outcomeFor(entry, entry.status as "failed" | "budget_exceeded", { error })
-    entry.resolveOutcome(outcome)
-    this.persistence.updateRunStatus(entry.runID, entry.status, error)
-    this.persistence.flushJournalSync()
-    this.events.emit("workflow:finished", { runID: entry.runID, status: entry.status, error })
-    // v0.14.x C-2 — cache the resolved outcome (late wait() callers still
-    // need it) then drop the entry from `this.runs` so the McpBridge,
-    // journalResults Map, childRunIDs Set, AbortController, and closures
-    // are GC-eligible. Without this, every failed run leaks its entry
-    // for the lifetime of the runtime.
-    this.outcomes.put(entry.runID, outcome)
-    this.runs.release(entry.runID)
+    this.runCompleter.failRun(entry, error)
   }
 
   // ── Private: helpers ───────────────────────────────────────────────────
@@ -1016,17 +1006,12 @@ export class WorkflowRuntime {
     return this.runtimeConfig.resolve(perStepTimeoutMsOverride)
   }
 
+  /** v0.16.0 refactor (Phase 3): delegates to `RunCompleter.settleEntry()`.
+   *  The launch + route-to-completeRun-or-failRun logic is in
+   *  `src/run-completer.ts`; the runtime injects `launchScript` as a
+   *  callback at construction time. */
   private async settleEntry(entry: InternalRunEntry, script: string, name: string, args: unknown, jail: WorkspaceJail): Promise<void> {
-    try {
-      const result = await this.launchScript(entry, script, name, args, jail)
-      if (result === null) {
-        this.failRun(entry, "Sandbox execution failed")
-      } else {
-        this.completeRun(entry, result !== undefined ? result : undefined)
-      }
-    } catch (err) {
-      this.failRun(entry, err instanceof Error ? err.message : String(err))
-    }
+    return this.runCompleter.settleEntry(entry, script, name, args, jail)
   }
 
   private publishAgentFailed(runID: string, agentKey: string, reason: AgentFailureReason): void {
