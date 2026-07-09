@@ -2,7 +2,7 @@
 // @sffmc/runtime — see ../../LICENSE
 
 import { Database } from "bun:sqlite"
-import { randomBytes, createHash } from "node:crypto"
+import { createHash } from "node:crypto"
 import { createReadStream, openSync, fsyncSync, closeSync } from "node:fs"
 import { readFile, writeFile, appendFile, mkdir, stat } from "node:fs/promises"
 import path from "node:path"
@@ -20,132 +20,41 @@ import { createLogger, defaultFsOps, type FsOps, safeRunID, unixNow } from "@sff
 export { RUN_ID_REGEX } from "@sffmc/utilities"
 
 // ---------------------------------------------------------------------------
-// RunID generation (base62)
+// RunID generation (base62) — extracted to ./runid.ts (v0.16.0 Phase 1)
 // ---------------------------------------------------------------------------
 
 const log = createLogger("workflow:persistence")
 
-const BASE62 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-
-function base62Encode(bytes: Uint8Array): string {
-  let num = 0n
-  for (const b of bytes) {
-    num = (num << 8n) | BigInt(b)
-  }
-  if (num === 0n) return BASE62[0]
-  let result = ""
-  while (num > 0n) {
-    result = BASE62[Number(num % 62n)] + result
-    num /= 62n
-  }
-  return result
-}
-
-export function generateRunID(): string {
-  // 19 bytes → up to 26 base62 chars; pad with leading zeros if needed
-  const bytes = randomBytes(19)
-  let id = base62Encode(bytes)
-  while (id.length < 26) id = "0" + id
-  return "wf_" + id.slice(0, 26)
-}
+export { generateRunID } from "./runid.ts"
 
 // ---------------------------------------------------------------------------
-// Compute script SHA
+// Compute script SHA — extracted to ./script-sha.ts (v0.16.0 Phase 2)
 // ---------------------------------------------------------------------------
 
-export function computeScriptSha(source: string): string {
-  return createHash("sha256").update(source).digest("hex")
-}
+export { computeScriptSha } from "./script-sha.ts"
 
 // ---------------------------------------------------------------------------
-// Canonical key for journal dedup
+// Canonical key for journal dedup — extracted to ./journal-key.ts (v0.16.0 Phase 3)
 // ---------------------------------------------------------------------------
 
-function canonical(value: unknown): unknown {
-  if (value === null || typeof value !== "object") return value
-  if (Array.isArray(value)) return value.map(canonical)
-  const rec = value as Record<string, unknown>
-  return Object.fromEntries(
-    Object.keys(rec)
-      .sort()
-      .map((k) => [k, canonical(rec[k])]),
-  )
-}
-
-export function journalKeyBase(
-  prompt: string,
-  opts: { agentType?: string; model?: unknown; schema?: unknown; phase?: string; [k: string]: unknown },
-): string {
-  const material = canonical({
-    prompt,
-    agentType: opts.agentType ?? null,
-    model: opts.model ?? null,
-    schema: opts.schema ?? null,
-    phase: opts.phase ?? null,
-  })
-  return createHash("sha256").update(JSON.stringify(material)).digest("hex")
-}
-
-export function journalKey(
-  prompt: string,
-  opts: { agentType?: string; model?: unknown; schema?: unknown; phase?: string; [k: string]: unknown },
-  occ: number,
-): string {
-  return journalKeyBase(prompt, opts) + ":" + occ
-}
+export { journalKeyBase, journalKey } from "./journal-key.ts"
 
 // ---------------------------------------------------------------------------
 // Default paths (used when no explicit dataDir provided)
-// ---------------------------------------------------------------------------
-//
-// `WorkflowConfig.dataDir`. The override (via `getWorkflowDataDir()`) wins
-// over the XDG / `~/.local/share` default. The override is empty string by
-// default — the empty case falls through to the original XDG lookup so
-// behavior is unchanged when no YAML is provided.
-
-function defaultDataDir(): string {
-    const override = getWorkflowDataDir()
-  if (override && override.trim().length > 0) return override
-  const xdg = process.env.XDG_DATA_HOME
-  if (xdg) return path.join(xdg, "SFFMC", "workflow")
-  return path.join(homedir(), ".local", "share", "SFFMC", "workflow")
-}
-
-/** Eagerly populate the workflow config cache at module-load time so
- *  `getWorkflowDataDir()` returns the YAML override (if any) on the
- *   call to `defaultDataDir()`. Failure is non-fatal: the sync
- *  getter falls back to the hardcoded XDG default. */
-void ensureWorkflowConfig().catch(() => {
-  // Best-effort — the sync getter's fallback handles the failure case.
-})
-
-function dbPathForDir(dir: string): string {
-  return path.join(dir, getDbFilename())
-}
-
-// ---------------------------------------------------------------------------
-// Helper: row → WorkflowRun
+// Extracted to ./paths.ts (v0.16.0 Phase 4)
 // ---------------------------------------------------------------------------
 
-function rowToRun(row: Record<string, unknown>): WorkflowRun {
-  return {
-    runID: row.id as string,
-    name: row.name as string,
-    status: row.status as WorkflowStatus,
-    running: row.running as number,
-    succeeded: row.succeeded as number,
-    failed: row.failed as number,
-    currentPhase: (row.current_phase as string) || undefined,
-    parentRunID: (row.parent_run_id as string) || undefined,
-    args: (() => { try { return row.args ? JSON.parse(row.args as string) : undefined } catch { return undefined } })(),
-    scriptSha: (row.script_sha as string) || undefined,
-    agentTimeoutMs: (row.agent_timeout_ms as number) || undefined,
-    error: (row.error as string) || undefined,
-    workspace: (row.workspace as string) || undefined,
-    createdAt: row.time_created as number,
-    updatedAt: row.time_updated as number,
-  }
-}
+import { StepsRepository } from "./steps.ts"
+import { defaultDataDir, dbPathForDir, eagerlyPopulateWorkflowConfig } from "./paths.ts"
+eagerlyPopulateWorkflowConfig()
+export { defaultDataDir, dbPathForDir, eagerlyPopulateWorkflowConfig } from "./paths.ts"
+
+// ---------------------------------------------------------------------------
+// Helper: row → WorkflowRun — extracted to ./runs.ts (v0.16.0 Phase 5)
+// ---------------------------------------------------------------------------
+
+import { rowToRun, RunsRepository } from "./runs.ts"
+export { rowToRun, RunsRepository } from "./runs.ts"
 
 // ---------------------------------------------------------------------------
 // Journal fsync coalescing
@@ -196,6 +105,10 @@ export class WorkflowPersistence {
    *  open. Per-instance so concurrent persistence instances don't share or
    *  cancel each other's timers. */
   private fsyncTimer: ReturnType<typeof setTimeout> | null = null
+  /** v0.16.0 refactor (Phase 5): run CRUD repository extracted to `./runs.ts`. */
+  private runsRepo: RunsRepository
+  /** v0.16.0 refactor (Phase 6): step CRUD repository extracted to `./steps.ts`. */
+  private stepsRepo: StepsRepository
 
   /**
    * Create a persistence instance.
@@ -222,6 +135,8 @@ export class WorkflowPersistence {
       applySchema(this.db)
       this._owned = true
     }
+    this.runsRepo = new RunsRepository(this.db)
+    this.stepsRepo = new StepsRepository(this.db)
   }
 
   /** Data directory used for file artifacts. */
@@ -302,7 +217,7 @@ export class WorkflowPersistence {
     this.flushFsync()
   }
 
-  // ── Run CRUD ──────────────────────────────────────────────────────────
+  // ── Run CRUD — delegated to RunsRepository (v0.16.0 Phase 5) ──────────
 
   createRun(
     file: string,
@@ -312,49 +227,23 @@ export class WorkflowPersistence {
     workspace?: string,
     args?: unknown,
   ): string {
-    const runID = generateRunID()
-    const now = unixNow()
-    // JSON-stringify args before insert so undefined → NULL (column is TEXT).
-    // Anything else (object/array/primitive) round-trips through rowToRun's
-    // JSON.parse. NULL means "no args" — resume() will pass null to the
-    // guest, which is the historical pre-fix behavior.
-    const argsJson = args === undefined ? null : JSON.stringify(args)
-    this.db.run(
-      `INSERT INTO workflow_runs (id, name, status, running, succeeded, failed, script_sha, parent_run_id, workspace, args, time_created, time_updated)
-       VALUES (?, ?, 'running', 0, 0, 0, ?, ?, ?, ?, ?, ?)`,
-      [runID, label, scriptSha, parentId ?? null, workspace ?? null, argsJson, now, now],
-    )
-    return runID
+    return this.runsRepo.createRun(file, label, scriptSha, parentId, workspace, args)
   }
 
   loadRun(runID: string): WorkflowRun | null {
-    safeRunID(runID)
-    const row = this.db.query("SELECT * FROM workflow_runs WHERE id = ?").get(runID) as Record<string, unknown> | undefined
-    return row ? rowToRun(row) : null
+    return this.runsRepo.loadRun(runID)
   }
 
   updateRunStatus(runID: string, status: WorkflowStatus, error?: string): void {
-    safeRunID(runID)
-    const now = unixNow()
-    this.db.run(
-      `UPDATE workflow_runs SET status = ?, error = ?, time_updated = ? WHERE id = ?`,
-      [status, error ?? null, now, runID],
-    )
+    this.runsRepo.updateRunStatus(runID, status, error)
   }
 
   listRuns(): WorkflowRun[] {
-    const rows = this.db.query("SELECT * FROM workflow_runs ORDER BY time_created DESC").all() as Record<string, unknown>[]
-    return rows.map(rowToRun)
+    return this.runsRepo.listRuns()
   }
 
-  /** Return only runs with status='running'. Used by recoverOrphanedWorkflows()
-   *  on startup to find orphaned workflows that need to be marked as
-   *  'paused' (journal replay possible) or 'crashed' (no journal). */
   listRunningRuns(): WorkflowRun[] {
-    const rows = this.db
-      .query("SELECT * FROM workflow_runs WHERE status = 'running' ORDER BY time_created DESC")
-      .all() as Record<string, unknown>[]
-    return rows.map(rowToRun)
+    return this.runsRepo.listRunningRuns()
   }
 
   // ── Script file IO ─────────────────────────────────────────────────────
@@ -486,58 +375,15 @@ export class WorkflowPersistence {
     await writeFile(jpath, JSON.stringify({ v: 1 }) + "\n", "utf-8")
   }
 
-  // ── Step checkpoint IO (atomic BEGIN EXCLUSIVE/COMMIT) ─────────────────
+  // ── Step CRUD — delegated to StepsRepository (v0.16.0 Phase 6) ─────────
+
+  private stepsRepo: StepsRepository
 
   checkpointStep(runID: string, step: WorkflowStep): void {
-    safeRunID(runID)
-    this.db.run("BEGIN EXCLUSIVE")
-    try {
-      this.db.run(
-        `INSERT INTO workflow_steps (run_id, step_index, kind, input_prompt, output_result, cost_tokens, duration_ms, error, timestamp)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(run_id, step_index) DO UPDATE SET
-           output_result = excluded.output_result,
-           cost_tokens = excluded.cost_tokens,
-           duration_ms = excluded.duration_ms,
-           error = excluded.error`,
-        [
-          runID,
-          step.stepIndex,
-          step.kind,
-          step.input ?? null,
-          step.output ?? null,
-          step.costTokens,
-          step.durationMs,
-          step.error ?? null,
-          step.timestamp,
-        ],
-      )
-      this.db.run(
-        `UPDATE workflow_runs SET time_updated = ? WHERE id = ?`,
-        [unixNow(), runID],
-      )
-      this.db.run("COMMIT")
-    } catch (e) {
-      this.db.run("ROLLBACK")
-      throw e
-    }
+    this.stepsRepo.checkpointStep(runID, step)
   }
 
   loadCompletedSteps(runID: string): WorkflowStep[] {
-    safeRunID(runID)
-    const rows = this.db
-      .query("SELECT * FROM workflow_steps WHERE run_id = ? ORDER BY step_index")
-      .all(runID) as Record<string, unknown>[]
-    return rows.map((row) => ({
-      runID: row.run_id as string,
-      stepIndex: row.step_index as number,
-      kind: row.kind as WorkflowStep["kind"],
-      input: (row.input_prompt as string) || undefined,
-      output: (row.output_result as string) || undefined,
-      costTokens: row.cost_tokens as number,
-      durationMs: row.duration_ms as number,
-      error: (row.error as string) || undefined,
-      timestamp: row.timestamp as number,
-    }))
+    return this.stepsRepo.loadCompletedSteps(runID)
   }
 }
