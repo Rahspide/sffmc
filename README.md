@@ -4,7 +4,7 @@
 
 # SFFMC
 
-**OpenCode plugin suite — 2 composites + 3 standalones. MIT licensed. v0.15.0.**
+**OpenCode plugin suite — 2 composites + 3 standalones. MIT licensed. v0.15.4.**
 
 [![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 [![npm version](https://img.shields.io/npm/v/%40sffmc%2Fsafety?label=%40sffmc%2Fsafety)](https://www.npmjs.com/package/@sffmc/safety)
@@ -13,7 +13,7 @@
 [![npm version](https://img.shields.io/npm/v/%40sffmc%2Fcognition?label=%40sffmc%2Fcognition)](https://www.npmjs.com/package/@sffmc/cognition)
 [![npm version](https://img.shields.io/npm/v/%40sffmc%2Futilities?label=%40sffmc%2Futilities)](https://www.npmjs.com/package/@sffmc/utilities)
 
-[**GitHub release**](https://github.com/Rahspide/sffmc/releases/tag/v0.15.0)
+[**GitHub release**](https://github.com/Rahspide/sffmc/releases/tag/v0.15.4)
 &nbsp;·&nbsp;
 [**Getting started**](./docs/getting-started.md) &nbsp;·&nbsp; [**Contributing**](./CONTRIBUTING.md) &nbsp;·&nbsp; [**Changelog**](./CHANGELOG.md)
 
@@ -52,8 +52,8 @@ Starting in v0.15.0, that composite is dissolved into `@sffmc/runtime` and
 
 ## Why use it?
 
-- **Installable from npm.** v0.15.0 is the first version where `npm install
-  @sffmc/safety` resolves a public registry package.
+- **Installable from npm.** v0.15.0 was the first version where `npm install
+  @sffmc/safety` resolves a public registry package; v0.15.4 is current.
 - **Composable.** Load all 4 plugins or pick individual standalones.
   `mergeHooks()` handles hook collision for you.
 - **Zero shared state.** Every plugin is composite. No side effects from load order.
@@ -62,7 +62,7 @@ Starting in v0.15.0, that composite is dissolved into `@sffmc/runtime` and
 
 ## Install
 
-> **v0.15.0** is the first version installable from **npm**. Pick one of:
+> **v0.15.0** was the first version installable from **npm**. Pick one of:
 
 ### Option A — install via the `sffmc` CLI (recommended, all platforms)
 
@@ -88,10 +88,10 @@ your `opencode.json` **as file content** — not into a terminal:
 ```json
 {
   "plugins": {
-    "@sffmc/safety":    "npm:@sffmc/safety@^0.15.0",
-    "@sffmc/memory":    "npm:@sffmc/memory@^0.15.0",
-    "@sffmc/runtime":   "npm:@sffmc/runtime@^0.15.0",
-    "@sffmc/cognition": "npm:@sffmc/cognition@^0.15.0"
+    "@sffmc/safety":    "npm:@sffmc/safety@^0.15.4",
+    "@sffmc/memory":    "npm:@sffmc/memory@^0.15.4",
+    "@sffmc/runtime":   "npm:@sffmc/runtime@^0.15.4",
+    "@sffmc/cognition": "npm:@sffmc/cognition@^0.15.4"
   }
 }
 ```
@@ -101,7 +101,7 @@ your `opencode.json` **as file content** — not into a terminal:
 > like this:
 >
 > ```powershell
-> @"{\"plugins\":{\"@sffmc/safety\":\"npm:@sffmc/safety@^0.15.0\",...}}"@
+> @"{\"plugins\":{\"@sffmc/safety\":\"npm:@sffmc/safety@^0.15.4\",...}}"@
 > | Set-Content -Path "$HOME\.sffmc\opencode.json"
 > ```
 >
@@ -135,31 +135,19 @@ cd ~/.sffmc/plugins/sffmc
 | Command | Effect |
 |---|---|
 | `sffmc init` | Auto-detect config + add 2 composite plugins + 2 standalones (safety, memory, runtime, cognition) |
-| `sffmc init --all` | Add all 5 packages |
-| `sffmc init --only workflow,compose` | Pick specific packages |
+| `sffmc init --all` | Add all 4 installable packages (utilities is a library, not a plugin) |
+| `sffmc init --only runtime,cognition` | Pick specific packages |
 | `sffmc update` | `git pull --ff-only` + re-sync config |
 | `sffmc doctor` | Run 9-check diagnostic |
 | `sffmc uninstall` | Remove all SFFMC entries from config |
 
 See [`docs/install.md`](./docs/install.md) for the full guide (pinned versions, PATH setup, troubleshooting).
 
-## What's new in v0.15.0
+## What's new in v0.15.4
 
-v0.15.0 ships two things at once:
+v0.15.4 ships test coverage, security hardening (ReDoS fix in redaction), and a workflow file watcher — maintenance release on the 5-package layout. See [CHANGELOG.md](./CHANGELOG.md) for the full v0.15.x history (consolidation, PowerShell fix, npm metadata, security hardening).
 
-- **5-package layout.** The previous 13-package workspace collapses to **2 composites + 3 standalones**:
-
-  | | |
-  |---|---|
-  | `@sffmc/safety` | composite — 5 governance features (rules, watchdog, auto-max, eos-stripper, log-whitelist) |
-  | `@sffmc/memory` | composite — FTS5 recall + checkpoint / judge / dream opt-ins |
-  | `@sffmc/runtime` | standalone — sandboxed JS workflow orchestrator (quickjs-emscripten) |
-  | `@sffmc/cognition` | standalone — parallel reasoning (max-mode) + 18 compose skills + health diagnostics |
-  | `@sffmc/utilities` | library — shared SDK (consumed via `workspace:*`, **not** a plugin entry) |
-
-- **First public npm release.** All 4 installable packages are now on the public registry. See **Install** above for the new `npm:` pin syntax in `opencode.json`.
-
-⚠️ **Breaking change.** Update your plugin registrations. See [`CHANGELOG.md`](./CHANGELOG.md) v0.15.0 entry for the full 14-row migration map. Run `sffmc init` after upgrading to migrate cleanly.
+> **v0.15.0** was the consolidation (13 → 5 packages) and first public npm release. If you're upgrading from pre-v0.15.0, see [CHANGELOG.md](./CHANGELOG.md) v0.15.0 entry for the full migration map. Run `sffmc init` after upgrading.
 
 ## Contents
 
@@ -228,13 +216,9 @@ bus, and the `mergeHooks` composer.
 |---|---|---|---|
 | [`@sffmc/safety`](./packages/safety/README.md) | safety | Tool-failure recovery + destructive-op gates + log hygiene | stable |
 | [`@sffmc/memory`](./packages/memory/README.md) | memory | Cross-session FTS5 recall + opt-in checkpoint/judge/dream | stable |
-| [`@sffmc/safety`](./packages/safety/README.md) | composite | 5 governance features (rules, watchdog, auto-max, eos-stripper, log-whitelist) | stable |
-| [`@sffmc/memory`](./packages/memory/README.md) | composite | FTS5 SQLite recall + checkpoint/judge/dream opt-ins | stable |
 | [`@sffmc/runtime`](./packages/runtime/README.md) | standalone | Sandboxed JS workflow orchestrator (quickjs-emscripten WASM) | stable |
 | [`@sffmc/cognition`](./packages/cognition/README.md) | standalone | Parallel reasoning (max-mode) + compose skills + health diagnostics | stable |
 | [`@sffmc/utilities`](./packages/utilities/README.md) | library | Shared SDK (NOT a plugin; consumed as `workspace:*` dep) | stable |
-| [`@sffmc/cognition`](./packages/cognition/README.md) | standalone | max-mode + compose (18 markdown skills for common workflows) + health (plugin diagnostics) | stable |
-| [`@sffmc/utilities`](./packages/utilities/README.md) | — | SDK: loadConfig, PluginContext, EventBus, mergeHooks | stable |
 
 ## Hook example
 
@@ -293,7 +277,7 @@ auto_promote_model: true
 promote_model: null  # inherits session primary model
 ```
 
-**`~/.config/SFFMC/extra.yaml`** — opt-in advanced memory features (all disabled by default):
+**`~/.config/SFFMC/memory.yaml`** — opt-in advanced memory features (all disabled by default; `extra` package was dissolved into `@sffmc/memory` in v0.15.0):
 
 ```yaml
 checkpoint:
@@ -332,20 +316,21 @@ test requirements, code style, and PR checklist.
 SFFMC ports features from [XiaomiMiMo/MiMo-Code](https://github.com/XiaomiMiMo/MiMo-Code).
 All ported features retain their original upstream attribution in source-file
 headers. The SFFMC team contributed the composite-package composition layer
-(`mergeHooks`), the `@sffmc/utilities` SDK, and four original sub-features:
-auto-max, eos-stripper, log-whitelist, and health.
+(`mergeHooks`) and the `@sffmc/utilities` SDK. The 5 packages
+cover watchdog, rules, memory, max-mode, compose, and health — see each
+package's README for the surface area.
 
 | Capability | SFFMC package | Description |
 |---|---|---|
-| Watchdog | `@sffmc/watchdog` | 3-failure rolling counter + recovery verdict |
-| Rules | `@sffmc/rules` | YAML gate-based allow/deny for destructive commands |
+| Watchdog | `@sffmc/safety` | 3-failure rolling counter + recovery verdict |
+| Rules | `@sffmc/safety` | YAML gate-based allow/deny for destructive commands |
 | Memory | `@sffmc/memory` | FTS5 SQLite + context recall at session start |
-| Checkpoint | `@sffmc/extra` | 200K resume with schema migration |
-| Judge | `@sffmc/extra` | Multi-criteria verdict with streaming mode |
-| Max Mode | `@sffmc/cognition/max-mode` | Parallel drafts + judge selection |
-| Dream | `@sffmc/extra` | Cluster naming + memory cleaning |
-| Compose | `@sffmc/cognition/compose` | 18 markdown skills |
-| Dynamic Workflow | `@sffmc/workflow` | Sandboxed JS orchestrator |
+| Checkpoint | `@sffmc/memory` | 200K resume with schema migration (opt-in) |
+| Judge | `@sffmc/memory` | Multi-criteria verdict with streaming mode (opt-in) |
+| Max Mode | `@sffmc/cognition` | Parallel drafts + judge selection |
+| Dream | `@sffmc/memory` | Cluster naming + memory cleaning (opt-in) |
+| Compose | `@sffmc/cognition` | 18 markdown skills |
+| Dynamic Workflow | `@sffmc/runtime` | Sandboxed JS orchestrator |
 
 ## License
 

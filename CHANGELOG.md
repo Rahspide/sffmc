@@ -96,9 +96,7 @@
 - **Package consolidation** — 14 workspace members (13 packages + `shared/`) consolidated into 5 packages:
   - `@sffmc/runtime` (was `@sffmc/workflow`)
   - `@sffmc/cognition` (was `@sffmc/max-mode` + `@sffmc/compose` + `@sffmc/health`; replaces dissolved `@sffmc/agentic`)
-  - `@sffmc/guard` — package metadata layer (the 5 governance standalones are now internal sub-folders of `@sffmc/safety`)
-  - `@sffmc/persist` — package metadata layer (now an internal sub-folder of `@sffmc/memory`)
-  - `@sffmc/utilities` (was `shared/`)
+  - `@sffmc/utilities` (was `shared/`) — the opt-in SDK for plugin authors; **library, not a plugin entry**
   - `@sffmc/safety` and `@sffmc/memory` retained as composites; their `composes[]` is now empty (members are internal sub-folders)
 - **`@sffmc/agentic` composite dissolved** — users must now register `@sffmc/runtime` and `@sffmc/cognition` explicitly in `opencode.json` `plugins[]`
 - **Imports updated across the codebase** — `@sffmc/{workflow,max-mode,compose,health,rules,watchdog,auto-max,eos-stripper,log-whitelist,extra,agentic,shared}` → `@sffmc/{runtime,cognition,safety,memory,utilities}` as appropriate
