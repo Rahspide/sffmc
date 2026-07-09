@@ -19,7 +19,7 @@ import { getSandboxMemoryMB, getSandboxStackSize } from "./constants.ts"
 /** Fallback seed when no caller-supplied seed is set. Stable so existing
  *  single-shot tests stay deterministic. The runtime always passes
  *  seed=hash(runID) so production paths never see this default. */
-const DEFAULT_PRNG_SEED = 0x9e3779b9
+export const DEFAULT_PRNG_SEED = 0x9e3779b9
 
 export interface SandboxRuntimeOpts {
   QJS: QuickJSWASMModule
@@ -39,45 +39,44 @@ export function createSandboxRuntime(opts: SandboxRuntimeOpts): QuickJSRuntime {
   const stackSize = opts.stackSize ?? getSandboxStackSize()
   const runtime = opts.QJS.newRuntime()
   runtime.setMemoryLimit(memoryMB * 1024 * 1024)
-  runtime.setMaxStackSize(stackSize * 1024)
+  // stackSize is in BYTES (not KB) — matches the original
+  // `setMaxStackSize(getSandboxStackSize())` which returns bytes
+  // (1 MiB default = 1_048_576 bytes).
+  runtime.setMaxStackSize(stackSize)
   runtime.setInterruptHandler(shouldInterruptAfterDeadline(Date.now() + opts.deadlineMs))
   return runtime
 }
 
-/** Harden the guest context for determinism. Deletes Date (no wall-clock
- *  access), installs a seeded Math.random, and removes WeakRef /
- *  FinalizationRegistry (the latter has nondeterministic GC timing). */
+/** Install the determinism hardening: delete `Date` / `WeakRef` /
+ *  `FinalizationRegistry` (nondeterministic or GC-liveness built-ins)
+ *  and replace `Math.random` with a seeded mulberry32 PRNG so resume
+ *  replay stays sound. Always disposes the eval result/error; never
+ *  throws. */
 export function hardenDeterminism(ctx: QuickJSContext, seed: number): void {
-  const code = hardenGuestCode(seed)
-  const result = ctx.evalCode(code, "harden.js", { type: "global" })
-  if (result.error) {
-    const errStr = ctx.dump(result.error)
-    result.error.dispose()
-    throw new Error(`hardenDeterminism eval failed: ${errStr}`)
+  const stripResult = ctx.evalCode(hardenGuestCode(seed))
+  if (stripResult.error) {
+    stripResult.error.dispose()
+  } else {
+    stripResult.value.dispose()
   }
-  result.value.dispose()
 }
 
-/** Hardening script source. Uses the `mulberry32` PRNG seeded from the
- *  caller-supplied seed (stable across replays of the same workflow). */
+/** Build the guest-side hardening script. Pure string template. */
 export function hardenGuestCode(seed: number): string {
-  // Mulberry32 — small, fast, good-enough distribution for the
-  // 2^32 state space we need. Seed advances 0 → seed via a known
-  //  walk so the first 8 outputs are stable for a given seed.
-  const s = seed >>> 0
   return `
-    (() => {
-      delete globalThis.Date;
-      let __s = ${s} >>> 0;
-      globalThis.Math.random = () => {
-        __s = (__s + 0x6D2B79F5) >>> 0;
-        let t = __s;
+    delete globalThis.Date;
+    (function () {
+      // mulberry32 — tiny seeded PRNG; deterministic for a given seed.
+      let s = ${seed >>> 0};
+      Math.random = function () {
+        s = (s + 0x6d2b79f5) >>> 0;
+        let t = s;
         t = Math.imul(t ^ (t >>> 15), t | 1);
         t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
         return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
       };
-      delete globalThis.WeakRef;
-      delete globalThis.FinalizationRegistry;
     })();
+    delete globalThis.WeakRef;
+    delete globalThis.FinalizationRegistry;
   `
 }

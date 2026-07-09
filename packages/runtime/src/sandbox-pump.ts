@@ -7,105 +7,74 @@
 // reschedules via `setTimeout` with a fast window (active pumping)
 // and a slow window (idle pumping) so the host doesn't busy-loop
 // while the script is still working. The deadline race wraps the
-// pump + script in a one-shot timer that resolves the script promise
-// with `null` if the deadline fires first.
+// pump + script in a one-shot timer that rejects if the deadline
+// fires first.
 
 import { type QuickJSRuntime } from "quickjs-emscripten"
 import { getSandboxFastMs, getSandboxFastWindow, getSandboxSlowMs } from "./constants.ts"
 
 /** Start the microtask pump. Returns a `stop()` handle. The pump
  *  self-reschedules: a recursive setTimeout chain where each timer
- *  drains pending jobs and re-arms. `unref()` lets the process exit
- *  even if a pump window is open. */
+ *  drains pending jobs and re-arms. */
 export function startMicrotaskPump(rt: QuickJSRuntime): { stop: () => void } {
-  let pumpTimer: ReturnType<typeof setTimeout> | null = null
+  const FAST_MS = getSandboxFastMs()
+  const SLOW_MS = getSandboxSlowMs()
+  const FAST_WINDOW = getSandboxFastWindow()
+  let pumpTimer: ReturnType<typeof setTimeout> | undefined
   let idleTicks = 0
-  let stopped = false
 
-  const drainAndSchedule = () => {
-    if (stopped) return
-    const didWork = drainPendingJobsOrIdle(rt, idleTicks)
-    idleTicks = didWork ? 0 : idleTicks + 1
-    const delay = computePumpDelayMs(idleTicks)
-    pumpTimer = setTimeout(drainAndSchedule, delay)
-    pumpTimer.unref?.()
+  const drainAndSchedule = (): void => {
+    idleTicks = drainPendingJobsOrIdle(rt, idleTicks)
+    pumpTimer = setTimeout(
+      drainAndSchedule,
+      computePumpDelayMs(idleTicks, FAST_MS, SLOW_MS, FAST_WINDOW),
+    )
   }
 
-  pumpTimer = setTimeout(drainAndSchedule, 0)
+  pumpTimer = setTimeout(drainAndSchedule, FAST_MS)
   pumpTimer.unref?.()
-
   return {
-    stop: () => {
-      stopped = true
-      if (pumpTimer !== null) {
-        clearTimeout(pumpTimer)
-        pumpTimer = null
-      }
+    stop: (): void => {
+      if (pumpTimer) clearTimeout(pumpTimer)
     },
   }
 }
 
-/** Drain pending jobs or return an idle-tick delta. Returns true if
- *  work was done (the pump stays in fast mode), false otherwise
- *  (the pump may transition to slow mode after enough idle ticks). */
-export function drainPendingJobsOrIdle(rt: QuickJSRuntime, idleTicks: number): boolean {
-  const workBefore = idleTicks === 0 ? 1 : 0
-  rt.executePendingJobs()
-  // We can't observe "did work" directly; the heuristic is that
-  // executePendingJobs returns the number of jobs executed. QuickJS
-  // returns 0 when there's nothing to do. Use the result to decide.
-  return workBefore === 1 ? true : false
+/** Drain any pending guest jobs and return the next idle-tick count:
+ *  resets to 0 on work found (the next pump tick fires FAST), or
+ *  increments otherwise. */
+export function drainPendingJobsOrIdle(rt: QuickJSRuntime, idleTicks: number): number {
+  if (rt.hasPendingJob()) {
+    rt.executePendingJobs()
+    return 0
+  }
+  return idleTicks + 1
 }
 
-/** Compute the pump delay based on the number of consecutive idle
- *  ticks. Fast window: pump every `getSandboxFastMs()` (default 1ms).
- *  Slow window: pump every `getSandboxSlowMs()` (default 50ms) after
- *  `getSandboxFastWindow()` consecutive idle ticks. */
-export function computePumpDelayMs(idleTicks: number): number {
-  if (idleTicks < getSandboxFastWindow()) return getSandboxFastMs()
-  return getSandboxSlowMs()
+/** Adaptive cadence delay: FAST while `idleTicks < FAST_WINDOW`,
+ *  SLOW once the pump has been idle longer. Pure. */
+export function computePumpDelayMs(
+  idleTicks: number,
+  fastMs: number,
+  slowMs: number,
+  fastWindow: number,
+): number {
+  return idleTicks < fastWindow ? fastMs : slowMs
 }
 
-/** Race a one-shot deadline timer against the script promise. The
- *  returned `cancel()` must be called in the `finally` block of the
- *  script's promise to clear the timer. If the timer fires first, the
- *  script's promise resolves to `null` (so the runtime can detect
- *  "the script looped past the deadline" without a real exception). */
+/** Wall-clock deadline race: rejects after `ms` with a clear error.
+ *  Returns the rejecting promise AND the underlying timer so the
+ *  caller can cancel it once the guest resolves. */
 export function createDeadlineRace(
-  promise: Promise<unknown>,
-  deadlineMs: number,
-): { promise: Promise<unknown | null>; cancel: () => void } {
-  let deadlineTimer: ReturnType<typeof setTimeout> | null = null
-  let settled = false
-  const racedPromise = new Promise<unknown | null>((resolve) => {
-    deadlineTimer = setTimeout(() => {
-      if (settled) return
-      settled = true
-      resolve(null)
-    }, deadlineMs)
-    deadlineTimer.unref?.()
-    promise.then(
-      (value) => {
-        if (settled) return
-        settled = true
-        resolve(value ?? null)
-      },
-      (err) => {
-        if (settled) return
-        settled = true
-        // Surface the error so the runtime's launchScript can decide
-        // whether to mark the run as failed.
-        resolve(Promise.reject(err) as unknown as null)
-      },
+  ms: number,
+): { promise: Promise<never>; timer: ReturnType<typeof setTimeout> } {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const promise = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error("workflow script deadline exceeded")),
+      ms,
     )
   })
-  return {
-    promise: racedPromise,
-    cancel: () => {
-      if (deadlineTimer !== null) {
-        clearTimeout(deadlineTimer)
-        deadlineTimer = null
-      }
-    },
-  }
+  return { promise, timer: timer as ReturnType<typeof setTimeout> }
 }
+

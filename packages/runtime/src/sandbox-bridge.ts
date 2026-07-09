@@ -5,116 +5,118 @@
 // refactor plan (ora-11, File 7). Handles the marshaling of args from
 // the guest (JSON parse + handle), the dispatch of host function
 // results to the corresponding guest-side deferred promise, and the
-// dispose-order invariants. The 7 helpers share a `ctx` + `deferreds`
-// pattern (each helper takes the context and the deferreds array as
-// parameters — no instance state in the bridge).
+// dispose-order invariants.
 
-import { type QuickJSContext, type QuickJSDeferredPromise, type QuickJSHandle } from "quickjs-emscripten"
+import {
+  type QuickJSContext,
+  type QuickJSDeferredPromise,
+  type QuickJSHandle,
+} from "quickjs-emscripten"
 import { evalAndReturn } from "./sandbox-eval.ts"
-import type { HostFn } from "./sandbox.ts"
 
-/** Inject host functions into the guest context. Each primitive is
- *  bound to a globalThis.<name> that the PRELUDE has already wired
- *  (e.g. globalThis.mcpList, globalThis.agent). Sync host functions
- *  are wrapped to marshal their return value; async host functions
- *  are dispatched through bridgeAsyncHostResult which defers the
- *  resolve/reject on the guest side. */
+/** An injected host function: receives already-marshaled JS args,
+ *  returns a JS value or Promise. */
+export type HostFn = (...args: unknown[]) => unknown | Promise<unknown>
+
+/** Wire host functions into the guest as globals. */
 export function injectHooks(
   ctx: QuickJSContext,
   hooks: Record<string, HostFn>,
+  track: <H extends QuickJSHandle>(h: H) => H,
   deferreds: QuickJSDeferredPromise[],
 ): void {
   for (const [name, fn] of Object.entries(hooks)) {
-    const isAsync = fn.constructor.name === "AsyncFunction" || fn.length >= 0 && /\\bawait\\b/.test(fn.toString())
-    if (isAsync) {
-      const dpromise = ctx.newPromise()
-      deferreds.push(dpromise)
-      const ret = fn
-      const dhandle = dpromise.handle
-      const nameConst = name
-      const ctxRef = ctx
-      ;(ctx as any).setProp(ctx.global, name, ctx.newFunction(name, (...args: unknown[]) => {
-        Promise.resolve(ret(...args)).then(
-          (value) => resolveHostPromise(ctxRef, dhandle, value),
-          (err) => rejectHostPromise(ctxRef, dhandle, err instanceof Error ? err.message : String(err)),
-        )
-      }))
-    } else {
-      const ret = fn
-      const ctxRef = ctx
-      ;(ctx as any).setProp(ctx.global, name, ctx.newFunction(name, (...args: unknown[]) => {
-        const dumped = dumpHostFnArgs(ctxRef, args as QuickJSHandle[])
-        return marshalIn(ctxRef, ret(...dumped))
-      }))
-    }
+    const fnHandle = ctx.newFunction(name, (...argHandles: QuickJSHandle[]) => {
+      const args = dumpHostFnArgs(ctx, argHandles)
+      const out = fn(...args)
+      if (out instanceof Promise) {
+        return bridgeAsyncHostResult(ctx, out, deferreds)
+      }
+      // Synchronous return — marshal into the guest.
+      return marshalIn(ctx, out)
+    })
+    ctx.setProp(ctx.global, name, track(fnHandle))
   }
 }
 
-/** Dump a list of guest handles to JS values. Each handle is dumped
- *  individually and then disposed. Returns the array of dumped
- *  values (preserving order). */
+/** Dump a guest arg-handle array into a host-side JS array, disposing
+ *  each handle as we go. */
 export function dumpHostFnArgs(ctx: QuickJSContext, argHandles: QuickJSHandle[]): unknown[] {
-  const out: unknown[] = []
+  const args: unknown[] = []
   for (const h of argHandles) {
-    out.push(ctx.dump(h))
+    args.push(ctx.dump(h))
     h.dispose()
   }
-  return out
+  return args
 }
 
-/** Bridge an async host function's resolved value back to the guest.
- *  Resolves the guest-side deferred with the marshaled value. */
+/** Bridge an async host result into a guest promise. Wires up the
+ *  then/settled handlers, marshals the resolved value (or the rejected
+ *  message) into the guest, and tracks the deferred so the script's
+ *  outer `finally` can dispose it before context dispose. */
 export function bridgeAsyncHostResult(
+  ctx: QuickJSContext,
+  out: Promise<unknown>,
+  deferreds: QuickJSDeferredPromise[],
+): QuickJSHandle {
+  const promise = ctx.newPromise()
+  deferreds.push(promise)
+  out.then(
+    (value) => resolveHostPromise(ctx, promise, value),
+    (err) => rejectHostPromise(ctx, promise, err),
+  )
+  promise.settled.then(() => flushPendingJobsIfAlive(ctx))
+  return promise.handle
+}
+
+/** Marshal the resolved `value` into the guest and resolve the deferred. */
+export function resolveHostPromise(
   ctx: QuickJSContext,
   deferred: QuickJSDeferredPromise,
   value: unknown,
 ): void {
-  resolveHostPromise(ctx, deferred.handle, value)
-}
-
-/** Resolve a guest-side deferred with the marshaled value. */
-export function resolveHostPromise(
-  ctx: QuickJSContext,
-  handle: QuickJSHandle,
-  value: unknown,
-): void {
-  const marshaled = marshalIn(ctx, value)
-  ctx.resolvePromise(handle, marshaled)
-  marshaled.dispose()
+  if (!ctx.alive) return
+  const vh = marshalIn(ctx, value)
+  deferred.resolve(vh)
+  vh.dispose()
   flushPendingJobsIfAlive(ctx)
 }
 
-/** Reject a guest-side deferred with the error message. */
+/** Marshal the rejected `err` (as a string) into the guest and reject
+ *  the deferred. */
 export function rejectHostPromise(
   ctx: QuickJSContext,
-  handle: QuickJSHandle,
-  message: string,
+  deferred: QuickJSDeferredPromise,
+  err: unknown,
 ): void {
-  const errHandle = ctx.newError(message)
-  ctx.rejectPromise(handle, errHandle)
-  errHandle.dispose()
+  if (!ctx.alive) return
+  const msg = err instanceof Error ? err.message : String(err)
+  const eh = ctx.newString(msg)
+  deferred.reject(eh)
+  eh.dispose()
   flushPendingJobsIfAlive(ctx)
 }
 
-/** Drain pending jobs if the context is still alive. Used after
- *  resolve/reject to surface the deferred's effect to other guest
- *  code waiting on the same promise. */
+/** Drain guest pending jobs after a settle, if the context is still alive. */
 export function flushPendingJobsIfAlive(ctx: QuickJSContext): void {
-  if (!(ctx as any).alive) return
-  ctx.runtime.executePendingJobs()
+  if (ctx.alive) ctx.runtime.executePendingJobs()
 }
 
-/** Marshal a JS value into a guest handle. Objects, arrays, and
- *  primitives go through JSON.stringify + JSON.parse (4-step dance
- *  via the guest's own JSON.parse to avoid re-implementing it). */
+/** Marshal a host JS value INTO the guest (by copy via JSON for structured
+ *  data, direct for primitives). */
 export function marshalIn(ctx: QuickJSContext, value: unknown): QuickJSHandle {
-  const json = JSON.stringify(value)
-  const strHandle = ctx.newString(json)
-  const jsonGlobal = evalAndReturn(ctx, "JSON", "JSON.js")
-  const parse = ctx.getProp(jsonGlobal, "parse") as QuickJSHandle
-  const marshaled = ctx.callFunction(parse, jsonGlobal, strHandle)
-  parse.dispose()
-  jsonGlobal.dispose()
-  strHandle.dispose()
-  return marshaled
+  if (value === undefined) return ctx.undefined
+  if (value === null) return ctx.null
+  if (typeof value === "string") return ctx.newString(value)
+  if (typeof value === "number") return ctx.newNumber(value)
+  if (typeof value === "boolean") return value ? ctx.true : ctx.false
+
+  const json = ctx.newString(JSON.stringify(value))
+  const parseRes = ctx.evalCode("JSON.parse")
+  const parseFn = ctx.unwrapResult(parseRes)
+  const out = ctx.callFunction(parseFn, ctx.undefined, json)
+  json.dispose()
+  parseFn.dispose()
+  return ctx.unwrapResult(out)
 }
+
