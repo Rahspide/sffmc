@@ -39,9 +39,9 @@ import {
 import { parseMeta } from "../src/meta.ts"
 import { resolveWorkflow, isInlineScript } from "../src/resolve.ts"
 import { registerBuiltin, getBuiltin, listBuiltins, loadBuiltin } from "../src/builtin-registry.ts"
-import { meta as securityAuditMeta } from "../builtin/security-audit.ts"
-import { meta as docGenMeta } from "../builtin/doc-gen.ts"
-import { meta as libMigrateMeta } from "../builtin/lib-migrate.ts"
+import { meta as securityAuditMeta } from "../src/builtin/security-audit.ts"
+import { meta as docGenMeta } from "../src/builtin/doc-gen.ts"
+import { meta as libMigrateMeta } from "../src/builtin/lib-migrate.ts"
 
 // ---------------------------------------------------------------------------
 // Cleanup
@@ -864,7 +864,7 @@ describe("builtin-registry: makeLoader refactor", () => {
 
 describe("builtin: new builtins export shape", () => {
   test("security-audit exports meta and source", async () => {
-    const mod = await import("../builtin/security-audit.ts")
+    const mod = await import("../src/builtin/security-audit.ts")
     expect(mod.meta).toBeDefined()
     expect(mod.source).toBeDefined()
     expect(typeof mod.source).toBe("string")
@@ -872,7 +872,7 @@ describe("builtin: new builtins export shape", () => {
   })
 
   test("doc-gen exports meta and source", async () => {
-    const mod = await import("../builtin/doc-gen.ts")
+    const mod = await import("../src/builtin/doc-gen.ts")
     expect(mod.meta).toBeDefined()
     expect(mod.source).toBeDefined()
     expect(typeof mod.source).toBe("string")
@@ -880,7 +880,7 @@ describe("builtin: new builtins export shape", () => {
   })
 
   test("lib-migrate exports meta and source", async () => {
-    const mod = await import("../builtin/lib-migrate.ts")
+    const mod = await import("../src/builtin/lib-migrate.ts")
     expect(mod.meta).toBeDefined()
     expect(mod.source).toBeDefined()
     expect(typeof mod.source).toBe("string")

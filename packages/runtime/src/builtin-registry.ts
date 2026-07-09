@@ -2,13 +2,13 @@
 // @sffmc/runtime — see ../../LICENSE
 
 import type { Meta } from "./meta.ts"
-import * as deepResearchMod from "../builtin/deep-research.ts"
-import * as planMod from "../builtin/plan.ts"
-import * as tddMod from "../builtin/tdd.ts"
-import * as refactorMod from "../builtin/refactor.ts"
-import * as securityAuditMod from "../builtin/security-audit.ts"
-import * as docGenMod from "../builtin/doc-gen.ts"
-import * as libMigrateMod from "../builtin/lib-migrate.ts"
+import * as deepResearchMod from "./builtin/deep-research.ts"
+import * as planMod from "./builtin/plan.ts"
+import * as tddMod from "./builtin/tdd.ts"
+import * as refactorMod from "./builtin/refactor.ts"
+import * as securityAuditMod from "./builtin/security-audit.ts"
+import * as docGenMod from "./builtin/doc-gen.ts"
+import * as libMigrateMod from "./builtin/lib-migrate.ts"
 
 export interface BuiltinEntry {
   name: string

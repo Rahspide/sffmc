@@ -287,18 +287,21 @@ describe("scheduleFlush / flushNow DB counter flush", () => {
     })
     await runtime.wait({ runID, timeoutMs: 5000 })
 
-    // Now drive flushNow directly with a minimal entry missing all
-    // counter fields. The defensive `?? 0` must coerce them to 0 so
-    // the UPDATE succeeds without a NOT NULL constraint error.
+    // Now drive flushManager.flushNow directly with a minimal entry
+    // missing all counter fields. The defensive `?? 0` must coerce
+    // them to 0 so the UPDATE succeeds without a NOT NULL constraint
+    // error. The runtime exposes flushManager as a public field; the
+    // test reads it via a narrow type cast to keep the test-side
+    // dependency minimal (no need to import FlushManager).
     const flushNow = (
-      runtime as unknown as { flushNow: (e: unknown) => void }
-    ).flushNow.bind(runtime)
+      runtime as unknown as { flushManager: { flushNow: (e: unknown) => void } }
+    ).flushManager.flushNow.bind(runtime.flushManager)
 
     // Use a real runID (the one we just created) so the UPDATE matches
     // a row. Build a minimal entry with undefined counters.
     const minimalEntry = { runID, /* running, succeeded, failed all undefined */ }
 
-    // If the `?? 0` fix is missing, this throws (caught by flushNow's
+    // If the `?? 0` fix is missing, this throws (caught by flushManager's
     // try/catch, logged as "flushNow DB update error"). The row would
     // not be updated to 0. With the fix, no error is logged and the
     // row's counters are set to 0.

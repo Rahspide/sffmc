@@ -8,18 +8,38 @@
 
 ## Architecture
 
-- `packages/runtime/src/sandbox.ts` — quickjs-emscripten host, interrupt signal marshaling
-- `packages/runtime/src/concurrency.ts` — per-runtime `Concurrency` lock map; no module-level globals
-- `packages/runtime/src/persistence.ts` — checkpoint / journal of every tool call the workflow makes; survives `Ctrl-C`
-- `packages/runtime/src/builtin-registry.ts` — registers the bundled workflows under their `meta.name`
-- `packages/runtime/src/flush-manager.ts` — debounced journal flush; CHECKPOINT threshold or explicit `flushNow()`
-- `packages/runtime/src/counter-manager.ts` — `agentOpts` (concurrency caps, deadlines, token budgets)
-- `packages/runtime/src/event-emitter.ts` — typed events surface for `mergeHooks` consumers
+v0.16.0 split the original god-classes into focused modules. The
+orchestrator files (left) wire the helper modules (right) together:
 
-## Built-in workflows
+- `packages/runtime/src/runtime.ts` — main `WorkflowRuntime` class. Lifecycle, public API (start/status/wait/cancel/resume), composes the 11 sub-components via the SOLID `Services` + `Callbacks` DI container.
+- `packages/runtime/src/sandbox.ts` — `runSandboxed` orchestrator (~220 LOC). Wires 6 sandbox services (runtime, eval, pump, deadline, bridge, marshaller) per the SOLID DI container in `sandbox-services.ts`.
+- `packages/runtime/src/persistence.ts` — barrel re-exporting 10 modules (runid, script-sha, journal-key, paths, runs, steps, fsync-coalescer, journal, scripts, workflow-persistence).
+- `packages/runtime/src/concurrency.ts` — per-runtime `Concurrency` lock map; no module-level globals.
+- `packages/runtime/src/flush-manager.ts` — debounced journal flush; CHECKPOINT threshold or explicit `flushNow()`.
+- `packages/runtime/src/counter-manager.ts` — `agentOpts` (concurrency caps, deadlines, token budgets).
+- `packages/runtime/src/event-emitter.ts` — typed events surface for `mergeHooks` consumers.
 
-- **`deep-research`** — Plan / Search / Extract / Group / Crosscheck / Report over a single question, with a 3-judge panel discarding weakly-sourced facts before drafting
-- See `packages/runtime/builtin/` for the full registry
+### Sandbox helpers (5 modules, behind `SandboxServices` interfaces)
+
+- `sandbox-prelude.ts` — PRELUDE globals (`parallel`, `pipeline`, `mcp.list/call`) + `buildHostHooks`.
+- `sandbox-runtime.ts` — `createSandboxRuntime` (memory, stack, deadline interrupt) + `hardenDeterminism` (mulberry32 PRNG, Date/WeakRef strip).
+- `sandbox-eval.ts` — `evalAndDiscard` / `evalAndReturn` with labeled error disposal.
+- `sandbox-pump.ts` — `startMicrotaskPump` (adaptive cadence) + `createDeadlineRace` (wall-clock reject).
+- `sandbox-bridge.ts` — `injectHooks` + `marshalIn` for the host↔guest boundary.
+- `sandbox-services.ts` — narrow interfaces (`SandboxRuntimeFactory`, `EvalExecutor`, `MicrotaskPumpFactory`, `DeadlineFactory`, `HostBridge`, `MarshalingService`).
+
+### Runtime sub-components (4 modules, behind `RuntimeServices` interfaces)
+
+- `run-completer.ts` — completeRun / failRun / settleEntry. Implements `IRunCompleter`.
+- `mcp-dispatcher.ts` — list / call. Implements `IMcpDispatcher`.
+- `agent-primitive.ts` — spawnAgent / executeAgentCall / runParallel / runPipeline / publishAgentFailed. Implements `IAgentPrimitive`.
+- `child-workflow-primitive.ts` — spawn / setPhase / appendLog / start. Implements `IChildWorkflowPrimitive`.
+- `runtime-services.ts` — `RuntimeServices` (11 sub-component deps) + `RuntimeCallbacks` (9 method-bridge callbacks).
+
+### Built-in workflows
+
+- **`deep-research`** — Plan / Search / Extract / Group / Crosscheck / Report over a single question, with a 3-judge panel discarding weakly-sourced facts before drafting.
+- See `packages/runtime/src/builtin/` for the full registry (7 builtins: `deep-research`, `plan`, `tdd`, `refactor`, `security-audit`, `doc-gen`, `lib-migrate`).
 
 ## Configure
 

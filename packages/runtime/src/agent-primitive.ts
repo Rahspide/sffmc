@@ -15,6 +15,7 @@
 // and unit-testable in isolation.
 
 import { journalKeyBase } from "./persistence.ts"
+import type { IAgentPrimitive } from "./runtime-services.ts"
 import { createLogger } from "@sffmc/utilities"
 import type { InternalRunEntry, AgentResult } from "./internal-run-entry.ts"
 import type { AgentOptions, AgentFailureReason } from "./types.ts"
@@ -43,7 +44,7 @@ export interface AgentPrimitiveDeps {
   failRun: (entry: InternalRunEntry, error: string) => void
 }
 
-export class AgentPrimitive {
+export class AgentPrimitive implements IAgentPrimitive {
   constructor(private readonly deps: AgentPrimitiveDeps) {}
 
   /** agent(task, opts?) — called from inside the sandbox. */

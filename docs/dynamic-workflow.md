@@ -163,7 +163,7 @@ const perLine = await pipeline(
 
 ### Where to store
 
-- `packages/runtime/builtin/` — built-in workflows (`deep-research`, `plan`, `tdd`, `refactor`, `security-audit`, `doc-gen`, `lib-migrate`)
+- `packages/runtime/src/builtin/` — built-in workflows (`deep-research`, `plan`, `tdd`, `refactor`, `security-audit`, `doc-gen`, `lib-migrate`)
 - `.sffmc/workflows/*.ts` — project-level
 - `.claude/workflows/*.ts` — legacy (Claude Code compatibility)
 

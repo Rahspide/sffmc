@@ -15,6 +15,7 @@
 // explicit and unit-testable in isolation.
 
 import { createHash } from "node:crypto"
+import type { IChildWorkflowPrimitive } from "./runtime-services.ts"
 import { resolveWorkflow, isInlineScript } from "./resolve.ts"
 import { parseMeta } from "./meta.ts"
 import { computeScriptSha, generateRunID } from "./persistence.ts"
@@ -54,7 +55,7 @@ export interface ChildWorkflowPrimitiveDeps {
   ) => Promise<void>
 }
 
-export class ChildWorkflowPrimitive {
+export class ChildWorkflowPrimitive implements IChildWorkflowPrimitive {
   constructor(private readonly deps: ChildWorkflowPrimitiveDeps) {}
 
   /** workflow(nameOrScript, args?) — spawn a child workflow. */

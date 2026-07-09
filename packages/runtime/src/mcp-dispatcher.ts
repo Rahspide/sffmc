@@ -13,6 +13,7 @@
 // graph explicit and unit-testable in isolation.
 
 import { discoverParentTools } from "./mcp.ts"
+import type { IMcpDispatcher } from "./runtime-services.ts"
 import type { PluginContext } from "./types.ts"
 import type { InternalRunEntry } from "./internal-run-entry.ts"
 
@@ -23,7 +24,7 @@ export interface McpDispatcherDeps {
   getCtx: () => PluginContext
 }
 
-export class McpDispatcher {
+export class McpDispatcher implements IMcpDispatcher {
   constructor(private readonly deps: McpDispatcherDeps) {}
 
   /** List the MCP tools available in the parent OpenCode context.

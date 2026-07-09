@@ -15,6 +15,7 @@
 // graph explicit and unit-testable in isolation.
 
 import { outcomeFor, type InternalRunEntry } from "./internal-run-entry.ts"
+import type { IRunCompleter } from "./runtime-services.ts"
 import type { WorkflowPersistence } from "./persistence.ts"
 import type { WorkflowEventEmitter } from "./event-emitter.ts"
 import type { OutcomeStore, WorkflowOutcome } from "./outcome-store.ts"
@@ -38,7 +39,7 @@ export interface RunCompleterDeps {
   ) => Promise<unknown>
 }
 
-export class RunCompleter {
+export class RunCompleter implements IRunCompleter {
   constructor(private readonly deps: RunCompleterDeps) {}
 
   /** Mark the run as completed. Guarded: if `cancel()` or `failRun()`

@@ -374,22 +374,20 @@ describe(" resolveConfig uses SFFMC config, ctx.config is fallback only", () => 
     // callers could both pass `if (this.workflowConfig) return` while
     // the cache is null, then both call loadConfig() and race to
     // assign. With the fix, the second caller receives the same
-    // promise the first caller created → doLoadWorkflowConfig runs
-    // exactly once across concurrent callers.
+    // promise the first caller created → the underlying loadConfig()
+    // runs exactly once across concurrent callers.
     const runtime = new WorkflowRuntime(baseCtx, { persistence })
 
-    // Instrument doLoadWorkflowConfig via a counting wrapper. The
-    // wrapper delegates to the original (captured before replacement)
-    // so the real loadConfig() still runs.
-    let doLoadCount = 0
-    const inner = (runtime as unknown as {
-      doLoadWorkflowConfig: () => Promise<void>
-    }).doLoadWorkflowConfig.bind(runtime)
-    ;(runtime as unknown as {
-      doLoadWorkflowConfig: () => Promise<void>
-    }).doLoadWorkflowConfig = async () => {
-      doLoadCount++
-      return inner()
+    // Instrument runtimeConfig.loadConfig via a counting wrapper.
+    // The runtime exposes runtimeConfig as a public field; we wrap
+    // its loadConfig method to count invocations. The wrapper
+    // delegates to the original (captured before replacement) so the
+    // real load still runs.
+    let loadConfigCount = 0
+    const innerLoad = runtime.runtimeConfig.loadConfig.bind(runtime.runtimeConfig)
+    runtime.runtimeConfig.loadConfig = async () => {
+      loadConfigCount++
+      return innerLoad()
     }
 
     // Two concurrent calls — both hit the YAML-load path because no
@@ -398,10 +396,10 @@ describe(" resolveConfig uses SFFMC config, ctx.config is fallback only", () => 
     const p2 = runtime.loadWorkflowConfig()
     await Promise.all([p1, p2])
 
-    // The fix: doLoadWorkflowConfig ran exactly ONCE despite two
-    // concurrent callers. Without the promise cache, it would have
-    // run twice (race) and assigned workflowConfig twice.
-    expect(doLoadCount).toBe(1)
+    // The fix: loadConfig() ran exactly ONCE despite two concurrent
+    // callers. Without the promise cache, it would have run twice
+    // (race) and assigned workflowConfig twice.
+    expect(loadConfigCount).toBe(1)
 
     // And the cached promise field is non-null after both calls.
     const cached = (runtime as unknown as {
