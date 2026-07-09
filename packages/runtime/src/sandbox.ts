@@ -19,6 +19,7 @@ import {
   getSandboxSlowMs,
   getSandboxStackSize,
 } from "./constants.ts"
+import { PRELUDE, buildHostHooks } from "./sandbox-prelude.ts"
 
 // ---------------------------------------------------------------------------
 // Defaults
@@ -37,64 +38,8 @@ import {
 const DEFAULT_PRNG_SEED = 0x9e3779b9               // fallback
 
 // ---------------------------------------------------------------------------
-// Guest-side PRELUDE — pure-JS helpers that need no host round-trip.
-// parallel / pipeline do NO throttling — concurrency is enforced by the host
-// semaphore inside the agent() hook. They also do NOT catch: a throwing
-// thunk/stage rejects the batch (fails loud with the guest stack).
-// agent() is never-throw for agent failures (returns null), so the only
-// throws reaching here are script-logic errors, which SHOULD fail loud
-// rather than become silent nulls that poison downstream .map/.filter.
-//
-// mcpList / mcpCall are host-injected (one round-trip each) and bound here
-// into a single `mcp` object so guest scripts use `mcp.list()` / `mcp.call()`.
-// The host side tracks per-run budget + recursion (see mcp.ts).
+// Guest-side PRELUDE — extracted to ./sandbox-prelude.ts (v0.16.0 Lane C File 3)
 // ---------------------------------------------------------------------------
-
-const PRELUDE = `
-globalThis.parallel = (thunks) =>
-  Promise.all(thunks.map((t) => Promise.resolve().then(t)));
-globalThis.pipeline = (items, ...stages) =>
-  Promise.all(items.map((item, index) =>
-    stages.reduce((acc, stage) => acc.then((prev) => stage(prev, item, index)), Promise.resolve(item))));
-// Minimal, deterministic URL for dedup/host-extraction in workflow scripts.
-// The bare QuickJS guest has no Web URL. Covers protocol/hostname/pathname/
-// search/hash — enough for normURL-style dedup — and THROWS on inputs without
-// a scheme+host, so scripts' try/catch fallbacks behave like the real URL.
-globalThis.URL = class URL {
-  constructor(input) {
-    const str = String(input);
-    const m = /^([a-zA-Z][a-zA-Z0-9+.-]*:)\\/\\/([^/?#]*)([^?#]*)(\\?[^#]*)?(#.*)?$/.exec(str);
-    if (!m) throw new TypeError("Invalid URL: " + str);
-    this.protocol = m[1].toLowerCase();
-    this.hostname = m[2];
-    this.pathname = m[3] || "/";
-    this.search = m[4] || "";
-    this.hash = m[5] || "";
-    this.host = m[2];
-  }
-  toString() { return this.protocol + "//" + this.host + this.pathname + this.search + this.hash; }
-};
-// MCP bridge — bound to host-injected mcpList / mcpCall (see injectHooks).
-// When the runtime does not wire MCP support, both globals are set to no-ops
-// (mcpList returns []; mcpCall rejects with a clear error). Scripts can
-// therefore use mcp.list() and mcp.call(name, args) unconditionally.
-//
-// mcp.bind(name) and mcp.bindAll() are also exposed so guest scripts can
-// pull typed handles once (e.g. const search = mcp.bind("github_search"))
-// and invoke them like local functions. bindAll() returns a record of
-// every tool currently registered with the parent.
-globalThis.mcp = {
-  list: (...args) => globalThis.mcpList(...args),
-  call: (...args) => globalThis.mcpCall(...args),
-  bind: (name) => (args) => globalThis.mcpCall(name, args),
-  bindAll: async () => {
-    const names = await globalThis.mcpList();
-    const out = {};
-    for (const n of names) out[n] = (args) => globalThis.mcpCall(n, args);
-    return out;
-  },
-};
-`
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -234,25 +179,6 @@ export async function runSandboxed(
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
-
-/** Keys that the guest-side PRELUDE wires up directly — host primitives
- *  bearing these names are filtered out of the hooks map so the PRELUDE
- *  versions (parallel / pipeline / args binding) cannot be shadowed. */
-const PRELUDE_KEYS = new Set(["parallel", "pipeline", "args"])
-
-/** Build the host-functions map for `injectHooks`. Pure: filters out
- *  PRELUDE keys and non-function primitive entries. */
-function buildHostHooks(primitives: SandboxPrimitives): Record<string, HostFn> {
-  const hooks: Record<string, HostFn> = {}
-  for (const key of Object.keys(primitives)) {
-    if (PRELUDE_KEYS.has(key)) continue
-    const fn = (primitives as unknown as Record<string, unknown>)[key]
-    if (typeof fn === "function") {
-      hooks[key] = fn as HostFn
-    }
-  }
-  return hooks
-}
 
 /** Allocate a QuickJS runtime sized by `opts` (YAML-configured memory/stack)
  *  with the wall-clock interrupt handler installed. Caller is responsible
