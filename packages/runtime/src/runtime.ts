@@ -17,6 +17,7 @@ import { makeSemaphore, Concurrency } from "./concurrency.ts"
 import { makeEntry, outcomeFor, type InternalRunEntry } from "./internal-run-entry.ts"
 import { resolveWorkflowScript } from "./script-resolver.ts"
 import { FlushManager } from "./flush-manager.ts"
+import { RuntimeConfig } from "./runtime-config.ts"
 
 import { parseMeta } from "./meta.ts"
 import { callLLM as callLLMModule } from "./llm-call.ts"
@@ -148,29 +149,14 @@ export class WorkflowRuntime {
    *  re-register per run. The per-run split applies to `CounterManager`
    *  because counter state is per-run; events are global. */
   readonly events = new WorkflowEventEmitter()
-  /** workflow recovery grace period — grace period in ms, populated by the index.ts config hook
-   *  via `loadConfig<WorkflowConfig>("workflow", ...)`. Tests may also
-   *  inject a value via `RuntimeOpts.gracePeriodMsOverride`. Stored on
-   *  the runtime (not the plugin context) so `recoverOrphanedWorkflows()`
-   *  can read it synchronously. */
-  private gracePeriodMs: number = DEFAULT_GRACE_PERIOD_MS
-  /**  SFFMC-loaded workflow config (maxSteps / maxTokens /
-   *  maxWallClockMs / perStepTimeoutMs). Populated lazily by
-   *  `loadWorkflowConfig()` on the  `start()` or `resume()` call.
-   *  Tests inject via `RuntimeOpts.configOverride` (sync, no YAML).
-   *  Resolved values: prefer this cache → ctx.config (OpenCode provider) →
-   *  DEFAULT_WORKFLOW_CONFIG. */
-  private workflowConfig: Required<WorkflowConfig> | null = null
-  /**  flag to skip async YAML load when the test override is set. */
-  private workflowConfigInjected: boolean = false
-  /**  in-flight promise cache for `loadWorkflowConfig()`. Prevents the
-   *  TOCTOU race when `start()` and `resume()` are called concurrently:
-   *  both pass the `if (this.workflowConfig) return` guard while the
-   *  cache is `null`, then race to invoke `loadConfig()`. With this
-   *  cache, concurrent callers all await the same promise. Cleared by
-   *  `setConfig(null)` so a subsequent YAML load can re-fire after an
-   *  override is cleared. */
-  private loadWorkflowConfigPromise: Promise<void> | null = null
+  /** v0.16.0 refactor (Phase 2): runtime config state + lifecycle
+   *  extracted to `src/runtime-config.ts`. The runtime holds an instance
+   *  per-runtime and delegates the public surface (setGracePeriodMs,
+   *  setConfig, loadWorkflowConfig, resolveConfig) to it. Per-runtime
+   *  class (not a module-level singleton) so tests that call
+   *  `setConfig(null)` between cases get hermetic resets by constructing
+   *  a new runtime. */
+  private runtimeConfig: RuntimeConfig
   /** v0.14.x C-2 — cached resolved outcomes for settled runs. The
    *  `completeRun` / `failRun` / `cancel` paths delete the entry from
    *  `this.runs` so its McpBridge / journalResults / AbortController /
@@ -194,14 +180,17 @@ export class WorkflowRuntime {
     //  resolve at constructor time (not module init) so the
     // semaphore respects a config the caller may set via
     // `__setWorkflowConfig()` before constructing the runtime.
+    this.runtimeConfig = new RuntimeConfig({
+      getCtxConfig: () => this.ctx.config,
+    })
     this.globalSem = makeSemaphore(resolveMaxConcurrentAgents())
     this.persistence = opts.persistence ?? new WorkflowPersistence()
     this.flushManager = new FlushManager(this.persistence)
     if (opts.gracePeriodMsOverride !== undefined) {
-      this.setGracePeriodMs(opts.gracePeriodMsOverride)
+      this.runtimeConfig.setGracePeriodMs(opts.gracePeriodMsOverride)
     }
     if (opts.configOverride) {
-      this.setConfig(opts.configOverride)
+      this.runtimeConfig.setConfig(opts.configOverride)
     }
     // OutcomeStore cache — bounded LRU so long-lived daemons don't grow
     // indefinitely. Opt > env > 500 default.
@@ -212,14 +201,9 @@ export class WorkflowRuntime {
 
   /** workflow recovery grace period — set the grace period at runtime. Used by the index.ts config
    *  hook after `loadConfig` returns. Validates the value (integer,
-   *  0..24h) and throws on out-of-range. */
+   *  0..24h) and throws on out-of-range. Delegates to `RuntimeConfig`. */
   setGracePeriodMs(ms: number): void {
-    if (!Number.isInteger(ms) || ms < 0 || ms > MAX_GRACE_PERIOD_MS) {
-      throw new Error(
-        `Invalid gracePeriodMs: ${ms} (must be integer 0..${MAX_GRACE_PERIOD_MS})`,
-      )
-    }
-    this.gracePeriodMs = ms
+    this.runtimeConfig.setGracePeriodMs(ms)
   }
 
   /**  synchronously inject a workflow config. Used by tests via
@@ -230,48 +214,33 @@ export class WorkflowRuntime {
    *  `loadWorkflowConfig()` calls are no-ops unless `null` is passed
    *  (which re-enables the YAML load). */
   setConfig(cfg: Partial<WorkflowConfig> | null): void {
-    if (cfg === null) {
-      this.workflowConfig = null
-      this.workflowConfigInjected = false
-      // Clear the in-flight promise cache so the next `loadWorkflowConfig()`
-      // call re-fires `loadConfig()` instead of returning a stale promise.
-      this.loadWorkflowConfigPromise = null
-      return
-    }
-    this.workflowConfig = {
-      ...DEFAULT_WORKFLOW_CONFIG,
-      ...cfg,
-    } as Required<WorkflowConfig>
-    this.workflowConfigInjected = true
+    this.runtimeConfig.setConfig(cfg)
   }
 
   /**  lazily load the SFFMC workflow config from `workflow.yaml`.
    *  Idempotent — concurrent callers all await the same in-flight promise
-   *  (no TOCTOU race when `start()` and `resume()` run concurrently).
+   *  (no TOCTOU race when `start()` and `resume()` are called concurrently).
    *  No-op when the config was already injected (test override path).
-   *  Called eagerly by `start()` / `resume()` before `resolveConfig()` runs. */
+   *  Delegates to `RuntimeConfig`. */
+  /** in-flight promise cache for `loadWorkflowConfig()`. Prevents the
+   *  TOCTOU race when `start()` and `resume()` are called concurrently:
+   *  both pass the early guard and race to invoke the YAML loader.
+   *  Cleared via `setConfig(null)` (delegated to `RuntimeConfig`). */
+  private loadWorkflowConfigPromise: Promise<void> | null = null
+
   async loadWorkflowConfig(): Promise<void> {
-    if (this.workflowConfigInjected) return
-    if (this.workflowConfig !== null) return
     if (this.loadWorkflowConfigPromise) return this.loadWorkflowConfigPromise
     this.loadWorkflowConfigPromise = this.doLoadWorkflowConfig()
     return this.loadWorkflowConfigPromise
   }
 
-  /**  internal YAML loader. Cached via `loadWorkflowConfigPromise`
-   *  so concurrent callers share the same promise. Uses spread to
-   *  populate every `WorkflowConfig` field from defaults, so new fields
-   *  added to the interface are auto-included (no manual mapping list
-   *  to maintain). */
+  /** Internal YAML loader — kept on this class as a thin pass-through
+   *  to `RuntimeConfig.doLoad()` so existing reflection-based tests
+   *  (`runtime as unknown as { doLoadWorkflowConfig: ... }`) keep working
+   *  without modification. The real implementation lives in
+   *  `src/runtime-config.ts`. */
   private async doLoadWorkflowConfig(): Promise<void> {
-    const loaded = await loadConfig<typeof DEFAULT_WORKFLOW_CONFIG>(
-      "workflow",
-      DEFAULT_WORKFLOW_CONFIG,
-    )
-    this.workflowConfig = {
-      ...DEFAULT_WORKFLOW_CONFIG,
-      ...loaded,
-    } as Required<WorkflowConfig>
+    return this.runtimeConfig.loadConfig()
   }
 
   // ── Public API ──────────────────────────────────────────────────────────
@@ -536,7 +505,7 @@ export class WorkflowRuntime {
   async recoverOrphanedWorkflows(): Promise<void> {
     const rows = this.persistence.listRunningRuns()
     const nowMs = Date.now()
-    const graceMs = this.gracePeriodMs
+    const graceMs = this.runtimeConfig.getGracePeriodMs()
     for (const row of rows) {
       // Belt-and-suspenders: in-memory live runs can't be orphaned.
       if (this.runs.has(row.runID)) continue
@@ -1040,27 +1009,11 @@ export class WorkflowRuntime {
 
   // ── Private: helpers ───────────────────────────────────────────────────
 
+  /** v0.16.0 refactor (Phase 2): delegates to `RuntimeConfig.resolve()`. The
+   *  full precedence chain (cache > ctx.config > defaults) + extended
+   *  config (maxDepth, maxLifecycleAgents) lives in `src/runtime-config.ts`. */
   private resolveConfig(perStepTimeoutMsOverride?: number): Required<WorkflowConfig> & { maxDepth: number; maxLifecycleAgents: number } {
-    // read maxDepth / maxLifecycleAgents from the SFFMC-loaded
-    // extended config (workflow.yaml). The local MAX_DEPTH_DEFAULT /
-    // MAX_LIFECYCLE_AGENTS constants previously shadowed the values in
-    // constants.ts; those shadows are removed.
-    const ext = getWorkflowConfigSync()
-    // Workflow config — read maxSteps / maxTokens / maxWallClockMs / perStepTimeoutMs
-    // from the SFFMC-loaded workflow config (this.workflowConfig), NOT from
-    // this.ctx.config which is the OpenCode provider's plugin config.
-    // The lookup order is: runtime-cached (YAML or test override) →
-    // ctx.config (legacy fallback) → defaults.
-    const src = this.workflowConfig ?? this.ctx.config ?? DEFAULT_WORKFLOW_CONFIG
-    return {
-      maxSteps: src.maxSteps ?? DEFAULT_WORKFLOW_CONFIG.maxSteps,
-      maxTokens: src.maxTokens ?? DEFAULT_WORKFLOW_CONFIG.maxTokens,
-      maxWallClockMs: src.maxWallClockMs ?? DEFAULT_WORKFLOW_CONFIG.maxWallClockMs,
-      perStepTimeoutMs: perStepTimeoutMsOverride ?? src.perStepTimeoutMs ?? DEFAULT_WORKFLOW_CONFIG.perStepTimeoutMs,
-      gracePeriodMs: this.gracePeriodMs,
-      maxDepth: ext.maxDepth,
-      maxLifecycleAgents: ext.maxLifecycleAgents,
-    }
+    return this.runtimeConfig.resolve(perStepTimeoutMsOverride)
   }
 
   private async settleEntry(entry: InternalRunEntry, script: string, name: string, args: unknown, jail: WorkspaceJail): Promise<void> {
