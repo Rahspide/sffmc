@@ -109,7 +109,19 @@ export function flushPendingJobsIfAlive(ctx: QuickJSContext): void {
 }
 
 /** Marshal a host JS value INTO the guest (by copy via JSON for structured
- *  data, direct for primitives). */
+ *  data, direct for primitives).
+ *
+ *  Handle-leak invariants (gen-2 #8): the JSON-round-trip path acquires
+ *  three guest resources (`json`, `parseFn`, the `callFunction` result)
+ *  in strict order. The original implementation disposed `json` and
+ *  `parseFn` ONLY on the happy path — when `ctx.unwrapResult` threw on
+ *  the parse-evaluation result, `json` was leaked; when
+ *  `ctx.callFunction` threw, BOTH `json` AND `parseFn` were leaked.
+ *  Long-running workflows marshal thousands of values per step, so this
+ *  leaked a handle per call. The fix wraps each acquisition in its own
+ *  `try/finally` so disposal runs regardless of subsequent throws. The
+ *  return path's `ctx.unwrapResult(callRes)` consumes the call result
+ *  internally — no separate dispose needed. */
 export function marshalIn(ctx: QuickJSContext, value: unknown): QuickJSHandle {
   if (value === undefined) return ctx.undefined
   if (value === null) return ctx.null
@@ -118,11 +130,25 @@ export function marshalIn(ctx: QuickJSContext, value: unknown): QuickJSHandle {
   if (typeof value === "boolean") return value ? ctx.true : ctx.false
 
   const json = ctx.newString(JSON.stringify(value))
-  const parseRes = ctx.evalCode("JSON.parse")
-  const parseFn = ctx.unwrapResult(parseRes)
-  const out = ctx.callFunction(parseFn, ctx.undefined, json)
+  let parseFn: QuickJSHandle | undefined
+  let callRes: { value?: unknown; error?: unknown; dispose: () => void } | undefined
+  try {
+    parseFn = ctx.unwrapResult(ctx.evalCode("JSON.parse"))
+    try {
+      callRes = ctx.callFunction(parseFn, ctx.undefined, json) as typeof callRes
+    } finally {
+      parseFn.dispose()
+    }
+  } catch (err) {
+    // Ensure all live handles are disposed when any step throws. The inner
+    // finally already disposed parseFn on the callFunction path; this catch
+    // covers the unwrapResult-threw path (parseFn never assigned) and is
+    // also the safety net for any future acquisition added inside the inner
+    // try.
+    json.dispose()
+    throw err
+  }
   json.dispose()
-  parseFn.dispose()
-  return ctx.unwrapResult(out)
+  return ctx.unwrapResult(callRes as Parameters<typeof ctx.unwrapResult>[0])
 }
 

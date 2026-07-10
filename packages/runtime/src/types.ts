@@ -37,6 +37,28 @@ export class BudgetExceededError extends Error {
   }
 }
 
+/** Typed exception for workflow structural errors — when the runtime
+ *  cannot complete a workflow's structural operation (unknown workflow
+ *  spec, unresolvable child reference, etc). Raised by
+ *  `ChildWorkflowPrimitive.spawn()`; classified and re-thrown by the
+ *  parent primitive when reading the child's outcome so the structural
+ *  error crosses the parent↔child boundary typed, not via a substring
+ *  match. Replaces the prior magic-string classifier
+ *  (`childOutcome.error?.includes("WorkflowStructuralError")`) which
+ *  silently matched any caller-supplied error containing the substring
+ *  "WorkflowStructuralError" anywhere in its message. Mirrors the
+ *  `BudgetExceededError` shape (gen-11 F-2.1) — typed class,
+ *  `setPrototypeOf` for ES5 target so `instanceof` works inside
+ *  compiled output, explicit `.name = "..."` so the discriminant
+ *  survives bridge serialization to a string message. */
+export class WorkflowStructuralError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "WorkflowStructuralError"
+    Object.setPrototypeOf(this, WorkflowStructuralError.prototype)
+  }
+}
+
 /** Row in the workflow_runs SQLite table. */
 export interface WorkflowRun {
   runID: string

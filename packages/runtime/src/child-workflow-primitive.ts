@@ -25,8 +25,14 @@ import type { InternalRunEntry } from "./internal-run-entry.ts"
 import type { WorkflowPersistence } from "./persistence.ts"
 import type { WorkflowEventEmitter } from "./event-emitter.ts"
 import type { WorkflowActivation } from "./activation.ts"
+import { WorkflowStructuralError } from "./types.ts"
 
-const WORKFLOW_STRUCTURAL_ERROR = "WorkflowStructuralError"
+/** Discriminant prefix carried in the throw site + in the bridged
+ *  string so the parent's classification site can identify a structural
+ *  error after the bridge serialized the original `WorkflowStructuralError`
+ *  to a plain string. Set explicitly here so changing it would be a
+ *  single-line search. Mirrors the `.name` field on the typed class. */
+const WORKFLOW_STRUCTURAL_ERROR_PREFIX = "WorkflowStructuralError"
 
 export interface ChildWorkflowPrimitiveDeps {
   persistence: WorkflowPersistence
@@ -89,7 +95,14 @@ export class ChildWorkflowPrimitive implements IChildWorkflowPrimitive {
         : await resolveWorkflow(spec, workspace)
       childScript = resolved.source
     } catch (e) {
-      throw new Error(`${WORKFLOW_STRUCTURAL_ERROR}: unknown workflow: ${JSON.stringify(spec)}`)
+      // Typed throw (gen-2 #4). The discriminant prefix lives in the
+      // message so the bridge serializes it as a "WorkflowStructuralError: ..."
+      // string the parent classification site can recover, and on the typed
+      // object via `.name` so `instanceof WorkflowStructuralError` matches
+      // if the error makes it across the bridge intact.
+      throw new WorkflowStructuralError(
+        `${WORKFLOW_STRUCTURAL_ERROR_PREFIX}: unknown workflow: ${JSON.stringify(spec)}`,
+      )
     }
 
     const childName = isInlineScript(spec) ? "inline:" + base.slice(0, 12) : spec
@@ -103,10 +116,14 @@ export class ChildWorkflowPrimitive implements IChildWorkflowPrimitive {
     // Wait for child outcome
     const childOutcome = await childEntry.outcomePromise
 
-    // Structural errors propagate
-    if (childOutcome.status === "failed" && childOutcome.error?.includes(WORKFLOW_STRUCTURAL_ERROR)) {
-      const idx = childOutcome.error.indexOf(WORKFLOW_STRUCTURAL_ERROR)
-      throw new Error(childOutcome.error.slice(idx))
+    // Structural errors propagate. childOutcome.error is structurally a string
+    // (`WorkflowOutcome.error: string?`) — the bridge serialized the original
+    // typed Error to its message. Detect via the discriminant prefix carried
+    // in the throw site and reconstruct as a typed WorkflowStructuralError so
+    // the re-thrown value IS a WorkflowStructuralError (verified via
+    // `instanceof` in `workflow-structural-error.test.ts`).
+    if (childOutcome.status === "failed" && childOutcome.error?.startsWith(WORKFLOW_STRUCTURAL_ERROR_PREFIX)) {
+      throw new WorkflowStructuralError(childOutcome.error)
     }
 
     // Runtime failure → null
