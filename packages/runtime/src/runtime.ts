@@ -29,6 +29,7 @@ import {
 } from "./resolve.ts"
 import { WorkspaceJail } from "./workspace.ts"
 import { launchScript, type LaunchDeps } from "./script-launcher.ts"
+import { recoverOrphanedWorkflows } from "./recovery.ts"
 import { runSandboxed } from "./sandbox"
 import type {
   AgentOptions,
@@ -555,40 +556,18 @@ export class WorkflowRuntime {
    *  workflow recovery grace period — grace period: a row with `time_created` within `gracePeriodMs`
    *  of now is always marked 'paused' (regardless of journal presence);
    *  rows past the grace use the legacy journal-presence check.
-   *  See v0.14 design §3.2. */
+   *  See v0.14 design §3.2.
+   *
+   *  v0.16.0-SOLID wave 2: the per-row classification loop is
+   *  extracted to `src/recovery.ts` (module-level function with
+   *  injected `RecoveryDeps`). The runtime injects its
+   *  `persistence` + `runs` and reads the current `gracePeriodMs`
+   *  from `RuntimeConfig` at call time. */
   async recoverOrphanedWorkflows(): Promise<void> {
-    const rows = this.persistence.listRunningRuns()
-    const nowMs = Date.now()
-    const graceMs = this.runtimeConfig.getGracePeriodMs()
-    for (const row of rows) {
-      // Belt-and-suspenders: in-memory live runs can't be orphaned.
-      if (this.runs.has(row.runID)) continue
-      const ageMs = nowMs - (row.createdAt * 1000)
-      if (ageMs <= graceMs) {
-        // Within grace: always paused. User gets to decide.
-        this.persistence.updateRunStatus(
-          row.runID,
-          "paused",
-          `Process restarted — within grace period (${Math.round(ageMs)}ms <= ${graceMs}ms); resumable`,
-        )
-        continue
-      }
-      const hasJournal = await this.persistence.hasJournalEvents(row.runID)
-      if (hasJournal) {
-        this.persistence.updateRunStatus(
-          row.runID,
-          "paused",
-          `Process restarted — past grace period (${Math.round(ageMs)}ms > ${graceMs}ms); resumable from journal`,
-        )
-      } else {
-        this.persistence.updateRunStatus(
-          row.runID,
-          "crashed",
-          `Process restarted — past grace period (${Math.round(ageMs)}ms) and no journal to recover`,
-        )
-      }
-    }
-    this.persistence.flushJournalSync()
+    await recoverOrphanedWorkflows(
+      { persistence: this.persistence, runs: this.runs },
+      this.runtimeConfig.getGracePeriodMs(),
+    )
   }
 
   // ── Private: launch ────────────────────────────────────────────────────
