@@ -22,6 +22,9 @@ import type { PluginContext } from "../src/runtime"
 import { WorkflowPersistence, computeScriptSha } from "../src/persistence.ts"
 import { CounterManager } from "../src/counter-manager.ts"
 import { BudgetExceededError } from "../src/types.ts"
+import { callLLM } from "../src/llm-call.ts"
+import { AgentPrimitive } from "../src/agent-primitive.ts"
+import type { AgentOptions } from "../src/types.ts"
 
 const mockCtx: PluginContext = {
   config: {},
@@ -366,25 +369,13 @@ describe("spawnChildWorkflow structural error propagation", () => {
 describe("callLLM fallback when no LLM client", () => {
   test("callLLM returns fallback text when ctx.client.session.message is unavailable (#8)", async () => {
     const ctxNoClient = makeNoClientCtx()
-    const runtime = new WorkflowRuntime(ctxNoClient, { persistence: p })
-    const callLLM = (
-      runtime as unknown as {
-        callLLM: (
-          entry: unknown,
-          prompt: string,
-          opts: unknown,
-        ) => Promise<{
-          content: Array<{ type: string; text?: string }>
-          info?: unknown
-          structured?: unknown
-          finalText?: string
-        }>
-      }
-    ).callLLM.bind(runtime)
-
+    // callLLM lives in ../src/llm-call.ts as a module-level function
+    // since the v0.16.0 refactor (Wave 2). The runtime injects it into
+    // AgentPrimitive; tests reach it directly. No need to spin up the
+    // runtime or reach into a private method.
     // Minimal entry shape — callLLM does not touch entry state.
     const fakeEntry = { runID: "wf_x", cfg: { maxTokens: 100 } }
-    const result = await callLLM(fakeEntry, "any prompt", {})
+    const result = await callLLM(ctxNoClient, fakeEntry, "any prompt", {})
     expect(Array.isArray(result.content)).toBe(true)
     expect(result.content[0].type).toBe("text")
     expect(result.content[0].text).toBe("workflow: no LLM client available")
@@ -403,61 +394,52 @@ describe("callLLM fallback when no LLM client", () => {
 
 describe("executeAgentCall schema-based structured extract", () => {
   test("executeAgentCall returns result.structured when opts.schema is set (#9)", async () => {
-    const spyCtx: PluginContext = {
-      config: {},
-      client: {
-        session: {
-          message: async () => ({
-            // No info → tokens=0, no over-cap concern.
-            content: [],
-            structured: { ok: 1 },
-            finalText: "raw text",
-          }),
-        },
-      },
+    // executeAgentCall moved to AgentPrimitive in the v0.16.0 refactor
+    // (Wave 2, ora-7 Phase 5). Tests construct AgentPrimitive directly
+    // with mock deps — the same pattern agent-primitive.test.ts uses —
+    // so the assertion target is the public surface of AgentPrimitive,
+    // not a private method on the runtime orchestrator.
+    const calls: { prompt: string; opts: AgentOptions }[] = []
+    let stubbedResult: unknown = {
+      // No info → tokens=0, no over-cap concern.
+      content: [],
+      structured: { ok: 1 },
+      finalText: "raw text",
     }
-    const runtime = new WorkflowRuntime(spyCtx, { persistence: p })
-    const executeAgentCall = (
-      runtime as unknown as {
-        executeAgentCall: (
-          entry: unknown,
-          prompt: string,
-          o: unknown,
-          key: string,
-        ) => Promise<unknown>
-      }
-    ).executeAgentCall.bind(runtime)
+    const journalAppends: Array<{ runID: string; event: unknown }> = []
+
+    const primitive = new AgentPrimitive({
+      globalSem: { run: async <T>(fn: () => Promise<T>): Promise<T> => fn() },
+      scheduleFlush: () => {},
+      emitEvent: () => {},
+      callLLM: async (_entry, prompt, opts) => {
+        calls.push({ prompt, opts })
+        return stubbedResult as Awaited<ReturnType<typeof callLLM>> extends infer R
+          ? R
+          : never
+      },
+      appendJournal: (runID, event) => {
+        journalAppends.push({ runID, event })
+      },
+      failRun: () => {},
+    })
 
     // Fake entry mirroring the InternalRunEntry fields executeAgentCall reads.
     // runID MUST match RUN_ID_REGEX (^wf_[0-9A-Za-z]{26}$) — executeAgentCall
-    // calls appendJournalSync on success, and persistence throws on bad IDs.
-    const sha = computeScriptSha("schema-extract-test")
-    const runID = p.createRun("s.ts", "schema-extract", sha)
-    // Fix-10: include `failed: 0` (and all other flushNow fields) on
-    // the fake entry. executeAgentCall's success path calls
-    // `this.scheduleFlush(entry)`, which captures the entry in a 250ms
-    // setTimeout. When the timer fires, `flushNow` reads these fields
-    // — if any are `undefined`, bun:sqlite binds them as NULL and
-    // trips the NOT NULL constraint on `workflow_runs`. The runtime
-    // now has a defensive `?? 0` in flushNow, but the test fake entry
-    // should still mirror the full InternalRunEntry shape to avoid
-    // silent data masking.
-    // M-1 (Task 1.2): the test fake entry now owns counters via a
-    // CounterManager instance, mirroring makeEntry()'s shape. The
-    // pre-task entry had flat `running: 1, succeeded: 0, …` fields;
-    // post-task the same logical state lives on `entry.counters`.
+    // calls appendJournal on success.
+    // M-1 (Task 1.2): the test fake entry owns counters via a
+    // CounterManager instance, mirroring makeEntry()'s shape.
     const fakeEntry = {
-      runID,
+      runID: "wf_aaaaaaaaaaaaaaaaaaaaaaaaaa",
       // Running=1 reflects that an agent is "in flight" when
-      // executeAgentCall is invoked (matches the previous flat-field
-      // shape). recordAgentSucceed() will decrement running and
-      // increment succeeded.
+      // executeAgentCall is invoked. recordAgentSucceed() will
+      // decrement running and increment succeeded.
       counters: Object.assign(new CounterManager(), { running: 1 }),
       journalPass: 1,
       cfg: { maxTokens: 2_000_000 },
     }
 
-    const result = await executeAgentCall(
+    const result = await primitive.executeAgentCall(
       fakeEntry,
       "schema prompt",
       { schema: { type: "object" } },
@@ -468,6 +450,15 @@ describe("executeAgentCall schema-based structured extract", () => {
     // Succeed counter ticked; running decremented (now on CounterManager).
     expect(fakeEntry.counters.succeeded).toBe(1)
     expect(fakeEntry.counters.running).toBe(0)
+    // Side-effects: callLLM dep was invoked with the prompt + opts,
+    // and the successful result was journaled under the runID.
+    expect(calls.length).toBe(1)
+    expect(calls[0].prompt).toBe("schema prompt")
+    expect(calls[0].opts.schema).toEqual({ type: "object" })
+    expect(journalAppends.length).toBe(1)
+    expect(journalAppends[0].runID).toBe("wf_aaaaaaaaaaaaaaaaaaaaaaaaaa")
+    // Reference stub for completeness (lints as unused otherwise).
+    void stubbedResult
   })
 })
 
@@ -478,20 +469,14 @@ describe("executeAgentCall schema-based structured extract", () => {
 
 describe("callLLM tools forwarding", () => {
   test("callLLM inherits tools when opts.tools is undefined (#13a)", async () => {
+    // callLLM is exported from ../src/llm-call.ts; the runtime injects it
+    // into AgentPrimitive. Tests call it directly. The spy from
+    // test-utils captures each `session.message` call so we can assert
+    // the forwarded `tools` field.
     const spy = makeToolsSpyCtx()
-    const runtime = new WorkflowRuntime(spy, { persistence: p })
-    const callLLM = (
-      runtime as unknown as {
-        callLLM: (
-          entry: unknown,
-          prompt: string,
-          opts: unknown,
-        ) => Promise<unknown>
-      }
-    ).callLLM.bind(runtime)
 
     const fakeEntry = { runID: "wf_x", cfg: { maxTokens: 100 } }
-    await callLLM(fakeEntry, "p", {})
+    await callLLM(spy, fakeEntry, "p", {})
 
     expect(spy.calls.length).toBe(1)
     // Sentinel preserved exactly — downstream uses === "INHERIT" check.
@@ -500,20 +485,10 @@ describe("callLLM tools forwarding", () => {
 
   test("callLLM passes tools array to session.message (#13b)", async () => {
     const spy = makeToolsSpyCtx()
-    const runtime = new WorkflowRuntime(spy, { persistence: p })
-    const callLLM = (
-      runtime as unknown as {
-        callLLM: (
-          entry: unknown,
-          prompt: string,
-          opts: unknown,
-        ) => Promise<unknown>
-      }
-    ).callLLM.bind(runtime)
 
     const fakeEntry = { runID: "wf_x", cfg: { maxTokens: 100 } }
     const wanted = ["read_file", "glob"]
-    await callLLM(fakeEntry, "p", { tools: wanted })
+    await callLLM(spy, fakeEntry, "p", { tools: wanted })
 
     expect(spy.calls.length).toBe(1)
     // Forwarded as a NEW array (spread) — runtime never mutates caller's array.

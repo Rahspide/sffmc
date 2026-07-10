@@ -35,6 +35,7 @@ import {
 } from "../src/mcp"
 import { WorkflowPersistence } from "../src/persistence"
 import { makeToolsSpyCtx } from "./test-utils"
+import { callLLM } from "../src/llm-call"
 
 afterAll(() => {
   rmSync(tmpDir, { recursive: true, force: true })
@@ -364,52 +365,41 @@ describe("mcp.ts: makeMcpPrimitives dispatch", () => {
 
 describe("WorkflowRuntime.callLLM with INHERIT", () => {
   test("opts.tools === 'INHERIT' → resolved against ctx.tools array", async () => {
+    // Call callLLM directly (it's a module-level function in
+    // ../src/llm-call.ts since the v0.16.0 refactor; the runtime injects
+    // it into AgentPrimitive). The spy captures every forwarded
+    // `session.message` call so we can assert on the resolved tools.
+    let capturedTools: unknown = undefined
     const ctx = {
       config: {},
       tools: ["mcp__custom__tool1", "mcp__custom__tool2"],
       client: {
         session: {
-          message: async (args: Record<string, unknown>) => {
+          message: async (args: { tools?: unknown }) => {
+            capturedTools = args.tools
             return {
               info: { tokens: { input: 0, output: 0 } },
               content: [{ type: "text", text: "ok" }],
               finalText: "ok",
-            } as unknown
-            void args
+            }
           },
         },
       },
     } as unknown as PluginContext
 
-    const runtime = new WorkflowRuntime(ctx)
-    const callLLM = (
-      runtime as unknown as {
-        callLLM: (entry: unknown, prompt: string, opts: unknown) => Promise<unknown>
-      }
-    ).callLLM.bind(runtime)
-
     const fakeEntry = { runID: "wf_x", cfg: { maxTokens: 100 } }
-    await callLLM(fakeEntry, "p", { tools: "INHERIT" })
+    await callLLM(ctx, fakeEntry, "p", { tools: "INHERIT" })
 
-    // Capture what was forwarded by patching the spy ctx.
-    const captured = (
-      ctx.client.session as unknown as { __lastCall?: { tools?: unknown } }
-    ).__lastCall
-    // ctx.client.session.message is the same reference in the spy path —
-    // re-read it via a captured spy.
+    // `'INHERIT'` resolves against ctx.tools (Source 1 in
+    // mcp.ts:discoverParentTools — preferred path).
+    expect(capturedTools).toEqual(["mcp__custom__tool1", "mcp__custom__tool2"])
   })
 
   test("opts.tools undefined → preserves literal 'INHERIT' (legacy default)", async () => {
     const spy = makeToolsSpyCtx()
-    const runtime = new WorkflowRuntime(spy, { persistence: new WorkflowPersistence({ dataDir: tmpDir }) })
-    const callLLM = (
-      runtime as unknown as {
-        callLLM: (entry: unknown, prompt: string, opts: unknown) => Promise<unknown>
-      }
-    ).callLLM.bind(runtime)
 
     const fakeEntry = { runID: "wf_y", cfg: { maxTokens: 100 } }
-    await callLLM(fakeEntry, "p", {})
+    await callLLM(spy, fakeEntry, "p", {})
 
     expect(spy.calls.length).toBe(1)
     expect(spy.calls[0].tools).toBe("INHERIT")
@@ -417,16 +407,10 @@ describe("WorkflowRuntime.callLLM with INHERIT", () => {
 
   test("opts.tools array → shallow-copied (callers may mutate freely)", async () => {
     const spy = makeToolsSpyCtx()
-    const runtime = new WorkflowRuntime(spy, { persistence: new WorkflowPersistence({ dataDir: tmpDir }) })
-    const callLLM = (
-      runtime as unknown as {
-        callLLM: (entry: unknown, prompt: string, opts: unknown) => Promise<unknown>
-      }
-    ).callLLM.bind(runtime)
 
     const wanted = ["read_file", "glob"]
     const fakeEntry = { runID: "wf_z", cfg: { maxTokens: 100 } }
-    await callLLM(fakeEntry, "p", { tools: wanted })
+    await callLLM(spy, fakeEntry, "p", { tools: wanted })
 
     expect(spy.calls.length).toBe(1)
     expect(spy.calls[0].tools).toEqual(wanted)
