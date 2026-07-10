@@ -9,7 +9,7 @@
 // callback so the coalescer stays a per-instance concern).
 
 import { createReadStream } from "node:fs"
-import { readFile, writeFile, appendFile, mkdir, stat } from "node:fs/promises"
+import { writeFile, appendFile, mkdir, stat } from "node:fs/promises"
 import { createInterface } from "node:readline"
 import path from "node:path"
 import { safeRunID } from "@sffmc/utilities"
@@ -73,7 +73,6 @@ export class JournalRepository {
     safeRunID(runID)
     const results = new Map<string, unknown>()
     let maxPass = 0
-    let headerSeen = false
     let lineNo = 0
     try {
       const stream = createReadStream(this.journalPath(runID), { encoding: "utf-8" })
@@ -93,8 +92,6 @@ export class JournalRepository {
             log.debug(
               `loadJournal(${runID}): skipping malformed event at line ${v.error.line}: ${v.error.error}`,
             )
-          } else {
-            headerSeen = true
           }
           continue
         }
@@ -105,7 +102,6 @@ export class JournalRepository {
     } catch {
       // file doesn't exist — empty results
     }
-    void headerSeen // reserved for future v0→v1 migration diagnostics
     return { results, pass: maxPass + 1 }
   }
 
@@ -116,10 +112,4 @@ export class JournalRepository {
     const jpath = this.journalPath(runID)
     await writeFile(jpath, JSON.stringify({ v: 1 }) + "\n", "utf-8")
   }
-
-  /** Re-export `readFile` so the persistence class can expose `loadJournal`
-   *  without re-importing from `node:fs/promises`. Kept for symmetry with
-   *  the original API. */
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  private _unused = readFile
 }

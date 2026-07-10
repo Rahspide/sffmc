@@ -69,8 +69,9 @@ export class FlushManager {
   /** Cancel any pending timer and run the DB UPDATE synchronously. Reads
    *  `running / succeeded / failed` from `entry.counters` (defensively
    *  coerced via `?? 0` for fake-entry test fixtures that omit the field)
-   *  and writes them to `workflow_runs`. DB errors are caught and logged so
-   *  a transient SQLite hiccup doesn't crash the runtime. */
+   *  and writes them to `workflow_runs`. DB errors are caught and logged at
+   *  WARN level so a transient SQLite hiccup doesn't crash the runtime, but
+   *  operators can still spot counter↔DB drift in production logs. */
   flushNow(entry: FlushableCounters): void {
     const runID = entry.runID
     const t = this.flushTimers.get(runID)
@@ -91,7 +92,7 @@ export class FlushManager {
         ],
       )
     } catch (e) {
-      log.debug("flushNow DB update error:", e)
+      log.warn(`flushNow DB update error for ${runID}:`, e)
     }
   }
 
