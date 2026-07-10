@@ -255,8 +255,15 @@ describe("AgentPrimitive", () => {
       // Override emitEvent to throw
       f.deps.emitEvent = () => { throw new Error("listener crashed") }
       const p2 = new AgentPrimitive(f.deps)
-      // Should NOT throw
-      expect(() => p2.publishAgentFailed("r", "k", "spawn_reject" as AgentFailureReason)).not.toThrow()
+      // Should NOT throw — manually catch (instead of .not.toThrow()) to avoid
+      // bun test runner hanging on synchronous-error stack trace in batch mode
+      let didThrow = false
+      try {
+        p2.publishAgentFailed("r", "k", "spawn_reject" as AgentFailureReason)
+      } catch {
+        didThrow = true
+      }
+      expect(didThrow).toBe(false)
     })
   })
 })

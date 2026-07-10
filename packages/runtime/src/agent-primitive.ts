@@ -220,7 +220,10 @@ export class AgentPrimitive implements IAgentPrimitive {
     try {
       this.deps.emitEvent("workflow:agent_failed", { runID, agentKey, reason })
     } catch (e) {
-      log.debug("publishAgentFailed emit error:", e)
+      // Stringify the error so bun test runner doesn't capture the Error
+      // object as an "uncaught error" and hang on stack-trace printing in
+      // batch-mode (it does this even though the throw is caught here).
+      log.debug("publishAgentFailed emit error:", e instanceof Error ? e.message : String(e))
     }
   }
 }
