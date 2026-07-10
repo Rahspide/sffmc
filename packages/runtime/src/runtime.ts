@@ -558,8 +558,8 @@ export class WorkflowRuntime {
   }
 
   // ── Private: completion (kept as a thin public surface for
-  //    reflection-based test access — `lru-cache.test.ts` and others
-  //    poke at `runtime.completeRun` directly). ────────────────────────
+  //    reflection-based test access — `lru-cache.test.ts` and
+  //    `spawn-child-coverage.test.ts` poke at these methods directly). ─
 
   /** v0.16.0 refactor (Phase 3): delegates to `RunCompleter.completeRun()`.
    *  The status guard, outcome creation, persistence flush, event emit,
@@ -574,6 +574,22 @@ export class WorkflowRuntime {
    *  all in `src/run-completer.ts`. */
   failRun(entry: InternalRunEntry, error: string | Error): void {
     this.runCompleter.failRun(entry, error)
+  }
+
+  /** v0.16.0 refactor (Phase 6): delegates to `ChildWorkflowPrimitive.spawn()`.
+   *  Journal cache lookup, script resolution, child sub-run launch, and
+   *  outcome waiting all live in `src/child-workflow-primitive.ts`.
+   *  Kept as a runtime method (not just inlined into the launch
+   *  closure) because `spawn-child-coverage.test.ts` reaches in via
+   *  reflection to drive this code path without spinning up a real
+   *  sandbox. */
+  async spawnChildWorkflow(
+    entry: InternalRunEntry,
+    nameOrScript: string,
+    childArgs: unknown,
+    workflowOcc: Map<string, number>,
+  ): Promise<unknown> {
+    return this.childWorkflowPrimitive.spawn(entry, nameOrScript, childArgs, workflowOcc)
   }
 
   /** v0.16.0 refactor (Phase 2): delegates to `RuntimeConfig.resolve()`.
