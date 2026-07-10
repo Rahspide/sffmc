@@ -1,6 +1,6 @@
 # Dynamic Workflow Engine
 
-**Shipped**: 2026-06-14 · **Version**: v0.15.4 (current; evolved from v0.6.0) · **Package**: `@sffmc/runtime` · **LOC**: ~1500
+**Shipped**: 2026-06-14 · **Version**: v0.15.4 (current; evolved from v0.6.0) · **Package**: `@sffmc/runtime`
 
 ## What it is
 

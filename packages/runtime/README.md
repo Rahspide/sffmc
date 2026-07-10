@@ -15,7 +15,7 @@ orchestrator files (left) wire the helper modules (right) together:
 - `packages/runtime/src/sandbox.ts` — `runSandboxed` orchestrator (~220 LOC). Wires 6 sandbox services (runtime, eval, pump, deadline, bridge, marshaller) per the SOLID DI container in `sandbox-services.ts`.
 - `packages/runtime/src/persistence.ts` — barrel re-exporting 10 modules (runid, script-sha, journal-key, paths, runs, steps, fsync-coalescer, journal, scripts, workflow-persistence).
 - `packages/runtime/src/concurrency.ts` — per-runtime `Concurrency` lock map; no module-level globals.
-- `packages/runtime/src/flush-manager.ts` — debounced journal flush; CHECKPOINT threshold or explicit `flushNow()`.
+- `packages/runtime/src/flush-manager.ts` — debounced journal flush; `FlushManager` class with scheduled flushes per runID + `clearAll()` on teardown.
 - `packages/runtime/src/counter-manager.ts` — `agentOpts` (concurrency caps, deadlines, token budgets).
 - `packages/runtime/src/event-emitter.ts` — typed events surface for `mergeHooks` consumers.
 
@@ -34,7 +34,7 @@ orchestrator files (left) wire the helper modules (right) together:
 - `mcp-dispatcher.ts` — list / call. Implements `IMcpDispatcher`.
 - `agent-primitive.ts` — spawnAgent / executeAgentCall / runParallel / runPipeline / publishAgentFailed. Implements `IAgentPrimitive`.
 - `child-workflow-primitive.ts` — spawn / setPhase / appendLog / start. Implements `IChildWorkflowPrimitive`.
-- `runtime-services.ts` — `RuntimeServices` (11 sub-component deps) + `RuntimeCallbacks` (9 method-bridge callbacks).
+- `runtime-services.ts` — `RuntimeServices` (4 sub-component deps: `IRunCompleter`, `IMcpDispatcher`, `IAgentPrimitive`, `IChildWorkflowPrimitive`); callbacks inlined per primitive.
 
 ### Built-in workflows
 

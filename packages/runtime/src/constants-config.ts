@@ -96,10 +96,6 @@ export function getWorkflowDataDir(): string {
   return getWorkflowConfigSync().dataDir
 }
 
-export function getMaxInstructions(): number {
-  return getWorkflowConfigSync().maxInstructions
-}
-
 export function getMaxConcurrentAgents(): number {
   return getWorkflowConfigSync().maxConcurrentAgents
 }
