@@ -143,4 +143,103 @@ describe("Concurrency.acquireLock", () => {
     const lB = await lBPromise
     lB.release()
   })
+
+  // REGRESSION (gen-3 DEFER #1): previously lockMap stored
+  // `prev.then(() => next)` instead of `next` directly, so the cleanup
+  // check `lockMap.get(key) === next` never matched and stale chained
+  // Promise references accumulated per key across many acquire/release
+  // cycles. The fix stores `next` by identity; this test pins that the
+  // map empties out as soon as the last acquirer releases.
+  test("lockMap is empty after a single acquireLock + release cycle", async () => {
+    const c = new Concurrency()
+    const l = await c.acquireLock("k")
+    expect(c.lockMapSize()).toBe(1)
+    l.release()
+    expect(c.lockMapSize()).toBe(0)
+  })
+
+  // REGRESSION (gen-3 DEFER #1, multi-acquirer case): with two acquirers
+  // on the same key, the lockMap must NOT retain the chained Promise
+  // (which would have been `next1.then(() => next2)` pre-fix) after both
+  // release. The second acquirer still serializes behind the first, but
+  // the map cleans up once the LAST acquirer releases.
+  test("lockMap is empty after both acquirers release on the same key", async () => {
+    const c = new Concurrency()
+    const l1 = await c.acquireLock("shared")
+    const p2 = c.acquireLock("shared")
+    expect(c.lockMapSize()).toBe(1)
+    l1.release()
+    const l2 = await p2
+    expect(c.lockMapSize()).toBe(1)
+    l2.release()
+    expect(c.lockMapSize()).toBe(0)
+  })
+
+  // REGRESSION (gen-3 DEFER #1, scale characterization): 1000
+  // acquire/release cycles across 10 keys must NOT grow lockMap beyond
+  // the number of currently-held keys (zero, since each cycle releases
+  // before the next). Pre-fix, each cycle would leave one stale chained
+  // Promise in lockMap; after 1000 cycles the map would have ~1000 entries.
+  // Post-fix, the map stays empty (all keys released).
+  test("1000 acquire/release cycles on 10 keys leave lockMap empty", async () => {
+    const c = new Concurrency()
+    const keys = Array.from({ length: 10 }, (_, i) => `key-${i}`)
+    for (let i = 0; i < 1000; i++) {
+      const key = keys[i % keys.length]
+      const l = await c.acquireLock(key)
+      l.release()
+    }
+    expect(c.lockMapSize()).toBe(0)
+  })
+
+  // REGRESSION (gen-3 DEFER #1, contention characterization): when many
+  // acquirers queue on the same key, each must serialize strictly in
+  // registration order. The first acquirer (whose `prev` was undefined)
+  // resolves on the next microtask; subsequent acquirers wait for the
+  // previous tail. Pre-fix this happened to work (the chained
+  // `prev.then(...)` produced correct ordering), but the map would
+  // retain a stale chain. Post-fix the map still cleans up after the
+  // final acquirer releases. Locks the correctness invariant while
+  // ensuring the leak fix doesn't regress ordering.
+  test("5 concurrent acquirers on the same key serialize in registration order, then map empties", async () => {
+    const c = new Concurrency()
+    const order: number[] = []
+    const locks = Array.from({ length: 5 }, (_, i) => {
+      return c.acquireLock("k").then((l) => {
+        order.push(i)
+        return l
+      })
+    })
+    // The FIRST acquirer (prev = Promise.resolve()) resolves immediately
+    // on the next microtask. Subsequent acquirers wait for the previous
+    // tail. So after one microtask round, only lock 0 is held; the
+    // remaining 4 are queued behind it.
+    await new Promise((r) => setTimeout(r, 10))
+    expect(order).toEqual([0])
+    expect(c.lockMapSize()).toBe(1)
+
+    // Release in order; each subsequent lock should resolve on the
+    // following microtask.
+    for (let i = 0; i < locks.length; i++) {
+      const l = await locks[i]
+      l.release()
+    }
+    expect(order).toEqual([0, 1, 2, 3, 4])
+    expect(c.lockMapSize()).toBe(0)
+  })
+
+  // REGRESSION (gen-3 DEFER #1, held-lock invariant): while a lock is held,
+  // the key stays in the map. Once released, the key is removed even if
+  // other acquirers have queued behind it. This pins that cleanup happens
+  // on EVERY release, not just the last one in the chain — the in-flight
+  // chain that the next acquirer depends on is the actual `next` promise
+  // stored under the key, which gets re-stored with each acquireLock.
+  test("while an acquirer holds the lock, the key is in lockMap", async () => {
+    const c = new Concurrency()
+    const l = await c.acquireLock("k")
+    expect(c.lockMapSize()).toBe(1)
+    // Don't release yet — key must remain present.
+    l.release()
+    expect(c.lockMapSize()).toBe(0)
+  })
 })

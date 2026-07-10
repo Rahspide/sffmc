@@ -65,9 +65,25 @@ export function makeSemaphore(max: number) {
  *  instance, tests can create fresh instances for hermetic isolation, and
  *  multi-runtime scenarios don't cross-contaminate lock chains. */
 export class Concurrency {
-  /** Per-key promise chain. Each value is the tail of the chain under
-   *  `key`; a new acquireLock resolves when the previous tail is released. */
+  /** Per-key promise chain. Each value is the LATEST tail under `key`
+   *  — stored by direct identity (the Promise object itself), not wrapped
+   *  in `prev.then(...)`. Serialization still works because the caller's
+   *  returned promise chains through `prev = lockMap.get(key)`, so a
+   *  second acquirer always waits for the previous tail to resolve
+   *  before its own lock fires. Storing `next` directly (rather than the
+   *  chained promise) lets the release cleanup `lockMap.get(key) === next`
+   *  actually match, so the entry is removed from the map once the last
+   *  acquirer releases — preventing unbounded growth of stale chained
+   *  Promise references in long-lived runtimes. */
   private lockMap = new Map<string, Promise<void>>()
+
+  /** Number of keys currently tracked in `lockMap`. Exposed for tests so
+   *  the leak regression net can verify cleanup works without resorting
+   *  to private-state reflection. In production, callers should not need
+   *  this — it's here strictly to pin the leak-fix invariant. */
+  lockMapSize(): number {
+    return this.lockMap.size
+  }
 
   /** Acquire the lock under `key`, returning a `release()` callback that
    *  resolves the next waiter (or removes the tail entry if no successor).
@@ -79,7 +95,7 @@ export class Concurrency {
     const prev = this.lockMap.get(key) ?? Promise.resolve()
     let release: () => void = () => {}
     const next = new Promise<void>((resolve) => { release = resolve })
-    this.lockMap.set(key, prev.then(() => next))
+    this.lockMap.set(key, next)
     return prev.then(() => ({
       release: () => {
         release()
