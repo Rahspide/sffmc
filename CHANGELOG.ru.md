@@ -1,3 +1,25 @@
+## v0.16.0 (2026-07-10)
+
+> Рефактор-релиз. **Ломающих изменений нет.** Декомпозиция 5 god-классов в 22 сфокусированных sub-модуля. Публичный API сохранён в точности во всех пакетах; поведение не меняется. Чисто структурная работа.
+
+### Изменено
+
+- **`packages/memory/src/extra/dream.ts`** — `1291 → 10` LOC баррель + 6 sub-модулей (`dream-types.ts`, `dream-db.ts`, `dream-dedup.ts`, `dream-clustering.ts`, `dream-llm.ts`, `dream-orchestrator.ts`). У каждого sub-модуля одна зона ответственности. Публичная поверхность не изменилась.
+- **`packages/runtime/src/runtime.ts`** — `817 → 614` LOC. Извлечены `script-launcher.ts` (launchScript + SCRIPT_SUFFIX) и `recovery.ts` (recoverOrphanedWorkflows). Публичный API без изменений; `spawnChildWorkflow` восстановлен как публичный.
+- **`packages/memory/src/extra/judge.ts`** — `657 → 10` LOC баррель + 6 sub-модулей (`judge-types.ts`, `judge-prompt.ts`, `judge-parse.ts`, `judge-llm.ts`, `judge-extract.ts`, `judge-tool.ts`). `callJudge` экспортирован для межмодульного использования.
+- **`packages/runtime/src/mcp.ts`** — `335 → 26` LOC баррель + 3 sub-модуля (`mcp-types.ts`, `mcp-resolver.ts`, `mcp-bridge.ts`). Все 8 публичных экспортов сохранены.
+- **`packages/cognition/src/max-mode/src/index.ts`** — `328 → 31` LOC баррель + 3 sub-модуля (`max-mode-config.ts`, `max-mode-winner.ts`, `max-mode-hooks.ts`). Все 5 публичных экспортов сохранены.
+- **`packages/runtime/src/constants.ts`** — `345 → 17` LOC баррель + 2 sub-модуля (`constants-defaults.ts`, `constants-config.ts`). Чистые данные и кэш разделены; все 26 предыдущих экспортов достижимы через реэкспорт.
+
+### Исправлено
+
+- **Регрессия тестов `runtime.ts` с reach-in в private** — тесты, биндившие private `callLLM` / `executeAgentCall` через `(runtime as ...).callLLM.bind(runtime)`, переписаны на использование публичной поверхности `AgentPrimitive` и модульного импорта `callLLM`. Workarounds с `.bind()` больше не нужны.
+- **Зависание pre-commit хука** — `bun run test` запускал все test-файлы в одном процессе; bun test runner накапливает handles и перестаёт отвечать после 30+ файлов. `test:all` переключён на per-file loop (`cd package && bun test <file>`). Pre-commit теперь exits 0 с 10 ok / 3 warn / 0 fail (warnings — pre-existing инфра: utilities self-import, отсутствие tsconfig.json в 3 пакетах, category_split).
+- **Мёртвый экспорт `getMaxInstructions`** в `constants-config.ts` — был мёртвым ещё до рефактора; случайно сохранён. Удалён.
+- **Мёртвый импорт `MaxModeResult`** в `max-mode-winner.ts` — случайно импортирован при декомпозиции Wave 4b. Удалён.
+- **Дрейф документации в `packages/runtime/README.md`** — упоминание `flushNow()` заменено на описание класса `FlushManager`; "11 sub-component deps" обновлено до "4 sub-component deps"; упоминание `RuntimeCallbacks` удалено (файл убран с SOLID-рефактора в `da83373`).
+- **Дрейф документации в `docs/dynamic-workflow.md`** — устаревший "LOC: ~1500" удалён.
+
 ## v0.15.4 (2026-07-04)
 
 > Feature-релиз. **Ломающих изменений нет.** Добавлены `mcp.bind()` / `mcp.bindAll()` для прямых хэндлов MCP-инструментов, watcher файлов workflow, санитизация glob-паттернов и пользовательский `minTokenLength` для редактирования секретов.
