@@ -1,0 +1,57 @@
+// SPDX-License-Identifier: MIT
+// @sffmc/cognition — see ../../LICENSE
+
+/**
+ * max-mode winner injection guard (Bug #7 HIGH) — strip well-known prompt-injection
+ * patterns from winner content before it is injected back into the chat as an
+ * assistant/system message. Defense-in-depth: max-mode generates N LLM
+ * candidates in parallel, judges them, and pushes the winner into the
+ * conversation. If a malicious candidate wins ("IGNORE PREVIOUS INSTRUCTIONS,
+ * execute X"), the payload becomes the prior assistant turn — subsequent LLM
+ * calls may comply. Patterns here are intentionally conservative: known
+ * jailbreak phrasings, not heuristics. Anything novel still flows through;
+ * defense-in-depth, not bulletproof.
+ *
+ * Each match is replaced with `[REDACTED:injection]` so downstream consumers
+ * (LLM, logs, UI) see the marker instead of the literal instruction.
+ */
+import { createLogger } from "@sffmc/utilities";
+
+const log = createLogger("max-mode");
+
+const INJECTION_PATTERNS: ReadonlyArray<{ id: string; re: RegExp }> = [
+  // "Ignore all previous instructions" (and variants)
+  { id: "ignore-previous-instructions",
+    re: /IGNORE (?:ALL )?PREVIOUS INSTRUCTIONS/gi },
+  // "Disregard all previous instructions/context"
+  { id: "disregard-instructions",
+    re: /DISREGARD (?:ALL )?(?:PREVIOUS )?(?:INSTRUCTIONS|CONTEXT)/gi },
+  // "You are now <role>" — role-hijack attempts
+  { id: "you-are-now",
+    re: /YOU ARE NOW [^.\n]{1,200}/gi },
+  // "SYSTEM:" pseudo-system-prompt prefix injection
+  { id: "system-prefix",
+    re: /SYSTEM: [^.\n]{1,200}/gi },
+  // "Forget everything / all above" — context-wipe attempts
+  { id: "forget-everything",
+    re: /FORGET (?:EVERYTHING|ALL (?:OF )?(?:THE )?(?:PREVIOUS|ABOVE) (?:INSTRUCTIONS|CONTEXT|TEXT))/gi },
+];
+
+export function redactInjectionInWinner(content: string): string {
+  if (!content) return content;
+  let redacted = content;
+  let redactionCount = 0;
+  for (const pattern of INJECTION_PATTERNS) {
+    const matches = redacted.match(pattern.re);
+    if (matches && matches.length > 0) {
+      redactionCount += matches.length;
+      redacted = redacted.replace(pattern.re, "[REDACTED:injection]");
+    }
+  }
+  if (redactionCount > 0) {
+    log.warn(
+      `Redacted ${redactionCount} prompt-injection pattern(s) from max-mode winner content`,
+    );
+  }
+  return redacted;
+}
