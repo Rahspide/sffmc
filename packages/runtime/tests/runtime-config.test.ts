@@ -142,6 +142,25 @@ describe("RuntimeConfig", () => {
       const r2 = cfg.resolve()
       expect(r1.maxSteps).toBe(r2.maxSteps)
     })
+
+    // REGRESSION (v0.16.0, runtime-config): setConfig injected while
+    // loadConfig is in-flight must not be overwritten by the YAML result.
+    // Pre-fix: `setConfig` did not clear `workflowConfigPromise` and
+    // `doLoad` did not re-check the injected flag after the await, so the
+    // in-flight load clobbered the injected value on completion. The fix
+    // adds a `if (this.workflowConfigInjected) return` guard after the
+    // await in `doLoad` — this test pins that contract.
+    it("REGRESSION: setConfig during in-flight loadConfig preserves the injected value", async () => {
+      const cfg2 = new RuntimeConfig(deps)
+      // Kick off the YAML load without awaiting. The Promise resolves on
+      // the next microtask (loadConfig is `async`), giving us a window to
+      // inject the override synchronously before the load completes.
+      const loadPromise = cfg2.loadConfig()
+      cfg2.setConfig({ maxSteps: 4242 })
+      await loadPromise
+      // Injected value must survive the YAML load completion.
+      expect(cfg2.resolve().maxSteps).toBe(4242)
+    })
   })
 
   // ── reset (test helper) ──────────────────────────────────────────────

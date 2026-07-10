@@ -101,12 +101,16 @@ export class RuntimeConfig {
   /** Internal YAML loader. Cached via `workflowConfigPromise` so concurrent
    *  callers share the same promise. Uses spread to populate every
    *  `WorkflowConfig` field from defaults, so new fields added to the
-   *  interface are auto-included. */
+   *  interface are auto-included. Re-checks `workflowConfigInjected`
+   *  after the await so a `setConfig(cfg)` call made while the load
+   *  was in-flight is not overwritten by the YAML result (v0.16.0 race
+   *  fix). */
   async doLoad(): Promise<void> {
     const loaded = await loadConfig<typeof DEFAULT_WORKFLOW_CONFIG>(
       "workflow",
       DEFAULT_WORKFLOW_CONFIG,
     )
+    if (this.workflowConfigInjected) return
     this.workflowConfig = {
       ...DEFAULT_WORKFLOW_CONFIG,
       ...loaded,

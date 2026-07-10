@@ -102,7 +102,7 @@ export class RunCompleter implements IRunCompleter {
       if (result === null) {
         this.failRun(entry, "Sandbox execution failed")
       } else {
-        this.completeRun(entry, result !== undefined ? result : undefined)
+        this.completeRun(entry, result)
       }
     } catch (err) {
       this.failRun(entry, toErrorMessage(err))

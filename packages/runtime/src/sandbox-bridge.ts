@@ -41,12 +41,17 @@ export function injectHooks(
 }
 
 /** Dump a guest arg-handle array into a host-side JS array, disposing
- *  each handle as we go. */
+   *  each handle as we go. Disposes each handle in a try/finally so a
+   *  throw from `ctx.dump(h)` (e.g. on a non-serializable handle) does
+   *  not leak the guest handle. */
 export function dumpHostFnArgs(ctx: QuickJSContext, argHandles: QuickJSHandle[]): unknown[] {
   const args: unknown[] = []
   for (const h of argHandles) {
-    args.push(ctx.dump(h))
-    h.dispose()
+    try {
+      args.push(ctx.dump(h))
+    } finally {
+      h.dispose()
+    }
   }
   return args
 }
