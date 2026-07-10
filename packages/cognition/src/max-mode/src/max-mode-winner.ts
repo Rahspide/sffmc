@@ -4,7 +4,7 @@
 import { createLogger, MAX_COMMAND } from "@sffmc/utilities";
 import type { Candidate } from "./candidates";
 import type { Verdict } from "./judge";
-import type { MaxModeResult, PluginState } from "./max-mode-config";
+import type { PluginState } from "./max-mode-config";
 
 const log = createLogger("max-mode");
 

@@ -30,3 +30,9 @@ dependencies/
 /*-security-audit.md
 /security-audit-*.md
 /audit-report-*.md
+
+# Session handoffs and agent state-archive (not tracked)
+/state-archive/
+/*handoff*.md
+/*HANDOFF*.md
+/NEW-CHAT-PROMPT.md
