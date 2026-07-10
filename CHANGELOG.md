@@ -1,3 +1,25 @@
+## v0.16.0 (2026-07-10)
+
+> Refactor release. **No breaking changes.** Decomposition of 5 god-classes into 22 focused sub-modules. Public API preserved exactly across all packages; no behavior changes. Pure structural work.
+
+### Changed
+
+- **`packages/memory/src/extra/dream.ts`** — `1291 → 10` LOC barrel + 6 sub-modules (`dream-types.ts`, `dream-db.ts`, `dream-dedup.ts`, `dream-clustering.ts`, `dream-llm.ts`, `dream-orchestrator.ts`). Each sub-module has a single responsibility. Public surface unchanged.
+- **`packages/runtime/src/runtime.ts`** — `817 → 614` LOC. Extracted `script-launcher.ts` (launchScript + SCRIPT_SUFFIX) and `recovery.ts` (recoverOrphanedWorkflows). Public API unchanged; `spawnChildWorkflow` restored as public surface.
+- **`packages/memory/src/extra/judge.ts`** — `657 → 10` LOC barrel + 6 sub-modules (`judge-types.ts`, `judge-prompt.ts`, `judge-parse.ts`, `judge-llm.ts`, `judge-extract.ts`, `judge-tool.ts`). `callJudge` exported for cross-module use.
+- **`packages/runtime/src/mcp.ts`** — `335 → 26` LOC barrel + 3 sub-modules (`mcp-types.ts`, `mcp-resolver.ts`, `mcp-bridge.ts`). All 8 public exports preserved.
+- **`packages/cognition/src/max-mode/src/index.ts`** — `328 → 31` LOC barrel + 3 sub-modules (`max-mode-config.ts`, `max-mode-winner.ts`, `max-mode-hooks.ts`). All 5 public exports preserved.
+- **`packages/runtime/src/constants.ts`** — `345 → 17` LOC barrel + 2 sub-modules (`constants-defaults.ts`, `constants-config.ts`). Pure data and cache separated; all 26 prior exports reachable via barrel re-exports.
+
+### Fixed
+
+- **`runtime.ts` test reach-in regression** — tests that bound private `callLLM` / `executeAgentCall` via `(runtime as ...).callLLM.bind(runtime)` refactored to reach the public surface on `AgentPrimitive` and module-level `callLLM` import. No `bind()` workarounds remain.
+- **Pre-commit hook hang** — `bun run test` ran all test files in one process; the bun test runner accumulates handles and stops responding after 30+ files. Switched `test:all` to per-file loop (`cd package && bun test <file>`). Pre-commit now exits 0 with 10 ok / 3 warn / 0 fail (warnings are pre-existing infra: utilities self-import, missing tsconfig.json in 3 packages, category_split).
+- **Dead export `getMaxInstructions`** in `constants-config.ts` — was already dead before the refactor; preserved accidentally. Removed.
+- **Dead import `MaxModeResult`** in `max-mode-winner.ts` — accidentally imported during Wave 4b decomposition. Removed.
+- **Doc drift in `packages/runtime/README.md`** — `flushNow()` mention replaced with `FlushManager` class description; "11 sub-component deps" updated to "4 sub-component deps"; `RuntimeCallbacks` reference removed (file gone since SOLID refactor in `da83373`).
+- **Doc drift in `docs/dynamic-workflow.md`** — stale "LOC: ~1500" metadata dropped.
+
 ## v0.15.4 (2026-07-04)
 
 > Feature release. **No breaking changes.** Adds MCP `bind()` / `bindAll()` for direct tool handles, workflow file watcher, glob-pattern sanitization, and user-configurable `minTokenLength` for redaction.
