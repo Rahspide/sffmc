@@ -32,9 +32,6 @@ import { launchScript, type LaunchDeps } from "./script-launcher.ts"
 import { recoverOrphanedWorkflows } from "./recovery.ts"
 import { runSandboxed } from "./sandbox"
 import type {
-  AgentOptions,
-  AgentResult,
-  AgentFailureReason,
   WorkflowConfig,
   WorkflowStatus,
   WorkflowStartInput,
@@ -116,82 +113,40 @@ export interface RuntimeOpts {
 // ---------------------------------------------------------------------------
 
 export class WorkflowRuntime {
+  // Sub-component fields — each extracted from the god-class per the
+  // v0.16.0-SOLID plan (Phases 2-6). The runtime holds a per-instance
+  // reference and delegates the narrow public surface to each.
+  //   runs / flushManager / persistence / concurrency / globalSem
+  //     — orchestrator state, not delegated.
+  //   events — per-runtime event bus (observability).
+  //   runtimeConfig (Phase 2) — setGracePeriodMs/setConfig/loadConfig/resolve
+  //   runCompleter (Phase 3) — completeRun/failRun/settleEntry
+  //   mcpDispatcher (Phase 4) — list/call
+  //   agentPrimitive (Phase 5) — spawnAgent/runParallel/runPipeline/publishAgentFailed
+  //   childWorkflowPrimitive (Phase 6) — spawn/start/setPhase/appendLog
   private ctx: PluginContext
-  /** In-flight run registry (M-1 god-object refactor, Task 1.5).
-   *  Replaces the inline `private runs = new Map<string, InternalRunEntry>()`
-   *  that previously lived directly on WorkflowRuntime. All read/write
-   *  sites (`runs.set / get / has / delete / clear` and `for-of` loops)
-   *  route through `this.runs.<method>` — see activation.ts for the full
-   *  contract and activation.test.ts for the regression net. */
   private runs = new WorkflowActivation<InternalRunEntry>()
   private globalSem: ReturnType<typeof makeSemaphore>
-  /** Per-runtime concurrency primitives (L-3, Task 2.7). Owns the
-   *  `acquireLock("workflow-resume:" + runID)` chain map so concurrent
-   *  `resume()` calls on the same runID serialize correctly. Previously
-   *  the lock chain was a module-level `Map` shared by every caller in
-   *  the process — moved to instance state for hermetic test isolation. */
   private concurrency = new Concurrency()
   private flushManager: FlushManager
   private persistence: WorkflowPersistence
-  /** Event bus for observability listeners.
-   *  One emitter per runtime, shared across all runs (Task 1.3, M-1
-   *  god-object extract — `WorkflowEventEmitter` class extracted from
-   *  the inline `createEventBus()` factory). Per-run vs per-runtime: the
-   *  event bus is per-runtime because observability listeners
-   *  (`runtime.events.on(...)` in `index.ts` `server()`) need to see
-   *  every run's events from a single registration point, not
-   *  re-register per run. The per-run split applies to `CounterManager`
-   *  because counter state is per-run; events are global. */
   readonly events = new WorkflowEventEmitter()
-  /** v0.16.0 refactor (Phase 2): runtime config state + lifecycle
-   *  extracted to `src/runtime-config.ts`. The runtime holds an instance
-   *  per-runtime and delegates the public surface (setGracePeriodMs,
-   *  setConfig, loadWorkflowConfig, resolveConfig) to it. Per-runtime
-   *  class (not a module-level singleton) so tests that call
-   *  `setConfig(null)` between cases get hermetic resets by constructing
-   *  a new runtime. */
   private runtimeConfig: RuntimeConfig
-  /** v0.16.0 refactor (Phase 3): run completion lifecycle extracted
-   *  to `src/run-completer.ts`. The runtime holds an instance and
-   *  delegates the public surface (completeRun, failRun, settleEntry)
-   *  to it. Per-runtime class (not a module-level singleton) so tests
-   *  that mock the dependencies get hermetic resets. */
   private runCompleter: RunCompleter
-  /** v0.16.0 refactor (Phase 4): MCP tool dispatch extracted to
-   *  `src/mcp-dispatcher.ts`. The runtime holds an instance and
-   *  delegates `dispatchMcpList` / `dispatchMcpCall` to it. */
   private mcpDispatcher: McpDispatcher
-  /** v0.16.0 refactor (Phase 5): agent primitives extracted to
-   *  `src/agent-primitive.ts`. The runtime holds an instance and
-   *  delegates `spawnAgent`, `executeAgentCall`, `runParallel`,
-   *  `runPipeline`, `publishAgentFailed` to it. */
   private agentPrimitive: AgentPrimitive
-  /** v0.16.0 refactor (Phase 6): child workflow + journal helpers
-   *  extracted to `src/child-workflow-primitive.ts`. The runtime holds
-   *  an instance and delegates `spawnChildWorkflow`, `startChildWorkflow`,
-   *  `setPhase`, `appendLog` to it. */
   private childWorkflowPrimitive: ChildWorkflowPrimitive
   /** v0.16.0-SOLID: sub-component services container. Tests pass
    *  a partial container to override one or more sub-components;
    *  production callers omit the `services` opt and get the real
    *  implementations wired by the constructor. */
   protected services: RuntimeServices
-  /** v0.14.x C-2 — cached resolved outcomes for settled runs. The
-   *  `completeRun` / `failRun` / `cancel` paths delete the entry from
-   *  `this.runs` so its McpBridge / journalResults / AbortController /
-   *  closures are GC-eligible, but `wait()` may still be called after
-   *  settle (e.g. a test that awaits the workflow and then inspects
-   *  the outcome). The resolved outcome is stored here keyed by runID
-   *  so late `wait()` calls return the same value as the in-flight
-   *  entry would have.
-   *
-   *  Bounded via OutcomeStore (which wraps a BoundedLRU) so a long-lived
-   *  daemon doesn't grow this map unbounded (each entry can hold step
-   *  results, error messages, tokensUsed). Capacity is configured via the
-   *  `completedOutcomesCacheSize` RuntimeOpt or the
+  /** v0.14.x C-2 — cached resolved outcomes for settled runs. Late
+   *  `wait()` callers (after the in-flight entry was released on
+   *  settle) read from this store. Bounded via OutcomeStore
+   *  (BoundedLRU), capacity from `completedOutcomesCacheSize` opt or
    *  `WORKFLOW_OUTCOMES_CACHE_SIZE` env var (default: 500). Evicted
-   *  runIDs fall back to "unknown runID" — acceptable per the design
-   *  comment above. Cleared by `close()`. */
+   *  runIDs fall back to "unknown runID". Cleared by `close()`. */
   private outcomes: WorkflowOutcomeStore
 
   constructor(ctx: PluginContext, opts: RuntimeOpts = {}) {
@@ -225,20 +180,22 @@ export class WorkflowRuntime {
     })
     this.agentPrimitive = new AgentPrimitive({
       globalSem: this.globalSem,
-      scheduleFlush: this.scheduleFlush.bind(this),
+      scheduleFlush: (entry) => this.flushManager.scheduleFlush(entry),
       emitEvent: (name: string, payload: unknown) => this.events.emit(name, payload),
-      callLLM: this.callLLM.bind(this) as AgentPrimitiveDeps["callLLM"],
+      callLLM: (entry, prompt, opts) => callLLMModule(this.ctx as Parameters<typeof callLLMModule>[0], entry, prompt, opts),
       appendJournal: (runID: string, e: unknown) => this.persistence.appendJournalSync(runID, e),
-      failRun: this.failRun.bind(this),
+      failRun: (entry, error) => this.runCompleter.failRun(entry, error),
     })
     this.childWorkflowPrimitive = new ChildWorkflowPrimitive({
       persistence: this.persistence,
       events: this.events,
       runs: this.runs,
-      scheduleFlush: this.scheduleFlush.bind(this),
-      startChildWorkflow: this.startChildWorkflow.bind(this),
+      scheduleFlush: (entry) => this.flushManager.scheduleFlush(entry),
+      startChildWorkflow: (parent, script, name, args, childRunID) =>
+        this.services.childWorkflowPrimitive.start(parent, script, name, args, childRunID),
       appendJournal: (runID: string, e: unknown) => this.persistence.appendJournal(runID, e),
-      settleEntry: this.settleEntry.bind(this),
+      settleEntry: (entry, script, name, args, jail) =>
+        this.runCompleter.settleEntry(entry, script, name, args, jail),
     })
 
     // v0.16.0-SOLID: store the sub-components container. Tests can supply
@@ -281,15 +238,11 @@ export class WorkflowRuntime {
     this.runtimeConfig.setConfig(cfg)
   }
 
-  /**  lazily load the SFFMC workflow config from `workflow.yaml`.
-   *  Idempotent — concurrent callers all await the same in-flight promise
-   *  (no TOCTOU race when `start()` and `resume()` are called concurrently).
-   *  No-op when the config was already injected (test override path).
-   *  Delegates to `RuntimeConfig`. */
-  /** in-flight promise cache for `loadWorkflowConfig()`. Prevents the
-   *  TOCTOU race when `start()` and `resume()` are called concurrently:
-   *  both pass the early guard and race to invoke the YAML loader.
-   *  Cleared via `setConfig(null)` (delegated to `RuntimeConfig`). */
+  /** Lazily load the SFFMC workflow config from `workflow.yaml`.
+   *  Idempotent — in-flight promise cached in `loadWorkflowConfigPromise`
+   *  so concurrent `start()` / `resume()` callers share one YAML load
+   *  (no TOCTOU race). No-op when the config was injected via
+   *  `setConfig(cfg)` (test override path). Delegates to `RuntimeConfig`. */
   private loadWorkflowConfigPromise: Promise<void> | null = null
 
   async loadWorkflowConfig(): Promise<void> {
@@ -527,12 +480,9 @@ export class WorkflowRuntime {
         entry.status = "cancelled"
       }
     }
-    // v0.14.x C-2 — clear `this.runs` after cancel loop. Without this,
-    // every entry — completed/failed/cancelled/crashed — holds an
-    // mcpBridge (McpBridge with up to 1000 records), journalResults Map,
-    // childRunIDs Set, AbortController, and closures for the lifetime of
-    // the runtime. close() is the  line of defense after the
-    // per-settle deletes in completeRun/failRun/cancel.
+    // v0.14.x C-2 — clear `this.runs` so mcpBridge / journalResults /
+    // AbortController / closures are GC-eligible (close() is the
+    // last line of defense after the per-settle deletes).
     this.runs.clear()
     // Also drop the completed-outcomes cache — the runtime is going away
     // and any further `wait()` calls are meaningless.
@@ -607,170 +557,42 @@ export class WorkflowRuntime {
       launchScript(launchDeps, entry, script, name, args, jail as WorkspaceJail)
   }
 
-  // ── Private: primitives (extracted from launchScript) ───────────────────
-
-  /** v0.16.0 refactor (Phase 5): delegates to `AgentPrimitive.spawnAgent()`.
-   *  Journal cache lookup, lifecycle/token/step caps, abort check, depth
-   *  check, and counter invariants all live in `src/agent-primitive.ts`. */
-  private async spawnAgent(
-    entry: InternalRunEntry,
-    task: string,
-    opts: AgentOptions | undefined,
-    occ: Map<string, number>,
-  ): Promise<AgentResult> {
-    return this.services.agentPrimitive.spawnAgent(entry, task, opts, occ)
-  }
-
-  /** v0.16.0 refactor (Phase 5): delegates to `AgentPrimitive.executeAgentCall()`.
-   *  LLM call, token tracking, deliverable extraction, journal append,
-   *  and error handling all live in `src/agent-primitive.ts`. */
-  private async executeAgentCall(
-    entry: InternalRunEntry,
-    promptStr: string,
-    agentOpts: AgentOptions,
-    key: string,
-  ): Promise<AgentResult | null> {
-    return this.services.agentPrimitive.executeAgentCall(entry, promptStr, agentOpts, key)
-  }
-
-  /** v0.16.0 refactor (Phase 5): delegates to `AgentPrimitive.runParallel()`. */
-  private async runParallel<T>(thunks: Array<() => Promise<T>>): Promise<Array<T | null>> {
-    return this.services.agentPrimitive.runParallel(thunks)
-  }
-
-  /** v0.16.0 refactor (Phase 5): delegates to `AgentPrimitive.runPipeline()`. */
-  private async runPipeline<T>(
-    items: T[],
-    stages: Array<(acc: unknown, item: T, i: number) => Promise<unknown>>,
-  ): Promise<Array<unknown>> {
-    return this.services.agentPrimitive.runPipeline(items, stages)
-  }
-
-  /** v0.16.0 refactor (Phase 6): delegates to `ChildWorkflowPrimitive.spawn()`.
-   *  Journal cache lookup, script resolution, child sub-run launch, and
-   *  outcome waiting all live in `src/child-workflow-primitive.ts`. */
-  private async spawnChildWorkflow(
-    entry: InternalRunEntry,
-    nameOrScript: string,
-    childArgs: unknown,
-    workflowOcc: Map<string, number>,
-  ): Promise<unknown> {
-    return this.services.childWorkflowPrimitive.spawn(entry, nameOrScript, childArgs, workflowOcc)
-  }
-
-  /** v0.16.0 refactor (Phase 6): delegates to `ChildWorkflowPrimitive.setPhase()`.
-   *  Journal append + event emit live in `src/child-workflow-primitive.ts`. */
-  private setPhase(entry: InternalRunEntry, title: string): void {
-    this.services.childWorkflowPrimitive.setPhase(entry, title)
-  }
-
-  /** v0.16.0 refactor (Phase 6): delegates to `ChildWorkflowPrimitive.appendLog()`.
-   *  Journal append + event emit live in `src/child-workflow-primitive.ts`. */
-  private appendLog(entry: InternalRunEntry, msg: string): void {
-    this.services.childWorkflowPrimitive.appendLog(entry, msg)
-  }
-
-  // ── Private: MCP dispatch (per-run) ──────────────────────────────────────
-  //
-  // Host-side implementations of the guest's `mcp.list()` / `mcp.call()`
-  // globals. Each guest call funnels through `entry.mcpBridge` (budget +
-  // recursion guard). The actual MCP tool invocation goes through the parent
-  // OpenCode SDK (`ctx.client.tool.call`) — when the SDK surface is missing
-  // the dispatch fails closed with a typed error, never silently dropping the
-  // call (mcp.ts makeMcpPrimitives handles the throw path).
-
-  /** v0.16.0 refactor (Phase 4): delegates to `McpDispatcher.list()`. */
-  private async dispatchMcpList(entry: InternalRunEntry): Promise<string[]> {
-    return this.services.mcpDispatcher.list(entry)
-  }
-
-  /** v0.16.0 refactor (Phase 4): delegates to `McpDispatcher.call()`.
-   *  Budget gate + recursion guard + SDK dispatch + bridge bookkeeping
-   *  all live in `src/mcp-dispatcher.ts`. */
-  private async dispatchMcpCall(
-    entry: InternalRunEntry,
-    name: string,
-    args: unknown,
-  ): Promise<unknown> {
-    return this.services.mcpDispatcher.call(entry, name, args)
-  }
-
-  // ── Private: LLM call ──────────────────────────────────────────────────
-
-  /** Delegate to the extracted `callLLM` module (see `src/llm-call.ts`).
-   *  Lifted out per the v0.16.0 refactor plan; the implementation is pure
-   *  over `this.ctx` + `entry` + `opts` + `prompt`, so it does not need any
-   *  runtime state. Kept as a method on this class (rather than a direct
-   *  import) to preserve the call-site shape for the 9-test call graph in
-   *  `runtime-coverage.test.ts` and the `runtime-flushNow` reflection
-   *  contract. */
-  private callLLM(
-    entry: InternalRunEntry,
-    prompt: string,
-    opts: AgentOptions,
-  ): ReturnType<typeof callLLMModule> {
-    return callLLMModule(this.ctx as Parameters<typeof callLLMModule>[0], entry, prompt, opts)
-  }
-
-  // ── Private: child workflow ────────────────────────────────────────────
-
-  /** v0.16.0 refactor (Phase 6): delegates to `ChildWorkflowPrimitive.start()`.
-   *  Create-run + write-script + register + started-event all live in
-   *  `src/child-workflow-primitive.ts`. */
-  private async startChildWorkflow(
-    parent: InternalRunEntry,
-    script: string,
-    name: string,
-    args: unknown,
-    _childRunID: string,
-  ): Promise<InternalRunEntry> {
-    return this.services.childWorkflowPrimitive.start(parent, script, name, args, _childRunID)
-  }
-
-  // ── Private: completion ────────────────────────────────────────────────
+  // ── Private: completion (kept as a thin public surface for
+  //    reflection-based test access — `lru-cache.test.ts` and others
+  //    poke at `runtime.completeRun` directly). ────────────────────────
 
   /** v0.16.0 refactor (Phase 3): delegates to `RunCompleter.completeRun()`.
    *  The status guard, outcome creation, persistence flush, event emit,
    *  and outcome-cache+runs-release are all in `src/run-completer.ts`. */
-  private completeRun(entry: InternalRunEntry, result?: unknown): void {
-    this.services.runCompleter.completeRun(entry, result)
+  completeRun(entry: InternalRunEntry, result?: unknown): void {
+    this.runCompleter.completeRun(entry, result)
   }
 
   /** v0.16.0 refactor (Phase 3): delegates to `RunCompleter.failRun()`.
    *  The `BudgetExceededError`-based classification, status guard,
    *  persistence flush, event emit, and outcome-cache+runs-release are
    *  all in `src/run-completer.ts`. */
-  private failRun(entry: InternalRunEntry, error: string | Error): void {
-    this.services.runCompleter.failRun(entry, error)
+  failRun(entry: InternalRunEntry, error: string | Error): void {
+    this.runCompleter.failRun(entry, error)
   }
 
-  // ── Private: helpers ───────────────────────────────────────────────────
-
-  /** v0.16.0 refactor (Phase 2): delegates to `RuntimeConfig.resolve()`. The
-   *  full precedence chain (cache > ctx.config > defaults) + extended
-   *  config (maxDepth, maxLifecycleAgents) lives in `src/runtime-config.ts`. */
-  private resolveConfig(perStepTimeoutMsOverride?: number): Required<WorkflowConfig> & { maxDepth: number; maxLifecycleAgents: number } {
+  /** v0.16.0 refactor (Phase 2): delegates to `RuntimeConfig.resolve()`.
+   *  The full precedence chain (cache > ctx.config > defaults) + extended
+   *  config (maxDepth, maxLifecycleAgents) lives in
+   *  `src/runtime-config.ts`. Kept as a runtime method (not inlined at
+   *  the two call sites in `start()` / `resume()`) so the call sites
+   *  read as one expression. */
+  resolveConfig(perStepTimeoutMsOverride?: number): Required<WorkflowConfig> & { maxDepth: number; maxLifecycleAgents: number } {
     return this.runtimeConfig.resolve(perStepTimeoutMsOverride)
   }
 
   /** v0.16.0 refactor (Phase 3): delegates to `RunCompleter.settleEntry()`.
    *  The launch + route-to-completeRun-or-failRun logic is in
    *  `src/run-completer.ts`; the runtime injects `launchScript` as a
-   *  callback at construction time. */
-  private async settleEntry(entry: InternalRunEntry, script: string, name: string, args: unknown, jail: WorkspaceJail): Promise<void> {
-    return this.services.runCompleter.settleEntry(entry, script, name, args, jail)
-  }
-
-  /** v0.16.0 refactor (Phase 5): delegates to `AgentPrimitive.publishAgentFailed()`.
-   *  The try/catch around emit + log.debug is in `src/agent-primitive.ts`. */
-  private publishAgentFailed(runID: string, agentKey: string, reason: AgentFailureReason): void {
-    this.services.agentPrimitive.publishAgentFailed(runID, agentKey, reason)
-  }
-
-  /** Schedule a debounced DB counter flush for `entry`. Delegates to
-   *  `FlushManager` (M-1 god-object extract, Task 1.6). Kept as a
-   *  runtime-instance method so internal call sites read naturally. */
-  private scheduleFlush(entry: InternalRunEntry): void {
-    this.flushManager.scheduleFlush(entry)
+   *  callback at construction time. Kept as a method (not inlined at
+   *  the two call sites in `start()` / `resume()`) so `RunCompleter`'s
+   *  contract is reachable by name from the public surface. */
+  async settleEntry(entry: InternalRunEntry, script: string, name: string, args: unknown, jail: WorkspaceJail): Promise<void> {
+    return this.runCompleter.settleEntry(entry, script, name, args, jail)
   }
 }
