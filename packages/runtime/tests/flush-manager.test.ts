@@ -141,4 +141,119 @@ describe("FlushManager", () => {
     expect(() => mgr.scheduleFlush(makeEntry(runID, new CounterManager()))).not.toThrow()
     // And the second timer must fire and complete cleanly.
   })
+
+  // REGRESSION (gen-3 DEFER #2): the timer fires against the latest
+  // mutated counters, not a snapshot taken at schedule time. The runtime
+  // mutates `entry.counters.*` in place between scheduleFlush calls
+  // during a normal agent lifecycle; the timer must read those mutations
+  // through the captured entry reference.
+  test("scheduleFlush reads counters at fire-time, not at schedule-time", async () => {
+    const { mgr, p } = makeMgr()
+    const runID = p.createRun("mutate.ts", "mutate", "deadbeef")
+    const counters = Object.assign(new CounterManager(), { succeeded: 1 })
+    const entry = makeEntry(runID, counters)
+    mgr.scheduleFlush(entry)
+    // Mutate counters between schedule and fire. The timer must observe
+    // the post-mutation values when it eventually fires.
+    counters.succeeded = 7
+    counters.failed = 2
+    counters.running = 0
+    await new Promise((r) => setTimeout(r, 350))
+    const row = p.loadRun(runID)
+    expect(row!.succeeded).toBe(7)
+    expect(row!.failed).toBe(2)
+    expect(row!.running).toBe(0)
+  })
+
+  // REGRESSION (gen-3 DEFER #2, cancel+resume characterization): when the
+  // runtime replaces an entry between scheduleFlush and timer fire
+  // (cancel+resume pattern: scheduleFlush(e1) → cancel → make new
+  // entry → scheduleFlush(e2)), the timer must flush e2's counters, NOT
+  // e1's stale ones. Pre-fix, the timer captured e1 by closure and
+  // wrote e1's counters after e2 had already taken over the run.
+  test("timer fires with the latest entry after entry replacement (cancel+resume)", async () => {
+    const { mgr, p } = makeMgr()
+    const runID = p.createRun("replace.ts", "replace", "deadbeef")
+    // Original entry — counter state from the first workflow incarnation.
+    const e1Counters = Object.assign(new CounterManager(), {
+      succeeded: 1,
+      failed: 0,
+      running: 0,
+    })
+    const e1 = makeEntry(runID, e1Counters)
+    mgr.scheduleFlush(e1)
+
+    // Cancel happens (out of scope here); a new entry takes over. The
+    // new sandbox starts flushing its own counters via scheduleFlush.
+    // We simulate by passing a DIFFERENT entry object — the registry
+    // should overwrite with this one.
+    const e2Counters = Object.assign(new CounterManager(), {
+      succeeded: 11,
+      failed: 4,
+      running: 0,
+    })
+    const e2 = makeEntry(runID, e2Counters)
+    mgr.scheduleFlush(e2)
+    // (Identity is the invariant: e1 and e2 must be different objects.)
+    expect(e2).not.toBe(e1)
+
+    await new Promise((r) => setTimeout(r, 350))
+    const row = p.loadRun(runID)
+    // DB row must reflect e2's counters, NOT e1's. Pre-fix the timer
+    // captured e1 and would have written succeeded=1 here.
+    expect(row!.succeeded).toBe(11)
+    expect(row!.failed).toBe(4)
+    expect(row!.running).toBe(0)
+  })
+
+  // REGRESSION (gen-3 DEFER #2, scale characterization): many rapid
+  // scheduleFlush calls with different entry objects must NOT produce
+  // duplicate or stale-counter writes. Each schedule overwrites the
+  // registry; only one timer fires (debounce); the timer's payload is
+  // the LAST-scheduled entry's counters.
+  test("50 scheduleFlush calls with different entries → DB reflects the last one", async () => {
+    const { mgr, p } = makeMgr()
+    const runID = p.createRun("scale-replace.ts", "scale-replace", "deadbeef")
+    const N = 50
+    for (let i = 1; i <= N; i++) {
+      const counters = Object.assign(new CounterManager(), {
+        succeeded: i,
+        failed: 0,
+        running: 0,
+      })
+      mgr.scheduleFlush(makeEntry(runID, counters))
+    }
+    await new Promise((r) => setTimeout(r, 350))
+    const row = p.loadRun(runID)
+    // Exactly N, not any intermediate value from a stale-captured entry.
+    expect(row!.succeeded).toBe(N)
+    expect(row!.failed).toBe(0)
+    expect(row!.running).toBe(0)
+  })
+
+  // REGRESSION (gen-3 DEFER #2, post-flushNow state): after flushNow
+  // cancels a pending timer, a subsequent scheduleFlush for the SAME
+  // runID must arm a fresh timer that fires against the new entry. The
+  // flushEntries registry must be cleared by flushNow so the next
+  // schedule starts from a clean slate.
+  test("after flushNow, scheduleFlush re-arms cleanly with a different entry", async () => {
+    const { mgr, p } = makeMgr()
+    const runID = p.createRun("rearm.ts", "rearm", "deadbeef")
+    // First cycle: e1 scheduled, then explicitly flushed.
+    const e1Counters = Object.assign(new CounterManager(), { succeeded: 5 })
+    mgr.scheduleFlush(makeEntry(runID, e1Counters))
+    mgr.flushNow(makeEntry(runID, e1Counters))
+    // Row now has succeeded=5.
+    let row = p.loadRun(runID)
+    expect(row!.succeeded).toBe(5)
+
+    // Second cycle: a new entry takes over (cancel+resume). The pending
+    // timer from cycle 1 was cancelled by flushNow; scheduleFlush must
+    // arm a fresh one with the new entry's counters.
+    const e2Counters = Object.assign(new CounterManager(), { succeeded: 13 })
+    mgr.scheduleFlush(makeEntry(runID, e2Counters))
+    await new Promise((r) => setTimeout(r, 350))
+    row = p.loadRun(runID)
+    expect(row!.succeeded).toBe(13)
+  })
 })

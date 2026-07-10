@@ -40,9 +40,22 @@ export interface FlushableCounters {
  *  window collapses to a single `flushNow()` fire; the timer is unref'd so
  *  it doesn't keep the runtime alive at shutdown (the runtime's `close()`
  *  also clears all pending timers explicitly). Window comes from
- *  `getFlushDebounceMs()` so user YAML overrides take effect. */
+ *  `getFlushDebounceMs()` so user YAML overrides take effect.
+ *
+ *  Why a `flushEntries` registry alongside `flushTimers`: the timer
+ *  callback must read the LATEST entry reference, not the one captured at
+ *  `scheduleFlush` time. The runtime may replace an entry (cancel +
+ *  resume) between schedule and fire — the captured reference would then
+ *  be stale and write the OLD counters to the DB. The registry stores
+ *  the most recently scheduled entry per runID so the timer always
+ *  flushes current counters. In normal (non-cancel-resume) operation the
+ *  entry identity is stable and the registry ref matches the captured
+ *  ref exactly — the behavior is unchanged. */
 export class FlushManager {
   private readonly flushTimers = new Map<string, ReturnType<typeof setTimeout>>()
+  /** Latest entry reference per runID. Always overwritten on
+   *  `scheduleFlush` so a mid-window entry replacement still wins. */
+  private readonly flushEntries = new Map<string, FlushableCounters>()
   private readonly debounceMs: number
 
   constructor(
@@ -53,14 +66,18 @@ export class FlushManager {
   }
 
   /** Schedule a debounced flush for `entry.runID`. If a timer is already
-   *  pending for this runID, this is a no-op — the existing timer fires
-   *  with the latest entry state. */
+   *  pending for this runID, the existing timer is kept — the latest
+   *  entry reference (this one) is recorded in `flushEntries` so the
+   *  timer fires against the most recent counters when it elapses. */
   scheduleFlush(entry: FlushableCounters): void {
     const runID = entry.runID
+    this.flushEntries.set(runID, entry)
     if (this.flushTimers.has(runID)) return
     const t = setTimeout(() => {
       this.flushTimers.delete(runID)
-      this.flushNow(entry)
+      const latest = this.flushEntries.get(runID)
+      this.flushEntries.delete(runID)
+      if (latest) this.flushNow(latest)
     }, this.debounceMs)
     t.unref?.()
     this.flushTimers.set(runID, t)
@@ -79,6 +96,7 @@ export class FlushManager {
       clearTimeout(t)
       this.flushTimers.delete(runID)
     }
+    this.flushEntries.delete(runID)
     const db = this.persistence.getDB()
     try {
       db.run(
@@ -98,11 +116,13 @@ export class FlushManager {
 
   /** Cancel every pending timer. Called by `WorkflowRuntime.close()`
    *  so the runtime doesn't leave dangling unref'd timers pinning the
-   *  event loop after teardown. */
+   *  event loop after teardown. Also drops the entry registry so a
+   *  follow-up `scheduleFlush` after close starts from a clean slate. */
   clearAll(): void {
     for (const [, t] of this.flushTimers) {
       clearTimeout(t)
     }
     this.flushTimers.clear()
+    this.flushEntries.clear()
   }
 }
