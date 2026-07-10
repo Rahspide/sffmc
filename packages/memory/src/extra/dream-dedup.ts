@@ -30,8 +30,10 @@ function jaccard(a: string, b: string): number {
 
 /** Jaccard similarity between pre-tokenized sets. Avoids re-tokenizing on
  *  every call — used by the hot dedup + cluster loops in runDream via
- *  the tokenCache. Returns 0 if either set is empty (matches jaccard()). */
-function jaccardSets(a: Set<string>, b: Set<string>): number {
+ *  the tokenCache. Returns 0 if either set is empty (matches jaccard()).
+ *  Exported because `dream-clustering.ts` reuses it for the cluster
+ *  expansion loop. */
+export function jaccardSets(a: Set<string>, b: Set<string>): number {
   if (a.size === 0 && b.size === 0) return 0;
   if (a.size === 0 || b.size === 0) return 0;
   // Iterate the smaller set to minimize .has() calls
