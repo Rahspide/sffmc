@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/runtime — see ../../LICENSE
 
-import { createHash } from "node:crypto"
 import {
   WorkflowPersistence,
   generateRunID,
@@ -29,7 +28,8 @@ import {
   isInlineScript,
 } from "./resolve.ts"
 import { WorkspaceJail } from "./workspace.ts"
-import { runSandboxed, type SandboxPrimitives } from "./sandbox"
+import { launchScript, type LaunchDeps } from "./script-launcher.ts"
+import { runSandboxed } from "./sandbox"
 import type {
   AgentOptions,
   AgentResult,
@@ -57,11 +57,6 @@ import { type RichPluginContext, createLogger } from "@sffmc/utilities"
 
 const log = createLogger("workflow")
 
-/** Suffix appended to every guest script body to auto-invoke `main()`.
- *  Mirrors the pre-SOLID `new Function` pattern. Hoisted to module
- *  scope so V8 string interning is straightforward and per-call
- *  allocation is removed (gen-12 1C). */
-const SCRIPT_SUFFIX = "\n;return typeof main === 'function' ? await main() : undefined"
 // global agent-concurrency cap. Reads `maxConcurrentAgents` from the
 // SFFMC config (overrideable via `workflow.yaml`). The default is 16 (matches
 // the pre-fix value). Called in the constructor (not at module
@@ -222,7 +217,7 @@ export class WorkflowRuntime {
       events: this.events,
       outcomes: this.outcomes,
       runs: this.runs,
-      launchScript: this.launchScript.bind(this) as RunCompleterDeps["launchScript"],
+      launchScript: this.buildLaunchScriptFn(),
     })
     this.mcpDispatcher = new McpDispatcher({
       getCtx: () => this.ctx,
@@ -598,54 +593,39 @@ export class WorkflowRuntime {
 
   // ── Private: launch ────────────────────────────────────────────────────
 
-  private async launchScript(entry: InternalRunEntry, script: string, name: string, args: unknown, jail: WorkspaceJail): Promise<unknown> {
-    const parsed = parseMeta(script)
-    const body = parsed.ok ? parsed.body : script
-
-    // Per-run occurrence counters (journal dedup keys)
-    const occ = new Map<string, number>()
-    const workflowOcc = new Map<string, number>()
-
-    // Build primitives — each closure captures `entry`, counters, and the jail
-    const primitives: SandboxPrimitives = {
-      agent: (task: string, agentOpts?: Record<string, unknown>) =>
-        this.spawnAgent(entry, task, agentOpts as AgentOptions | undefined, occ),
-      parallel: <T>(thunks: Array<() => Promise<T>>) => this.runParallel<T>(thunks),
-      pipeline: <T>(items: T[], ...stages: Array<(acc: unknown, item: T, i: number) => Promise<unknown>>) =>
-        this.runPipeline<T>(items, stages),
-      workflow: (nameOrScript: string, childArgs?: unknown) =>
-        this.spawnChildWorkflow(entry, nameOrScript, childArgs, workflowOcc),
-      phase: (title: string) => this.setPhase(entry, title),
-      log: (msg: string) => this.appendLog(entry, msg),
-      readFile: (path: string) => jail.readFile(path),
-      writeFile: (path: string, content: string) => jail.writeFile(path, content),
-      glob: (pattern: string) => jail.glob(pattern),
-      exists: (path: string) => jail.exists(path),
-      // MCP bridge: list/call host functions wired into the guest via the
-      // sandbox PRELUDE (see sandbox.ts). Each call goes through the per-run
-      // McpBridge which enforces the budget + recursion guard (mcp.ts).
-      mcpList: () => this.dispatchMcpList(entry),
-      mcpCall: (name: string, args: unknown) => this.dispatchMcpCall(entry, name, args),
-      args,
+  /** Build the closure that `RunCompleter` invokes to run a guest
+   *  script. Wires the runtime's sub-components (agent primitive,
+   *  child workflow primitive, MCP dispatcher) into a `LaunchDeps`
+   *  bag and delegates to the module-level `launchScript` function.
+   *  The function pointer is stable for the lifetime of the runtime
+   *  — re-built only by tests that swap `opts.services` (rare). */
+  private buildLaunchScriptFn(): RunCompleterDeps["launchScript"] {
+    // Snapshot the sub-component references once. If a test swaps
+    // `this.services` after construction, the in-flight `RunCompleter`
+    // would still see the originals — by design, the launch closure
+    // captures per-runtime state at the moment of build, not at the
+    // moment of invocation. (The pre-extraction `this.launchScript.bind(this)`
+    // had the same behavior; preserved here for regression fidelity.)
+    const launchDeps: LaunchDeps = {
+      spawnAgent: (entry, task, opts, occ) =>
+        this.services.agentPrimitive.spawnAgent(entry, task, opts, occ),
+      runParallel: <T>(thunks: Array<() => Promise<T>>) =>
+        this.services.agentPrimitive.runParallel<T>(thunks),
+      runPipeline: <T>(
+        items: T[],
+        stages: Array<(acc: unknown, item: T, i: number) => Promise<unknown>>,
+      ) => this.services.agentPrimitive.runPipeline<T>(items, stages),
+      spawnChildWorkflow: (entry, nameOrScript, childArgs, occ) =>
+        this.services.childWorkflowPrimitive.spawn(entry, nameOrScript, childArgs, occ),
+      setPhase: (entry, title) => this.services.childWorkflowPrimitive.setPhase(entry, title),
+      appendLog: (entry, msg) => this.services.childWorkflowPrimitive.appendLog(entry, msg),
+      dispatchMcpList: (entry) => this.services.mcpDispatcher.list(entry),
+      dispatchMcpCall: (entry, name, args) => this.services.mcpDispatcher.call(entry, name, args),
+      runSandboxed,
+      deadlineMs: SCRIPT_DEADLINE_MS,
     }
-
-    // Deterministic seed from runID
-    const seed = createHash("sha1").update(entry.runID).digest().readUInt32BE(0)
-
-    // Append auto-invocation of main() — see SCRIPT_SUFFIX (module-scope)
-    const source = body + SCRIPT_SUFFIX
-
-    const result = await runSandboxed(source, primitives, {
-      // sandbox memory now reads from SFFMC config
-      // (workflow.yaml key: \`sandboxMemoryMB\`). Default 64 MiB matches
-      // the pre-fix value.
-      memoryMB: getSandboxMemoryMB(),
-      deadlineMs: SCRIPT_DEADLINE_MS, // 12h wall-clock for the sandbox
-      seed,
-    })
-
-    // runSandboxed never throws per contract — null means sandbox error
-    return result
+    return (entry, script, name, args, jail: unknown) =>
+      launchScript(launchDeps, entry, script, name, args, jail as WorkspaceJail)
   }
 
   // ── Private: primitives (extracted from launchScript) ───────────────────

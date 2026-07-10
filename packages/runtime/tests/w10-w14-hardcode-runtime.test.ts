@@ -244,17 +244,21 @@ describe(" launchScript memoryMB reads from SFFMC config", () => {
   })
 
   it("sandboxMemoryMB override flows through to the QuickJS sandbox runtime", () => {
-    // The runtime.ts call site is `memoryMB: getSandboxMemoryMB()`. Verify
-    // that the runtime imports this and uses it (not the hardcoded 64).
-    // We don't spawn an actual sandbox here (slow, needs QuickJS); we
-    // inspect the source to confirm the call site.
+    // The script-launcher.ts call site is `memoryMB: getSandboxMemoryMB()`.
+    // Verify that the launcher imports this and uses it (not the
+    // hardcoded 64). We don't spawn an actual sandbox here (slow, needs
+    // QuickJS); we inspect the source to confirm the call site.
+    //
+    // v0.16.0-SOLID wave 2: `runSandboxed` was extracted from
+    // `runtime.ts` into `script-launcher.ts`. The contract this test
+    // guards (no hardcoded memoryMB) is preserved at the new call site.
     const fs = require("fs") as typeof import("fs")
     const src = fs.readFileSync(
-      path.join(__dirname, "..", "src", "runtime.ts"),
+      path.join(__dirname, "..", "src", "script-launcher.ts"),
       "utf-8",
     )
-    // The runtime MUST use `getSandboxMemoryMB()` (the config-aware
-    // getter) at the launchScript call site, not a hardcoded value.
+    // The launcher MUST use `getSandboxMemoryMB()` (the config-aware
+    // getter) at the runSandboxed call site, not a hardcoded value.
     // Use a multiline-aware regex (the runSandboxed call spans ~8 lines).
     const launchScriptMatch = src.match(/runSandboxed\([\s\S]*?memoryMB:\s*([^\s,}\n]+)/)
     expect(launchScriptMatch).not.toBeNull()
@@ -262,7 +266,7 @@ describe(" launchScript memoryMB reads from SFFMC config", () => {
       expect(launchScriptMatch[1].trim()).toBe("getSandboxMemoryMB()")
     }
     // Defensive: the literal `memoryMB: 64` (with optional whitespace
-    // before 64) should NOT appear in launchScript's runSandboxed call
+    // before 64) should NOT appear in the launcher's runSandboxed call
     // — the value 64 may still appear elsewhere in the file as a
     // constant default.
     expect(src).toMatch(/memoryMB:\s*getSandboxMemoryMB\(\)/)
