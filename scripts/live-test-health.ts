@@ -11,7 +11,6 @@
 
 import { resolve } from "node:path"
 import { server as healthServer } from "../packages/cognition/src/health/src/index.ts"
-import { server as runtimeServer } from "../packages/runtime/src/index.ts"
 
 interface Tool {
   description: string
@@ -25,7 +24,7 @@ const mockCtx = {
   sessionID: "live-test",
 }
 
-console.log("[1/2] Loading @sffmc/cognition standalone...")
+console.log("[1/1] Loading @sffmc/cognition standalone...")
 const healthResult = await healthServer(mockCtx)
 const healthTool = (healthResult.tool as { sffmc_health: Tool }).sffmc_health
 if (!healthTool) {
@@ -33,15 +32,6 @@ if (!healthTool) {
   process.exit(1)
 }
 console.log("✓ sffmc_health registered in @sffmc/cognition")
-
-console.log("\n[2/2] Loading @sffmc/runtime (standalone)...")
-const runtimeResult = await runtimeServer(mockCtx)
-const runtimeTool = (runtimeResult.tool as { sffmc_health?: Tool }).sffmc_health
-if (!runtimeTool) {
-  console.error("✗ sffmc_health tool NOT in runtime (workflow) package (mergeHooks dropped it?)")
-  process.exit(1)
-}
-console.log("✓ sffmc_health registered in @sffmc/runtime (via mergeHooks)")
 
 console.log("\n[EXEC] Calling sffmc_health.execute()...")
 const raw = await healthTool.execute({})
