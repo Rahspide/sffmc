@@ -10,7 +10,8 @@ import { join } from "node:path"
 import { createCheck } from "../check-factory.ts"
 import { packageNames } from "../helpers.ts"
 
-const KNOWN_SDK_EXCEPTIONS = new Set(["max-mode", "workflow"])
+// `utilities` is the base library; it does not need to import itself.
+const KNOWN_SDK_EXCEPTIONS = new Set(["max-mode", "workflow", "utilities"])
 
 export const checkSdkCompliance = createCheck("sdk_compliance", async (repoRoot) => {
   const pkgs = (await packageNames(repoRoot)).filter((p) => p !== "shared")
@@ -44,7 +45,7 @@ export const checkSdkCompliance = createCheck("sdk_compliance", async (repoRoot)
   if (missingImport.length === 0) {
     return {
       status: "ok",
-      detail: `${pkgs.length - KNOWN_SDK_EXCEPTIONS.size}/${pkgs.length} packages import @sffmc/utilities (2 known exceptions: ${[...KNOWN_SDK_EXCEPTIONS].join(", ")})`,
+      detail: `${pkgs.length - KNOWN_SDK_EXCEPTIONS.size}/${pkgs.length} packages import @sffmc/utilities (3 known exceptions: ${[...KNOWN_SDK_EXCEPTIONS].join(", ")} — utilities is the base library and does not self-import)`,
     }
   }
 
