@@ -45,7 +45,17 @@ Restart OpenCode after editing. Verify with:
 sffmc doctor
 ```
 
-The `npm` packages are published for programmatic use, not for OpenCode integration. See [docs/install.md](./docs/install.md) for full options (version pinning, custom install dir, manual config).
+### For programmatic use (npm)
+
+If you want to use SFFMC packages as TypeScript libraries (not as OpenCode plugins):
+
+```bash
+npm install @sffmc/runtime @sffmc/cognition @sffmc/memory @sffmc/safety @sffmc/utilities
+```
+
+For example, to embed `@sffmc/utilities`'s `mergeHooks` in your own plugin, or use `@sffmc/runtime`'s `WorkflowRuntime` programmatically. The npm packages are decoupled from the OpenCode plugin loader - they ship as standalone libraries for any TypeScript project.
+
+For all install options (version pinning, custom install dir, manual config, troubleshooting), see [docs/install.md](./docs/install.md).
 
 ## Packages
 

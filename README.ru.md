@@ -45,7 +45,17 @@ sffmc init --all
 sffmc doctor
 ```
 
-Пакеты в `npm` опубликованы для программного использования, а не для интеграции с OpenCode. См. [docs/install.md](./docs/install.md) для всех опций (пиннинг версии, кастомная директория, ручной конфиг).
+### Для программного использования (npm)
+
+Если хочешь использовать пакеты SFFMC как TypeScript-библиотеки (не как плагины OpenCode):
+
+```bash
+npm install @sffmc/runtime @sffmc/cognition @sffmc/memory @sffmc/safety @sffmc/utilities
+```
+
+Например, чтобы встроить `mergeHooks` из `@sffmc/utilities` в свой плагин, или использовать `WorkflowRuntime` из `@sffmc/runtime` программно. npm-пакеты отделены от OpenCode plugin loader - они поставляются как standalone-библиотеки для любого TypeScript-проекта.
+
+Для всех опций установки (пиннинг версии, кастомная директория, ручной конфиг, troubleshooting), см. [docs/install.md](./docs/install.md).
 
 ## Пакеты
 
