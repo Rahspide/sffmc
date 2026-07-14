@@ -1,6 +1,6 @@
 # @sffmc/memory
 
-> **This is the memory composite.** It composes 2 sub-features: `memory-core` (SQLite + context recall, inlined), plus `checkpoint` / `judge` / `dream` from `@sffmc/utilities` (all opt-in, disabled by default — flip flags in `~/.config/SFFMC/extra.yaml` per feature). The standalone `memory` package now exports the composite that wires the 4 sub-features via `mergeHooks()`.
+> **This is the memory composite.** It composes 2 sub-features: `memory-core` (SQLite + context recall, inlined), plus `checkpoint` / `judge` / `dream` from `@sffmc/utilities` (all opt-in, disabled by default - flip flags in `~/.config/SFFMC/extra.yaml` per feature). The standalone `memory` package now exports the composite that wires the 4 sub-features via `mergeHooks()`.
 
 ## Sub-features
 
@@ -32,7 +32,7 @@ To enable @sffmc/utilities features:
 
 ## What it does
 
-Gives your agent persistent memory across sessions. Indexes project docs (`memory-bank/*.md`, `AGENTS.md`, root `*.md`) into an FTS5 SQLite database and injects a structured "Context Recall" block at the start of each session. A chokidar watcher re-indexes changed files. The recall block is composed of top-importance memory rows, an `AGENTS.md` parse, and a tail of recent messages — all sized by the per-section budget.
+Gives your agent persistent memory across sessions. Indexes project docs (`memory-bank/*.md`, `AGENTS.md`, root `*.md`) into an FTS5 SQLite database and injects a structured "Context Recall" block at the start of each session. A chokidar watcher re-indexes changed files. The recall block is composed of top-importance memory rows, an `AGENTS.md` parse, and a tail of recent messages - all sized by the per-section budget.
 
 ## Install
 

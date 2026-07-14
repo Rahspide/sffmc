@@ -5,13 +5,13 @@
 ## What it is
 
 Sandboxed JavaScript execution for orchestrating long-running, multi-step
-LLM tasks — 200+ steps, with budget caps, crash recovery, and a journal
+LLM tasks - 200+ steps, with budget caps, crash recovery, and a journal
 that replays completed work after restart.
 
 Three primitives inside the sandbox:
-- `agent(task, opts?)` — launch one LLM agent and wait for a response
-- `parallel(thunks)` — launch N agents in parallel
-- `pipeline(items, ...stages)` — sequential chain of stages for
+- `agent(task, opts?)` - launch one LLM agent and wait for a response
+- `parallel(thunks)` - launch N agents in parallel
+- `pipeline(items, ...stages)` - sequential chain of stages for
   each item
 
 Example: a 6-phase research workflow (Plan → Search → Extract →
@@ -29,12 +29,12 @@ survives even a process crash.
 
 In a single session for a 200+ step task, the context window bloats,
 attention decays, the model starts hallucinating or looping.
-The "one session = one task" approach works up to ~30 steps, then —
+The "one session = one task" approach works up to ~30 steps, then -
 degradation.
 
 The workflow engine solves this differently:
 - Each step (agent) is an isolated LLM call with no history accumulation
-- State lives outside the context window — in SQLite + JSONL journal
+- State lives outside the context window - in SQLite + JSONL journal
 - On process crash, workflow resumes from the last checkpoint
 - Hard caps prevent budget runaway (1000 lifecycle agents,
   2M tokens, 16 concurrent, 1 hour wall-clock)
@@ -86,7 +86,7 @@ agent(task: string, opts?: {
 ```
 
 **Contract**: `agent()` **never throws an exception**. If something
-goes wrong — it returns `null`. 5 reasons why:
+goes wrong - it returns `null`. 5 reasons why:
 
 | Reason | When | What to do in workflow |
 |---|---|---|
@@ -120,16 +120,16 @@ parallel(thunks: Array<() => Promise<T>>): Promise<Array<T | null>>
 ```
 
 Launches all thunk functions simultaneously. Each function returns a
-Promise — they execute concurrently (up to 16 at once, governed by a
+Promise - they execute concurrently (up to 16 at once, governed by a
 global semaphore). The result is an array of the same length.
 
 A thunk that throws crashes the ENTIRE parallel (unlike agent(), which
-never-throws). If you need isolation — wrap:
+never-throws). If you need isolation - wrap:
 
 ```ts
 const results = await parallel(
   items.map(item => () =>
-    agent("process: " + item)  // never-throw — safe
+    agent("process: " + item)  // never-throw - safe
   )
 )
 // results[i] = result or null
@@ -163,9 +163,9 @@ const perLine = await pipeline(
 
 ### Where to store
 
-- `packages/runtime/src/builtin/` — built-in workflows (`deep-research`, `plan`, `tdd`, `refactor`, `security-audit`, `doc-gen`, `lib-migrate`)
-- `.sffmc/workflows/*.ts` — project-level
-- `.claude/workflows/*.ts` — legacy (Claude Code compatibility)
+- `packages/runtime/src/builtin/` - built-in workflows (`deep-research`, `plan`, `tdd`, `refactor`, `security-audit`, `doc-gen`, `lib-migrate`)
+- `.sffmc/workflows/*.ts` - project-level
+- `.claude/workflows/*.ts` - legacy (Claude Code compatibility)
 
 ### Structure
 
@@ -184,7 +184,7 @@ export const meta = {
 
 // Main function (called automatically)
 export default async function main(args) {
-  // args — what was passed to workflow({ operation: "run", args: {...} })
+  // args - what was passed to workflow({ operation: "run", args: {...} })
 
   phase("Setup")        // mark phase start
   log("Starting...")    // write to journal
@@ -195,7 +195,7 @@ export default async function main(args) {
 }
 ```
 
-Or without `main()` — top-level code also runs:
+Or without `main()` - top-level code also runs:
 
 ```ts
 export const meta = { name: "inline", ... }
@@ -228,19 +228,19 @@ passed at launch). `readFile("/etc/passwd")` returns `null`.
 The key rule: `agent()` **never throws**. This means:
 
 ```ts
-// CORRECT — check for null
+// CORRECT - check for null
 const res = await agent("risky task")
 if (res === null) {
   log("agent failed, trying fallback")
   return await agent("simpler task")
 }
 
-// INCORRECT — assume res is always an object
+// INCORRECT - assume res is always an object
 const items = res.items  // TypeError if res === null
 ```
 
-`parallel()` and `pipeline()` — conversely, do throw. If a thunk throws
-an exception — the whole batch crashes. An exception from the sandbox =
+`parallel()` and `pipeline()` - conversely, do throw. If a thunk throws
+an exception - the whole batch crashes. An exception from the sandbox =
 `failed` status for the entire run.
 
 **Detect the failure reason** via the runtime's event bus:
@@ -254,7 +254,7 @@ runtime.events.on("workflow:agent_failed", (e) => {
 })
 ```
 
-When using the workflow tool via `createWorkflowTool(runtime)`, observability listeners on the runtime's event bus are auto-wired — no manual `on()` call needed in typical setups.
+When using the workflow tool via `createWorkflowTool(runtime)`, observability listeners on the runtime's event bus are auto-wired - no manual `on()` call needed in typical setups.
 
 ## Budgets
 
@@ -268,21 +268,21 @@ When using the workflow tool via `createWorkflowTool(runtime)`, observability li
 | **Wall-clock** | 1 hour | `config.maxWallClockMs` |
 | **Tokens** | 2 000 000 | `config.maxTokens` |
 
-When any cap is reached — agent() starts returning `null` (reason:
-`over-cap`). The workflow script must decide what to do — return an
+When any cap is reached - agent() starts returning `null` (reason:
+`over-cap`). The workflow script must decide what to do - return an
 intermediate result or fail with an error.
 
 ## Resume
 
 Workflow automatically recovers after a process crash:
 
-1. At OpenCode startup, `recoverOrphanedWorkflows()` is called — all runs
+1. At OpenCode startup, `recoverOrphanedWorkflows()` is called - all runs
    with status `running` transition to `crashed`
-2. The command `workflow({ operation: "resume", run_id: "wf_..." })` —
+2. The command `workflow({ operation: "resume", run_id: "wf_..." })` -
    resumes the workflow from the last checkpoint
-3. SHA-256 of the script body is compared with the stored hash — if the
+3. SHA-256 of the script body is compared with the stored hash - if the
    script changed, the journal is reset (edit detection)
-4. Every successful agent() is written to the JSONL journal — on replay
+4. Every successful agent() is written to the JSONL journal - on replay
    the result is pulled from cache, the agent is not re-invoked
 
 ## MCP integration
@@ -293,7 +293,7 @@ use `agent()` with `tools` specified:
 ```ts
 // Search via your LLM-backed search tool (works inside agent)
 const hits = await agent("search: Rust web frameworks", {
-  tools: ["bash"],  // agent can call bash, and bash — curl to your search endpoint
+  tools: ["bash"],  // agent can call bash, and bash - curl to your search endpoint
 })
 
 // Or directly via external tool if registered
@@ -313,9 +313,9 @@ Workflow scripts execute inside a **quickjs-emscripten** WASM sandbox:
 
 - **No access** to Node.js API, filesystem, network, process.env
 - **No Date** (replaced to avoid non-determinism on replay)
-- **Math.random** replaced with seeded PRNG (mulberry32) — replay
+- **Math.random** replaced with seeded PRNG (mulberry32) - replay
   is reproducible
-- **URL** — minimal implementation for parsing (protocol, hostname,
+- **URL** - minimal implementation for parsing (protocol, hostname,
   pathname)
 - **Memory limit**: 64 MB
 - **Instruction limit**: 5 000 000 (interrupts infinite loops)
@@ -392,7 +392,7 @@ return { files: logs.length, report: "report.md" }
 
 ### Deep research
 
-The largest built-in workflow — 6 phases, adversarial jury:
+The largest built-in workflow - 6 phases, adversarial jury:
 
 ```ts
 workflow({ operation: "run", name: "deep-research", args: { question: "What is the best Rust web framework for 2026?" } })
@@ -410,33 +410,33 @@ workflow({ operation: "run", name: "deep-research", args: { question: "What is t
 | **Budgets** | 2 caps (lifecycle, concurrent) | 5 caps (added: depth, token, wall-clock) |
 | **LLM interface** | 5 tool operations | Same 5 (run/status/wait/cancel/resume) |
 | **Deep research** | 391 lines JS, JURY_SIZE=3 | Ported to TS, 280 lines, same parameters |
-| **MCP** | Direct bindings | No — via agent({ tools }) |
+| **MCP** | Direct bindings | No - via agent({ tools }) |
 | **Streaming** | Yes (SSE via event) | No |
 
 What we changed and why:
-- **Added token cap (2M)** — MiMo didn't count tokens, could burn budget
-- **Added depth cap (8)** — prevents recursive explosions
-- **Replaced vm with QuickJS** — sandbox works in Bun (MiMo was Node-only)
-- **Removed model: "lite"** — use the default model configured for your
+- **Added token cap (2M)** - MiMo didn't count tokens, could burn budget
+- **Added depth cap (8)** - prevents recursive explosions
+- **Replaced vm with QuickJS** - sandbox works in Bun (MiMo was Node-only)
+- **Removed model: "lite"** - use the default model configured for your
   provider
-- **Added seeded PRNG** — replay is now fully deterministic
+- **Added seeded PRNG** - replay is now fully deterministic
 
 ## Known limitations
 
-1. **Cross-process resume** — works only within a single process.
+1. **Cross-process resume** - works only within a single process.
    After restarting OpenCode, `resume` must be called explicitly. No
    automatic resume.
-2. **No direct MCP** — agent() cannot directly call MCP servers.
+2. **No direct MCP** - agent() cannot directly call MCP servers.
    Only via `tools: ["bash"]` and curl to your search endpoint.
-3. **No streaming** — workflow result is only visible after completion.
+3. **No streaming** - workflow result is only visible after completion.
    Cannot observe progress in real time.
-4. **QuickJS performance** — JSON marshalling between host and guest costs
-   ~0.5-2ms per call. For 200 steps that's ~100-400ms — negligible. For 2000
-   steps — ~1-4s of overhead.
-5. **Sandbox is single-threaded** — parallel() inside QuickJS uses
+4. **QuickJS performance** - JSON marshalling between host and guest costs
+   ~0.5-2ms per call. For 200 steps that's ~100-400ms - negligible. For 2000
+   steps - ~1-4s of overhead.
+5. **Sandbox is single-threaded** - parallel() inside QuickJS uses
    microtasks (Promise.all), not real threads. Concurrency
    is achieved on the host side.
-6. **Maximum 1000 lifecycle agents** — hard limit per runtime
+6. **Maximum 1000 lifecycle agents** - hard limit per runtime
    instance. When exceeded, agent() silently returns null.
 
 ## Future work

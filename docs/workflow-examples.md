@@ -8,12 +8,12 @@ via `workflow({ operation: "run", name: "<name>" })`.
 
 ## 1. Hello world
 
-The simplest workflow — one agent, one result.
+The simplest workflow - one agent, one result.
 
 ```ts
 export const meta = {
   name: "hello-world",
-  description: "Single-agent demo — asks a question and returns the answer",
+  description: "Single-agent demo - asks a question and returns the answer",
   whenToUse: "Demo / test that the workflow engine works",
   phases: [{ title: "Ask" }],
 }
@@ -29,10 +29,10 @@ export default async function main() {
 **Expected time**: 2-5 seconds, ~500 tokens.
 
 **What to check**: `outcome.result.answer` should be `"4"` (or `4`,
-depending on the model). If `null` — check that the workflow plugin
+depending on the model). If `null` - check that the workflow plugin
 is loaded.
 
-**Common mistake**: forgot `export default async function main()` — without
+**Common mistake**: forgot `export default async function main()` - without
 `main()` the script runs, but the result won't end up in `outcome.result`.
 
 ---
@@ -101,10 +101,10 @@ export default async function main(args) {
 **Expected time**: 3-8 minutes, ~30-80k tokens (depends on codebase
 size).
 
-**What to check**: `outcome.result.filesAffected` — how many were found,
-`filesChanged` — how many were successfully replaced.
+**What to check**: `outcome.result.filesAffected` - how many were found,
+`filesChanged` - how many were successfully replaced.
 
-**Common mistake**: didn't specify `tools: ["grep_app"]` — agent won't be
+**Common mistake**: didn't specify `tools: ["grep_app"]` - agent won't be
 able to search code and will return `null` (no-deliverable).
 
 ---
@@ -112,11 +112,11 @@ able to search code and will return `null` (no-deliverable).
 ## 3. Security audit (parallel per file)
 
 > **Note:** `security-audit` is shipped as a built-in workflow in
-> `packages/runtime/src/builtin/`. You can just call it by name — no need
+> `packages/runtime/src/builtin/`. You can just call it by name - no need
 > to write your own. The pattern below shows what a custom security
 > audit workflow WOULD look like.
 
-Parallel security audit — each file is checked by a separate
+Parallel security audit - each file is checked by a separate
 agent, results are aggregated.
 
 ```ts
@@ -202,8 +202,8 @@ export default async function main(args) {
 **Expected time**: 5-15 minutes, ~50-150k tokens (depends on the number of
 files).
 
-**What to check**: `outcome.result.issues` — array of findings, sorted
-by severity. `outcome.result.summary` — text summary.
+**What to check**: `outcome.result.issues` - array of findings, sorted
+by severity. `outcome.result.summary` - text summary.
 
 **Common mistake**: `glob("**/*.ts")` takes VERY long in
 large projects (node_modules, dist). Use a specific path:
@@ -253,7 +253,7 @@ export default async function main(args) {
     .map((s, i) => `## ${logFiles[i]}\n\n${s ?? "(no summary available)"}\n`)
     .join("\n---\n\n")
 
-  const header = `# Daily Report — ${new Date().toISOString().slice(0, 10)}\n\n`
+  const header = `# Daily Report - ${new Date().toISOString().slice(0, 10)}\n\n`
   await writeFile(reportPath, header + report)
 
   return {
@@ -266,8 +266,8 @@ export default async function main(args) {
 
 **Expected time**: 1-5 minutes, ~10-30k tokens.
 
-**What to check**: `outcome.result.report` — path to the written file.
-`emptySummaries` — how many files couldn't be summarized.
+**What to check**: `outcome.result.report` - path to the written file.
+`emptySummaries` - how many files couldn't be summarized.
 
 **Common mistake**: if log files are large (>100KB), agent won't be able
 to read them in full. Use `tools: ["bash"]` with `head`/`tail`
@@ -279,10 +279,10 @@ instead of `tools: ["read"]`.
 
 > **Note:** `deep-research` is shipped as a built-in workflow in
 > `packages/runtime/src/builtin/deep-research.ts`. You can just call it
-> by name — the example below shows the call shape, not a workflow
+> by name - the example below shows the call shape, not a workflow
 > you need to write.
 
-The most complex built-in workflow. No code needed — just
+The most complex built-in workflow. No code needed - just
 run by name:
 
 ```ts
@@ -295,14 +295,14 @@ workflow({
 
 What happens inside (280 lines of sandbox code):
 
-1. **Plan** — question is broken into 3-7 search lines
-2. **Search** — parallel search along each line
-3. **Extract** — URL deduplication, read top sources, extract
+1. **Plan** - question is broken into 3-7 search lines
+2. **Search** - parallel search along each line
+3. **Extract** - URL deduplication, read top sources, extract
    facts
-4. **Group** — group identical facts (so they aren't verified twice)
-5. **Crosscheck** — adversarial jury: 3 "jurors" vote
+4. **Group** - group identical facts (so they aren't verified twice)
+5. **Crosscheck** - adversarial jury: 3 "jurors" vote
    accept/reject on each fact. 2 rejects = fact discarded
-6. **Report** — final report: summary, sections with citations, limits
+6. **Report** - final report: summary, sections with citations, limits
 
 **Constants** (only changeable in the builtin code):
 
@@ -315,9 +315,9 @@ What happens inside (280 lines of sandbox code):
 
 **Expected time**: 10-30 minutes, ~200-500k tokens.
 
-**What to check**: `outcome.result.summary` — answer to the question.
-`outcome.result.sections` — structured findings with citations.
-`outcome.result.stats` — metrics (how many sources, facts, upheld vs
+**What to check**: `outcome.result.summary` - answer to the question.
+`outcome.result.sections` - structured findings with citations.
+`outcome.result.stats` - metrics (how many sources, facts, upheld vs
 dropped).
 
 **Common mistake**: all facts rejected at crosscheck → answer "inconclusive".
@@ -328,15 +328,15 @@ question or increase `SOURCE_BUDGET` in the code.
 
 ## Tips
 
-1. **Start with hello-world** — make sure the workflow engine works
+1. **Start with hello-world** - make sure the workflow engine works
    before writing complex scenarios.
-2. **Use structured output** — `schema` in `agent()` gives
+2. **Use structured output** - `schema` in `agent()` gives
    predictable results that are easy to process further in code.
-3. **Check for null** — every `agent()` can return `null`.
+3. **Check for null** - every `agent()` can return `null`.
    Write fallback logic.
-4. **Don't overuse parallel** — 16 concurrent agents = 16×
+4. **Don't overuse parallel** - 16 concurrent agents = 16×
    tokens simultaneously. For 200-step tasks this burns budget fast.
-5. **Log key moments** — `log()` and `phase()` are free and
+5. **Log key moments** - `log()` and `phase()` are free and
    help debugging via `workflow status`.
-6. **Test on small data** — before running security-audit on the
+6. **Test on small data** - before running security-audit on the
    whole project, run it on one file first.

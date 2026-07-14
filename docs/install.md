@@ -56,7 +56,7 @@ export PATH="$HOME/.sffmc/plugins/sffmc/bin:$PATH"
 | `sffmc path` | Print the install directory |
 | `sffmc help` | Show usage |
 
-All `init` variants are **idempotent** — re-running them only adds
+All `init` variants are **idempotent** - re-running them only adds
 missing entries and skips already-present ones.
 
 ## Pinning a specific version
@@ -124,7 +124,7 @@ Then re-run `sffmc init`.
 
 ### Permission errors on macOS/Linux
 
-SFFMC installs to `~/.sffmc/plugins/sffmc` by default — no sudo needed.
+SFFMC installs to `~/.sffmc/plugins/sffmc` by default - no sudo needed.
 If you see permission errors, check that `$HOME/.sffmc` is writable by
 your user:
 
@@ -140,7 +140,7 @@ Restart OpenCode for changes to take effect. Verify with:
 sffmc doctor
 ```
 
-Or open any OpenCode chat session and call the `sffmc_health` tool —
+Or open any OpenCode chat session and call the `sffmc_health` tool -
 if the tool appears in the tool list, the plugins loaded correctly.
 
 ## Uninstallation
@@ -154,5 +154,5 @@ rm -rf ~/.sffmc/plugins/sffmc   # delete the cloned repo
 
 If you're contributing to SFFMC, see [CONTRIBUTING.md](../CONTRIBUTING.md).
 For local development, clone the repo manually and add `file://` entries
-pointing at your working copy — this way your edits hot-reload without
+pointing at your working copy - this way your edits hot-reload without
 re-running the installer.

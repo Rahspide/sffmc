@@ -55,7 +55,7 @@ The first five steps validate **every** commit that lands on `main`. By
 the time you push a `v*.*.*` tag, the gates are *expected* to be green.
 We re-run them on the tag commit anyway as a final check, because:
 
-1. The tag is the commit that ships — failure here is the worst time to
+1. The tag is the commit that ships - failure here is the worst time to
    discover a regression.
 2. Tag commits are sometimes crafted from a working tree that diverged
    from `main` (hot-fixes, security patches).
@@ -146,7 +146,7 @@ The end-to-end release flow is:
 4. **Watch the build** in the Drone UI. The pipeline will:
    - Re-run the precommit chain on the tag commit
    - Run `publish` (publishes all 5 packages to npm in dependency
-     order — `packages/utilities/` first (dependency for the others), then the remaining `packages/*/` alphabetically)
+     order - `packages/utilities/` first (dependency for the others), then the remaining `packages/*/` alphabetically)
    - Run `notify` (logs to drone; posts to Slack/Discord if
      `slack_webhook` is set)
 
@@ -178,8 +178,8 @@ The publish step runs `bun run scripts/release.sh --actual`, which:
    - Tag `v0.9.0` exists (soft warning, not a hard fail)
 
 2. **Publishes** in this order:
-   - `packages/utilities/` (`@sffmc/utilities`) — first, because the other packages depend on it
-   - the remaining `packages/*/` alphabetically (5 packages total: 2 composites — `@sffmc/safety`, `@sffmc/memory` — and 3 standalones — `@sffmc/runtime`, `@sffmc/cognition`, plus the just-published `@sffmc/utilities` excluded to avoid re-publish):
+   - `packages/utilities/` (`@sffmc/utilities`) - first, because the other packages depend on it
+   - the remaining `packages/*/` alphabetically (5 packages total: 2 composites - `@sffmc/safety`, `@sffmc/memory` - and 3 standalones - `@sffmc/runtime`, `@sffmc/cognition`, plus the just-published `@sffmc/utilities` excluded to avoid re-publish):
      - `@sffmc/cognition`
      - `@sffmc/memory`
      - `@sffmc/runtime`
@@ -206,7 +206,7 @@ publish fails:
 | Tag-gate failed (test/typecheck/audit/health) | Fix the underlying issue, push a new commit, delete the old tag, re-tag |
 | Publish failed (network / npm 5xx) | `drone build promote Rahspide/sffmc <build> <target>` |
 | `npm_token` is invalid | Update the secret (`drone secret update`), then promote the build |
-| All 5 packages published but step exited non-zero | Inspect the build log; usually a post-publish hook failed — promote to retry |
+| All 5 packages published but step exited non-zero | Inspect the build log; usually a post-publish hook failed - promote to retry |
 
 ## HMAC signature
 
@@ -214,7 +214,7 @@ The `.drone.yml` ends with a `kind: signature` block whose `hmac` field
 is a placeholder. The first time you run `drone repo add Rahspide/sffmc`,
 the drone CLI signs the YAML with your Drone server's secret key and
 replaces the placeholder with the real HMAC. Do **not** edit the
-signature block manually — Drone will reject unsigned changes.
+signature block manually - Drone will reject unsigned changes.
 
 If you ever need to rotate the signature (e.g. Drone server key
 rotation), remove the repo and re-add it:
@@ -226,9 +226,9 @@ drone repo add Rahspide/sffmc
 
 ## Related files
 
-- [`.drone.yml`](../.drone.yml) — the pipeline definition
-- [`scripts/release.sh`](../scripts/release.sh) — the publish helper
-- [`scripts/audit-public-content.sh`](../scripts/audit-public-content.sh) — public-content leak audit
-- [`scripts/run-health.ts`](../scripts/run-health.ts) — `@sffmc/cognition` check runner
-- [`RELEASE.md`](../RELEASE.md) — high-level release notes
-- [`CHANGELOG.md`](../CHANGELOG.md) — version history
+- [`.drone.yml`](../.drone.yml) - the pipeline definition
+- [`scripts/release.sh`](../scripts/release.sh) - the publish helper
+- [`scripts/audit-public-content.sh`](../scripts/audit-public-content.sh) - public-content leak audit
+- [`scripts/run-health.ts`](../scripts/run-health.ts) - `@sffmc/cognition` check runner
+- [`RELEASE.md`](../RELEASE.md) - high-level release notes
+- [`CHANGELOG.md`](../CHANGELOG.md) - version history

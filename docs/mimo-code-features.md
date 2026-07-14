@@ -1,7 +1,7 @@
-# MiMo-Code — Developer Reference
+# MiMo-Code - Developer Reference
 
 A standalone reference describing Xiaomi MiMo-Code's features, the workflow
-engine, the tool layer, memory, plugins, configuration, and sandboxing — as
+engine, the tool layer, memory, plugins, configuration, and sandboxing - as
 documented in the project's own source tree and public repository.
 
 > **Scope.** This document is purely a reference for what MiMo-Code offers and
@@ -121,7 +121,7 @@ auth) and `codex`, plus the optional `copilot`, `gitlab`, and `poe` auth
 providers loaded as plugins (`packages/opencode/src/plugin/index.ts:124-139`).
 
 The default model on install is **MiMo Auto** ("anonymous channel, zero
-configuration" — `README.md:36`). The npm CLI binary is `mimo`
+configuration" - `README.md:36`). The npm CLI binary is `mimo`
 (`packages/opencode/package.json:14`).
 
 ---
@@ -168,7 +168,7 @@ type RunOutcome =
   | { status: "cancelled" }
 ```
 
-### 2.2 `agent(prompt, opts)` — the primary guest global
+### 2.2 `agent(prompt, opts)` - the primary guest global
 
 The `agent` host function is the only way for a workflow script to spawn a
 subagent. Signature (declared at `runtime.ts:798`):
@@ -232,7 +232,7 @@ globalThis.pipeline = (items, ...stages) =>
 the whole batch** so failures fail loud rather than silently becoming `null`s
 (`sandbox.ts:34-39`). The comment is explicit:
 
-> Pure-guest helpers. parallel/pipeline do NO throttling — concurrency is
+> Pure-guest helpers. parallel/pipeline do NO throttling - concurrency is
 > enforced by the host semaphore inside the agent() hook. They also do NOT
 > catch: a throwing thunk/stage rejects the batch (fails loud with the guest
 > stack).
@@ -249,10 +249,10 @@ test("a throwing thunk in parallel rejects the batch (fails loud, message surviv
 ```
 
 `pipeline(items, ...stages)` runs each item through all stages with **no
-inter-stage barrier** — later items can overtake earlier items between stages
+inter-stage barrier** - later items can overtake earlier items between stages
 (`sandbox.test.ts:186-193`, `workflow.txt:12`).
 
-### 2.4 `workflow(nameOrScript, args?, opts?)` — nested invocation
+### 2.4 `workflow(nameOrScript, args?, opts?)` - nested invocation
 
 Inside a workflow script, `workflow()` mints a child run, awaits its outcome,
 and resolves to either the child's `result` or `null`. Signature
@@ -303,7 +303,7 @@ args is bounded only by `maxDepth`). This is documented in `workflow.txt:25`.
 
 The default `maxDepth` is 8 (`runtime.ts:447`; `config.ts:395`).
 
-### 2.5 `phase(title)` and `log(message)` — observability
+### 2.5 `phase(title)` and `log(message)` - observability
 
 Both are host functions. `phase(title)` updates the current phase on the
 `RunEntry`, persists it via `WorkflowPersistence.recordPhase`, appends a
@@ -322,7 +322,7 @@ const phase: HostFn = (title: unknown) => {
 }
 ```
 
-`log(message)` only appends to the journal and emits a `WorkflowLog` event —
+`log(message)` only appends to the journal and emits a `WorkflowLog` event -
 it does NOT update `currentPhase` (`runtime.ts:883-887`).
 
 ### 2.6 The file primitives
@@ -346,7 +346,7 @@ All four are implemented in `workspace.ts:30-68` and jailed to the workspace
 root by a **lexical** check (no `..` or absolute escape). They auto-create
 parent dirs on write.
 
-### 2.7 Sandbox — `quickjs-emscripten`
+### 2.7 Sandbox - `quickjs-emscripten`
 
 The sandbox is built on [`quickjs-emscripten`](https://github.com/justjake/quickjs-emscripten),
 imported as `quickjs-emscripten` in `package.json:120` and used in
@@ -393,7 +393,7 @@ Enforced both in-guest (`rt.setInterruptHandler(shouldInterruptAfterDeadline(...
 `sandbox.ts:81`) and host-side as a `Promise.race` against `vm.resolvePromise`
 (`sandbox.ts:191-209`).
 
-### 2.8 State persistence — three layers
+### 2.8 State persistence - three layers
 
 Every run's state lives in three coordinated places:
 
@@ -456,12 +456,12 @@ appender never overwrites an in-progress result (`persistence.ts:264-282`).
 There are **two** journal-append methods, with deliberately different
 semantics (`persistence.ts:239-261`):
 
-- `appendJournal` — async, used for `phase` and `log` (low volume).
-- `appendJournalSync` — **synchronous, file IO** on the calling fiber. Used
+- `appendJournal` - async, used for `phase` and `log` (low volume).
+- `appendJournalSync` - **synchronous, file IO** on the calling fiber. Used
   for agent results, the comment is explicit:
 
 > Called PER-AGENT from the agent() hook the instant a spawn succeeds, so
-> each result is durable on disk immediately — a mid-run process exit /
+> each result is durable on disk immediately - a mid-run process exit /
 > SIGKILL / deadline leaves a journal containing every completed agent,
 > which is what makes resume replay them (durability does NOT wait for run
 > completion). It is SYNCHRONOUS on purpose: an Effect.promise(async fs)
@@ -539,7 +539,7 @@ const maxDepth = input.maxDepth ?? cfg?.workflow?.maxDepth ?? 8
 the whole script body. Configurable per run via `input.scriptDeadlineMs` and
 globally via `config.workflow.scriptDeadlineMs`.
 
-### 2.10 Resume after crash — SHA-256 script edit detection
+### 2.10 Resume after crash - SHA-256 script edit detection
 
 `resume(input)` (`runtime.ts:1141-1210`) re-launches a run under its
 existing runID. Two invariants:
@@ -567,7 +567,7 @@ existing runID. Two invariants:
 The rationale is at `runtime.ts:1181-1187`:
 
 > The journal keys results by {prompt, agentType, model, schema, phase}+occ,
-> NOT by the script body — so a between-cycle edit would replay OLD results
+> NOT by the script body - so a between-cycle edit would replay OLD results
 > onto NEW code paths (silent divergence). Compare the persisted sha
 > (stamped at the prior launch) to the CURRENT script's sha […]
 
@@ -603,7 +603,7 @@ The two "failed" events are **observability-only** and do not change
 8. Resolve the run's `Deferred` with `{ status: "cancelled" }`.
 9. Publish `workflow.finished` with `status="cancelled"`.
 
-The acyclicity invariant is load-bearing — child edges are added only at
+The acyclicity invariant is load-bearing - child edges are added only at
 `workflow()` call time, so the cancellation graph is a tree
 (`runtime.ts:331-336`).
 
@@ -625,9 +625,9 @@ else              failed++
 
 Two paths share this discipline:
 
-- **Shared spawn** (`spawnShared`, `runtime.ts:559-647`) — child shares the
+- **Shared spawn** (`spawnShared`, `runtime.ts:559-647`) - child shares the
   parent's session.
-- **Isolated spawn** (`spawnIsolated`, `runtime.ts:650-796`) — child gets a
+- **Isolated spawn** (`spawnIsolated`, `runtime.ts:650-796`) - child gets a
   fresh worktree; worktree is kept only on success-with-changes, otherwise
   reclaimed.
 
@@ -652,7 +652,7 @@ export function parseMeta(script: string): ParseResult {
 ```
 
 The `meta` literal is parsed by a hand-rolled recursive-descent reader that
-**never executes** the literal — it accepts only data objects/arrays/strings/
+**never executes** the literal - it accepts only data objects/arrays/strings/
 numbers/booleans/null (no calls, no member access, no operators). The literal
 is replaced with an equal-length blank so the body's line numbers are
 preserved for stack traces (`meta.ts:1-18, 57-59`).
@@ -767,7 +767,7 @@ The runtime populates it on layer init and clears it on finalizer
 (`runtime.ts:1216-1221`); the tool reads `workflowRef.current` and throws a
 clear error if undefined (`workflow.ts:65-75`).
 
-### 3.2 The `actor` tool — subagent delegation
+### 3.2 The `actor` tool - subagent delegation
 
 Source: `packages/opencode/src/tool/actor.ts` (803 LOC).
 
@@ -778,9 +778,9 @@ ID: `actor`. Schema (per `actor.txt:14-31`):
 | --- | --- | --- |
 | `run` | `subagent_type`, `description`, `prompt` | `actor_id`, `timeout_ms`, `command`, `context` (`none`/`state`/`full`), `output_schema` |
 | `spawn` | `subagent_type`, `description`, `prompt` | `actor_id`, `command`, `context`, `output_schema` |
-| `status` | `actor_id` | — |
+| `status` | `actor_id` | - |
 | `wait` | `actor_id` | `timeout_ms` |
-| `cancel` | `actor_id` | — |
+| `cancel` | `actor_id` | - |
 | `send` | `to_actor_id`, `content` | `to_session_id`, `type` |
 
 Key differences vs the workflow engine:
@@ -788,7 +788,7 @@ Key differences vs the workflow engine:
 - `run` blocks and returns the result inline; `spawn` returns `actor_id`
   immediately for background work (`actor.txt:79`).
 - `context` controls what the subagent sees of the parent:
-  `none` (default — clean context), `state` (checkpoint summaries),
+  `none` (default - clean context), `state` (checkpoint summaries),
   `full` (full conversation).
 - `task_id` binds the subagent to a tracked task; on completion the
   subagent's findings get written to `tasks/<TID>/progress.md`
@@ -797,7 +797,7 @@ Key differences vs the workflow engine:
 The `output_schema` field is passed as a structured-output JSON schema to the
 LLM (`workflow.ts:601, 722`).
 
-### 3.3 The `task` tool — task tracker (NOT subagent delegation)
+### 3.3 The `task` tool - task tracker (NOT subagent delegation)
 
 Source: `packages/opencode/src/tool/task.ts` (456 LOC). Tool ID: `task`.
 
@@ -820,7 +820,7 @@ const parameters = z.strictObject({
 })
 ```
 
-Task IDs follow the regex `^T\d+(\.\d+)*$` (`task/schema.ts:4`) — `T1`,
+Task IDs follow the regex `^T\d+(\.\d+)*$` (`task/schema.ts:4`) - `T1`,
 `T1.1`, `T1.2.3`, etc. Tasks have a parent pointer (`task/schema.ts:13`),
 forming the tree shape referenced by the README.
 
@@ -830,8 +830,8 @@ Status values (`task/schema.ts:7`):
 enum ["open", "in_progress", "blocked", "done", "abandoned"]
 ```
 
-The tool also supports a **shell-invocation style** — `task create <summary>
---parent T1`, etc. — via the optional `shell.parse` field (`task.ts:449-453`).
+The tool also supports a **shell-invocation style** - `task create <summary>
+--parent T1`, etc. - via the optional `shell.parse` field (`task.ts:449-453`).
 When the LLM invokes via shell, a tokenizer (`shell-tokenize.ts`) splits the
 command, and `parseTaskScript` maps each verb to its JSON-schema operation
 (`task.ts:143-161`).
@@ -849,7 +849,7 @@ command, and `parseTaskScript` maps each verb to its JSON-schema operation
 | `glob` | Glob path matching | `tool/glob.ts` | 100 |
 | `grep` | Regex search | `tool/grep.ts` | 145 |
 | `webfetch` | Fetch a URL | `tool/webfetch.ts` | 199 |
-| `websearch` | Web search (Exa / OpenCode / Xiaomi) | registered but source path under `tool/websearch.ts` | — |
+| `websearch` | Web search (Exa / OpenCode / Xiaomi) | registered but source path under `tool/websearch.ts` | - |
 | `codesearch` | Code-aware search | `tool/codesearch.ts` | 63 |
 | `apply_patch` | OpenAI-style patch format (gpt-* only) | `tool/apply_patch.ts` | 308 |
 | `lsp` | LSP integration (experimental) | `tool/lsp.ts` | 91 |
@@ -932,7 +932,7 @@ Source: `packages/opencode/src/workflow/builtin/deep-research.js` (391 lines).
 ```js
 export const meta = {
   name: 'deep-research',
-  description: 'Deep research orchestrator — runs parallel web searches, ...',
+  description: 'Deep research orchestrator - runs parallel web searches, ...',
   whenToUse: 'Use when the user wants a thorough, multi-source, fact-checked answer ...',
   phases: [
     { title: "Plan",       detail: "Break the question into search lines" },
@@ -965,7 +965,7 @@ const FACT_CAP       = 25  // hard cap on facts that reach crosscheck
 | **Plan** | 1 (plan agent, `schema: PLAN_SHAPE`) | Hard barrier before search |
 | **Search** | 1 per search line, in parallel (`schema: HITS_SHAPE`) | Each line's hits stream into the dedup gate |
 | **Extract** | 1 per *fresh* URL (`schema: READ_SHAPE`) | De-dup by canonical URL; respect `SOURCE_BUDGET`; over-budget slots only admit `fit: high` |
-| **Group** | 1 (group agent, `schema: GROUP_SHAPE`) | Barrier — gather all facts and rank first |
+| **Group** | 1 (group agent, `schema: GROUP_SHAPE`) | Barrier - gather all facts and rank first |
 | **Crosscheck** | `JURY_SIZE` (3) per group, in parallel, with `model: "lite"` | Each fact needs `≥ REJECT_QUORUM` (2) valid votes and `< REJECT_QUORUM` rejects |
 | **Report** | 1 (report agent, `schema: REPORT_SHAPE`) | Barrier |
 
@@ -1016,7 +1016,7 @@ The `agentRuns` field at the bottom makes the cost auditable from the report.
 
 The README mentions built-in **skills** in compose mode (`README.md:86`):
 "planning, execution, code review, TDD, debugging, verification, and merging".
-These are **not** workflow scripts — they are skill packs surfaced by the
+These are **not** workflow scripts - they are skill packs surfaced by the
 `skill` tool, described in §5.5 below.
 
 ### 4.3 Workflow resolution at runtime
@@ -1131,7 +1131,7 @@ Key behaviors:
 
 - Tokenises on Unicode letters, numbers, and `_` (so CJK letters match).
 - Each token is **phrase-quoted**, neutralising FTS5's special characters.
-- Tokens are **OR-joined** — empirically AND-joining returned zero results
+- Tokens are **OR-joined** - empirically AND-joining returned zero results
   for most multi-word queries (`fts-query.ts:16-23`).
 - BM25 ranking + a **relative score floor** drops common-word noise
   (`service.ts:117-133`):
@@ -1331,7 +1331,7 @@ const INTERNAL_PLUGINS: PluginInstance[] = [
 ### 6.4 Late-bound service reference
 
 The `workflow` tool cannot take a hard `WorkflowRuntime.Service` Layer
-dependency — that would force every layer that builds the registry
+dependency - that would force every layer that builds the registry
 (the app runtime plus ~9 test harnesses) to provide it. The tool
 instead reads through a module-local mutable reference. The rationale
 is explained verbatim in `runtime-ref.ts:1-18`:
@@ -1340,7 +1340,7 @@ is explained verbatim in `runtime-ref.ts:1-18`:
 > Wiring `WorkflowRuntime.Service` as a normal Layer dependency on the tool
 > would force it into `ToolRegistry.layer`'s requirement set, which every
 > layer that builds the registry (the app runtime plus ~9 test harnesses)
-> would then have to satisfy — the same blast radius that motivated
+> would then have to satisfy - the same blast radius that motivated
 > `spawnRef` for the Actor service. Instead, `WorkflowRuntime.layer`
 > populates this module-local reference on initialisation, and the tool
 > reads from it at call time. The requirement is broken at the type level
@@ -1541,7 +1541,7 @@ The config loader also discovers:
 - `.mimocode/plugins/*` and `.mimocode/plugin/*` directories
   (`config.ts:801`).
 - `.mimocode/commands/*` (project-local slash commands).
-- `~/.claude/commands/*` (Claude Code compatibility — load order: CC first,
+- `~/.claude/commands/*` (Claude Code compatibility - load order: CC first,
   then `.mimocode` overrides on name collision, `config.ts:756-763`).
 - `~/.claude/skills/*` (CC skills, unless
   `MIMOCODE_DISABLE_CLAUDE_CODE_SKILLS` is set).
@@ -1553,7 +1553,7 @@ The repo ships a bundle of 15 skills at
 
 | Skill | Purpose (from `SKILL.md` frontmatter) |
 | --- | --- |
-| `ask` | Asking the user — covers question tool + never-ask fallback |
+| `ask` | Asking the user - covers question tool + never-ask fallback |
 | `brainstorm` | Pre-implementation: turn ideas into designs and specs |
 | `debug` | Systematic debugging before proposing fixes |
 | `execute` | Executing implementation plans in a separate session |
@@ -1589,7 +1589,7 @@ skill bundle above.
 ### 7.9 Other persistent state
 
 - `~/.opencode-staging/opencode-bundle-patch/` is a process directory
-  referenced by the runtime (used as the proxy launcher for development —
+  referenced by the runtime (used as the proxy launcher for development -
   not user-facing state).
 - DB path: `~/.local/share/opencode/opencode.db` (WAL mode); overridable via
   `MIMOCODE_DB`.
@@ -1661,12 +1661,12 @@ test("Date is removed, Math.random is a seeded deterministic PRNG",
 
 The comment in `sandbox.ts:101-110` explains why:
 
-> Date — deleted (nondeterministic wall-clock; scripts must not depend on it).
-> Math.random — REPLACED with a SEEDED PRNG keyed on the run's seed […]
+> Date - deleted (nondeterministic wall-clock; scripts must not depend on it).
+> Math.random - REPLACED with a SEEDED PRNG keyed on the run's seed […]
 
 ### 8.3 WeakRef / FinalizationRegistry deletion
 
-Same rationale — they expose GC timing, which differs across runs:
+Same rationale - they expose GC timing, which differs across runs:
 
 ```js
 delete globalThis.WeakRef;
@@ -1712,7 +1712,7 @@ process lifetime (`runtime.ts:265-269`):
 
 > Frozen for the process lifetime: a later config change to
 > maxConcurrentAgents does NOT rebuild it (acceptable while workflow is
-> experimental — the global ceiling is a process/config property).
+> experimental - the global ceiling is a process/config property).
 
 A per-run semaphore is **always** clamped `≤ global` so a child can shrink
 but never grow (`runtime.ts:451-452`).
@@ -1751,7 +1751,7 @@ verifies that fast-tick count stays far below the parked duration).
 ### 8.9 Wall-clock deadline (reprise)
 
 The host-side `Promise.race` against `vm.resolvePromise`
-(`sandbox.ts:191-209`) is the **true** kill-switch for a parked guest —
+(`sandbox.ts:191-209`) is the **true** kill-switch for a parked guest -
 the in-guest interrupt handler only fires while the guest is executing
 bytecode (`sandbox.ts:184-189`):
 
@@ -1777,7 +1777,7 @@ The key wins, by elimination:
 
 | Sandbox | Why not |
 | --- | --- |
-| `bun:vm` | Shares the host runtime — a malicious script could escape via `process` / `Bun` |
+| `bun:vm` | Shares the host runtime - a malicious script could escape via `process` / `Bun` |
 | `vm2` | CVE history; `process.mainModule.require('child_process').execSync(...)` escapes |
 | `isolated-vm` | Native bindings, heavier; the chosen approach gets the same isolation through wasm |
 | `quickjs-emscripten` (chosen) | Pure wasm sandbox; no shared heap with host; works on Bun without native deps |
@@ -1786,7 +1786,7 @@ The meta parser comment at `meta.ts:8-15` makes the same point with respect
 to parsing:
 
 > Why not `new Function`/`eval`: that runs the literal in the HOST realm,
-> outside the QuickJS sandbox — a meta like
+> outside the QuickJS sandbox - a meta like
 >   { name: (globalThis.process.mainModule.require('child_process').execSync('id'),'x') }
 > would execute arbitrary host code.
 
@@ -1807,7 +1807,7 @@ to parsing:
 | `pipeline(items, ...stages)` | pure JS prelude | `sandbox.ts:43-45` |
 | `URL` | minimal polyfill | `sandbox.ts:50-63` |
 | `Math` | with `Math.random` replaced | `sandbox.ts:115-124` |
-| `JSON`, `Promise`, `Array`, … | bare quickjs-emscripten globals | — |
+| `JSON`, `Promise`, `Array`, … | bare quickjs-emscripten globals | - |
 
 ### 9.3 Globals stripped (guest)
 
@@ -1837,7 +1837,7 @@ The bare quickjs-emscripten runtime already lacks `crypto`, `performance`,
 because the wasm engine doesn't ship them, not because the host actively
 strips them (`sandbox.ts:97-100`):
 
-> Determinism: the guest is a bare quickjs-emscripten JS engine — no Web/Node
+> Determinism: the guest is a bare quickjs-emscripten JS engine - no Web/Node
 > APIs exist (no crypto/performance/fetch/timers/process/Temporal/gc; all
 > already undefined). We neutralize the JS built-ins whose output or timing
 > is nondeterministic […]
@@ -1858,14 +1858,14 @@ strips them (`sandbox.ts:97-100`):
 
 From `workspace.ts:11-19`:
 
-> LIMITATION (by design, experimental): the check is NAME-based, not realpath —
+> LIMITATION (by design, experimental): the check is NAME-based, not realpath -
 > `Filesystem.contains` is purely lexical and does NOT resolve symlinks. A
 > pre-existing symlink INSIDE the workspace that points OUTSIDE it (e.g. a
 > pnpm store link under node_modules) is therefore NOT caught: a path through
 > it resolves to an in-root lexical string, passes this check, and the
 > underlying fs op follows the link out of the jail. Hardening to a true
 > boundary means realpath-ing the resolved path (and, for writeFile, the
-> leaf's parent) before the contains check — deferred until the feature
+> leaf's parent) before the contains check - deferred until the feature
 > graduates off the flag.
 
 From `runtime.ts:1154-1157`:
@@ -1886,7 +1886,7 @@ Other notes:
 
 ## 10. Adoption Patterns
 
-### 10.1 The `workflow` tool — recommended invocations
+### 10.1 The `workflow` tool - recommended invocations
 
 From the tool description (`tool/workflow.txt:1-25`):
 
@@ -2009,15 +2009,15 @@ const perLine = await pipeline(
 The README's framing (`README.md:46-52`) suggests workflows are for the
 cases where one agent is insufficient:
 
-- **Default `build` agent** — typical coding tasks. Tools (bash, read,
+- **Default `build` agent** - typical coding tasks. Tools (bash, read,
   edit, write, glob, grep) cover it.
-- **`actor` tool** — when the LLM itself decides to delegate a single
+- **`actor` tool** - when the LLM itself decides to delegate a single
   sub-task to a focused subagent.
-- **`workflow` tool** — when the LLM wants a **deterministic,
+- **`workflow` tool** - when the LLM wants a **deterministic,
   journaled, resumable, multi-agent script** that fans out N agents,
   possibly in parallel, possibly nested.
-- **`task` tool** — for **tracking** the LLM's own progress (T1, T1.1,
-  …) — orthogonal to delegation.
+- **`task` tool** - for **tracking** the LLM's own progress (T1, T1.1,
+  …) - orthogonal to delegation.
 
 The `workflow.txt:23` summary is precise:
 
@@ -2038,7 +2038,7 @@ These skills drive the LLM through a structured workflow: brainstorm → plan
 ## 11. Comparisons (Within MiMo's Own Framing)
 
 The only explicit comparison MiMo-Code makes of itself is to its parent
-project — `README.md:124-126`:
+project - `README.md:124-126`:
 
 > MiMoCode is built as a fork of [OpenCode](https://github.com/anomalyco/opencode).
 > It keeps all core OpenCode capabilities (multiple providers, TUI, LSP, MCP,

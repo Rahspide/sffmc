@@ -4,28 +4,28 @@
 
 ### Fixed
 
-- **Documentation drift from v0.16.0** — version metadata and stale references in 10 files (`README.md`, `README.ru.md`, `AGENTS.md`, `CONTRIBUTING.md`, 6 `docs/*.md`). Semantic fixes:
+- **Documentation drift from v0.16.0** - version metadata and stale references in 10 files (`README.md`, `README.ru.md`, `AGENTS.md`, `CONTRIBUTING.md`, 6 `docs/*.md`). Semantic fixes:
   - `docs/getting-started.md`: removed false "8 sub-features individually available" claim (sub-features have been internal since v0.15.0 consolidation); `12 hours wall-clock` → `1 hour` (was fixed in `dynamic-workflow.md` v0.15.3, never ported here).
   - `docs/drone-ci.md`: replaced fabricated 13-package enumerate with the actual 5 publish order; `shared/` → `packages/utilities/` (v0.15.0 rename); tag examples → v0.16.0.
-  - `packages/runtime/README.md:14`: partial-fix completed — "11 sub-components" → "4 sub-component deps".
-  - `packages/memory/README.md`: corrected attribution — checkpoint/judge/dream live in `packages/memory/src/extra/`, not in `@sffmc/utilities`.
+  - `packages/runtime/README.md:14`: partial-fix completed - "11 sub-components" → "4 sub-component deps".
+  - `packages/memory/README.md`: corrected attribution - checkpoint/judge/dream live in `packages/memory/src/extra/`, not in `@sffmc/utilities`.
   - `README.ru.md:331`: removed broken link to non-existent `docs/load-order-audit.md` (file deleted in v0.15.0).
   - `docs/install.md`: `SFFMC_VERSION` examples → v0.16.0; "13 packages" → "5".
   - `docs/dynamic-workflow.md`: package path `packages/workflow/` → `packages/runtime/` (post-rename); version header → v0.16.0.
   - `docs/migration-from-opencode.md`, `docs/mimo-code-features.md`: version refs → v0.16.0.
-- **`packages/codemap.md`** (stray file) — gitignored file from pre-v0.15.0 era referenced deleted directories (`agentic/`, `compose/`, `extra/`, `rules/`, `workflow/`). Removed from disk.
+- **`packages/codemap.md`** (stray file) - gitignored file from pre-v0.15.0 era referenced deleted directories (`agentic/`, `compose/`, `extra/`, `rules/`, `workflow/`). Removed from disk.
 
 ### Added
 
-- **Per-package `tsconfig.json`** for `@sffmc/cognition`, `@sffmc/runtime`, `@sffmc/utilities` — extends root, enables per-package overrides. Clears `tsconfig_presence` health warning.
-- **`docs/v0.16.0-decomposition.md`** — porting guide mapping pre-decomposition god-class paths to post-decomposition sub-module paths, with end-to-end migration checklist for external porters.
-- **`category` field on packages** — `runtime` and `cognition`: `mimo-port` (ports from MiMo-Code's opencode package); `utilities`: `sffmc-original` (shared lib is SFFMC's own abstraction). `memory` and `safety` already had `msp`. Clears `category_split` health warning.
+- **Per-package `tsconfig.json`** for `@sffmc/cognition`, `@sffmc/runtime`, `@sffmc/utilities` - extends root, enables per-package overrides. Clears `tsconfig_presence` health warning.
+- **`docs/v0.16.0-decomposition.md`** - porting guide mapping pre-decomposition god-class paths to post-decomposition sub-module paths, with end-to-end migration checklist for external porters.
+- **`category` field on packages** - `runtime` and `cognition`: `mimo-port` (ports from MiMo-Code's opencode package); `utilities`: `sffmc-original` (shared lib is SFFMC's own abstraction). `memory` and `safety` already had `msp`. Clears `category_split` health warning.
 
 ### Changed
 
 - **`tsconfig.json` (root)**: dropped `DOM` from `compilerOptions.lib`. SFFMC is a Bun-only runtime; DOM types were unused and slowed type-check.
 - **`.github/workflows/ci.yml`**: switched `bun test` → `bun run test:all`. CI was still using the single-process command that hung pre-commit in v0.16.0 (per-file-loop fix in `d3adeba`); CI was silently at risk of the same hang on PRs.
-- **Health check `sdk_compliance`**: `utilities` self-import downclassified from `warn` to `ok` with explanatory detail. By design — `@sffmc/utilities` is the base library, not a plugin that needs to import itself. The check's `KNOWN_SDK_EXCEPTIONS` list now includes `utilities` alongside `max-mode` and `workflow`.
+- **Health check `sdk_compliance`**: `utilities` self-import downclassified from `warn` to `ok` with explanatory detail. By design - `@sffmc/utilities` is the base library, not a plugin that needs to import itself. The check's `KNOWN_SDK_EXCEPTIONS` list now includes `utilities` alongside `max-mode` and `workflow`.
 
 ### Stats
 
@@ -39,21 +39,21 @@
 
 ### Changed
 
-- **`packages/memory/src/extra/dream.ts`** — `1291 → 10` LOC barrel + 6 sub-modules (`dream-types.ts`, `dream-db.ts`, `dream-dedup.ts`, `dream-clustering.ts`, `dream-llm.ts`, `dream-orchestrator.ts`). Each sub-module has a single responsibility. Public surface unchanged.
-- **`packages/runtime/src/runtime.ts`** — `817 → 614` LOC. Extracted `script-launcher.ts` (launchScript + SCRIPT_SUFFIX) and `recovery.ts` (recoverOrphanedWorkflows). Public API unchanged; `spawnChildWorkflow` restored as public surface.
-- **`packages/memory/src/extra/judge.ts`** — `657 → 10` LOC barrel + 6 sub-modules (`judge-types.ts`, `judge-prompt.ts`, `judge-parse.ts`, `judge-llm.ts`, `judge-extract.ts`, `judge-tool.ts`). `callJudge` exported for cross-module use.
-- **`packages/runtime/src/mcp.ts`** — `335 → 26` LOC barrel + 3 sub-modules (`mcp-types.ts`, `mcp-resolver.ts`, `mcp-bridge.ts`). All 8 public exports preserved.
-- **`packages/cognition/src/max-mode/src/index.ts`** — `328 → 31` LOC barrel + 3 sub-modules (`max-mode-config.ts`, `max-mode-winner.ts`, `max-mode-hooks.ts`). All 5 public exports preserved.
-- **`packages/runtime/src/constants.ts`** — `345 → 17` LOC barrel + 2 sub-modules (`constants-defaults.ts`, `constants-config.ts`). Pure data and cache separated; all 26 prior exports reachable via barrel re-exports.
+- **`packages/memory/src/extra/dream.ts`** - `1291 → 10` LOC barrel + 6 sub-modules (`dream-types.ts`, `dream-db.ts`, `dream-dedup.ts`, `dream-clustering.ts`, `dream-llm.ts`, `dream-orchestrator.ts`). Each sub-module has a single responsibility. Public surface unchanged.
+- **`packages/runtime/src/runtime.ts`** - `817 → 614` LOC. Extracted `script-launcher.ts` (launchScript + SCRIPT_SUFFIX) and `recovery.ts` (recoverOrphanedWorkflows). Public API unchanged; `spawnChildWorkflow` restored as public surface.
+- **`packages/memory/src/extra/judge.ts`** - `657 → 10` LOC barrel + 6 sub-modules (`judge-types.ts`, `judge-prompt.ts`, `judge-parse.ts`, `judge-llm.ts`, `judge-extract.ts`, `judge-tool.ts`). `callJudge` exported for cross-module use.
+- **`packages/runtime/src/mcp.ts`** - `335 → 26` LOC barrel + 3 sub-modules (`mcp-types.ts`, `mcp-resolver.ts`, `mcp-bridge.ts`). All 8 public exports preserved.
+- **`packages/cognition/src/max-mode/src/index.ts`** - `328 → 31` LOC barrel + 3 sub-modules (`max-mode-config.ts`, `max-mode-winner.ts`, `max-mode-hooks.ts`). All 5 public exports preserved.
+- **`packages/runtime/src/constants.ts`** - `345 → 17` LOC barrel + 2 sub-modules (`constants-defaults.ts`, `constants-config.ts`). Pure data and cache separated; all 26 prior exports reachable via barrel re-exports.
 
 ### Fixed
 
-- **`runtime.ts` test reach-in regression** — tests that bound private `callLLM` / `executeAgentCall` via `(runtime as ...).callLLM.bind(runtime)` refactored to reach the public surface on `AgentPrimitive` and module-level `callLLM` import. No `bind()` workarounds remain.
-- **Pre-commit hook hang** — `bun run test` ran all test files in one process; the bun test runner accumulates handles and stops responding after 30+ files. Switched `test:all` to per-file loop (`cd package && bun test <file>`). Pre-commit now exits 0 with 10 ok / 3 warn / 0 fail (warnings are pre-existing infra: utilities self-import, missing tsconfig.json in 3 packages, category_split).
-- **Dead export `getMaxInstructions`** in `constants-config.ts` — was already dead before the refactor; preserved accidentally. Removed.
-- **Dead import `MaxModeResult`** in `max-mode-winner.ts` — accidentally imported during Wave 4b decomposition. Removed.
-- **Doc drift in `packages/runtime/README.md`** — `flushNow()` mention replaced with `FlushManager` class description; "11 sub-component deps" updated to "4 sub-component deps"; `RuntimeCallbacks` reference removed (file gone since SOLID refactor in `da83373`).
-- **Doc drift in `docs/dynamic-workflow.md`** — stale "LOC: ~1500" metadata dropped.
+- **`runtime.ts` test reach-in regression** - tests that bound private `callLLM` / `executeAgentCall` via `(runtime as ...).callLLM.bind(runtime)` refactored to reach the public surface on `AgentPrimitive` and module-level `callLLM` import. No `bind()` workarounds remain.
+- **Pre-commit hook hang** - `bun run test` ran all test files in one process; the bun test runner accumulates handles and stops responding after 30+ files. Switched `test:all` to per-file loop (`cd package && bun test <file>`). Pre-commit now exits 0 with 10 ok / 3 warn / 0 fail (warnings are pre-existing infra: utilities self-import, missing tsconfig.json in 3 packages, category_split).
+- **Dead export `getMaxInstructions`** in `constants-config.ts` - was already dead before the refactor; preserved accidentally. Removed.
+- **Dead import `MaxModeResult`** in `max-mode-winner.ts` - accidentally imported during Wave 4b decomposition. Removed.
+- **Doc drift in `packages/runtime/README.md`** - `flushNow()` mention replaced with `FlushManager` class description; "11 sub-component deps" updated to "4 sub-component deps"; `RuntimeCallbacks` reference removed (file gone since SOLID refactor in `da83373`).
+- **Doc drift in `docs/dynamic-workflow.md`** - stale "LOC: ~1500" metadata dropped.
 
 ## v0.15.4 (2026-07-04)
 
@@ -61,13 +61,13 @@
 
 ### Added
 
-- **`mcp.bind(name)` and `mcp.bindAll()`** — workflow scripts can now pull a typed handle to a single MCP tool (`const search = mcp.bind("github_search")`) or grab every available tool at once (`const { a, b } = await mcp.bindAll()`) instead of looking up by name on every call. The bound functions route through the same bridge, so budget + recursion guards still apply.
-- **`startWorkflowWatcher(workspace)`** — exposes `node:fs.watch` on every configured workflow subdirectory (`.sffmc/workflows/`, `.claude/workflows/`, walking up the tree). Emits `workflow:file-changed` events for `.ts`/`.js`/`.mjs`/`.cjs` adds/changes/removals. Built-in consumers can subscribe to invalidate caches or abort affected runs; the watcher itself has no opinion on what to do.
-- **`redact-secrets.yaml` accepts `minTokenLength`** — integer in `[4, 256]`, default `16`. Controls the threshold for `api-key-assignment`, `token-assignment`, and `bearer-header`. Out-of-range values are warned and the default is restored.
+- **`mcp.bind(name)` and `mcp.bindAll()`** - workflow scripts can now pull a typed handle to a single MCP tool (`const search = mcp.bind("github_search")`) or grab every available tool at once (`const { a, b } = await mcp.bindAll()`) instead of looking up by name on every call. The bound functions route through the same bridge, so budget + recursion guards still apply.
+- **`startWorkflowWatcher(workspace)`** - exposes `node:fs.watch` on every configured workflow subdirectory (`.sffmc/workflows/`, `.claude/workflows/`, walking up the tree). Emits `workflow:file-changed` events for `.ts`/`.js`/`.mjs`/`.cjs` adds/changes/removals. Built-in consumers can subscribe to invalidate caches or abort affected runs; the watcher itself has no opinion on what to do.
+- **`redact-secrets.yaml` accepts `minTokenLength`** - integer in `[4, 256]`, default `16`. Controls the threshold for `api-key-assignment`, `token-assignment`, and `bearer-header`. Out-of-range values are warned and the default is restored.
 
 ### Fixed
 
-- **`WorkspaceJail.glob()` pattern sanitization** — patterns that, after `path.resolve` normalization, escape the workspace now throw at the boundary (e.g. `../*.ts`, `foo/../../bar`, `../../etc/passwd`) instead of being silently filtered by the per-entry realpath check. Empty patterns also throw. Patterns that resolve inside the workspace continue to work as before, including `**/*.md` and `subdir/*`.
+- **`WorkspaceJail.glob()` pattern sanitization** - patterns that, after `path.resolve` normalization, escape the workspace now throw at the boundary (e.g. `../*.ts`, `foo/../../bar`, `../../etc/passwd`) instead of being silently filtered by the per-entry realpath check. Empty patterns also throw. Patterns that resolve inside the workspace continue to work as before, including `**/*.md` and `subdir/*`.
 
 ## v0.15.3 (2026-07-03)
 
@@ -77,36 +77,36 @@
 
 #### Configuration gaps (v0.14.5's "21 values configurable" overstated)
 
-- **Sandbox pump cadence now reads `WorkflowExtendedConfig`** — `packages/runtime/src/sandbox.ts:336-338` was using inline `const SLOW_MS = 50; const FAST_WINDOW = 50` instead of the existing `getSandboxSlowMs()` / `getSandboxFastWindow()` getters. Now user YAML overrides (`sandboxSlowMs`, `sandboxFastWindow`, `sandboxFastMs`) take effect.
-- **`FlushManager` debounce now reads `getFlushDebounceMs()`** — `packages/runtime/src/flush-manager.ts:44` had `private static readonly DEBOUNCE_MS = 250` shadowing the config getter. Constructor takes optional `debounceMs` parameter; `runtime.ts` passes `getFlushDebounceMs()`.
-- **`WorkflowPersistence` fsync coalesce now reads `getFsyncCoalesceMs()`** — `persistence.ts:172` had `const FSYNC_COALESCE_MS = 50` shadowing the config getter. `scheduleFsync()` at line 261 now calls `getFsyncCoalesceMs()`.
-- **`SAFE_REPETITION_LIMIT` exported from utilities** — `packages/safety/src/rules/rules.ts:16` had `const SAFE_REGEX_LIMIT = 25` duplicating `packages/utilities/src/config.ts:17`. Now exported as `SAFE_REPETITION_LIMIT` from `@sffmc/utilities` and imported by `safety/rules`. Single source of truth for the ReDoS cutoff.
+- **Sandbox pump cadence now reads `WorkflowExtendedConfig`** - `packages/runtime/src/sandbox.ts:336-338` was using inline `const SLOW_MS = 50; const FAST_WINDOW = 50` instead of the existing `getSandboxSlowMs()` / `getSandboxFastWindow()` getters. Now user YAML overrides (`sandboxSlowMs`, `sandboxFastWindow`, `sandboxFastMs`) take effect.
+- **`FlushManager` debounce now reads `getFlushDebounceMs()`** - `packages/runtime/src/flush-manager.ts:44` had `private static readonly DEBOUNCE_MS = 250` shadowing the config getter. Constructor takes optional `debounceMs` parameter; `runtime.ts` passes `getFlushDebounceMs()`.
+- **`WorkflowPersistence` fsync coalesce now reads `getFsyncCoalesceMs()`** - `persistence.ts:172` had `const FSYNC_COALESCE_MS = 50` shadowing the config getter. `scheduleFsync()` at line 261 now calls `getFsyncCoalesceMs()`.
+- **`SAFE_REPETITION_LIMIT` exported from utilities** - `packages/safety/src/rules/rules.ts:16` had `const SAFE_REGEX_LIMIT = 25` duplicating `packages/utilities/src/config.ts:17`. Now exported as `SAFE_REPETITION_LIMIT` from `@sffmc/utilities` and imported by `safety/rules`. Single source of truth for the ReDoS cutoff.
 
 #### Security
 
-- **All 5 runtime persistence `mkdir` calls now use `mode: 0o700`** — `persistence.ts:220,369,412,427,484` previously called `mkdir(this.dir, { recursive: true })` without `mode`, leaving the runtime data dir readable by other users on multi-user systems. Brings runtime in line with memory/dream/checkpoint which already use `mode: 0o700` since v0.12.1.
-- **`migrateLegacyDataPaths()` removed** — exported but never wired into any bootstrap path, so it could never fire. The function pretended to migrate `~/.config/SFFMC` → `~/.config/sffmc` on first run; in practice nothing called it. Canonical path stays uppercase `SFFMC/` for backward compatibility. If a future migration to lowercase is desired, it must be wired into `activation.ts` and ship as a planned breaking change.
-- **5 new redaction patterns** — `packages/utilities/src/redact-secrets.ts:118` `cloud-credential` rule expanded to cover: GitHub fine-grained PAT (`github_pat_*`), GitHub OAuth/user/scope tokens (`gho_*`/`ghu_*`/`ghs_*`/`ghr_*`), GitLab PAT (`glpat-*`), Discord bot tokens (`d_*` prefix), Stripe live keys (`sk_live_*`, `rk_live_*`), and JWTs (three base64url segments separated by dots).
-- **`redactSecrets()` `MAX_CONTENT_BYTES` guard** — exports new `MAX_CONTENT_BYTES = 1_048_576` (1 MiB). Inputs larger than this return unchanged with `{ oversize: true, categories: ["oversize"] }` so callers can chunk-stream or warn.
+- **All 5 runtime persistence `mkdir` calls now use `mode: 0o700`** - `persistence.ts:220,369,412,427,484` previously called `mkdir(this.dir, { recursive: true })` without `mode`, leaving the runtime data dir readable by other users on multi-user systems. Brings runtime in line with memory/dream/checkpoint which already use `mode: 0o700` since v0.12.1.
+- **`migrateLegacyDataPaths()` removed** - exported but never wired into any bootstrap path, so it could never fire. The function pretended to migrate `~/.config/SFFMC` → `~/.config/sffmc` on first run; in practice nothing called it. Canonical path stays uppercase `SFFMC/` for backward compatibility. If a future migration to lowercase is desired, it must be wired into `activation.ts` and ship as a planned breaking change.
+- **5 new redaction patterns** - `packages/utilities/src/redact-secrets.ts:118` `cloud-credential` rule expanded to cover: GitHub fine-grained PAT (`github_pat_*`), GitHub OAuth/user/scope tokens (`gho_*`/`ghu_*`/`ghs_*`/`ghr_*`), GitLab PAT (`glpat-*`), Discord bot tokens (`d_*` prefix), Stripe live keys (`sk_live_*`, `rk_live_*`), and JWTs (three base64url segments separated by dots).
+- **`redactSecrets()` `MAX_CONTENT_BYTES` guard** - exports new `MAX_CONTENT_BYTES = 1_048_576` (1 MiB). Inputs larger than this return unchanged with `{ oversize: true, categories: ["oversize"] }` so callers can chunk-stream or warn.
 
 #### Health plugin
 
-- **`checkCompositeStructure` no longer hardcodes "3 composites"** — message now uses `expectedComposites.length` and joins the actual list (`safety + memory`). Was stale since v0.15.0 dissolved `@sffmc/agentic`.
-- **`checkExtraOptIn` refactored** — was looking for the deleted `packages/extra/` directory and reading `~/.config/SFFMC/extra.yaml`. Both paths are gone since v0.15.0 (extra moved to `@sffmc/memory`, utilities became a permanent library). Function still exists for log-scraper compatibility but returns `ok` with a "permanent library, no opt-in required" detail.
-- **`checkChangelogCurrency` now also verifies `CHANGELOG.ru.md`** — the bilingual docs promise is a soft contract (warn, not fail). Reports missing RU file or out-of-sync top version.
+- **`checkCompositeStructure` no longer hardcodes "3 composites"** - message now uses `expectedComposites.length` and joins the actual list (`safety + memory`). Was stale since v0.15.0 dissolved `@sffmc/agentic`.
+- **`checkExtraOptIn` refactored** - was looking for the deleted `packages/extra/` directory and reading `~/.config/SFFMC/extra.yaml`. Both paths are gone since v0.15.0 (extra moved to `@sffmc/memory`, utilities became a permanent library). Function still exists for log-scraper compatibility but returns `ok` with a "permanent library, no opt-in required" detail.
+- **`checkChangelogCurrency` now also verifies `CHANGELOG.ru.md`** - the bilingual docs promise is a soft contract (warn, not fail). Reports missing RU file or out-of-sync top version.
 
 #### Audit script
 
-- **`scripts/audit-load-order.py` error message fixed** — claimed `expected 14` packages but actually checks `== 5`. Updated to `expected 5`.
-- **`scripts/check-cleanroom.sh` cleaned up** — removed dead EXCLUDE_PATTERNS for deleted `packages/compose/`, `packages/agentic/` (dissolved in v0.15.0 P-1). Removed `shared/` from grep scopes (directory no longer exists post-consolidation).
+- **`scripts/audit-load-order.py` error message fixed** - claimed `expected 14` packages but actually checks `== 5`. Updated to `expected 5`.
+- **`scripts/check-cleanroom.sh` cleaned up** - removed dead EXCLUDE_PATTERNS for deleted `packages/compose/`, `packages/agentic/` (dissolved in v0.15.0 P-1). Removed `shared/` from grep scopes (directory no longer exists post-consolidation).
 
 #### Documentation drift
 
-- **`docs/dynamic-workflow.md`** — "12 hours wall-clock" → "1 hour wall-clock" (×3 refs; was Manriel v0.12.1 reduction that never propagated to docs). "Direct MCP bindings planned" → "available since v0.14.0" (was false, mcp.list()/mcp.call() shipped in v0.14.0).
-- **`bin/sffmc` (bash) help text updated** — "13 packages / 13-check diagnostic" → "5 packages / 9-check diagnostic" (v0.15.1 fixed PowerShell only). `--minimal` flag description: "3 composite packages" → "4 packages (2 composites + 2 most-used standalones)".
-- **`CONTRIBUTING.md`** — "v0.15.1 is the current release" → "v0.15.3 is the current release".
-- **`docs/install.md`** — `SFFMC_VERSION=v0.15.0` (×2) → `SFFMC_VERSION=v0.15.3`.
-- **`CHANGELOG.md`** — "v0.14.7" stale references (×2) → "v0.14.9" (v0.14.7 never released; auto-migration shipped in v0.14.9).
+- **`docs/dynamic-workflow.md`** - "12 hours wall-clock" → "1 hour wall-clock" (×3 refs; was Manriel v0.12.1 reduction that never propagated to docs). "Direct MCP bindings planned" → "available since v0.14.0" (was false, mcp.list()/mcp.call() shipped in v0.14.0).
+- **`bin/sffmc` (bash) help text updated** - "13 packages / 13-check diagnostic" → "5 packages / 9-check diagnostic" (v0.15.1 fixed PowerShell only). `--minimal` flag description: "3 composite packages" → "4 packages (2 composites + 2 most-used standalones)".
+- **`CONTRIBUTING.md`** - "v0.15.1 is the current release" → "v0.15.3 is the current release".
+- **`docs/install.md`** - `SFFMC_VERSION=v0.15.0` (×2) → `SFFMC_VERSION=v0.15.3`.
+- **`CHANGELOG.md`** - "v0.14.7" stale references (×2) → "v0.14.9" (v0.14.7 never released; auto-migration shipped in v0.14.9).
 
 #### Internal hygiene
 
@@ -120,11 +120,11 @@
 
 ### Fixed
 
-- **Empty npm package pages** — `packages/utilities`, `packages/cognition`, `packages/runtime` shipped in v0.15.0/v0.15.1 without `description`, `keywords`, `bugs`, or `homepage` fields in their `package.json`. The npm registry page rendered as "no description" even though the tarball itself was complete. Added human-readable descriptions + keyword arrays + bugs/homepage links (matching what `@sffmc/safety` and `@sffmc/memory` already had).
+- **Empty npm package pages** - `packages/utilities`, `packages/cognition`, `packages/runtime` shipped in v0.15.0/v0.15.1 without `description`, `keywords`, `bugs`, or `homepage` fields in their `package.json`. The npm registry page rendered as "no description" even though the tarball itself was complete. Added human-readable descriptions + keyword arrays + bugs/homepage links (matching what `@sffmc/safety` and `@sffmc/memory` already had).
 
 ### Added
 
-- **Russian CHANGELOG entries** for v0.15.0 and v0.15.1 in `CHANGELOG.ru.md` — bilingual documentation gap closed.
+- **Russian CHANGELOG entries** for v0.15.0 and v0.15.1 in `CHANGELOG.ru.md` - bilingual documentation gap closed.
 
 ## v0.15.1 (2026-07-02)
 
@@ -132,15 +132,15 @@
 
 ### Fixed
 
-- **`bin/sffmc.ps1` functional regression** — PowerShell installer has been shipping broken `init` since v0.15.0: `PLUGIN_DIRS` still listed 13 paths to deleted packages (`agentic`, `watchdog`, `rules`, `auto-max`, `eos-stripper`, `log-whitelist`, `extra`, `max-mode`, `workflow`, `compose`, `health`). `sffmc init` was silently skipping them with `Unknown package: agentic (skipping)` warnings instead of adding the 4 valid plugins. Now matches the bash version. Windows users running `irm .../install.ps1 | iex` get a complete install.
+- **`bin/sffmc.ps1` functional regression** - PowerShell installer has been shipping broken `init` since v0.15.0: `PLUGIN_DIRS` still listed 13 paths to deleted packages (`agentic`, `watchdog`, `rules`, `auto-max`, `eos-stripper`, `log-whitelist`, `extra`, `max-mode`, `workflow`, `compose`, `health`). `sffmc init` was silently skipping them with `Unknown package: agentic (skipping)` warnings instead of adding the 4 valid plugins. Now matches the bash version. Windows users running `irm .../install.ps1 | iex` get a complete install.
 
-- **Stale refs across all v0.15.0 docs** — `docs/install.md`, `docs/getting-started.md`, `docs/drone-ci.md`, `docs/import-from-mimo.md`, `docs/migration-from-opencode.md`, `CONTRIBUTING.md`, `AGENTS.md`, `install.sh`, `.github/ISSUE_TEMPLATE/{bug_report,feature_request}.md`, `packages/{memory,safety}/*` updated to reflect the actual 5-package layout (2 composites + 3 standalones, `@sffmc/utilities` as library). The line-7 paragraph of `getting-started.md` that read "@sffmc/safety, @sffmc/safety, @sffmc/safety, @sffmc/safety" (literal copy-paste from the EN source pre-bug) has been rewritten cleanly.
+- **Stale refs across all v0.15.0 docs** - `docs/install.md`, `docs/getting-started.md`, `docs/drone-ci.md`, `docs/import-from-mimo.md`, `docs/migration-from-opencode.md`, `CONTRIBUTING.md`, `AGENTS.md`, `install.sh`, `.github/ISSUE_TEMPLATE/{bug_report,feature_request}.md`, `packages/{memory,safety}/*` updated to reflect the actual 5-package layout (2 composites + 3 standalones, `@sffmc/utilities` as library). The line-7 paragraph of `getting-started.md` that read "@sffmc/safety, @sffmc/safety, @sffmc/safety, @sffmc/safety" (literal copy-paste from the EN source pre-bug) has been rewritten cleanly.
 
-- **Broken documentation links** — `packages/memory/README.md` linked to the deleted `../extra/README.md`; `packages/safety/README.md` linked to 5 sibling sub-feature paths that no longer existed as top-level packages. All repointed.
+- **Broken documentation links** - `packages/memory/README.md` linked to the deleted `../extra/README.md`; `packages/safety/README.md` linked to 5 sibling sub-feature paths that no longer existed as top-level packages. All repointed.
 
-- **`install.sh` help text** — `sffmc init --all install all 13 packages` and `sffmc doctor run 13-check diagnostic` updated to `5 packages` and `9-check diagnostic`.
+- **`install.sh` help text** - `sffmc init --all install all 13 packages` and `sffmc doctor run 13-check diagnostic` updated to `5 packages` and `9-check diagnostic`.
 
-- **`packages/safety/skills/write-rule.md`** — `bun test packages/rules/` → `bun test packages/safety/src/rules/` (rules is now a sub-folder).
+- **`packages/safety/skills/write-rule.md`** - `bun test packages/rules/` → `bun test packages/safety/src/rules/` (rules is now a sub-folder).
 
 ### Added
 
@@ -150,13 +150,13 @@
 
 ### Changed (consolidated 13 → 5 packages)
 
-- **Package consolidation** — 14 workspace members (13 packages + `shared/`) consolidated into 5 packages:
+- **Package consolidation** - 14 workspace members (13 packages + `shared/`) consolidated into 5 packages:
   - `@sffmc/runtime` (was `@sffmc/workflow`)
   - `@sffmc/cognition` (was `@sffmc/max-mode` + `@sffmc/compose` + `@sffmc/health`; replaces dissolved `@sffmc/agentic`)
-  - `@sffmc/utilities` (was `shared/`) — the opt-in SDK for plugin authors; **library, not a plugin entry**
+  - `@sffmc/utilities` (was `shared/`) - the opt-in SDK for plugin authors; **library, not a plugin entry**
   - `@sffmc/safety` and `@sffmc/memory` retained as composites; their `composes[]` is now empty (members are internal sub-folders)
-- **`@sffmc/agentic` composite dissolved** — users must now register `@sffmc/runtime` and `@sffmc/cognition` explicitly in `opencode.json` `plugins[]`
-- **Imports updated across the codebase** — `@sffmc/{workflow,max-mode,compose,health,rules,watchdog,auto-max,eos-stripper,log-whitelist,extra,agentic,shared}` → `@sffmc/{runtime,cognition,safety,memory,utilities}` as appropriate
+- **`@sffmc/agentic` composite dissolved** - users must now register `@sffmc/runtime` and `@sffmc/cognition` explicitly in `opencode.json` `plugins[]`
+- **Imports updated across the codebase** - `@sffmc/{workflow,max-mode,compose,health,rules,watchdog,auto-max,eos-stripper,log-whitelist,extra,agentic,shared}` → `@sffmc/{runtime,cognition,safety,memory,utilities}` as appropriate
 
 ### Added (test/exports)
 
@@ -164,7 +164,7 @@
 - `@sffmc/shared` → `@sffmc/utilities`: `unixNow()` + `__setClock()` + `__resetClock()`
 - `@sffmc/shared` → `@sffmc/utilities`: `isSafeRunID()` + `safeRunID()` + `RUN_ID_REGEX`
 
-### Fixed (Medium + Low audit findings — Phase 1 + Phase 2 work)
+### Fixed (Medium + Low audit findings - Phase 1 + Phase 2 work)
 
 - **God-object extract**: `WorkflowRuntime` split into `CounterManager`, `WorkflowEventEmitter`, `OutcomeStore`, `WorkflowActivation`, `FlushManager` (per-entry / per-runtime / single-concern)
 - **God-object extract**: `packages/extra/src/checkpoint.ts` (1296 LOC) split into 13 focused modules under `packages/extra/src/checkpoint/`
@@ -202,7 +202,7 @@
 
 ### Changed
 
-- **Dropped v1 checkpoint readers** — `packages/extra/src/checkpoint.ts` no longer exposes `migrateV1ToV2` or the `CheckpointHeaderV1` type. The header parser auto-migrates any v1 file to v2 on read; the migrated file is atomically rewritten as v2 so subsequent reads hit the fast path.
+- **Dropped v1 checkpoint readers** - `packages/extra/src/checkpoint.ts` no longer exposes `migrateV1ToV2` or the `CheckpointHeaderV1` type. The header parser auto-migrates any v1 file to v2 on read; the migrated file is atomically rewritten as v2 so subsequent reads hit the fast path.
 
 ---
 
@@ -210,19 +210,19 @@
 
 ### Changed
 
-- **Documentation split into English + Russian** — `README.md` is now English-only; a language picker banner at the top links to `README.ru.md`. `CHANGELOG.md` is now English-only; Russian translations live in `CHANGELOG.ru.md`. Both new files contain the same content as the original bilingual inline format, just split for cleaner per-language navigation.
+- **Documentation split into English + Russian** - `README.md` is now English-only; a language picker banner at the top links to `README.ru.md`. `CHANGELOG.md` is now English-only; Russian translations live in `CHANGELOG.ru.md`. Both new files contain the same content as the original bilingual inline format, just split for cleaner per-language navigation.
 
 ## v0.14.6 (2026-06-21)
 
 ### Changed
 
-- **Checkpoint file format v2** — adds indexed random access and CRC32 integrity to the on-disk JSONL layout. v2 files include per-line byte offsets in the header and a CRC32 of the body bytes; each body line also carries a per-line CRC. v1 files remain readable; existing v1 data is migrated to v2 via `migrateV1ToV2(sessionID, dir?)` (explicit call in v0.14.6; auto on first v2 write shipped in v0.14.9).
+- **Checkpoint file format v2** - adds indexed random access and CRC32 integrity to the on-disk JSONL layout. v2 files include per-line byte offsets in the header and a CRC32 of the body bytes; each body line also carries a per-line CRC. v1 files remain readable; existing v1 data is migrated to v2 via `migrateV1ToV2(sessionID, dir?)` (explicit call in v0.14.6; auto on first v2 write shipped in v0.14.9).
 
 ### Added
 
-- **`migrateV1ToV2(sessionID, dir?)`** — explicit migration from v1 to v2 checkpoint format. Reads v1, writes v2, backs up v1 as `<sessionID>.jsonl.v1.bak`. Returns `MigrationResult { ok, sourceVersion, targetVersion, lines, error? }`.
-- **`crc32(data)`** — exported CRC32 (IEEE 802.3 polynomial) helper for callers that need to recompute integrity values.
-- **`packages/extra/tests/checkpoint-v2.test.ts`** — covers v1 backward compat, v2 write/read, offset accuracy, CRC32 correctness, migration, and a 100-call stress case.
+- **`migrateV1ToV2(sessionID, dir?)`** - explicit migration from v1 to v2 checkpoint format. Reads v1, writes v2, backs up v1 as `<sessionID>.jsonl.v1.bak`. Returns `MigrationResult { ok, sourceVersion, targetVersion, lines, error? }`.
+- **`crc32(data)`** - exported CRC32 (IEEE 802.3 polynomial) helper for callers that need to recompute integrity values.
+- **`packages/extra/tests/checkpoint-v2.test.ts`** - covers v1 backward compat, v2 write/read, offset accuracy, CRC32 correctness, migration, and a 100-call stress case.
 
 ### Migration
 
@@ -232,11 +232,11 @@ v1 to v2 is one-way. Once a file is v2, the reader does not rewrite it as v1. v1
 
 ### Changed
 
-- **Checkpoint write batching** — `_flushSession` writes all buffered `ToolCall`s in a single `appendFileSync` call instead of N separate calls. On-disk file format is byte-identical to prior releases (one JSON-encoded `ToolCall` per line, terminated with `\n`); existing readers (`readToolCalls`, `readHeader`) are unaffected.
+- **Checkpoint write batching** - `_flushSession` writes all buffered `ToolCall`s in a single `appendFileSync` call instead of N separate calls. On-disk file format is byte-identical to prior releases (one JSON-encoded `ToolCall` per line, terminated with `\n`); existing readers (`readToolCalls`, `readHeader`) are unaffected.
 
 ### Added
 
-- **`packages/extra/bench/checkpoint-flush.bench.ts`** — synthetic microbenchmark for `_flushSession` throughput. Drives the `tool.execute.after` hook for 10/100/1000 calls and reports ops/sec plus file size. Run with `bun run packages/extra/bench/checkpoint-flush.bench.ts`.
+- **`packages/extra/bench/checkpoint-flush.bench.ts`** - synthetic microbenchmark for `_flushSession` throughput. Drives the `tool.execute.after` hook for 10/100/1000 calls and reports ops/sec plus file size. Run with `bun run packages/extra/bench/checkpoint-flush.bench.ts`.
 
 ### Performance
 
@@ -254,21 +254,21 @@ Sub-millisecond measurements are noisy; file sizes are byte-identical across run
 
 ### Fixed
 
-- **`this.runs` map leak** — `WorkflowRuntime.close()` now clears `this.runs`; per-run delete on settle (complete/fail/cancel). Previously mcpBridge + journalResults + AbortController accumulated per run for the lifetime of the runtime instance. **Policy exception**: this commit modifies `runtime.ts` (off-limits per v0.14.1 hotfix policy) to fix a known memory leak in long-lived runtimes. The fix is well-tested (5 new tests in `v0-14-3-this-runs-cleanup.test.ts`); the alternative (deferring to v0.15) would have shipped a known regression.
-- **`__setWorkflowConfig` test escape hatch moved** — relocated to `tests/_test-helpers/config-cache.ts` behind a `NODE_ENV === "test"` gate. No longer importable from production builds.
-- **Doc/comment cleanup** — `recoverOrphanedWorkflows` JSDoc line number, `codemap.md` workflow-resume recovery description, test comment at `w10-w14-hardcode-runtime.test.ts:142`.
-- **Phase event field-name mismatch** — `schema-journal.ts` was validating `name` field on phase events but `runtime.ts:942-946` writes `title` field (and `types.ts:57` defines it as `title`). Every phase event written by the runtime was silently rejected by the validator and skipped at `loadJournal` time. Aligned validator + JournalEventPhase type to use `title`. Regression test added in `v0-14-3-schema-journal.test.ts:160` (phase event with pass=3 → maxPass=3 → journal.pass=4).
+- **`this.runs` map leak** - `WorkflowRuntime.close()` now clears `this.runs`; per-run delete on settle (complete/fail/cancel). Previously mcpBridge + journalResults + AbortController accumulated per run for the lifetime of the runtime instance. **Policy exception**: this commit modifies `runtime.ts` (off-limits per v0.14.1 hotfix policy) to fix a known memory leak in long-lived runtimes. The fix is well-tested (5 new tests in `v0-14-3-this-runs-cleanup.test.ts`); the alternative (deferring to v0.15) would have shipped a known regression.
+- **`__setWorkflowConfig` test escape hatch moved** - relocated to `tests/_test-helpers/config-cache.ts` behind a `NODE_ENV === "test"` gate. No longer importable from production builds.
+- **Doc/comment cleanup** - `recoverOrphanedWorkflows` JSDoc line number, `codemap.md` workflow-resume recovery description, test comment at `w10-w14-hardcode-runtime.test.ts:142`.
+- **Phase event field-name mismatch** - `schema-journal.ts` was validating `name` field on phase events but `runtime.ts:942-946` writes `title` field (and `types.ts:57` defines it as `title`). Every phase event written by the runtime was silently rejected by the validator and skipped at `loadJournal` time. Aligned validator + JournalEventPhase type to use `title`. Regression test added in `v0-14-3-schema-journal.test.ts:160` (phase event with pass=3 → maxPass=3 → journal.pass=4).
 
 ### Added
 
-- **Journal schema validation** — events written by the workflow runtime are now validated against a declared schema in `persistence.ts:357-390`. Malformed events log at debug level and skip, matching the existing torn-line behavior. Further improvements planned for future releases.
-- **Per-package configuration** — 21 hardcoded values (debounce intervals, sandbox thresholds, journal settings, checkpoint parameters) are now configurable via `~/.config/sffmc/{package}.yaml`. Defaults preserve v0.14.2 behavior exactly.
+- **Journal schema validation** - events written by the workflow runtime are now validated against a declared schema in `persistence.ts:357-390`. Malformed events log at debug level and skip, matching the existing torn-line behavior. Further improvements planned for future releases.
+- **Per-package configuration** - 21 hardcoded values (debounce intervals, sandbox thresholds, journal settings, checkpoint parameters) are now configurable via `~/.config/sffmc/{package}.yaml`. Defaults preserve v0.14.2 behavior exactly.
 
 ### Maintenance
 
-- **Per-package version drift fixed** — all 14 sub-packages bumped to `0.14.3` (was `0.14.1`).
-- **Composite `category: "msp"` field** — added to `agentic`, `memory`, `safety` packages.
-- **`release.sh` `check_version_consistency` fix** — dynamic comparison to root version instead of hardcoded `"0.12.0"`.
+- **Per-package version drift fixed** - all 14 sub-packages bumped to `0.14.3` (was `0.14.1`).
+- **Composite `category: "msp"` field** - added to `agentic`, `memory`, `safety` packages.
+- **`release.sh` `check_version_consistency` fix** - dynamic comparison to root version instead of hardcoded `"0.12.0"`.
 
 ## Thank you to contributors
 
@@ -284,23 +284,23 @@ Hotfix: auto-max cap observability + PEM body redaction + ReDoS CI gate + dynami
 
 ### Added
 
-- **ReDoS CI gate** (`scripts/check-redos.ts`, `tests/registry/redos.test.ts`) — pre-commit check using `safe-regex@^2.1.1`. Catches catastrophic backtracking in any rule registered via `BUILTIN_RULES`. Precommit chain now has 6 gates (typecheck, test, audit-load-order, audit:public, audit:redos, health).
-- **Filename rule refactor for ReDoS safety** (`shared/src/redact-secrets.ts`) — 7 filename patterns rewritten from `^X(\.[\w-]+)?$` to `^(?:X|X\.[\w-]+)$` to pass safe-regex star-height-1 check. Identical match set verified by equivalence test.
+- **ReDoS CI gate** (`scripts/check-redos.ts`, `tests/registry/redos.test.ts`) - pre-commit check using `safe-regex@^2.1.1`. Catches catastrophic backtracking in any rule registered via `BUILTIN_RULES`. Precommit chain now has 6 gates (typecheck, test, audit-load-order, audit:public, audit:redos, health).
+- **Filename rule refactor for ReDoS safety** (`shared/src/redact-secrets.ts`) - 7 filename patterns rewritten from `^X(\.[\w-]+)?$` to `^(?:X|X\.[\w-]+)$` to pass safe-regex star-height-1 check. Identical match set verified by equivalence test.
 
 ### Changed
 
-- **Auto-max cap observability** (`packages/auto-max/src/index.ts`) — `handleTrigger` now emits explicit `cap reached (N/M): skipping trigger for ... in session ...` log line when `state.maxCallsThisSession >= config.costCapPerSession` blocks. Previously operators counted stale `TRIGGERED:` log lines and incorrectly assumed cap was bypassed.
-- **Watchdog load log model field** (`packages/watchdog/src/index.ts`) — terminal fallback is `"(default)"` instead of empty string. Distinguishes "no fallback configured" from "config didn't load".
-- **`__listBuiltinRedactionRules` export** (`shared/src/index.ts`) — for tooling introspection of built-in rules.
+- **Auto-max cap observability** (`packages/auto-max/src/index.ts`) - `handleTrigger` now emits explicit `cap reached (N/M): skipping trigger for ... in session ...` log line when `state.maxCallsThisSession >= config.costCapPerSession` blocks. Previously operators counted stale `TRIGGERED:` log lines and incorrectly assumed cap was bypassed.
+- **Watchdog load log model field** (`packages/watchdog/src/index.ts`) - terminal fallback is `"(default)"` instead of empty string. Distinguishes "no fallback configured" from "config didn't load".
+- **`__listBuiltinRedactionRules` export** (`shared/src/index.ts`) - for tooling introspection of built-in rules.
 
 ### Fixed
 
-- **PEM key body redaction** (`shared/src/redact-secrets.ts`) — PEM regex extended to match full block (header + body + footer). Previously only `-----BEGIN ... PRIVATE KEY-----` header was redacted; the base64-encoded key material body now also redacted. 7 new tests (#29-35).
-- **Stale dynamic-workflow documentation link** (`README.md`) — fixed broken link from v0.14.0.
+- **PEM key body redaction** (`shared/src/redact-secrets.ts`) - PEM regex extended to match full block (header + body + footer). Previously only `-----BEGIN ... PRIVATE KEY-----` header was redacted; the base64-encoded key material body now also redacted. 7 new tests (#29-35).
+- **Stale dynamic-workflow documentation link** (`README.md`) - fixed broken link from v0.14.0.
 
 ### Not Changed (already clean)
 
-- `**/codemap.md` files — remain gitignored (codemap is internal/regenerated, not source of truth). On-disk edits from the cleanup pass remain as local artifacts.
+- `**/codemap.md` files - remain gitignored (codemap is internal/regenerated, not source of truth). On-disk edits from the cleanup pass remain as local artifacts.
 
 ## v0.14.0 (2026-06-19)
 
@@ -308,16 +308,16 @@ Redaction helper + grace period + MCP integration + docs polish redo. 5 commits 
 
 ### Added
 
-- **Shared redaction helper** (`shared/src/redact-secrets.ts`, 240 LOC) — three pure functions (`isSensitiveFilename`, `isSensitiveSourcePath`, `redactSecrets`) + 15 built-in rules across 4 categories (env files, credential filenames, PEM keys, inline assignments). Configurable via `~/.config/sffmc/redact-secrets.yaml`. Fixes the over-broad regex issue from the external security audit by **@Manriel** (`token` matching `tokendeploy.sh`, `private` matching `private-blog.md`).
-- **MCP INHERIT Integration** (`packages/workflow/src/mcp.ts`, 298 LOC) — workflow scripts can call MCP tools inherited from parent session. Two surfaces: `agent({task, tools: "INHERIT"})` resolves parent's MCP tool list and forwards to the AI model as a concrete array; guest globals `mcp.list()` and `mcp.call(name, args)` for direct MCP invocation. Per-run `McpBridge` with budget (`DEFAULT_MAX_MCP_CALLS=500`) + recursion guard (`RECURSION_DEPTH_LIMIT=8`).
-- **Docs polish redo** (`commit 312039f`) — recovered lost jargon-removal from dangling commit `f9a42be`. Applied selectively to 13 package READMEs + `docs/install.md` + `packages/memory/skills/recall.md`.
+- **Shared redaction helper** (`shared/src/redact-secrets.ts`, 240 LOC) - three pure functions (`isSensitiveFilename`, `isSensitiveSourcePath`, `redactSecrets`) + 15 built-in rules across 4 categories (env files, credential filenames, PEM keys, inline assignments). Configurable via `~/.config/sffmc/redact-secrets.yaml`. Fixes the over-broad regex issue from the external security audit by **@Manriel** (`token` matching `tokendeploy.sh`, `private` matching `private-blog.md`).
+- **MCP INHERIT Integration** (`packages/workflow/src/mcp.ts`, 298 LOC) - workflow scripts can call MCP tools inherited from parent session. Two surfaces: `agent({task, tools: "INHERIT"})` resolves parent's MCP tool list and forwards to the AI model as a concrete array; guest globals `mcp.list()` and `mcp.call(name, args)` for direct MCP invocation. Per-run `McpBridge` with budget (`DEFAULT_MAX_MCP_CALLS=500`) + recursion guard (`RECURSION_DEPTH_LIMIT=8`).
+- **Docs polish redo** (`commit 312039f`) - recovered lost jargon-removal from dangling commit `f9a42be`. Applied selectively to 13 package READMEs + `docs/install.md` + `packages/memory/skills/recall.md`.
 
 ### Changed
 
-- **Grace period hook** (`packages/workflow/src/constants.ts`, `runtime.ts`, `types.ts`) — on OpenCode restart, workflows in `running` state with age ≤ `gracePeriodMs` are marked `paused` (resumable); older ones fall through to journal-presence check. Default `gracePeriodMs = 5 minutes`, ceiling `MAX_GRACE_PERIOD_MS = 24 hours`. Configurable via `~/.config/sffmc/workflow.yaml`. Per `WorkflowConfig` field.
-- **Regex narrowing for sensitive paths** — `packages/memory/src/watcher.ts` and `recon.ts` now call into shared `redact-secrets.ts` helpers instead of duplicated 7-regex deny lists. Sensitive filenames anchor to `basename()`; sensitive source paths use both basename and path-level rules.
-- **MiMo-Code Features Reference** (`docs/mimo-code-features.md`, 2,198 lines, 209 citations) — pure external reference doc for SFFMC maintainers. Zero references to SFFMC. Documents MiMo's actual API as it exists in source.
-- **`audit:public` script exclusion** (`scripts/audit-public-content.sh`) — `docs/mimo-code-features.md` added to `EXCLUDE_FILES` since it legitimately references MiMo-Code's own state (e.g. "15 compose skills" is MiMo's count, not SFFMC's).
+- **Grace period hook** (`packages/workflow/src/constants.ts`, `runtime.ts`, `types.ts`) - on OpenCode restart, workflows in `running` state with age ≤ `gracePeriodMs` are marked `paused` (resumable); older ones fall through to journal-presence check. Default `gracePeriodMs = 5 minutes`, ceiling `MAX_GRACE_PERIOD_MS = 24 hours`. Configurable via `~/.config/sffmc/workflow.yaml`. Per `WorkflowConfig` field.
+- **Regex narrowing for sensitive paths** - `packages/memory/src/watcher.ts` and `recon.ts` now call into shared `redact-secrets.ts` helpers instead of duplicated 7-regex deny lists. Sensitive filenames anchor to `basename()`; sensitive source paths use both basename and path-level rules.
+- **MiMo-Code Features Reference** (`docs/mimo-code-features.md`, 2,198 lines, 209 citations) - pure external reference doc for SFFMC maintainers. Zero references to SFFMC. Documents MiMo's actual API as it exists in source.
+- **`audit:public` script exclusion** (`scripts/audit-public-content.sh`) - `docs/mimo-code-features.md` added to `EXCLUDE_FILES` since it legitimately references MiMo-Code's own state (e.g. "15 compose skills" is MiMo's count, not SFFMC's).
 
 ### Performance
 
@@ -330,17 +330,17 @@ Redaction helper + grace period + MCP integration + docs polish redo. 5 commits 
 
 ### Deferred to v0.15
 
-> **Status note (post-v0.15.2 audit, 2026-07-03):** the original "planned for v0.15" timeline slipped as the project pivoted to the v0.15.0 package consolidation (13 → 5 packages). 2 of 5 items were silently completed in v0.14.1 — see that release's "Added" / "Fixed" sections above. The other 3 reference phantom files (the 990-line design doc and the hardcode audit markdown are not in git history) and need a clean re-spec before any future implementation work.
+> **Status note (post-v0.15.2 audit, 2026-07-03):** the original "planned for v0.15" timeline slipped as the project pivoted to the v0.15.0 package consolidation (13 → 5 packages). 2 of 5 items were silently completed in v0.14.1 - see that release's "Added" / "Fixed" sections above. The other 3 reference phantom files (the 990-line design doc and the hardcode audit markdown are not in git history) and need a clean re-spec before any future implementation work.
 
-- **Checkpoint format change** (was deferred from v0.12.1, not re-scheduled) — *not done*
-- **Schema refactor** (design file `docs/v0-14-m4-schema-design.md` not in git; needs re-spec from current `schema.ts` 68 LOC + `schema-journal.ts` 207 LOC) — *not done*
-- Hardcode audit findings (audit file `.slim/deepwork/hardcode-audit-2026-06.md` not in repo; v0.14.5 already shipped 21-value migration to `~/.config/sffmc/{package}.yaml`, remaining ~151 numeric literals need re-scan) — *partially done*
-- **PEM key body redaction** (out of scope for v0.14) — ✅ shipped in [v0.14.1](#v0141-2026-06-19) "Fixed"
-- **ReDoS checker promotion to CI gate** — ✅ shipped in [v0.14.1](#v0141-2026-06-19) "Added"
+- **Checkpoint format change** (was deferred from v0.12.1, not re-scheduled) - *not done*
+- **Schema refactor** (design file `docs/v0-14-m4-schema-design.md` not in git; needs re-spec from current `schema.ts` 68 LOC + `schema-journal.ts` 207 LOC) - *not done*
+- Hardcode audit findings (audit file `.slim/deepwork/hardcode-audit-2026-06.md` not in repo; v0.14.5 already shipped 21-value migration to `~/.config/sffmc/{package}.yaml`, remaining ~151 numeric literals need re-scan) - *partially done*
+- **PEM key body redaction** (out of scope for v0.14) - ✅ shipped in [v0.14.1](#v0141-2026-06-19) "Fixed"
+- **ReDoS checker promotion to CI gate** - ✅ shipped in [v0.14.1](#v0141-2026-06-19) "Added"
 
 ## v0.12.1 (2026-06-19)
 
-Security hardening — 30 fixes from **@Manriel**'s external security audit.
+Security hardening - 30 fixes from **@Manriel**'s external security audit.
 
 ### Fixed
 
@@ -390,11 +390,11 @@ Workflow Resume Passthrough + 6 priority coverage tests + journal/checkpoint per
 
 ### Added
 
-- **Workflow Resume Passthrough** — when OpenCode restarts mid-workflow, in-flight runs are now marked "paused" (recoverable from journal) instead of "crashed". Use `runtime.resume({ runID })` to continue.
-- **Health check factory** — 13 health checks consolidated behind a single factory pattern, removing duplicated boilerplate.
-- **Journal format v1** — journals now include a version header for forward compatibility. Existing v0 journals still parse correctly.
-- **`workflow:resumed` event** — emitted when a paused workflow is resumed via `runtime.resume({ runID })`.
-- **6 priority coverage tests** — race conditions in lock acquisition, agent abort at semaphore, depth-limit enforcement, budget-exceeded detection, debounced counter flush, structural error propagation.
+- **Workflow Resume Passthrough** - when OpenCode restarts mid-workflow, in-flight runs are now marked "paused" (recoverable from journal) instead of "crashed". Use `runtime.resume({ runID })` to continue.
+- **Health check factory** - 13 health checks consolidated behind a single factory pattern, removing duplicated boilerplate.
+- **Journal format v1** - journals now include a version header for forward compatibility. Existing v0 journals still parse correctly.
+- **`workflow:resumed` event** - emitted when a paused workflow is resumed via `runtime.resume({ runID })`.
+- **6 priority coverage tests** - race conditions in lock acquisition, agent abort at semaphore, depth-limit enforcement, budget-exceeded detection, debounced counter flush, structural error propagation.
 
 ### Changed
 
@@ -409,7 +409,7 @@ Workflow Resume Passthrough + 6 priority coverage tests + journal/checkpoint per
 
 ### Removed
 
-- 4 dead `MemoryConfig` fields (`reconBudgets.memory`, `.checkpoint`, `.taskTree`, `.agents`) — only `reconBudgets.tail` was actually read.
+- 4 dead `MemoryConfig` fields (`reconBudgets.memory`, `.checkpoint`, `.taskTree`, `.agents`) - only `reconBudgets.tail` was actually read.
 - Unused `MAX_COMMAND` import and dead `triggeredLog` field in `auto-max`.
 - Duplicate `RichPluginContext` re-declarations in `extra/dream.ts` and `extra/judge.ts` (now imported from `@sffmc/shared`).
 
@@ -436,9 +436,9 @@ max-mode and workflow onboarded into `@sffmc/shared`. No API changes for the pub
 
 ### Added
 
-- **`extractErrorType(output)` and `isToolError(output)`** in `@sffmc/shared` — unified error detection across packages. Replaces auto-max's loose regex with strict pattern matching.
-- **`MAX_COMMAND`, `MAX_SUBCOMMANDS`, `MAX_PATTERN`, `MaxSubcommand`** in `@sffmc/shared` — shared `/max` command handling across max-mode, auto-max, and watchdog. Fixes a bug where watchdog missed `/max reset` and `/max clear`.
-- **`RichPluginContext`** type in `@sffmc/shared` — extends `PluginContext` with optional `client.session.message()` and `usage.totalTokens`. Replaces separate interfaces in max-mode and workflow.
+- **`extractErrorType(output)` and `isToolError(output)`** in `@sffmc/shared` - unified error detection across packages. Replaces auto-max's loose regex with strict pattern matching.
+- **`MAX_COMMAND`, `MAX_SUBCOMMANDS`, `MAX_PATTERN`, `MaxSubcommand`** in `@sffmc/shared` - shared `/max` command handling across max-mode, auto-max, and watchdog. Fixes a bug where watchdog missed `/max reset` and `/max clear`.
+- **`RichPluginContext`** type in `@sffmc/shared` - extends `PluginContext` with optional `client.session.message()` and `usage.totalTokens`. Replaces separate interfaces in max-mode and workflow.
 
 ### Fixed
 
@@ -450,22 +450,22 @@ max-mode and workflow onboarded into `@sffmc/shared`. No API changes for the pub
 - 3 `require()` calls converted to ES module `import` (memory, workflow runtime, workflow persistence)
 - Removed redundant `yaml` dependencies from 4 packages (watchdog, auto-max, eos-stripper, log-whitelist)
 - Timer hygiene: `.unref()` added to 2 timers to avoid blocking event loop shutdown
-- 5 shared states in `@sffmc/extra` (checkpoint buffers, dream lock, timers) converted to on-demand factories — backward-compatible, existing imports preserved
+- 5 shared states in `@sffmc/extra` (checkpoint buffers, dream lock, timers) converted to on-demand factories - backward-compatible, existing imports preserved
 - max-mode and workflow now use `@sffmc/shared` for shared types
 
 ## v0.10.1 (2026-06-16)
 
-Post-v0.10.0 cleanup. No API changes — all work preserves v0.10.0 breaking interface.
+Post-v0.10.0 cleanup. No API changes - all work preserves v0.10.0 breaking interface.
 
 ### Changed
 
 - **builtin-registry**: 7 repeated loader functions collapsed into a single `makeLoader<T>()` helper (90 → 67 lines).
 - **workflow runtime** (6 simplifications):
-  - `resolveConfig(perStepTimeoutMsOverride?)` — unified config resolution for `start()` and `resume()`
-  - `settleEntry` — unified 3 identical `.then().catch()` blocks
+  - `resolveConfig(perStepTimeoutMsOverride?)` - unified config resolution for `start()` and `resume()`
+  - `settleEntry` - unified 3 identical `.then().catch()` blocks
   - Removed dead code: unused `writeFile` block in `start()`, vestigial null check in spawnAgent
-  - `makeEntry(opts)` — unified triplicated `InternalRunEntry` construction. Fixes 1–2ms drift from duplicate `Date.now()` calls
-  - `outcomeFor(entry, status, extras?)` — unified triplicated `WorkflowOutcome` construction
+  - `makeEntry(opts)` - unified triplicated `InternalRunEntry` construction. Fixes 1–2ms drift from duplicate `Date.now()` calls
+  - `outcomeFor(entry, status, extras?)` - unified triplicated `WorkflowOutcome` construction
 
 ### Fixed
 
@@ -497,7 +497,7 @@ Post-v0.10.0 cleanup. No API changes — all work preserves v0.10.0 breaking int
 ### Added
 
 - **One-liner install**: `curl -fsSL .../install.sh | sh` (Linux/macOS) and `irm .../install.ps1 | iex` (Windows). Clones to `~/.sffmc/plugins/sffmc` and auto-runs init.
-- **`sffmc` CLI**: 6 subcommands — `init` (auto-edit `opencode.json` with `--minimal|--all|--only`), `update`, `uninstall`, `doctor` (13-check diagnostic), `path`, `help`.
+- **`sffmc` CLI**: 6 subcommands - `init` (auto-edit `opencode.json` with `--minimal|--all|--only`), `update`, `uninstall`, `doctor` (13-check diagnostic), `path`, `help`.
 - `docs/install.md`: Full install guide with troubleshooting.
 - README Quick start replaced with one-liner install.
 
@@ -530,11 +530,11 @@ sffmc init --all        # all 13 packages
 sffmc doctor            # 13-check diagnostic
 ```
 
-## v0.9.1 — Post-release cleanup + bug fixes (2026-06-16)
+## v0.9.1 - Post-release cleanup + bug fixes (2026-06-16)
 
 ### Fixed
 
-- **`@sffmc/workflow`**: cancel/fail race in `completeRun` — DB row and `entry.status` could be overwritten to "completed" if a still-pending sandbox `.then()` raced a `cancel()` call.
+- **`@sffmc/workflow`**: cancel/fail race in `completeRun` - DB row and `entry.status` could be overwritten to "completed" if a still-pending sandbox `.then()` raced a `cancel()` call.
 - **`@sffmc/workflow`**: `events.ts off(key)` was broken for event names containing `_` (all workflow events). Fixed key lookup.
 - **`@sffmc/rules`**: `gate.ts isInside()` returned `true` for relative paths like `../etc/passwd`, bypassing safety checks. Fixed to resolve relative paths against project root.
 
@@ -551,18 +551,18 @@ sffmc doctor            # 13-check diagnostic
 
 - `@sffmc/extra` (dream): cluster-expansion loop capped at 5 iterations to bound worst-case on large memory DBs
 
-## v0.9.0 — 3-composite restructure: safety, memory, agentic (2026-06-15)
+## v0.9.0 - 3-composite restructure: safety, memory, agentic (2026-06-15)
 
 ### What's new in v0.9.0
 
-- **3 composite packages** (safety, memory, agentic) replace 14 standalone imports — each composite composes multiple sub-features
+- **3 composite packages** (safety, memory, agentic) replace 14 standalone imports - each composite composes multiple sub-features
 - **10 sub-features** can still be used independently as standalone plugins (backward compatible)
 - **Drone CI pipeline** with automated npm publish on tags
 - **Public release** under `@sffmc/*` on npm
 
 ### Breaking changes
 
-- Configs using 10 sub-features: should migrate to 3 composites for new features, but **standalone still works** — no forced migration
+- Configs using 10 sub-features: should migrate to 3 composites for new features, but **standalone still works** - no forced migration
 - Pre-v0.9.0 localStorage seed format: still compatible (no migration needed)
 
 > Ported from [MiMo-Code v8.0](https://github.com/XiaomiMiMo/MiMo-Code) by Xiaomi. See README for per-feature attribution.
@@ -600,11 +600,11 @@ log-whitelist, max-mode, and watchdog.
 `@sffmc/extra` previously bundled 3 sub-features (checkpoint, judge, dream)
 via a factory that returned one server. Now exposes 3 named servers:
 
-- `export const checkpointServer` — checkpoint as a composable
-- `export const judgeServer` — judge as a composable
-- `export const dreamServer` — dream as a composable
-- `export const server` — merged (calls all 3 + `mergeHooks()`) for standalone
-- `export default { id: "extra", server }` — backward compat
+- `export const checkpointServer` - checkpoint as a composable
+- `export const judgeServer` - judge as a composable
+- `export const dreamServer` - dream as a composable
+- `export const server` - merged (calls all 3 + `mergeHooks()`) for standalone
+- `export default { id: "extra", server }` - backward compat
 
 ### memory extracted to `plugin.ts` (id="memory-core")
 
@@ -615,26 +615,26 @@ memory-core + extra's 3 named servers via `mergeHooks()`.
 ### 12 new skills (3 + 4 + 5)
 
 **Safety (3):**
-- `safety:diagnose-tool-failure` — read watchdog's 3-failure verdict
-- `safety:write-rule` — add safety rules to `~/.config/SFFMC/rules.yaml`
-- `safety:manage-auto-max` — auto-max vs manual `/max`, when to suggest
+- `safety:diagnose-tool-failure` - read watchdog's 3-failure verdict
+- `safety:write-rule` - add safety rules to `~/.config/SFFMC/rules.yaml`
+- `safety:manage-auto-max` - auto-max vs manual `/max`, when to suggest
 
 **Memory (4):**
-- `memory:recall` — read auto-injected recon, 5 budget categories
-- `memory:checkpoint-save` — 200K token resume point, schema versioning
-- `memory:judge-output` — multi-criteria verdict (correctness/readability/performance)
-- `memory:dream-cleanup` — 3-phase (cluster/score/archive), restore
+- `memory:recall` - read auto-injected recon, 5 budget categories
+- `memory:checkpoint-save` - 200K token resume point, schema versioning
+- `memory:judge-output` - multi-criteria verdict (correctness/readability/performance)
+- `memory:dream-cleanup` - 3-phase (cluster/score/archive), restore
 
 **Agentic (5):**
-- `agentic:run-workflow` — 7 builtins, QuickJS sandbox limits
-- `agentic:run-max-mode` — 3 parallel candidates + 1 judge, cost awareness
-- `agentic:compose-skill` — index of 18 compose skills
-- `agentic:health-check` — 12 sffmc_health checks
-- `agentic:resolve-hook-conflict` — TRANSFORM/GATE/SIDE_EFFECT semantics
+- `agentic:run-workflow` - 7 builtins, QuickJS sandbox limits
+- `agentic:run-max-mode` - 3 parallel candidates + 1 judge, cost awareness
+- `agentic:compose-skill` - index of 18 compose skills
+- `agentic:health-check` - 12 sffmc_health checks
+- `agentic:resolve-hook-conflict` - TRANSFORM/GATE/SIDE_EFFECT semantics
 
 ### Migration from v0.8.2
 
-v0.8.2 configs work without changes — all 10 module packages still
+v0.8.2 configs work without changes - all 10 module packages still
 load as standalone plugins. To use the new composites (recommended):
 
 ```diff
@@ -645,13 +645,13 @@ load as standalone plugins. To use the new composites (recommended):
 The 3 composites compose all 10 sub-features via `mergeHooks()` and have no
 user-visible behavior change. Same hooks, same tools, same YAML configs.
 
-## v0.8.2 — Package categories (mimo-port vs sffmc-original) (2026-06-15)
+## v0.8.2 - Package categories (mimo-port vs sffmc-original) (2026-06-15)
 
 ## Package categories
 Each of the 11 SFFMC packages now has explicit `category` metadata in
 `package.json` to clearly separate features ported from MiMo-Code v8.0
 from SFFMC team additions.
-### mimo-port (7 packages — ported from MiMo-Code v8.0)
+### mimo-port (7 packages - ported from MiMo-Code v8.0)
 - @sffmc/memory (Memory + Context Recon)
 - @sffmc/rules (Safety Rules)
 - @sffmc/watchdog (Auto-recovery)
@@ -659,7 +659,7 @@ from SFFMC team additions.
 - @sffmc/auto-max (Auto-escalation)
 - @sffmc/compose (15 MiMo compose skills)
 - @sffmc/workflow (Dynamic Workflow)
-### sffmc-original (4 packages — SFFMC team additions)
+### sffmc-original (4 packages - SFFMC team additions)
 - @sffmc/eos-stripper (local model EOS token survival)
 - @sffmc/log-whitelist (12GB log file prevention)
 - @sffmc/health (plugin-author diagnostic)
@@ -668,7 +668,7 @@ from SFFMC team additions.
 12th check `category_split` reports the split and warns if any package
 is uncategorized. Currently 7 mimo-port + 4 sffmc-original, 0 uncategorized.
 Full sffmc_health: 12 ok, 0 warn, 0 fail (was 11 ok 1 warn in v0.8.1
-due to changelog_currency mismatch — fixed by version bump).
+due to changelog_currency mismatch - fixed by version bump).
 ## Docs
 - README.md: new "Package categories" section with full table
 - Each package.json: `category` field + `portSource` (mimo-port) or
@@ -677,22 +677,22 @@ due to changelog_currency mismatch — fixed by version bump).
 All 13 packages (11 SFFMC + shared + root) bumped 0.8.0 → 0.8.1 to
 align with CHANGELOG v0.8.1 (was inconsistent in v0.8.1 release).
 
-## v0.8.1 — Known gaps fixed + opt-in bundle enhancements + 6 new skills/builtins (2026-06-15)
+## v0.8.1 - Known gaps fixed + opt-in bundle enhancements + 6 new skills/builtins (2026-06-15)
 
 ### Fixed
 
 - **compose**: graceful error on corrupted/missing skill file
 - **auto-max**: 3 improvements
-  - `dry_run: boolean` config — counts failures but doesn't actually trigger max-mode
+  - `dry_run: boolean` config - counts failures but doesn't actually trigger max-mode
   - `/max` escape hatch hook (regex matches `/max`, `/max reset`, `/max clear`, `/max reset <id>`)
-  - Object output error detection — `{ error }` or `{ code }` fields now counted as failures
+  - Object output error detection - `{ error }` or `{ code }` fields now counted as failures
 
 ### Added
 
 **opt-in bundle enhancements:**
-- **Checkpoint**: schema migration — `CURRENT_VERSION=1`, `migrateCheckpoint(raw, fromVersion)`, forward-compat restore
-- **Judge**: streaming mode — `callJudgeStream` with `onChunk` callback for `scores`/`winner`/`reasoning`/`complete`/`error` chunks
-- **Dream**: LLM cluster naming — `nameClusterViaLLM` generates 3-5 word topic phrase
+- **Checkpoint**: schema migration - `CURRENT_VERSION=1`, `migrateCheckpoint(raw, fromVersion)`, forward-compat restore
+- **Judge**: streaming mode - `callJudgeStream` with `onChunk` callback for `scores`/`winner`/`reasoning`/`complete`/`error` chunks
+- **Dream**: LLM cluster naming - `nameClusterViaLLM` generates 3-5 word topic phrase
 
 **New workflow builtins (3):**
 - `security-audit` (4 phases): Scope → Scan (4 parallel agents) → Triage → Report
@@ -710,12 +710,12 @@ align with CHANGELOG v0.8.1 (was inconsistent in v0.8.1 release).
 
 - auto-max, watchdog: migrated to shared config loader (`loadConfig`)
 
-## v0.8.0 — @sffmc/extra plugin (opt-in bundle) (2026-06-15)
+## v0.8.0 - @sffmc/extra plugin (opt-in bundle) (2026-06-15)
 
 ### Added
 
 New `@sffmc/extra` plugin: opt-in bundle of 3 advanced features.
-All features disabled by default — toggle per feature via config flags.
+All features disabled by default - toggle per feature via config flags.
 
 **Checkpoint** (`extra_checkpoint` tool):
 - Captures every `tool.execute.after` call into per-session JSONL at
@@ -756,17 +756,17 @@ judge_model: "your-model-id"
 judge_auto: false     # auto-judge markers in messages
 ```
 
-## v0.7.5 — Full repository codemap (2026-06-15)
+## v0.7.5 - Full repository codemap (2026-06-15)
 
 ### Added
 
 - **Repository codemap**: 24 `codemap.md` files (~11,000 words total) covering every package and source directory
-- `codemap.md` (root) — master entry point with directory map
-- `packages/codemap.md` (umbrella) — 10 plugins + shared SDK overview
-- 10 × `packages/<plugin>/codemap.md` — package-level architecture
-- 10 × `packages/<plugin>/src/codemap.md` — file-by-file breakdown
-- `shared/codemap.md` + `shared/src/codemap.md` — SDK architecture
-- `AGENTS.md` — auto-load entry with Repository Map section
+- `codemap.md` (root) - master entry point with directory map
+- `packages/codemap.md` (umbrella) - 10 plugins + shared SDK overview
+- 10 × `packages/<plugin>/codemap.md` - package-level architecture
+- 10 × `packages/<plugin>/src/codemap.md` - file-by-file breakdown
+- `shared/codemap.md` + `shared/src/codemap.md` - SDK architecture
+- `AGENTS.md` - auto-load entry with Repository Map section
 
 ### Plugin codemap word counts
 
@@ -784,7 +784,7 @@ judge_auto: false     # auto-judge markers in messages
 | health | 766 | 516 | 1282 |
 | shared | 426 | 653 | 1079 |
 
-## v0.7.4 — Shared SDK migration + test output cleanup (2026-06-15)
+## v0.7.4 - Shared SDK migration + test output cleanup (2026-06-15)
 
 ### Changed
 
@@ -792,7 +792,7 @@ judge_auto: false     # auto-judge markers in messages
 - `@sffmc/compose` and `@sffmc/memory` also updated
 - Test output: reduced noisy `[watchdog] loaded` / `[auto-max] loaded` logs from 8 lines to 2 per test run
 
-## v0.7.3 — Test infrastructure hardening (2026-06-15)
+## v0.7.3 - Test infrastructure hardening (2026-06-15)
 
 ### Added
 
@@ -803,7 +803,7 @@ judge_auto: false     # auto-judge markers in messages
 
 ### Changed
 
-- `@sffmc/health` now loaded in development sandbox — LLM can call `sffmc_health` tool in sandbox sessions
+- `@sffmc/health` now loaded in development sandbox - LLM can call `sffmc_health` tool in sandbox sessions
 - `.sffmc/` added to `.gitignore` (workflow runtime artifacts)
 
 ### Fixed
@@ -812,9 +812,9 @@ judge_auto: false     # auto-judge markers in messages
 
 ### Documentation
 
-- `docs/examples/migrate-7-plugins-to-shared.json` — example plan artifact
+- `docs/examples/migrate-7-plugins-to-shared.json` - example plan artifact
 
-## v0.7.2 — Health plugin (2026-06-15)
+## v0.7.2 - Health plugin (2026-06-15)
 
 Revived Health as a real diagnostic tool. Plugin authors can now run `sffmc_health` to check monorepo health in <1s.
 
@@ -822,38 +822,38 @@ Revived Health as a real diagnostic tool. Plugin authors can now run `sffmc_heal
 
 - Exposes one LLM-callable tool `sffmc_health` returning JSON.
 - 7 diagnostic checks:
-  1. `hook_conflicts` — 0 real conflicts across 9 plugins
-  2. `test_presence` — every package must have `*.test.ts`
-  3. `readme_presence` — every package must have `README.md`
-  4. `type_check` — `bun build --no-bundle` per plugin
-  5. `tool_registration` — prevents a known tool registration regression
-  6. `version_consistency` — root version matches all plugins
-  7. `license` — LICENSE present + every README references it
+  1. `hook_conflicts` - 0 real conflicts across 9 plugins
+  2. `test_presence` - every package must have `*.test.ts`
+  3. `readme_presence` - every package must have `README.md`
+  4. `type_check` - `bun build --no-bundle` per plugin
+  5. `tool_registration` - prevents a known tool registration regression
+  6. `version_consistency` - root version matches all plugins
+  7. `license` - LICENSE present + every README references it
 - Each check returns `ok | warn | fail` with human-readable detail.
 - Top-level `ok` is `false` if any check fails.
 
 ### Other changes
 
-- `shared/README.md` — created (caught by `sffmc_health`'s first run)
-- `bun run test:watch` — re-runs tests on every `.ts` save
+- `shared/README.md` - created (caught by `sffmc_health`'s first run)
+- `bun run test:watch` - re-runs tests on every `.ts` save
 
-## v0.7.0 — Workflow builtins + shared SDK + docs (2026-06-15)
+## v0.7.0 - Workflow builtins + shared SDK + docs (2026-06-15)
 
 4 user-facing features, ~1500 LOC, 102 tests pass.
 
 ### New workflow builtins (`@sffmc/workflow`)
 
-- `plan` — 4-phase structured planning (Scope → Decompose → Estimate → Output). Takes `args.goal`, returns scope clarification, success criteria, ordered steps with deps, est_minutes, parallel_group. Self-retries on under-decomposed output.
-- `tdd` — 5-phase TDD-style artifact generation (Spec → Red → Green → Refactor → Verify). Takes `args.feature`, returns test file + impl file + refactor notes as artifacts. Generates, does NOT execute (LLM-only).
-- `refactor` — 4-phase refactor proposer (Scan → Diagnose → Propose → Output). Reads files via workspace primitives, lists 3-7 smells, returns 1-5 before/after patches with risk levels. Does NOT auto-apply (advisory).
+- `plan` - 4-phase structured planning (Scope → Decompose → Estimate → Output). Takes `args.goal`, returns scope clarification, success criteria, ordered steps with deps, est_minutes, parallel_group. Self-retries on under-decomposed output.
+- `tdd` - 5-phase TDD-style artifact generation (Spec → Red → Green → Refactor → Verify). Takes `args.feature`, returns test file + impl file + refactor notes as artifacts. Generates, does NOT execute (LLM-only).
+- `refactor` - 4-phase refactor proposer (Scan → Diagnose → Propose → Output). Reads files via workspace primitives, lists 3-7 smells, returns 1-5 before/after patches with risk levels. Does NOT auto-apply (advisory).
 
 `deep-research` builtin still ships (now 4 builtins total).
 
 ### New package: `@sffmc/shared`
 
-- `loadConfig<T>(pluginName, defaults, opts?)` — YAML config loader merging `~/.config/SFFMC/<name>.yaml` over defaults. Never throws.
-- `PluginContext` interface — single canonical type for all plugins.
-- `on` / `off` / `emit` / `clearAll` — generic type-safe EventBus (extracted from workflow's events).
+- `loadConfig<T>(pluginName, defaults, opts?)` - YAML config loader merging `~/.config/SFFMC/<name>.yaml` over defaults. Never throws.
+- `PluginContext` interface - single canonical type for all plugins.
+- `on` / `off` / `emit` / `clearAll` - generic type-safe EventBus (extracted from workflow's events).
 
 **Refactored**: `eos-stripper`, `log-whitelist` now use `@sffmc/shared`.
 
@@ -865,28 +865,28 @@ Each `packages/<pkg>/README.md` now has: header, one-line purpose, install snipp
 
 `docs/getting-started.md` (7 sections): What is SFFMC → Prerequisites → Install → Your first workflow (deep-research) → Save a custom workflow → Debugging → Next steps.
 
-## v0.6.1 — Load order audit (2026-06-15)
+## v0.6.1 - Load order audit (2026-06-15)
 
 Post-release patch:
-- `docs/load-order-audit.md` — full audit of 9 SFFMC plugin hooks, 0 conflicts found
-- `scripts/audit-load-order.py` — reusable AST-based hook auditor
+- `docs/load-order-audit.md` - full audit of 9 SFFMC plugin hooks, 0 conflicts found
+- `scripts/audit-load-order.py` - reusable AST-based hook auditor
 - All critical sequences verified: /max reset→activate, watchdog→log-whitelist→auto-max output chain, eos-stripper→log-whitelist text chain
-- Tool names: only `compose_skill` (compose) and `workflow` (workflow) — no conflicts
+- Tool names: only `compose_skill` (compose) and `workflow` (workflow) - no conflicts
 
 No code changes. No plugin version bumps. Pure docs + tooling.
 
-## v0.6.0 — Dynamic Workflow engine (2026-06-14)
+## v0.6.0 - Dynamic Workflow engine (2026-06-14)
 
 9 SFFMC plugins shipped:
-- @sffmc/memory — FTS5 + ICM extraction
-- @sffmc/rules — YAML gate-based allow/deny
-- @sffmc/watchdog — 3-failure counter, auto-recovery
-- @sffmc/eos-stripper — EOS token cleanup
-- @sffmc/log-whitelist — agent log filter
-- @sffmc/max-mode — parallel drafts + judge
-- @sffmc/auto-max — auto-escalation to max-mode
-- @sffmc/compose — 15 compose skills
-- @sffmc/workflow — NEW
+- @sffmc/memory - FTS5 + ICM extraction
+- @sffmc/rules - YAML gate-based allow/deny
+- @sffmc/watchdog - 3-failure counter, auto-recovery
+- @sffmc/eos-stripper - EOS token cleanup
+- @sffmc/log-whitelist - agent log filter
+- @sffmc/max-mode - parallel drafts + judge
+- @sffmc/auto-max - auto-escalation to max-mode
+- @sffmc/compose - 15 compose skills
+- @sffmc/workflow - NEW
 
 Workflow engine:
 - Sandboxed JavaScript via quickjs-emscripten WASM
@@ -897,28 +897,28 @@ Workflow engine:
 - Canonical example: deep-research (6 phases, adversarial jury)
 - 96+ tests passing
 
-## v0.5.0 — Compose skills (2026-06-14)
+## v0.5.0 - Compose skills (2026-06-14)
 
 - @sffmc/compose: compose_skill tool, 15 skills from MiMo-Code
 - Plan, TDD, verify, task delegation, and 11 other structured workflows
 
-## v0.4.0 — Max Mode + Auto-max (2026-06-14)
+## v0.4.0 - Max Mode + Auto-max (2026-06-14)
 
 - @sffmc/max-mode: schema-only tools trick, 3 candidates + judge
 - @sffmc/auto-max: auto-escalation from watchdog triggers
 
-## v0.3.0 — Watchdog + Strippers (2026-06-14)
+## v0.3.0 - Watchdog + Strippers (2026-06-14)
 
 - @sffmc/watchdog: 3-failure counter, auto-max trigger, recovery verdict
 - @sffmc/eos-stripper: EOS token removal
 - @sffmc/log-whitelist: configurable log filter
 
-## v0.2.0 — Foundation (2026-06-14)
+## v0.2.0 - Foundation (2026-06-14)
 
 - @sffmc/memory: FTS5 full-text search, ICM extraction
 - @sffmc/rules: YAML hot-reload, gate-based tool filtering
 
-## v0.1.0 — Scaffold (2026-06-14)
+## v0.1.0 - Scaffold (2026-06-14)
 
 - Monorepo setup: bun workspace, tsconfig, .gitignore, LICENSE
 - README, docs/ (import-from-mimo.md, migration-from-opencode.md, v8-decision.md)

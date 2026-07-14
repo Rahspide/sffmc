@@ -5,7 +5,7 @@
 
 ## What it does
 
-Prevents runaway failure cascades, blocks destructive commands via YAML gates, auto-escalates to stronger models when failures compound, strips local-model EOS tokens from output, and caps log accumulation at configurable thresholds. All 5 sub-features are always-on with per-feature YAML configs. No user-facing tools — everything is hooks.
+Prevents runaway failure cascades, blocks destructive commands via YAML gates, auto-escalates to stronger models when failures compound, strips local-model EOS tokens from output, and caps log accumulation at configurable thresholds. All 5 sub-features are always-on with per-feature YAML configs. No user-facing tools - everything is hooks.
 
 ## Sub-features
 
@@ -35,7 +35,7 @@ Prevents runaway failure cascades, blocks destructive commands via YAML gates, a
 
 ## Tools
 
-0 tools. Safety is hook-only — no user-facing tool surface.
+0 tools. Safety is hook-only - no user-facing tool surface.
 
 ## Skills
 
@@ -62,7 +62,7 @@ This plugin is loaded by the SFFMC monorepo's sandbox config. To use standalone:
 
 ## Configuration
 
-Each sub-feature keeps its own YAML config at `~/.config/SFFMC/<name>.yaml`. The composite itself has no top-level `safety.yaml` — per-feature config namespaces are preserved for backward compatibility.
+Each sub-feature keeps its own YAML config at `~/.config/SFFMC/<name>.yaml`. The composite itself has no top-level `safety.yaml` - per-feature config namespaces are preserved for backward compatibility.
 
 | Config file | Feature |
 |---|---|
@@ -72,7 +72,7 @@ Each sub-feature keeps its own YAML config at `~/.config/SFFMC/<name>.yaml`. The
 | `~/.config/SFFMC/eos-stripper.yaml` | EOS pattern list, log toggle |
 | `~/.config/SFFMC/log-whitelist.yaml` | Whitelist/blacklist patterns, max lines, truncation marker |
 
-Verify with `sffmc_health` — reports `safety: 9 hook keys, 0 tools`.
+Verify with `sffmc_health` - reports `safety: 9 hook keys, 0 tools`.
 
 ## Tests
 
