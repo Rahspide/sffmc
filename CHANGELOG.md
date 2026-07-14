@@ -1,3 +1,38 @@
+## v0.16.1 (2026-07-14)
+
+> Patch release. **No breaking changes.** Documentation sync + infrastructure hardening after the v0.16.0 god-decomposition.
+
+### Fixed
+
+- **Documentation drift from v0.16.0** — version metadata and stale references in 10 files (`README.md`, `README.ru.md`, `AGENTS.md`, `CONTRIBUTING.md`, 6 `docs/*.md`). Semantic fixes:
+  - `docs/getting-started.md`: removed false "8 sub-features individually available" claim (sub-features have been internal since v0.15.0 consolidation); `12 hours wall-clock` → `1 hour` (was fixed in `dynamic-workflow.md` v0.15.3, never ported here).
+  - `docs/drone-ci.md`: replaced fabricated 13-package enumerate with the actual 5 publish order; `shared/` → `packages/utilities/` (v0.15.0 rename); tag examples → v0.16.0.
+  - `packages/runtime/README.md:14`: partial-fix completed — "11 sub-components" → "4 sub-component deps".
+  - `packages/memory/README.md`: corrected attribution — checkpoint/judge/dream live in `packages/memory/src/extra/`, not in `@sffmc/utilities`.
+  - `README.ru.md:331`: removed broken link to non-existent `docs/load-order-audit.md` (file deleted in v0.15.0).
+  - `docs/install.md`: `SFFMC_VERSION` examples → v0.16.0; "13 packages" → "5".
+  - `docs/dynamic-workflow.md`: package path `packages/workflow/` → `packages/runtime/` (post-rename); version header → v0.16.0.
+  - `docs/migration-from-opencode.md`, `docs/mimo-code-features.md`: version refs → v0.16.0.
+- **`packages/codemap.md`** (stray file) — gitignored file from pre-v0.15.0 era referenced deleted directories (`agentic/`, `compose/`, `extra/`, `rules/`, `workflow/`). Removed from disk.
+
+### Added
+
+- **Per-package `tsconfig.json`** for `@sffmc/cognition`, `@sffmc/runtime`, `@sffmc/utilities` — extends root, enables per-package overrides. Clears `tsconfig_presence` health warning.
+- **`docs/v0.16.0-decomposition.md`** — porting guide mapping pre-decomposition god-class paths to post-decomposition sub-module paths, with end-to-end migration checklist for external porters.
+- **`category` field on packages** — `runtime` and `cognition`: `mimo-port` (ports from MiMo-Code's opencode package); `utilities`: `sffmc-original` (shared lib is SFFMC's own abstraction). `memory` and `safety` already had `msp`. Clears `category_split` health warning.
+
+### Changed
+
+- **`tsconfig.json` (root)**: dropped `DOM` from `compilerOptions.lib`. SFFMC is a Bun-only runtime; DOM types were unused and slowed type-check.
+- **`.github/workflows/ci.yml`**: switched `bun test` → `bun run test:all`. CI was still using the single-process command that hung pre-commit in v0.16.0 (per-file-loop fix in `d3adeba`); CI was silently at risk of the same hang on PRs.
+- **Health check `sdk_compliance`**: `utilities` self-import downclassified from `warn` to `ok` with explanatory detail. By design — `@sffmc/utilities` is the base library, not a plugin that needs to import itself. The check's `KNOWN_SDK_EXCEPTIONS` list now includes `utilities` alongside `max-mode` and `workflow`.
+
+### Stats
+
+- 14 modified files, 4 new files (`tsconfig.json` x3, `docs/v0.16.0-decomposition.md`)
+- Health: **13 ok / 0 warn / 0 fail** (was 10/3/0 after v0.16.0)
+- All 5 packages at `0.16.1`; root at `0.16.1`
+
 ## v0.16.0 (2026-07-10)
 
 > Refactor release. **No breaking changes.** Decomposition of 5 god-classes into 22 focused sub-modules. Public API preserved exactly across all packages; no behavior changes. Pure structural work.

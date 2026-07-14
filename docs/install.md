@@ -65,13 +65,13 @@ By default the one-liner installs the `main` branch. Pin a version with
 the `SFFMC_VERSION` env var:
 
 ```bash
-SFFMC_VERSION=v0.15.4 curl -fsSL https://raw.githubusercontent.com/Rahspide/sffmc/main/install.sh | sh
+SFFMC_VERSION=v0.16.0 curl -fsSL https://raw.githubusercontent.com/Rahspide/sffmc/main/install.sh | sh
 ```
 
 Or override the install directory:
 
 ```bash
-SFFMC_INSTALL_DIR=/opt/sffmc SFFMC_VERSION=v0.15.4 curl -fsSL ... | sh
+SFFMC_INSTALL_DIR=/opt/sffmc SFFMC_VERSION=v0.16.0 curl -fsSL ... | sh
 ```
 
 ## What `sffmc init` adds to opencode.json
@@ -89,7 +89,7 @@ The default (minimal) install adds three lines:
 }
 ```
 
-With `--all`, all 13 package paths are added. Existing non-SFFMC plugins
+With `--all`, all 5 package paths are added. Existing non-SFFMC plugins
 are left untouched.
 
 ## Troubleshooting

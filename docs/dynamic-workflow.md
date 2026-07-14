@@ -1,6 +1,6 @@
 # Dynamic Workflow Engine
 
-**Shipped**: 2026-06-14 · **Version**: v0.15.4 (current; evolved from v0.6.0) · **Package**: `@sffmc/runtime`
+**Shipped**: 2026-06-14 · **Version**: v0.16.0 (current; evolved from v0.6.0) · **Package**: `@sffmc/runtime`
 
 ## What it is
 
@@ -398,7 +398,7 @@ The largest built-in workflow — 6 phases, adversarial jury:
 workflow({ operation: "run", name: "deep-research", args: { question: "What is the best Rust web framework for 2026?" } })
 ```
 
-[More in code →](../packages/workflow/builtin/deep-research.ts)
+[More in code →](../packages/runtime/src/builtin/deep-research.ts)
 
 ## Comparison to MiMo-Code
 

@@ -4,7 +4,7 @@
 
 # SFFMC
 
-**OpenCode plugin suite — 2 composites + 3 standalones. MIT licensed. v0.15.4.**
+**OpenCode plugin suite — 2 composites + 3 standalones. MIT licensed. v0.16.0.**
 
 [![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 [![npm version](https://img.shields.io/npm/v/%40sffmc%2Fsafety?label=%40sffmc%2Fsafety)](https://www.npmjs.com/package/@sffmc/safety)
@@ -13,7 +13,7 @@
 [![npm version](https://img.shields.io/npm/v/%40sffmc%2Fcognition?label=%40sffmc%2Fcognition)](https://www.npmjs.com/package/@sffmc/cognition)
 [![npm version](https://img.shields.io/npm/v/%40sffmc%2Futilities?label=%40sffmc%2Futilities)](https://www.npmjs.com/package/@sffmc/utilities)
 
-[**GitHub release**](https://github.com/Rahspide/sffmc/releases/tag/v0.15.4)
+[**GitHub release**](https://github.com/Rahspide/sffmc/releases/tag/v0.16.0)
 &nbsp;·&nbsp;
 [**Getting started**](./docs/getting-started.md) &nbsp;·&nbsp; [**Contributing**](./CONTRIBUTING.md) &nbsp;·&nbsp; [**Changelog**](./CHANGELOG.md)
 
@@ -53,7 +53,7 @@ Starting in v0.15.0, that composite is dissolved into `@sffmc/runtime` and
 ## Why use it?
 
 - **Installable from npm.** v0.15.0 was the first version where `npm install
-  @sffmc/safety` resolves a public registry package; v0.15.4 is current.
+  @sffmc/safety` resolves a public registry package; v0.16.0 is current.
 - **Composable.** Load all 4 plugins or pick individual standalones.
   `mergeHooks()` handles hook collision for you.
 - **Zero shared state.** Every plugin is composite. No side effects from load order.
@@ -88,10 +88,10 @@ your `opencode.json` **as file content** — not into a terminal:
 ```json
 {
   "plugins": {
-    "@sffmc/safety":    "npm:@sffmc/safety@^0.15.4",
-    "@sffmc/memory":    "npm:@sffmc/memory@^0.15.4",
-    "@sffmc/runtime":   "npm:@sffmc/runtime@^0.15.4",
-    "@sffmc/cognition": "npm:@sffmc/cognition@^0.15.4"
+    "@sffmc/safety":    "npm:@sffmc/safety@^0.16.0",
+    "@sffmc/memory":    "npm:@sffmc/memory@^0.16.0",
+    "@sffmc/runtime":   "npm:@sffmc/runtime@^0.16.0",
+    "@sffmc/cognition": "npm:@sffmc/cognition@^0.16.0"
   }
 }
 ```
@@ -101,7 +101,7 @@ your `opencode.json` **as file content** — not into a terminal:
 > like this:
 >
 > ```powershell
-> @"{\"plugins\":{\"@sffmc/safety\":\"npm:@sffmc/safety@^0.15.4\",...}}"@
+> @"{\"plugins\":{\"@sffmc/safety\":\"npm:@sffmc/safety@^0.16.0\",...}}"@
 > | Set-Content -Path "$HOME\.sffmc\opencode.json"
 > ```
 >
@@ -143,9 +143,15 @@ cd ~/.sffmc/plugins/sffmc
 
 See [`docs/install.md`](./docs/install.md) for the full guide (pinned versions, PATH setup, troubleshooting).
 
-## What's new in v0.15.4
+## What's new in v0.16.0
 
-v0.15.4 ships test coverage, security hardening (ReDoS fix in redaction), and a workflow file watcher — maintenance release on the 5-package layout. See [CHANGELOG.md](./CHANGELOG.md) for the full v0.15.x history (consolidation, PowerShell fix, npm metadata, security hardening).
+v0.16.0 decomposes 5 god-classes into 22 focused sub-modules (no breaking changes, public API preserved exactly across all 5 packages):
+
+- **Structural refactor.** `dream.ts` (1291 → 10 LOC barrel + 6 sub-modules), `runtime.ts` (817 → 614), `judge.ts` (657 → 10 + 6 sub-modules), `mcp.ts` (335 → 26 + 3), `max-mode/index.ts` (328 → 31 + 3), `constants.ts` (345 → 17 + 2). Each sub-module has a single responsibility; public surface and behavior unchanged.
+- **Pre-commit hook fix.** `bun run test` switched from single-process to per-file loop (`cd package && bun test <file>`) — the bun runner was leaking handles and hanging past 30 files. Pre-commit now exits 0 (10 ok / 3 warn / 0 fail; warnings are pre-existing infra).
+- **Dead code + doc drift cleanup.** Removed `getMaxInstructions` export and `MaxModeResult` dead import; replaced stale `flushNow()` mention and "11 sub-component deps" wording in `packages/runtime/README.md`; dropped stale "LOC: ~1500" metadata in `docs/dynamic-workflow.md`.
+
+See [CHANGELOG.md](./CHANGELOG.md) for the full v0.16.0 entry.
 
 > **v0.15.0** was the consolidation (13 → 5 packages) and first public npm release. If you're upgrading from pre-v0.15.0, see [CHANGELOG.md](./CHANGELOG.md) v0.15.0 entry for the full migration map. Run `sffmc init` after upgrading.
 

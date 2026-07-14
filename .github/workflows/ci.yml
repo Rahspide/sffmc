@@ -27,7 +27,7 @@ jobs:
         run: bun run typecheck
 
       - name: test
-        run: bun run test
+        run: bun run test:all
 
       - name: load-order audit
         run: python3 scripts/audit-load-order.py

@@ -153,7 +153,7 @@ cp ~/.local/share/mimo/mimo.db ~/.local/share/opencode/opencode.db
 # 4. Install SFFMC plugins (see "OpenCode → SFFMC" above)
 ```
 
-**What you keep**: Memory (starts fresh in SFFMC — MiMo-Code's memory format is different), Rules (SFFMC rules are YAML, customizable), Max Mode (`/max` command), all 7 built-in workflows (`deep-research`, `plan`, `tdd`, `refactor`, `security-audit`, `doc-gen`, `lib-migrate`). All shipped in v0.15.4.
+**What you keep**: Memory (starts fresh in SFFMC — MiMo-Code's memory format is different), Rules (SFFMC rules are YAML, customizable), Max Mode (`/max` command), all 7 built-in workflows (`deep-research`, `plan`, `tdd`, `refactor`, `security-audit`, `doc-gen`, `lib-migrate`). All shipped in v0.16.0.
 
 ## The 5 Issues to Know (Round 6 Must-Adds)
 

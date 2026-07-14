@@ -4,7 +4,7 @@
 
 # SFFMC
 
-**Набор плагинов OpenCode — 2 композитных + 3 автономных. Лицензия MIT. v0.15.0.**
+**Набор плагинов OpenCode — 2 композитных + 3 автономных. Лицензия MIT. v0.16.0.**
 
 [![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 [![npm version](https://img.shields.io/npm/v/%40sffmc%2Fsafety?label=%40sffmc%2Fsafety)](https://www.npmjs.com/package/@sffmc/safety)
@@ -13,7 +13,7 @@
 [![npm version](https://img.shields.io/npm/v/%40sffmc%2Fcognition?label=%40sffmc%2Fcognition)](https://www.npmjs.com/package/@sffmc/cognition)
 [![npm version](https://img.shields.io/npm/v/%40sffmc%2Futilities?label=%40sffmc%2Futilities)](https://www.npmjs.com/package/@sffmc/utilities)
 
-[**Релиз на GitHub**](https://github.com/Rahspide/sffmc/releases/tag/v0.15.0)
+[**Релиз на GitHub**](https://github.com/Rahspide/sffmc/releases/tag/v0.16.0)
 &nbsp;·&nbsp;
 [**Начало работы**](./docs/getting-started.md) &nbsp;·&nbsp; [**Contributing**](./CONTRIBUTING.md) &nbsp;·&nbsp; [**Changelog**](./CHANGELOG.md)
 
@@ -96,10 +96,10 @@ dotfiles), вставьте это в **содержимое файла** `openc
 ```json
 {
   "plugins": {
-    "@sffmc/safety":    "npm:@sffmc/safety@^0.15.0",
-    "@sffmc/memory":    "npm:@sffmc/memory@^0.15.0",
-    "@sffmc/runtime":   "npm:@sffmc/runtime@^0.15.0",
-    "@sffmc/cognition": "npm:@sffmc/cognition@^0.15.0"
+    "@sffmc/safety":    "npm:@sffmc/safety@^0.16.0",
+    "@sffmc/memory":    "npm:@sffmc/memory@^0.16.0",
+    "@sffmc/runtime":   "npm:@sffmc/runtime@^0.16.0",
+    "@sffmc/cognition": "npm:@sffmc/cognition@^0.16.0"
   }
 }
 ```
@@ -108,7 +108,7 @@ dotfiles), вставьте это в **содержимое файла** `openc
 > Редактируйте файл в редакторе, либо запишите через PowerShell так:
 >
 > ```powershell
-> @"{\"plugins\":{\"@sffmc/safety\":\"npm:@sffmc/safety@^0.15.0\",...}}"@
+> @"{\"plugins\":{\"@sffmc/safety\":\"npm:@sffmc/safety@^0.16.0\",...}}"@
 > | Set-Content -Path "$HOME\.sffmc\opencode.json"
 > ```
 >
@@ -151,27 +151,15 @@ cd ~/.sffmc/plugins/sffmc
 См. [`docs/install.md`](./docs/install.md) для полного руководства (закреплённые
 версии, настройка PATH, решение проблем).
 
-## Что нового в v0.15.0
+## Что нового в v0.16.0
 
-v0.15.0 выпускает сразу две вещи:
+v0.16.0 декомпозирует 5 god-классов в 22 сфокусированных sub-модуля (без ломающих изменений, публичный API сохранён в точности во всех 5 пакетах):
 
-- **5-пакетный лейаут.** Предыдущий лейаут из 13 пакетов свёрнут в **2 композитных + 3 автономных**:
+- **Структурный рефактор.** `dream.ts` (1291 → 10 LOC баррель + 6 sub-модулей), `runtime.ts` (817 → 614), `judge.ts` (657 → 10 + 6), `mcp.ts` (335 → 26 + 3), `max-mode/index.ts` (328 → 31 + 3), `constants.ts` (345 → 17 + 2). У каждого sub-модуля одна зона ответственности; публичная поверхность и поведение не изменились.
+- **Исправление pre-commit хука.** `bun run test` переключён с single-process на per-file loop (`cd package && bun test <file>`) — bun runner утекал handles и зависал после 30 файлов. Pre-commit теперь exits 0 (10 ok / 3 warn / 0 fail; warnings — pre-existing инфра).
+- **Чистка мёртвого кода + дрейфа документации.** Удалены `getMaxInstructions` (export) и `MaxModeResult` (dead import); устаревшее упоминание `flushNow()` и формулировка «11 sub-component deps» в `packages/runtime/README.md` заменены; устаревший «LOC: ~1500» в `docs/dynamic-workflow.md` удалён.
 
-  | | |
-  |---|---|
-  | `@sffmc/safety` | композит — 5 governance-фич (rules, watchdog, auto-max, eos-stripper, log-whitelist) |
-  | `@sffmc/memory` | композит — FTS5-поиск + checkpoint / judge / dream опции |
-  | `@sffmc/runtime` | автономный — песочница workflow-оркестратора (quickjs-emscripten) |
-  | `@sffmc/cognition` | автономный — параллельное рассуждение (max-mode) + 18 compose-скиллов + health-диагностика |
-  | `@sffmc/utilities` | библиотека — общий SDK (через `workspace:*`, **не точка входа плагина**) |
-
-- **Первый публичный релиз на npm.** Все 4 устанавливаемых пакета теперь в
-  публичном реестре. См. раздел **Установка** выше — новый синтаксис
-  `npm:` для `opencode.json`.
-
-⚠️ **Ломающее изменение.** Обновите регистрации плагинов. См.
-[`CHANGELOG.md`](./CHANGELOG.md) — секция v0.15.0 с полной таблицей
-переименований. Запустите `sffmc init` после обновления для чистой миграции.
+См. [CHANGELOG.md](./CHANGELOG.md) — полная секция v0.16.0.
 
 <details>
 <summary>Хотите отдельные под-фичи вместо этого? (после `sffmc init --all`)</summary>
@@ -292,10 +280,10 @@ export default {
 ```jsonc
 {
   "plugins": [
-    "npm:@sffmc/safety@^0.15.0",
-    "npm:@sffmc/memory@^0.15.0",
-    "npm:@sffmc/runtime@^0.15.0",
-    "npm:@sffmc/cognition@^0.15.0"
+    "npm:@sffmc/safety@^0.16.0",
+    "npm:@sffmc/memory@^0.16.0",
+    "npm:@sffmc/runtime@^0.16.0",
+    "npm:@sffmc/cognition@^0.16.0"
   ]
 }
 ```
@@ -340,7 +328,6 @@ dream:
 
 - **[Начало работы](./docs/getting-started.md)** — установка, первый workflow, отладка
 - **[Импорт из MiMo](./docs/import-from-mimo.md)** — руководство по миграции для пользователей MiMo-Code
-- **[Аудит порядка загрузки](./docs/load-order-audit.md)** — порядок регистрации хуков и обоснование
 - **[Справка по Workflow](./docs/dynamic-workflow.md)** — внутренности песочницы, бюджеты, модель ошибок
 - **[Примеры Workflow](./docs/workflow-examples.md)** — пять готовых к копированию workflow
 - **[Таблица миграции v0.15.0](./CHANGELOG.md#v0150)** — обновление со старых

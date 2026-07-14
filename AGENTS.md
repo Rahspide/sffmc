@@ -2,7 +2,7 @@
 
 # SFFMC — Agent Instructions
 
-A Bun-workspace monorepo of 5 SFFMC packages (2 composite + 3 standalones; utilities is a library, not a plugin) porting killer features from Xiaomi's [MiMo-Code](https://github.com/XiaomiMiMo/MiMo-Code). MIT licensed. v0.15.4 shipped.
+A Bun-workspace monorepo of 5 SFFMC packages (2 composite + 3 standalones; utilities is a library, not a plugin) porting killer features from Xiaomi's [MiMo-Code](https://github.com/XiaomiMiMo/MiMo-Code). MIT licensed. v0.16.0 shipped.
 
 ## Repository Map
 

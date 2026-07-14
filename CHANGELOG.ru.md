@@ -1,3 +1,38 @@
+## v0.16.1 (2026-07-14)
+
+> Patch-релиз. **Ломающих изменений нет.** Синхронизация документации + инфраструктурные улучшения после god-decomposition в v0.16.0.
+
+### Исправлено
+
+- **Дрейф документации после v0.16.0** — метаданные версий и устаревшие ссылки в 10 файлах (`README.md`, `README.ru.md`, `AGENTS.md`, `CONTRIBUTING.md`, 6 `docs/*.md`). Семантические правки:
+  - `docs/getting-started.md`: удалён ложный claim «8 sub-features individually available» (с v0.15.0 consolidation под-фичи стали внутренними); `12 hours wall-clock` → `1 hour` (был исправлен в `dynamic-workflow.md` v0.15.3, сюда не портирован).
+  - `docs/drone-ci.md`: выдуманный список из 13 пакетов заменён реальными 5; `shared/` → `packages/utilities/` (v0.15.0 rename); примеры тегов → v0.16.0.
+  - `packages/runtime/README.md:14`: «11 sub-components» → «4 sub-component deps» (partial-fix доведён до конца).
+  - `packages/memory/README.md`: исправлена атрибуция — checkpoint/judge/dream живут в `packages/memory/src/extra/`, не в `@sffmc/utilities`.
+  - `README.ru.md:331`: удалена битая ссылка на несуществующий `docs/load-order-audit.md` (файл удалён в v0.15.0).
+  - `docs/install.md`: примеры `SFFMC_VERSION` → v0.16.0; «13 packages» → «5».
+  - `docs/dynamic-workflow.md`: путь пакета `packages/workflow/` → `packages/runtime/`; заголовок версии → v0.16.0.
+  - `docs/migration-from-opencode.md`, `docs/mimo-code-features.md`: ссылки версий → v0.16.0.
+- **`packages/codemap.md`** (мусорный файл) — gitignored-файл из эпохи до v0.15.0 ссылался на удалённые директории (`agentic/`, `compose/`, `extra/`, `rules/`, `workflow/`). Удалён с диска.
+
+### Добавлено
+
+- **Per-package `tsconfig.json`** для `@sffmc/cognition`, `@sffmc/runtime`, `@sffmc/utilities` — extends root, разрешает per-package overrides. Снимает warning `tsconfig_presence`.
+- **`docs/v0.16.0-decomposition.md`** — портинг-гайд: соответствие путей god-class до и sub-module после декомпозиции, с чеклистом миграции для внешних портеров.
+- **Поле `category` в пакетах** — `runtime` и `cognition`: `mimo-port` (порты из MiMo-Code `packages/opencode`); `utilities`: `sffmc-original` (shared lib — собственная абстракция SFFMC). `memory` и `safety` уже были `msp`. Снимает warning `category_split`.
+
+### Изменено
+
+- **`tsconfig.json` (root)**: убран `DOM` из `compilerOptions.lib`. SFFMC — Bun-only runtime; DOM-типы не используются и замедляли type-check.
+- **`.github/workflows/ci.yml`**: `bun test` → `bun run test:all`. CI использовал single-process команду, которая повисала в pre-commit v0.16.0 (per-file-loop fix в `d3adeba`); CI был молча под риском того же зависания на PR.
+- **Health-check `sdk_compliance`**: «utilities self-import» понижен с `warn` до `ok` с пояснительным detail. По дизайну — `@sffmc/utilities` это базовая library, не плагин, и не должен импортировать сам себя. Список `KNOWN_SDK_EXCEPTIONS` теперь включает `utilities` рядом с `max-mode` и `workflow`.
+
+### Статистика
+
+- 14 modified files, 4 new files (`tsconfig.json` x3, `docs/v0.16.0-decomposition.md`)
+- Health: **13 ok / 0 warn / 0 fail** (было 10/3/0 после v0.16.0)
+- Все 5 пакетов на `0.16.1`; root на `0.16.1`
+
 ## v0.16.0 (2026-07-10)
 
 > Рефактор-релиз. **Ломающих изменений нет.** Декомпозиция 5 god-классов в 22 сфокусированных sub-модуля. Публичный API сохранён в точности во всех пакетах; поведение не меняется. Чисто структурная работа.
