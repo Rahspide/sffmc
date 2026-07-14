@@ -12,7 +12,7 @@ the authoritative reference for the pipeline; this doc explains the
 Drone runs a single pipeline named `default` with the following steps.
 The first five steps run on **every push and pull request** to `main`,
 giving fast feedback during development. The remaining steps are gated
-on **tag pushes** matching `v*.*.*` (e.g. `v0.15.4`) and form the
+on **tag pushes** matching `v*.*.*` (e.g. `v0.16.0`) and form the
 publish workflow.
 
 ```
@@ -39,7 +39,7 @@ publish workflow.
 |---|---|---|
 | `install` | push / PR / tag | `bun install --frozen-lockfile` |
 | `typecheck` | push / PR / tag | `bun run typecheck` (0 errors) |
-| `test` | push / PR / tag | `bun run test` (74 test files, ~1130 cases) |
+| `test` | push / PR / tag | `bun run test` (see CHANGELOG for current test counts; this value is fluid across god-decomposition releases) |
 | `verify-load` | push / PR / tag | Load-order audit on the 3 composite packages |
 | `audit-public` | push / PR / tag | `scripts/audit-public-content.sh` (no leaks) |
 | `tag-gate-typecheck` | tag only | Re-run typecheck on the tag commit |
@@ -139,14 +139,14 @@ The end-to-end release flow is:
 3. **Tag the commit**:
 
    ```bash
-   git tag v0.15.4
-   git push origin v0.15.4
+   git tag v0.16.0
+   git push origin v0.16.0
    ```
 
 4. **Watch the build** in the Drone UI. The pipeline will:
    - Re-run the precommit chain on the tag commit
    - Run `publish` (publishes all 5 packages to npm in dependency
-     order — "shared/" first (dependencies), then `packages/*` alphabetically)
+     order — `packages/utilities/` first (dependency for the others), then the remaining `packages/*/` alphabetically)
    - Run `notify` (logs to drone; posts to Slack/Discord if
      `slack_webhook` is set)
 
@@ -178,13 +178,12 @@ The publish step runs `bun run scripts/release.sh --actual`, which:
    - Tag `v0.9.0` exists (soft warning, not a hard fail)
 
 2. **Publishes** in this order:
-   - `shared/` (`@sffmc/utilities`)
-   - `packages/*/` alphabetically — 13 composite/standalone packages
-     (`@sffmc/runtime + @sffmc/cognition`, `@sffmc/safety`, `@sffmc/cognition`,
-     `@sffmc/safety`, `@sffmc/memory`, `@sffmc/cognition`,
-     `@sffmc/safety`, `@sffmc/cognition`, `@sffmc/memory`,
-     `@sffmc/safety`, `@sffmc/safety`, `@sffmc/safety`,
-     `@sffmc/runtime`)
+   - `packages/utilities/` (`@sffmc/utilities`) — first, because the other packages depend on it
+   - the remaining `packages/*/` alphabetically (5 packages total: 2 composites — `@sffmc/safety`, `@sffmc/memory` — and 3 standalones — `@sffmc/runtime`, `@sffmc/cognition`, plus the just-published `@sffmc/utilities` excluded to avoid re-publish):
+     - `@sffmc/cognition`
+     - `@sffmc/memory`
+     - `@sffmc/runtime`
+     - `@sffmc/safety`
 
 3. **Uses `bun publish --access public --tolerate-republish`** per
    package, so re-running the step on a partial publish doesn't

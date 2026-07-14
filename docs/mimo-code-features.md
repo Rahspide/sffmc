@@ -40,7 +40,7 @@ cross-session memory"* (`README.md:7`) and the GitHub repo description reads
 
 The project is published by XiaomiMiMo (GitHub organization id 208276378). The
 repository was created on **2026-06-10**, the latest release at the time of
-this document is **v0.1.5** (tagged 2026-07-07, latest as of last check; v0.15.4 release), and the main branch has been
+this document is **v0.1.5** (tagged 2026-07-07, latest as of last check; v0.16.0 release), and the main branch has been
 actively pushed to as recently as 2026-06-19. As of the snapshot:
 
 | Stat | Value | Source |

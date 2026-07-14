@@ -19,7 +19,7 @@ SFFMC is developed and tested on Linux (CachyOS / Arch-based, systemd). The plug
 
 ## 3. Install
 
-Add the SFFMC plugin paths to your `~/.config/opencode/opencode.json` under the `plugin` key. SFFMC ships as **2 composite packages** — `@sffmc/safety`, `@sffmc/memory` — plus `@sffmc/runtime` and `@sffmc/cognition` (standalones) — each of which composes several sub-features into a single default export. The 8 sub-features (5 in `@sffmc/safety` (rules, watchdog, auto-max, eos-stripper, log-whitelist) and 3 optional opt-ins in `@sffmc/memory` (checkpoint, judge, dream)) are also individually available for backward compatibility. The recommended way to install is via the `sffmc` CLI, which adds 4 installable plugins by default (2 composites + 2 standalones):
+Add the SFFMC plugin paths to your `~/.config/opencode/opencode.json` under the `plugin` key. SFFMC is a monorepo of **5 packages** — **2 composites** (`@sffmc/safety`, `@sffmc/memory`) and **3 standalones** (`@sffmc/runtime`, `@sffmc/cognition`, `@sffmc/utilities`). Each composite bundles several sub-features (e.g. rules, watchdog, auto-max, eos-stripper, log-whitelist inside `@sffmc/safety`) into a single default export. Since v0.15.0 those sub-features ship as internal sub-modules of the parent composite and are no longer individually installable; pick the composite that owns the capability you want. `@sffmc/utilities` is a shared library used by the other packages and is not loaded as a plugin itself. The recommended way to install is via the `sffmc` CLI, which adds 4 installable plugins by default (2 composites + 2 most-used standalones):
 
 ```bash
 # macOS / Linux
@@ -42,7 +42,7 @@ Under the hood `install.sh` clones the repo to `~/.sffmc/plugins/sffmc` and runs
 }
 ```
 
-Or pick individual sub-features (`packages/<name>/src/index.ts` for any of the 8 sub-features) for finer-grained control. Restart OpenCode after editing. The composites load in the order listed; that order is intentional and verified — see [codemap.md#hook-categories](../codemap.md#hook-categories) for the hook category dispatch and `bun run audit:load-order` to re-run the conflict check.
+Restart OpenCode after editing. The composites load in the order listed; that order is intentional and verified — see [codemap.md#hook-categories](../codemap.md#hook-categories) for the hook category dispatch and `bun run audit:load-order` to re-run the conflict check. Sub-features within a composite are internal sub-modules, not separate entry points; for finer-grained behaviour edit the composite's config rather than installing it piecewise.
 
 To verify they loaded, open an OpenCode session and call any tool. If `@sffmc/runtime` is active, you'll see `workflow` in the tool list.
 
@@ -171,7 +171,7 @@ If the process died mid-run (status: `crashed`), every successful `agent()` call
 workflow({ operation: "resume", run_id: "wf_8c3a91b2" })
 ```
 
-Resume replays cached agent results and continues from the next pending step. The script body is SHA-256 hashed on save — if you edit the script between runs, the journal is reset to avoid silently stale results. Five budget caps protect the engine: 1000 lifecycle agents, 200 steps per run, 16 concurrent agents, 12 hours wall-clock, 2 000 000 tokens. When a cap is hit, `agent()` returns `null` with `reason: "over-cap"` and your workflow should return a partial result.
+Resume replays cached agent results and continues from the next pending step. The script body is SHA-256 hashed on save — if you edit the script between runs, the journal is reset to avoid silently stale results. Five budget caps protect the engine: 1000 lifecycle agents, 200 steps per run, 16 concurrent agents, 1 hour wall-clock, 2 000 000 tokens. When a cap is hit, `agent()` returns `null` with `reason: "over-cap"` and your workflow should return a partial result.
 
 ## 7. Next steps
 
