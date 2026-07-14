@@ -76,6 +76,7 @@ PLUGIN_DIRS=(
   "packages/cognition/src/index.ts"
   "packages/safety/src/index.ts"
   "packages/memory/src/index.ts"
+  "packages/utilities/src/index.ts"
 )
 
 # Package name → index mapping
@@ -154,7 +155,7 @@ cmd_init() {
       info "Minimal install: adding 2 composites (safety, memory) + 2 standalones (runtime, cognition)"
       ;;
     all)
-      mapfile -t wanted < <(resolve_plugins "safety,memory,runtime,cognition")
+      mapfile -t wanted < <(resolve_plugins "safety,memory,runtime,cognition,utilities")
       info "Full install: adding all 5 packages (2 composite + 3 standalone)"
       ;;
     only)

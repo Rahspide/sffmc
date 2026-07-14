@@ -23,24 +23,29 @@ SFFMC is a Bun-workspace monorepo of OpenCode plugins that bring the productivit
 
 ## Install
 
-Install all 5 packages globally:
+SFFMC plugins are loaded by OpenCode via `file://` paths in `~/.config/opencode/opencode.json`. The one-liner below clones the repo and runs `sffmc init` to add the plugin paths automatically.
 
 ```bash
-npm install -g @sffmc/safety @sffmc/memory @sffmc/runtime @sffmc/cognition @sffmc/utilities
+# macOS / Linux
+curl -fsSL https://raw.githubusercontent.com/Rahspide/sffmc/main/install.sh | sh
+
+# Windows PowerShell
+irm https://raw.githubusercontent.com/Rahspide/sffmc/main/install.ps1 | iex
 ```
 
-Or register specific plugins in `opencode.json`:
+`install.sh` clones the repo to `~/.sffmc/plugins/sffmc` and runs `sffmc init` to add the default 4 plugins (safety, memory, runtime, cognition) to your OpenCode config. To add all 5 (including the `utilities` library):
 
-```json
-{
-  "plugin": [
-    "@sffmc/safety",
-    "@sffmc/memory",
-    "@sffmc/runtime",
-    "@sffmc/cognition"
-  ]
-}
+```bash
+sffmc init --all
 ```
+
+Restart OpenCode after editing. Verify with:
+
+```bash
+sffmc doctor
+```
+
+The `npm` packages are published for programmatic use, not for OpenCode integration. See [docs/install.md](./docs/install.md) for full options (version pinning, custom install dir, manual config).
 
 ## Packages
 
