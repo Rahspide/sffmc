@@ -14,9 +14,9 @@ The default rubric scores each candidate 0-10 on three criteria: **correctness**
 
 ## Default Criteria
 
-1. **correctness** (0-10) — does it solve the problem without bugs?
-2. **completeness** (0-10) — does it cover edge cases, error handling, and all requirements?
-3. **conciseness** (0-10) — is it minimal, or bloated with irrelevant detail?
+1. **correctness** (0-10) - does it solve the problem without bugs?
+2. **completeness** (0-10) - does it cover edge cases, error handling, and all requirements?
+3. **conciseness** (0-10) - is it minimal, or bloated with irrelevant detail?
 
 ## Tool Call
 
@@ -42,7 +42,7 @@ Returns: `{ winner: 0, reasoning: "Option A is simplest and most readable...", s
 
 ## When NOT to Use
 
-- You have only 1 candidate (no comparison possible — use tests instead)
+- You have only 1 candidate (no comparison possible - use tests instead)
 - The criteria are objective and testable (just run the tests)
 - Candidates are trivial (< 50 tokens each; judge overhead > benefit)
 - Performance is the only criterion (benchmark, don't judge)

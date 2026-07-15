@@ -36,7 +36,7 @@ Rules plugin uses 1s `setInterval` polling. After writing, the new rule is activ
 ## Three Pitfalls
 
 1. `tool_denylist` matches on the **tool name**, not the args. Use `when: "args.command matches ..."` to filter by args.
-2. `command_denylist` is a flat regex on the **full command string**. Be specific — `rm` alone will match too broadly.
+2. `command_denylist` is a flat regex on the **full command string**. Be specific - `rm` alone will match too broadly.
 3. `output_patterns` with `action: redact` replaces matches with `<REDACTED>` in tool output. With `action: block`, the entire tool call fails.
 
 ## Examples

@@ -38,9 +38,9 @@ Auto-max listens to `tool.execute.after` events. When the watchdog's FailureCoun
 
 ## When NOT to Suggest /max
 
-- The failure is **deterministic** (e.g., file doesn't exist — retrying won't help)
+- The failure is **deterministic** (e.g., file doesn't exist - retrying won't help)
 - User is on a **tight budget** (auto-max is 3–5× cost)
-- The error is **transient** (429 rate limit) — wait, don't escalate
+- The error is **transient** (429 rate limit) - wait, don't escalate
 
 ## Examples
 

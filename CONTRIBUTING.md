@@ -12,8 +12,8 @@ SFFMC is a monorepo of standalone OpenCode plugins. Each plugin:
 Every SFFMC plugin follows the **composite** pattern:
 - **Read** existing data freely (other plugins' state, OpenCode state)
 - **Write** only to its own slot (config namespace, SQLite table, event bus)
-- **No shared state** between plugins — no module-level state shared via re-export
-- **Hot-pluggable** — adding/removing a plugin does not affect the others
+- **No shared state** between plugins - no module-level state shared via re-export
+- **Hot-pluggable** - adding/removing a plugin does not affect the others
 
 This means you can `rm -rf packages/foo && bun test` and nothing else should break.
 
@@ -38,7 +38,7 @@ mkdir src
 `src/index.ts` skeleton:
 ```ts
 // SPDX-License-Identifier: MIT
-// @sffmc/my-feature — see ../../LICENSE
+// @sffmc/my-feature - see ../../LICENSE
 
 import type { PluginContext } from "@sffmc/utilities"  // or your own interface
 
@@ -62,7 +62,7 @@ Then add tests, README, and register in `~/.config/opencode/opencode.json` (or s
 # Run all plugin tests (SFFMC scope only, ignores dependencies/)
 bun test
 
-# Watch mode — re-runs tests on every .ts save (Bun's built-in)
+# Watch mode - re-runs tests on every .ts save (Bun's built-in)
 bun run test:watch
 
 # Run one package
@@ -84,13 +84,13 @@ The pre-commit hook is already configured in `.git/hooks/pre-commit`.
 
 The hook runs `bun run precommit` automatically before every commit.
 `bun run precommit` runs all 5 checks in sequence:
-1. `bun run typecheck` (must pass — no type errors across all packages)
-2. `bun run test` (must pass — all SFFMC-scoped tests via `bunfig.toml`)
+1. `bun run typecheck` (must pass - no type errors across all packages)
+2. `bun run test` (must pass - all SFFMC-scoped tests via `bunfig.toml`)
 3. `python3 scripts/audit-load-order.py` (must show 0 hook conflicts)
-4. `bun run audit:public` (must pass — no public/sensitive content in diffs)
-5. `bun run scripts/run-health.ts` (must pass — `sffmc_health` plugin check)
+4. `bun run audit:public` (must pass - no public/sensitive content in diffs)
+5. `bun run scripts/run-health.ts` (must pass - `sffmc_health` plugin check)
 
-Bypass with `git commit --no-verify` (use sparingly — CI will catch it later if remote is set up).
+Bypass with `git commit --no-verify` (use sparingly - CI will catch it later if remote is set up).
 
 ## Local development install
 
@@ -137,9 +137,9 @@ OpenCode restart.
 ## Adding to root CHANGELOG
 
 ```md
-## v0.X.Y — Short title (YYYY-MM-DD)
+## v0.X.Y - Short title (YYYY-MM-DD)
 
-- @sffmc/my-feature (W#) — one-line description
+- @sffmc/my-feature (W#) - one-line description
 - Other change
 ```
 

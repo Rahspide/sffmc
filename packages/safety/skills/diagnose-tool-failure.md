@@ -8,7 +8,7 @@ hidden: true
 
 ## The Rule
 
-When a tool returns an error 2+ times, switch from "execute the next call" to "diagnose the failure pattern." Read the watchdog's FailureCounter state or recent error outputs. Do not retry blindly — every retry after the second must be informed by the verdict.
+When a tool returns an error 2+ times, switch from "execute the next call" to "diagnose the failure pattern." Read the watchdog's FailureCounter state or recent error outputs. Do not retry blindly - every retry after the second must be informed by the verdict.
 
 ## The 3-Failure Threshold
 
@@ -16,10 +16,10 @@ Watchdog triggers a recovery verdict after **3 failures within 10 calls** (rolli
 
 | Verdict | Meaning |
 |---|---|
-| `retry` | Transient — same params, just try again. |
+| `retry` | Transient - same params, just try again. |
 | `promote` | Switch to `promote_model` (default `your-model-id`). |
 | `escalate` | Recommend user invoke `/max` for parallel attempts. |
-| `surface` | Give up — tell the user what failed and why. |
+| `surface` | Give up - tell the user what failed and why. |
 
 ## How to Read the Verdict
 
@@ -47,13 +47,13 @@ Tool fails with `ECONNREFUSED` 3 times:
 
 ## When to Invoke /max
 
-If verdict is `escalate`, propose: "Tool X keeps failing. Run /max to try 3 parallel candidates with a judge model?" User must approve — `/max` is a command, not a tool call you can make silently.
+If verdict is `escalate`, propose: "Tool X keeps failing. Run /max to try 3 parallel candidates with a judge model?" User must approve - `/max` is a command, not a tool call you can make silently.
 
 ## When Not to Invoke /max
 
-- The failure is **deterministic** (e.g., file doesn't exist — no parallel candidate will find it).
-- The error is **transient** (429 rate limit) — wait, don't escalate.
-- Verdict is `surface` — the system has already given up; surface to user.
+- The failure is **deterministic** (e.g., file doesn't exist - no parallel candidate will find it).
+- The error is **transient** (429 rate limit) - wait, don't escalate.
+- Verdict is `surface` - the system has already given up; surface to user.
 
 ## Why This Skill Exists
 

@@ -1,6 +1,6 @@
 <!-- This file is AI agent instructions for working on this repo. See CONTRIBUTING.md for human-facing docs. -->
 
-# SFFMC — Agent Instructions
+# SFFMC - Agent Instructions
 
 A Bun-workspace monorepo of 5 SFFMC packages (2 composite + 3 standalones; utilities is a library, not a plugin) porting killer features from Xiaomi's [MiMo-Code](https://github.com/XiaomiMiMo/MiMo-Code). MIT licensed. v0.16.0 shipped.
 
@@ -22,15 +22,15 @@ For deep work on a specific folder, also read that folder's `codemap.md` (e.g. `
 Every SFFMC plugin follows the **composite** pattern:
 - **Read** existing data freely (other plugins' state, OpenCode state)
 - **Write** only to its own slot (config namespace, SQLite table, event bus)
-- **No shared state** between plugins — no module-level state shared via re-export
-- **Hot-pluggable** — adding/removing a plugin does not affect the others
+- **No shared state** between plugins - no module-level state shared via re-export
+- **Hot-pluggable** - adding/removing a plugin does not affect the others
 
 This means `rm -rf packages/foo && bun test` should still pass for the remaining 4.
 
 ## Common Tasks
 
 ```bash
-# Run all tests (uses bunfig.toml scope — excludes dependencies/MiMo-Code)
+# Run all tests (uses bunfig.toml scope - excludes dependencies/MiMo-Code)
 bun test
 
 # Type-check (uses bun build --no-bundle, no global tsc needed)
@@ -75,11 +75,11 @@ podman run --rm -v "$(pwd)":/work -w /work oven/bun:1.3.14 \
 
 ### Rules
 
-1. **Pin image tags** — always use `oven/bun:1.3.14` (matches CI), never `:latest`
-2. **Mount read-write only when needed** — use `-v "$(pwd)":/work` for tests that write lockfiles or reports
-3. **Use `--rm`** — containers are disposable; never leave running containers behind
-4. **Never use host bun/python** — even if installed, all `bun test`, `bun run`, and `python3 scripts/*` commands go through containers
-5. **One-shot execution** — prefer `sh -c "cmd1 && cmd2"` over entering interactive containers
+1. **Pin image tags** - always use `oven/bun:1.3.14` (matches CI), never `:latest`
+2. **Mount read-write only when needed** - use `-v "$(pwd)":/work` for tests that write lockfiles or reports
+3. **Use `--rm`** - containers are disposable; never leave running containers behind
+4. **Never use host bun/python** - even if installed, all `bun test`, `bun run`, and `python3 scripts/*` commands go through containers
+5. **One-shot execution** - prefer `sh -c "cmd1 && cmd2"` over entering interactive containers
 
 ## Plugin SDK Notes (OpenCode 1.17.x)
 
@@ -94,15 +94,15 @@ If you have two OpenCode instances (development + production), you can restart t
 
 ## See Also
 
-- [codemap.md](codemap.md) — repository atlas
-- [CONTRIBUTING.md](CONTRIBUTING.md) — plugin SDK reference, conventional commits
-- [RELEASE.md](RELEASE.md) — publication prep checklist (5 decisions)
-- [CHANGELOG.md](CHANGELOG.md) — per-version release notes
-- [codemap.md#hook-categories](codemap.md#hook-categories) — hook category dispatch (TRANSFORM / GATE / SIDE_EFFECT / tool); re-run the AST-based conflict check via `bun run audit:load-order`
+- [codemap.md](codemap.md) - repository atlas
+- [CONTRIBUTING.md](CONTRIBUTING.md) - plugin SDK reference, conventional commits
+- [RELEASE.md](RELEASE.md) - publication prep checklist (5 decisions)
+- [CHANGELOG.md](CHANGELOG.md) - per-version release notes
+- [codemap.md#hook-categories](codemap.md#hook-categories) - hook category dispatch (TRANSFORM / GATE / SIDE_EFFECT / tool); re-run the AST-based conflict check via `bun run audit:load-order`
 
 ## Cloned Dependency Source
 
-- `.slim/clonedeps/repos/justjake__quickjs-emscripten/` — `justjake/quickjs-emscripten` at `df4efb9ef2cb25c417ecb57986da462d11b244ed` (v0.32.0); the QuickJS sandbox engine. Read-only; do not edit.
+- `.slim/clonedeps/repos/justjake__quickjs-emscripten/` - `justjake/quickjs-emscripten` at `df4efb9ef2cb25c417ecb57986da462d11b244ed` (v0.32.0); the QuickJS sandbox engine. Read-only; do not edit.
 
 ## Release decision rule (learned from v0.15.2 over-publish, 2026-07-02)
 
@@ -111,8 +111,8 @@ The user said "fix empty packages + Russian CHANGELOG". I bumped the version to 
 - "Fix X" / "update Y" / "add Z" / "polish X" → worktree edit + commit + **ask before bumping version**
 - "Release" / "publish" / "ship" / "bump" / "new version" / "tag" → full release cycle is OK
 - **"Single commit" is a GIT operation. It does NOT mean "ship to npm"**
-- `description` / `keywords` / `bugs` / `homepage` fields in `package.json` are display-only metadata for the npmjs.com page. The 5 packages v0.15.0/v0.15.1 installed and worked fine without them. Filling them is text in a JSON file — no version bump needed
-- Adding Russian CHANGELOG entries is text in a `.md` file — no version bump needed
+- `description` / `keywords` / `bugs` / `homepage` fields in `package.json` are display-only metadata for the npmjs.com page. The 5 packages v0.15.0/v0.15.1 installed and worked fine without them. Filling them is text in a JSON file - no version bump needed
+- Adding Russian CHANGELOG entries is text in a `.md` file - no version bump needed
 
 ### Default behavior when user says "fix X" / "update Y" / "add Z"
 
@@ -121,10 +121,10 @@ The user said "fix empty packages + Russian CHANGELOG". I bumped the version to 
 3. **Stop. Show diff. Ask before pushing to remote AND before bumping version.**
    (Repeat mistake 2026-07-04: pushing without ask is treated as overreach
    even though "Fix X" historically included push in this rule. The bar
-   is now "ask before any remote mutation" — git push, npm publish, tag
+   is now "ask before any remote mutation" - git push, npm publish, tag
    push, GitHub Release API. Local commits + branch-state queries are
    fine without ask.)
-4. After explicit "ok" / "push" / "release" — proceed.
+4. After explicit "ok" / "push" / "release" - proceed.
 5. **Still ask** before bumping version, tagging, or publishing to npm.
 
 ### Default behavior when user says "release" / "publish" / "ship" / "new version" / "tag"
@@ -173,16 +173,16 @@ Production-facing documents (`CHANGELOG.md`, `CHANGELOG.ru.md`, GitHub Release b
 
 **Do not put in production docs:**
 
-- "Closed task: schema refactor — closed as superseded" sections with reasoning about why something isn't done (decision rationale belongs in commit messages or `memory-bank/`, not in user-facing changelogs)
+- "Closed task: schema refactor - closed as superseded" sections with reasoning about why something isn't done (decision rationale belongs in commit messages or `memory-bank/`, not in user-facing changelogs)
 - "Worktree (not yet committed)" or "main will be 1 commit ahead of origin/main" sections (git state is not user-facing)
 - "Pre-commit gates (all green at v$X.Y.Z)" sections with typecheck/test counts (CI status belongs in release process notes, not in the public release)
 - "subagent-driven разбор смежных проблем" / "post-v0.15.2 codebase audit" / "subagent review of adjacent problems" parentheticals (the methodology of how we found the issues is internal)
-- "(phantom, not in git)" / "(отсутствуют в git)" methodology explanations for why a file path is being cleaned up — users don't need the meta
-- Long lists of internal file paths touched by a cleanup ("Затронуты: packages/memory/..., packages/cognition/...") — collapse to "stale references cleaned up across N source files"
-- Implementation details like "now built via `RegExp` constructor with `${X}` interpolation at module load" or "снижает риск дрейфа" — describe the user-visible result instead ("X constant extracted", no behavior change)
-- Recommendations to the maintainer ("leave as-is", "revisit if a future audit demands X", "reduces drift risk if threshold changes") in the public release body — the release body describes what's shipped, not what to do next
+- "(phantom, not in git)" / "(отсутствуют в git)" methodology explanations for why a file path is being cleaned up - users don't need the meta
+- Long lists of internal file paths touched by a cleanup ("Затронуты: packages/memory/..., packages/cognition/...") - collapse to "stale references cleaned up across N source files"
+- Implementation details like "now built via `RegExp` constructor with `${X}` interpolation at module load" or "снижает риск дрейфа" - describe the user-visible result instead ("X constant extracted", no behavior change)
+- Recommendations to the maintainer ("leave as-is", "revisit if a future audit demands X", "reduces drift risk if threshold changes") in the public release body - the release body describes what's shipped, not what to do next
 - References to internal tooling IDs, internal task codes, council reviews, agent names, private file paths under `.slim/`
-- The entire "Internal hygiene" / "Internal cleanup" sections when zero user-visible behavior changed — just delete the section (users don't need to know you cleaned up code comments)
+- The entire "Internal hygiene" / "Internal cleanup" sections when zero user-visible behavior changed - just delete the section (users don't need to know you cleaned up code comments)
 
 **Where internal narration goes instead:**
 
