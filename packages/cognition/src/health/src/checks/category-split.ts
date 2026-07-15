@@ -3,8 +3,11 @@
 
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { createLogger } from "@sffmc/utilities";
 import { packageNames } from "../helpers.ts";
 import { createCheck } from "../check-factory.ts";
+
+const log = createLogger("health:category-split");
 
 /** Check 12: Category split (MiMo ports vs SFFMC originals).
  *  Counts packages by the `category` field in each package's `package.json`.
@@ -30,7 +33,8 @@ export const checkCategorySplit = createCheck("category_split", async (repoRoot)
       if (!counts[cat]) counts[cat] = { count: 0, features: [] };
       counts[cat].count++;
       if (parsed.portFeature) counts[cat].features.push(parsed.portFeature);
-    } catch {
+    } catch (e) {
+      log.debug({ err: e, pkg }, "category-split: pkg package.json read/parse failed (counting as uncategorized)");
       counts.uncategorized.count++;
     }
   }

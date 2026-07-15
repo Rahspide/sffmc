@@ -12,6 +12,9 @@
 // persistence instances don't share or cancel each other's timers.
 
 import { openSync, fsyncSync, closeSync } from "node:fs"
+import { createLogger } from "@sffmc/utilities"
+
+const log = createLogger("fsync-coalescer")
 
 export class FSyncCoalescer {
   /** Per-instance journal paths awaiting fsync. Initialised lazily so
@@ -58,7 +61,8 @@ export class FSyncCoalescer {
       let fd: number
       try {
         fd = openSync(p, "r")
-      } catch {
+      } catch (e) {
+        log.debug({ err: e, path: p }, "fsync-coalescer: openSync failed (file likely removed)")
         continue // best-effort: file may have been removed
       }
       try {
@@ -66,7 +70,7 @@ export class FSyncCoalescer {
       } catch (e) {
         if (this.onError) this.onError(e)
       } finally {
-        try { closeSync(fd) } catch { /* ignore */ }
+        try { closeSync(fd) } catch (e) { log.debug({ err: e, fd, path: p }, "fsync-coalescer: closeSync failed"); /* ignore */ }
       }
     }
   }

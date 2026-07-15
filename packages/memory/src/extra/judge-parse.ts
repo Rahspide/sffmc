@@ -4,6 +4,9 @@
 // No LLM call, no side effects, throws caught by parseJudgeResponse.
 
 import type { JudgeResponse, JudgeScore } from "./judge-types.ts";
+import { createLogger } from "@sffmc/utilities";
+
+const log = createLogger("extra-judge");
 
 export function parseJudgeResponse(raw: string, candidateCount: number): JudgeResponse | null {
   try {
@@ -11,7 +14,8 @@ export function parseJudgeResponse(raw: string, candidateCount: number): JudgeRe
     if (json === null) return null;
     const parsed = JSON.parse(json) as JudgeResponse;
     return validateJudgeResponseShape(parsed, candidateCount);
-  } catch {
+  } catch (e) {
+    log.debug({ err: e }, "judge-parse: parseJudgeResponse failed (returning null)")
     return null;
   }
 }

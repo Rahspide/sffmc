@@ -38,6 +38,9 @@ import {
 import type { SandboxConstraints } from "./types.ts"
 import { SCRIPT_DEADLINE_MS } from "./constants.ts"
 import { buildHostHooks, PRELUDE } from "./sandbox-prelude.ts"
+import { createLogger } from "@sffmc/utilities"
+
+const log = createLogger("sandbox")
 import { DEFAULT_PRNG_SEED } from "./sandbox-runtime.ts"
 import { createSandboxRuntime } from "./sandbox-runtime.ts"
 import { evalAndDiscard, evalAndReturn } from "./sandbox-eval.ts"
@@ -217,8 +220,9 @@ export async function runSandboxed(
       pump.stop()
       clearTimeout(deadlineTimer)
     }
-  } catch {
+  } catch (e) {
     // Never-throw contract: catch all errors, return null.
+    log.warn({ err: e }, "sandbox: runSandboxed caught top-level error (returning null per contract)")
     return null
   } finally {
     // Dispose deferreds BEFORE the arena/context: an unsettled

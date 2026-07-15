@@ -3,6 +3,9 @@
 // Pure string scanning extracted from judge.ts (M-3 Wave 3).
 // No LLM, no orchestration — just HTML-comment marker parsing.
 
+import { createLogger } from "@sffmc/utilities";
+
+const log = createLogger("extra-judge");
 const JUDGE_MARKER = "<!-- EXTRA_JUDGE_CANDIDATES: ";
 
 export function extractCandidatesFromMessages(
@@ -39,7 +42,8 @@ function parseJudgeMarkerContent(content: string): string[] | null {
     if (Array.isArray(parsed) && parsed.length >= 2) {
       return parsed;
     }
-  } catch {
+  } catch (e) {
+    log.debug({ err: e }, "judge-extract: marker JSON parse failed — continuing to scan next message")
     // ignore parse errors — caller keeps scanning subsequent messages
   }
   return null;

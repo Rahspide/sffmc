@@ -3,8 +3,10 @@ import type { MemoryDB } from "./memory";
 import { upsert, remove } from "./memory";
 import { readFileSync } from "fs";
 import { relative, basename } from "path";
-import { ensureRedactionRules, isSensitiveFilename } from "@sffmc/utilities";
+import { ensureRedactionRules, isSensitiveFilename, createLogger } from "@sffmc/utilities";
 import { AGENTS_FILE, MEMORY_BANK_DIR } from "./constants.ts";
+
+const log = createLogger("memory:watcher");
 
 /** Watcher tuning parameters ( release migration chokidar awaitWriteFinish.stabilityThreshold, chokidar awaitWriteFinish.pollInterval).
  *  Defaults match the prior hardcoded values (300ms / 100ms). */
@@ -30,7 +32,8 @@ export function startWatcher(
   // Pre-load redaction rules (user YAML + builtins) so the watcher's hot
   // path can stay sync. Fire-and-forget — `isSensitiveFilename` falls back
   // to BUILTIN_RULES if the cache isn't ready yet.
-  void ensureRedactionRules().catch(() => {
+  void ensureRedactionRules().catch((e) => {
+    log.debug({ err: e }, "memory-watcher: ensureRedactionRules failed (using built-in defaults)")
     // Best-effort; fall back to built-ins if config can't be read.
   })
 
@@ -59,7 +62,8 @@ export function startWatcher(
       const section = determineSection(filePath, rootDir);
 
       upsert(db, relPath, section, content);
-    } catch {
+    } catch (e) {
+      log.debug({ err: e, filePath }, "memory-watcher: indexFile readFile failed (file may be deleted mid-read)")
       // file may be deleted mid-read or inaccessible
     }
   }

@@ -9,6 +9,9 @@
 // -------------------------------------------------------------------------
 import type { Database as BunDatabase } from "bun:sqlite";
 import type { DatabaseSync } from "node:sqlite";
+import { createLogger } from "@sffmc/utilities";
+
+const log = createLogger("memory:sqlite");
 
 /** Constructor of either bun:sqlite.Database or node:sqlite.DatabaseSync.
  *  Both share the (path: string) signature, so a union of constructor types
@@ -27,7 +30,8 @@ async function resolveEngine(): Promise<void> {
       const bunSqlite = await import("bun:sqlite");
       DatabaseCtor = bunSqlite.Database;
       isBunSqlite = true;
-    } catch {
+    } catch (e) {
+      log.debug({ err: e }, "memory: bun:sqlite not available — falling back to node:sqlite")
       // Fallback to Node 22.6+ built-in SQLite (DatabaseSync).
       // Same prepare()/all()/get()/run() API as better-sqlite3,
       // zero native compilation.

@@ -12,6 +12,9 @@ import {
 import { realpathSync } from "node:fs"
 import { resolve, relative, isAbsolute, dirname } from "node:path"
 import { glob as globFs } from "node:fs/promises"
+import { createLogger } from "@sffmc/utilities"
+
+const log = createLogger("workspace:jail")
 
 /** POSIX `O_NOFOLLOW` flag (Linux/macOS). Refuses to follow a symlink at the
  *  leaf of the path. Set to a sentinel value on platforms where it doesn't
@@ -174,7 +177,8 @@ export class WorkspaceJail {
     try {
       await access(abs)
       return true
-    } catch {
+    } catch (e) {
+      log.debug({ err: e, userPath }, "workspace: access failed")
       return false
     }
   }
@@ -213,7 +217,8 @@ export class WorkspaceJail {
         let real: string
         try {
           real = realpathSync(abs)
-        } catch {
+        } catch (e) {
+          log.debug({ err: e, entry, abs }, "workspace: glob realpath failed")
           continue
         }
         if (

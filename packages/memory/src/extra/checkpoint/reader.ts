@@ -52,7 +52,8 @@ export function readToolCallsShim(
   let fileContent: string;
   try {
     fileContent = fs.readFile(fp);
-  } catch {
+  } catch (e) {
+    log.warn({ err: e, sessionID }, "checkpoint-reader: readFile failed");
     return [];
   }
 
@@ -72,7 +73,8 @@ export function readToolCallsShim(
   let parsed: Record<string, unknown>;
   try {
     parsed = JSON.parse(headerLine) as Record<string, unknown>;
-  } catch {
+  } catch (e) {
+    log.warn({ err: e, sessionID }, "checkpoint-reader: header parse failed");
     return [];
   }
   if (parsed.__type !== "header") return [];
@@ -89,7 +91,8 @@ export function readToolCallsShim(
     }
     try {
       fileContent = fs.readFile(fp);
-    } catch {
+    } catch (e) {
+      log.warn({ err: e, sessionID }, "checkpoint-reader: post-migrate readFile failed");
       return [];
     }
     const firstNewline2 = fileContent.indexOf("\n");
@@ -97,7 +100,8 @@ export function readToolCallsShim(
     const headerLine2 = fileContent.substring(0, firstNewline2);
     try {
       parsed = JSON.parse(headerLine2) as Record<string, unknown>;
-    } catch {
+    } catch (e) {
+      log.warn({ err: e, sessionID }, "checkpoint-reader: post-migrate header parse failed");
       return [];
     }
     if (parsed.__type !== "header" || parsed.version !== 2) return [];
@@ -140,8 +144,8 @@ function iterateBodyLinesFromString(content: string, lineOffsets: number[]): Too
       ) {
         calls.push(obj as unknown as ToolCall);
       }
-    } catch {
-      // Skip malformed lines
+    } catch (e) {
+      log.debug({ err: e, lineIndex: i }, "checkpoint-reader: skipping malformed line");
     }
   }
   return calls;
@@ -160,7 +164,8 @@ export function listSessions(dir?: string, fs: FsOps = defaultFsOps): string[] {
     return files
       .filter((f) => f.endsWith(".jsonl"))
       .map((f) => f.replace(/\.jsonl$/, ""));
-  } catch {
+  } catch (e) {
+    log.warn({ err: e, dir: d }, "checkpoint-reader: listSessions readDir failed");
     return [];
   }
 }
@@ -180,7 +185,8 @@ export function deleteCheckpoint(
   try {
     fs.unlink(fp);
     return true;
-  } catch {
+  } catch (e) {
+    log.warn({ err: e, sessionID, fp }, "checkpoint-reader: unlink failed");
     return false;
   }
 }

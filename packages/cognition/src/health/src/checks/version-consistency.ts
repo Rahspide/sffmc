@@ -6,8 +6,11 @@
 
 import { readFile } from "node:fs/promises"
 import { join } from "node:path"
+import { createLogger } from "@sffmc/utilities"
 import { createCheck } from "../check-factory.ts"
 import { packageNames, pkgDir } from "../helpers.ts"
+
+const log = createLogger("health:version-consistency")
 
 export const checkVersionConsistency = createCheck("version_consistency", async (repoRoot) => {
   // Read root version
@@ -15,7 +18,8 @@ export const checkVersionConsistency = createCheck("version_consistency", async 
   try {
     const rootPkg = JSON.parse(await readFile(join(repoRoot, "package.json"), "utf-8"))
     rootVersion = rootPkg.version || "unknown"
-  } catch {
+  } catch (e) {
+    log.warn({ err: e, repoRoot }, "version-consistency: root package.json read/parse failed")
     return {
       status: "fail",
       detail: "Could not read root package.json",
@@ -32,7 +36,8 @@ export const checkVersionConsistency = createCheck("version_consistency", async 
       if (ver !== rootVersion) {
         mismatches.push(`${pkg}: ${ver} (root: ${rootVersion})`)
       }
-    } catch {
+    } catch (e) {
+      log.debug({ err: e, pkg }, "version-consistency: pkg package.json read/parse failed")
       mismatches.push(`${pkg}: could not read package.json`)
     }
   }

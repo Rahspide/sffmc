@@ -8,9 +8,11 @@
 // repository while keeping its public API unchanged.
 
 import { generateRunID } from "./runid.ts"
-import { safeRunID, unixNow } from "@sffmc/utilities"
+import { safeRunID, unixNow, createLogger } from "@sffmc/utilities"
 import type { WorkflowRun, WorkflowStatus } from "./types.ts"
 import type { Database } from "bun:sqlite"
+
+const log = createLogger("workflow:runs")
 
 /** Map a workflow_runs row to the typed WorkflowRun shape.
  *  Args round-trip through JSON.parse (with try/catch fallback to
@@ -26,7 +28,7 @@ export function rowToRun(row: Record<string, unknown>): WorkflowRun {
     failed: row.failed as number,
     currentPhase: (row.current_phase as string) || undefined,
     parentRunID: (row.parent_run_id as string) || undefined,
-    args: (() => { try { return row.args ? JSON.parse(row.args as string) : undefined } catch { return undefined } })(),
+    args: (() => { try { return row.args ? JSON.parse(row.args as string) : undefined } catch (e) { log.debug({ err: e, runID: row.id }, "runs: row.args JSON.parse failed — returning undefined"); return undefined } })(),
     scriptSha: (row.script_sha as string) || undefined,
     agentTimeoutMs: (row.agent_timeout_ms as number) || undefined,
     error: (row.error as string) || undefined,

@@ -10,7 +10,7 @@
 // `createCheckpointTool` invocation — there is no shared state between
 // plugins.
 
-import { defaultFsOps, type FsOps } from "@sffmc/utilities";
+import { defaultFsOps, type FsOps, createLogger } from "@sffmc/utilities";
 
 import { crc32 } from "./crc";
 import { buildV2Body, computeV2HeaderStr, readHeader } from "./header";
@@ -21,6 +21,8 @@ import type {
   SessionBufferEntry,
   ToolCall,
 } from "./types";
+
+const log = createLogger("extra-checkpoint");
 
 /** Monotonic counter for insertion ordering. Module-level because the
  *  LRU tie-breaker must be globally unique within a process. Each
@@ -58,7 +60,8 @@ export function flushSession(
       const priorHeader = readHeader(sessionID, state.dir, Number.MAX_SAFE_INTEGER, fs);
       if (priorHeader) createdAt = priorHeader.createdAt;
       existingCalls = readToolCallsShim(sessionID, state.dir, Number.MAX_SAFE_INTEGER, fs);
-    } catch {
+    } catch (e) {
+      log.warn({ err: e, sessionID }, "checkpoint-buffer: prior-state load failed — treating as empty")
       // Treat as empty if reading fails — fall through to overwrite.
     }
   }

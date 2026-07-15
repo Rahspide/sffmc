@@ -39,7 +39,8 @@ export class JournalRepository {
     try {
       const s = await stat(this.journalPath(runID))
       return s.size > 0
-    } catch {
+    } catch (e) {
+      log.debug({ err: e, runID }, "journal: stat failed (file likely missing)")
       return false // file doesn't exist
     }
   }
@@ -99,7 +100,8 @@ export class JournalRepository {
         if (je.pass > maxPass) maxPass = je.pass
         if (je.t === "agent") results.set(je.key, je.result)
       }
-    } catch {
+    } catch (e) {
+      log.debug({ err: e, runID }, "journal: load read failed (file likely missing)")
       // file doesn't exist — empty results
     }
     return { results, pass: maxPass + 1 }

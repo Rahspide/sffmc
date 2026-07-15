@@ -3,9 +3,12 @@
 
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { createLogger } from "@sffmc/utilities";
 import { packageNames, fileExists } from "../helpers.ts";
 import { getHealthConfigSync } from "../config.ts";
 import { createCheck } from "../check-factory.ts";
+
+const log = createLogger("health:composite-structure");
 
 /** Check 13: Composite structure (v0.9.0).
  *  Validates each expected composite: directory exists, package.json
@@ -54,6 +57,7 @@ export const checkCompositeStructure = createCheck("composite_structure", async 
         }
       }
     } catch (err) {
+      log.warn({ err, compositeName }, "composite-structure: composite package.json read/parse failed");
       errors.push(`${compositeName}: could not read package.json (${err})`);
     }
 
@@ -68,6 +72,7 @@ export const checkCompositeStructure = createCheck("composite_structure", async 
         warnings.push(`${compositeName}: src/index.ts does not import from @sffmc/utilities`);
       }
     } catch (err) {
+      log.warn({ err, compositeName }, "composite-structure: composite src/index.ts read failed");
       errors.push(`${compositeName}: could not read src/index.ts (${err})`);
     }
   }
@@ -82,7 +87,8 @@ export const checkCompositeStructure = createCheck("composite_structure", async 
       if (parsed.role) {
         errors.push(`${pkg}: claims role "${parsed.role}" but is not in expectedComposites`);
       }
-    } catch {
+    } catch (e) {
+      log.debug({ err: e, pkg }, "composite-structure: module package.json read/parse failed (other checks handle it)")
       // package.json unreadable — other checks handle this
     }
   }

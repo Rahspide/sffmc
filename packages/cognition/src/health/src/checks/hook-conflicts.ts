@@ -7,9 +7,12 @@
 
 import { readFile } from "node:fs/promises"
 import { join } from "node:path"
+import { createLogger } from "@sffmc/utilities"
 import { createCheck } from "../check-factory.ts"
 import { fileExists } from "../helpers.ts"
 import { getHealthConfigSync } from "../config.ts"
+
+const log = createLogger("health:hook-conflicts")
 
 export const checkHookConflicts = createCheck("hook_conflicts", async (repoRoot) => {
   const scriptPath = join(repoRoot, "scripts", "audit-load-order.py")
@@ -36,7 +39,8 @@ export const checkHookConflicts = createCheck("hook_conflicts", async (repoRoot)
     try {
       const jsonText = await readFile(jsonPath, "utf-8")
       report = JSON.parse(jsonText)
-    } catch {
+    } catch (e) {
+      log.debug({ err: e, jsonPath }, "hook-conflicts: JSON report read/parse failed")
       return {
         status: "warn",
         detail: "Audit script ran but JSON report not found or unparseable",

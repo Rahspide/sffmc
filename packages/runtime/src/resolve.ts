@@ -5,6 +5,9 @@ import { readFile, access } from "node:fs/promises"
 import path from "node:path"
 import { parseMeta, type Meta } from "./meta.ts"
 import { ensureWorkflowConfig, getWorkflowSearchDirs } from "./constants.ts"
+import { createLogger } from "@sffmc/utilities"
+
+const log = createLogger("workflow:resolve")
 
 /** Raw filesystem existence check — NOT workspace-jailed.
  *  resolve.ts walks UP the directory tree and needs to check paths
@@ -13,7 +16,8 @@ async function fileExists(p: string): Promise<boolean> {
   try {
     await access(p)
     return true
-  } catch {
+  } catch (e) {
+    log.debug({ err: e, p }, "resolve: fileExists access failed")
     return false
   }
 }
@@ -22,7 +26,8 @@ async function fileExists(p: string): Promise<boolean> {
  *  `getWorkflowSearchDirs()` returns the YAML override (if any) on the
  *   call to `resolveWorkflow()`. Failure is non-fatal: the sync
  *  getter falls back to `WORKFLOW_SEARCH_DIRS`. */
-void ensureWorkflowConfig().catch(() => {
+void ensureWorkflowConfig().catch((e) => {
+  log.debug({ err: e }, "resolve: ensureWorkflowConfig failed (using sync fallback)")
   // Best-effort — the sync getter's fallback handles the failure case.
 })
 

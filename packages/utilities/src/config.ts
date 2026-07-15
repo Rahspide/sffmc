@@ -38,7 +38,8 @@ export function validateSafeRegex(
 ): boolean {
   try {
     return safeRegex(pattern, { limit: opts?.limit ?? SAFE_REPETITION_LIMIT })
-  } catch {
+  } catch (e) {
+    log.warn({ err: e, pattern: String(pattern) }, "validateSafeRegex: wrapper-level failure (rejecting as unsafe)")
     // Defensive: safe-regex itself catches errors and returns false, but
     // any wrapper-level failure (e.g., import misconfig) is treated as
     // "unsafe" so callers conservatively reject.

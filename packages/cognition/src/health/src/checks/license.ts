@@ -6,8 +6,11 @@
 
 import { readFile } from "node:fs/promises"
 import { join } from "node:path"
+import { createLogger } from "@sffmc/utilities"
 import { createCheck } from "../check-factory.ts"
 import { fileExists, packageNames, pkgDir } from "../helpers.ts"
+
+const log = createLogger("health:license")
 
 export const checkLicense = createCheck("license", async (repoRoot) => {
   const licenseExists = await fileExists(join(repoRoot, "LICENSE"))
@@ -26,7 +29,8 @@ export const checkLicense = createCheck("license", async (repoRoot) => {
       if (!/(LICENSE|MIT|license)/i.test(content)) {
         missingRefs.push(pkg)
       }
-    } catch {
+    } catch (e) {
+      log.debug({ err: e, pkg, readmePath }, "license: README.md read failed")
       missingRefs.push(`${pkg} (read error)`)
     }
   }

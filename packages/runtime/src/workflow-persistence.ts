@@ -10,7 +10,7 @@
 // working unchanged.
 
 import { Database } from "bun:sqlite"
-import { defaultFsOps, type FsOps } from "@sffmc/utilities"
+import { defaultFsOps, type FsOps, createLogger } from "@sffmc/utilities"
 import { applySchema } from "./schema.ts"
 import { getFsyncCoalesceMs } from "./constants.ts"
 import { defaultDataDir, dbPathForDir } from "./paths.ts"
@@ -20,6 +20,8 @@ import { FSyncCoalescer } from "./fsync-coalescer.ts"
 import { JournalRepository } from "./journal.ts"
 import { ScriptsRepository } from "./scripts.ts"
 import type { WorkflowRun, WorkflowStep, JournalEvent, WorkflowStatus } from "./types.ts"
+
+const log = createLogger("workflow:persistence")
 
 export class WorkflowPersistence {
   private db: Database
@@ -101,7 +103,8 @@ export class WorkflowPersistence {
     if (this._owned) {
       try {
         this.db.close()
-      } catch {
+      } catch (e) {
+        log.debug({ err: e }, "workflow-persistence: db.close failed (best-effort)")
         // best-effort
       }
     }

@@ -51,7 +51,8 @@ export function startWorkflowWatcher(workspace: string): { stop: () => void } {
 
   // Best-effort: ensure redaction rules are loaded so filename-sensitive
   // log lines don't trigger an async load on first event.
-  void ensureRedactionRules().catch(() => {
+  void ensureRedactionRules().catch((e) => {
+    log.debug({ err: e }, "workflow-watcher: ensureRedactionRules failed (using built-in defaults)")
     /* fall back to defaults on failure — same as resolveWorkflow() */
   })
 
@@ -89,7 +90,8 @@ export function startWorkflowWatcher(workspace: string): { stop: () => void } {
       for (const w of watchers) {
         try {
           w.close()
-        } catch {
+        } catch (e) {
+          log.debug({ err: e }, "workflow-watcher: watcher.close failed (already closed?)")
           /* ignore — already closed */
         }
       }

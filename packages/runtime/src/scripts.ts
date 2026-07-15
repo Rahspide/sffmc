@@ -9,8 +9,10 @@
 
 import { readFile, writeFile, mkdir } from "node:fs/promises"
 import path from "node:path"
-import { safeRunID } from "@sffmc/utilities"
+import { safeRunID, createLogger } from "@sffmc/utilities"
 import { getWorkflowConfigSync } from "./constants.ts"
+
+const log = createLogger("workflow:scripts")
 
 export class ScriptsRepository {
   constructor(private readonly dir: string) {}
@@ -30,7 +32,8 @@ export class ScriptsRepository {
     safeRunID(runID)
     try {
       return await readFile(this.scriptPath(runID), "utf-8")
-    } catch {
+    } catch (e) {
+      log.debug({ err: e, runID }, "scripts: readFile failed (file likely missing)")
       return null
     }
   }

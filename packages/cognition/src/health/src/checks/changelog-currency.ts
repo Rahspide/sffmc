@@ -7,7 +7,10 @@
 
 import { readFile } from "node:fs/promises"
 import { join } from "node:path"
+import { createLogger } from "@sffmc/utilities"
 import { createCheck } from "../check-factory.ts"
+
+const log = createLogger("health:changelog-currency")
 
 export const checkChangelogCurrency = createCheck("changelog_currency", async (repoRoot) => {
   // Read root version
@@ -15,7 +18,8 @@ export const checkChangelogCurrency = createCheck("changelog_currency", async (r
   try {
     const rootPkg = JSON.parse(await readFile(join(repoRoot, "package.json"), "utf-8"))
     rootVersion = rootPkg.version || "unknown"
-  } catch {
+  } catch (e) {
+    log.warn({ err: e, repoRoot }, "changelog-currency: root package.json read/parse failed")
     return {
       status: "fail",
       detail: "Could not read root package.json",
@@ -27,7 +31,8 @@ export const checkChangelogCurrency = createCheck("changelog_currency", async (r
   let changelogText: string
   try {
     changelogText = await readFile(changelogPath, "utf-8")
-  } catch {
+  } catch (e) {
+    log.warn({ err: e, changelogPath }, "changelog-currency: CHANGELOG.md read failed")
     return {
       status: "fail",
       detail: "CHANGELOG.md not found",
@@ -42,7 +47,8 @@ export const checkChangelogCurrency = createCheck("changelog_currency", async (r
   let changelogRuMissing = false
   try {
     changelogRuText = await readFile(changelogRuPath, "utf-8")
-  } catch {
+  } catch (e) {
+    log.debug({ err: e, changelogRuPath }, "changelog-currency: CHANGELOG.ru.md missing/unreadable (bilingual gap)")
     changelogRuMissing = true
   }
 

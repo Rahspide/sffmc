@@ -205,7 +205,8 @@ export function readHeader(
   try {
     const raw = fs.readFile(fp);
     firstLine = raw.split("\n")[0]?.trim();
-  } catch {
+  } catch (e) {
+    log.warn({ err: e, sessionID }, "checkpoint-header: readFile failed");
     return null;
   }
   if (!firstLine) return null;
@@ -213,7 +214,8 @@ export function readHeader(
   let parsed: Record<string, unknown>;
   try {
     parsed = JSON.parse(firstLine) as Record<string, unknown>;
-  } catch {
+  } catch (e) {
+    log.warn({ err: e, sessionID }, "checkpoint-header: parse failed");
     return null;
   }
   if (parsed.__type !== "header") return null;
@@ -231,13 +233,15 @@ export function readHeader(
     try {
       const raw = fs.readFile(fp);
       firstLine = raw.split("\n")[0]?.trim();
-    } catch {
+    } catch (e) {
+      log.warn({ err: e, sessionID }, "checkpoint-header: post-migrate readFile failed");
       return null;
     }
     if (!firstLine) return null;
     try {
       parsed = JSON.parse(firstLine) as Record<string, unknown>;
-    } catch {
+    } catch (e) {
+      log.warn({ err: e, sessionID }, "checkpoint-header: post-migrate parse failed");
       return null;
     }
     if (parsed.__type !== "header" || parsed.version !== 2) return null;
@@ -389,8 +393,8 @@ function readV1BodyLines(raw: string): ToolCall[] {
       ) {
         calls.push(obj as unknown as ToolCall);
       }
-    } catch {
-      // Skip malformed lines
+    } catch (e) {
+      log.debug({ err: e, lineIndex: i }, "checkpoint-header: skipping malformed line");
     }
   }
   return calls;

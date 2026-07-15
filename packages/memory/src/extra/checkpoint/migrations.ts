@@ -10,13 +10,15 @@
 // this module is retained for internal callers that need the structured
 // MigrationResult (e.g. telemetry) and for the regression test suite.
 
-import { defaultFsOps, type FsOps } from "@sffmc/utilities";
+import { defaultFsOps, type FsOps, createLogger } from "@sffmc/utilities";
 
 import { DEFAULT_MAX_CHECKPOINT_FILE_SIZE } from "./constants";
 import { readHeader } from "./header";
 import { filePath } from "./paths";
 import { readToolCallsShim } from "./reader";
 import type { MigrationResult, ToolCall } from "./types";
+
+const log = createLogger("extra-checkpoint");
 
 /** Internal: trigger auto-migration (via `readHeader`) and return the
  *  structured result. With auto-migration on read, this is effectively
@@ -64,7 +66,8 @@ export function migrateV1ToV2(
       const parsed = JSON.parse(firstLine) as Record<string, unknown>;
       if (parsed.version === 2) originalVersion = 2;
     }
-  } catch {
+  } catch (e) {
+    log.warn({ err: e, sessionID, fp }, "checkpoint-migrations: pre-migration version probe failed")
     // Treat as v1 if unreadable.
   }
 

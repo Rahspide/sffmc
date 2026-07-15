@@ -7,8 +7,11 @@
 
 import { readFile } from "node:fs/promises"
 import { join } from "node:path"
+import { createLogger } from "@sffmc/utilities"
 import { createCheck } from "../check-factory.ts"
 import { packageNames } from "../helpers.ts"
+
+const log = createLogger("health:sdk-compliance")
 
 // `utilities` is the base library; it does not need to import itself.
 const KNOWN_SDK_EXCEPTIONS = new Set(["max-mode", "workflow", "utilities"])
@@ -30,7 +33,8 @@ export const checkSdkCompliance = createCheck("sdk_compliance", async (repoRoot)
       if (!hasSharedImport && !hasExclusionComment) {
         missingImport.push(pkg)
       }
-    } catch {
+    } catch (e) {
+      log.debug({ err: e, pkg, indexPath }, "sdk-compliance: src/index.ts read failed")
       missingDir.push(pkg)
     }
   }

@@ -5,8 +5,11 @@
 
 import { readFile } from "node:fs/promises"
 import { join } from "node:path"
+import { createLogger } from "@sffmc/utilities"
 import { createCheck } from "../check-factory.ts"
 import { packageNames, pkgDir } from "../helpers.ts"
+
+const log = createLogger("health:tsconfig-presence")
 
 export const checkTsConfigPresence = createCheck("tsconfig_presence", async (repoRoot) => {
   const pkgs = await packageNames(repoRoot)
@@ -19,10 +22,12 @@ export const checkTsConfigPresence = createCheck("tsconfig_presence", async (rep
       const content = await readFile(tsconfigPath, "utf-8")
       try {
         JSON.parse(content)
-      } catch {
+      } catch (e) {
+        log.debug({ err: e, pkg }, "tsconfig-presence: tsconfig.json invalid JSON")
         invalidJson.push(pkg)
       }
-    } catch {
+    } catch (e) {
+      log.debug({ err: e, pkg }, "tsconfig-presence: tsconfig.json missing/unreadable")
       missing.push(pkg)
     }
   }

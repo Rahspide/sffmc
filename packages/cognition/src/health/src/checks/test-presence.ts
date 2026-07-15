@@ -6,8 +6,11 @@
 
 import { readdir, readFile } from "node:fs/promises"
 import { join } from "node:path"
+import { createLogger } from "@sffmc/utilities"
 import { createCheck } from "../check-factory.ts"
 import { packageNames, pkgDir } from "../helpers.ts"
+
+const log = createLogger("health:test-presence")
 
 export const checkTestPresence = createCheck("test_presence", async (repoRoot) => {
   // After  release (v0.9.0), module packages are "code-only" — their
@@ -24,7 +27,8 @@ export const checkTestPresence = createCheck("test_presence", async (repoRoot) =
       const content = await readFile(join(pkgDir(pkg, repoRoot), "package.json"), "utf-8")
       const parsed = JSON.parse(content) as { role?: string }
       if (parsed.role) testOwners.push(pkg)
-    } catch {
+    } catch (e) {
+      log.debug({ err: e, pkg }, "test-presence: package.json read/parse failed — skipping pkg")
       // package.json unreadable — skip
     }
   }
@@ -39,7 +43,8 @@ export const checkTestPresence = createCheck("test_presence", async (repoRoot) =
           has = true
           break
         }
-      } catch {
+      } catch (e) {
+        log.debug({ err: e, pkg, subdir }, "test-presence: subdir readdir failed (dir doesn't exist)")
         // dir doesn't exist
       }
     }

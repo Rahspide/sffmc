@@ -102,7 +102,8 @@ export function loadRules(path: string): Rules {
   try {
     const raw = readFileSync(path, "utf-8");
     return parseRules(raw);
-  } catch {
+  } catch (e) {
+    log.warn({ err: e, path }, "rules: loadRules failed — entering panic mode")
     panicMode = true;
     return { version: 1, rules: [] };
   }
@@ -123,7 +124,8 @@ export function watchRules(
         const rules = loadRules(path);
         panicMode = false;
         onChange(rules);
-      } catch {
+      } catch (e) {
+        log.warn({ err: e, path }, "rules: watchRules reload failed — entering panic mode")
         panicMode = true;
         onChange({ version: 1, rules: [] });
       }

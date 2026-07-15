@@ -1,5 +1,7 @@
 import type { Candidate } from "./candidates";
-import { type RichPluginContext } from "@sffmc/utilities";
+import { createLogger, type RichPluginContext } from "@sffmc/utilities";
+
+const log = createLogger("max-mode:judge");
 
 export interface Verdict {
   winner: number;
@@ -67,7 +69,8 @@ export function parseVerdict(raw: string, candidateCount: number): Verdict | nul
       reasoning: parsed.reasoning,
       confidence: parsed.confidence,
     };
-  } catch {
+  } catch (e) {
+    log.debug({ err: e }, "max-mode-judge: parseVerdict failed (returning null)");
     return null;
   }
 }
@@ -132,7 +135,8 @@ export async function judgeCandidates(
 
     const verdict = parseVerdict(text, candidates.length);
     return verdict ?? fallbackVerdict(candidates, fallbackConfidence);
-  } catch {
+  } catch (e) {
+    log.warn({ err: e, judgeModel, candidateCount: candidates.length }, "max-mode-judge: judgeCandidates failed — falling back to heuristic");
     return fallbackVerdict(candidates, fallbackConfidence);
   }
 }

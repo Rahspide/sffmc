@@ -7,7 +7,10 @@
 import { readdir, stat } from "node:fs/promises"
 import { homedir } from "node:os"
 import { join } from "node:path"
+import { createLogger } from "@sffmc/utilities"
 import type { CheckOutcome } from "./check-factory.ts"
+
+const log = createLogger("cognition:health-helpers")
 
 /** `process.env.HOME` override or `os.homedir()`. Tests can stub by setting `HOME`. */
 export function userHome(): string {
@@ -21,14 +24,16 @@ export async function packageNames(repoRoot: string): Promise<string[]> {
   try {
     const entries = await readdir(join(repoRoot, "packages"), { withFileTypes: true })
     pkgs.push(...entries.filter((e) => e.isDirectory()).map((e) => e.name))
-  } catch {
+  } catch (e) {
+    log.debug({ err: e, repoRoot }, "health-helpers: packages/ readdir failed (treating as empty)")
     // packages/ doesn't exist — no packages to check
   }
   // Include shared if it has a package.json
   try {
     await stat(join(repoRoot, "shared", "package.json"))
     pkgs.push("shared")
-  } catch {
+  } catch (e) {
+    log.debug({ err: e, repoRoot }, "health-helpers: shared/package.json stat failed (skipping)")
     // shared doesn't exist — skip
   }
   return pkgs.sort()
@@ -70,7 +75,8 @@ export async function fileExists(path: string): Promise<boolean> {
   try {
     await stat(path)
     return true
-  } catch {
+  } catch (e) {
+    log.debug({ err: e, path }, "health-helpers: fileExists stat failed (returning false)")
     return false
   }
 }

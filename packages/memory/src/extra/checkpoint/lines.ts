@@ -12,6 +12,9 @@
 // migration / oversize-handling logic.
 
 import type { ToolCall } from "./types";
+import { createLogger } from "@sffmc/utilities";
+
+const log = createLogger("extra-checkpoint");
 
 /** Result of a single line iteration. `null` means "skip this line"
  *  (header, malformed JSON, missing required fields). The caller
@@ -52,7 +55,8 @@ export function iterateBodyLines(
       ) {
         calls.push(obj as unknown as ToolCall);
       }
-    } catch {
+    } catch (e) {
+      log.debug({ err: e, lineIndex: i }, "checkpoint-lines: skipping malformed line")
       // Skip malformed lines
     }
   }
