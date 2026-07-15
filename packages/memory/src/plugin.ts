@@ -21,7 +21,6 @@ import {
 } from "@sffmc/utilities";
 import { readFileSync, existsSync, mkdirSync, statSync } from "fs"
 import { resolve, dirname } from "path"
-import { homedir } from "node:os"
 import { AGENTS_FILE } from "./constants.ts";
 
 export interface MemoryConfig {
@@ -54,7 +53,7 @@ export interface MemoryConfig {
 const log = createLogger("memory");
 
 export const defaultConfig: MemoryConfig = {
-  storagePath: DEFAULT_MEMORY_DB_PATH(),
+  storagePath: DEFAULT_MEMORY_DB_PATH(),  // resolved against configHome() at use site
   tailChars: RECON_AGENTS_BUDGET,
   // Defaults match the prior hardcoded values — behavior unchanged.
   reconMemoryBudget: 6144,
@@ -123,12 +122,17 @@ export const server = async (ctx: PluginContext) => {
     config,
   }
 
+  // Promise cache guards against double-init under concurrent hook calls.
+  // Concurrent ensureDB() callers get the same in-flight promise.
+  let dbPromise: Promise<MemoryDB> | null = null
   async function ensureDB(): Promise<MemoryDB> {
-    if (!state.db) {
-      ensureDir(state.config.storagePath)
-      state.db = await init(state.config.storagePath)
+    if (!dbPromise) {
+      dbPromise = (async () => {
+        ensureDir(state.config.storagePath)
+        return await init(state.config.storagePath)
+      })()
     }
-    return state.db
+    return dbPromise
   }
 
   async function ensureWatcher(): Promise<void> {
@@ -216,7 +220,8 @@ function loadAndRedactAgents(projectRoot: string, maxSizeBytes: number): string 
   let st: import("node:fs").Stats
   try {
     st = statSync(agentsPath)
-  } catch {
+  } catch (e) {
+    log.warn({ err: e, agentsPath }, "memory-plugin: AGENTS.md statSync failed")
     // stat failed — file unreadable or disappeared mid-check
     return ""
   }
