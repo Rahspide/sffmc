@@ -23,7 +23,28 @@ SFFMC is a Bun-workspace monorepo of OpenCode plugins that bring the productivit
 
 ## Install
 
-SFFMC plugins are loaded by OpenCode via `file://` paths in `~/.config/opencode/opencode.json`. The one-liner below clones the repo and runs `sffmc init` to add the plugin paths automatically.
+Install via npm (simplest):
+
+```bash
+npm install -g @sffmc/runtime @sffmc/cognition @sffmc/memory @sffmc/safety @sffmc/utilities
+```
+
+Then add the packages to your `~/.config/opencode/opencode.json`:
+
+```json
+{
+  "plugin": [
+    "@sffmc/safety",
+    "@sffmc/memory",
+    "@sffmc/runtime",
+    "@sffmc/cognition"
+  ]
+}
+```
+
+Restart OpenCode. Verify with `sffmc doctor` or type `sffmc_health` in any chat.
+
+**Alternative: one-liner install** (clones repo + auto-configures opencode.json):
 
 ```bash
 # macOS / Linux
@@ -33,29 +54,7 @@ curl -fsSL https://raw.githubusercontent.com/Rahspide/sffmc/main/install.sh | sh
 irm https://raw.githubusercontent.com/Rahspide/sffmc/main/install.ps1 | iex
 ```
 
-`install.sh` clones the repo to `~/.sffmc/plugins/sffmc` and runs `sffmc init` to add the default 4 plugins (safety, memory, runtime, cognition) to your OpenCode config. To add all 5 (including the `utilities` library):
-
-```bash
-sffmc init --all
-```
-
-Restart OpenCode after editing. Verify with:
-
-```bash
-sffmc doctor
-```
-
-### For programmatic use (npm)
-
-If you want to use SFFMC packages as TypeScript libraries (not as OpenCode plugins):
-
-```bash
-npm install @sffmc/runtime @sffmc/cognition @sffmc/memory @sffmc/safety @sffmc/utilities
-```
-
-For example, to embed `@sffmc/utilities`'s `mergeHooks` in your own plugin, or use `@sffmc/runtime`'s `WorkflowRuntime` programmatically. The npm packages are decoupled from the OpenCode plugin loader - they ship as standalone libraries for any TypeScript project.
-
-For all install options (version pinning, custom install dir, manual config, troubleshooting), see [docs/install.md](./docs/install.md).
+For all install options (version pinning, custom dir, troubleshooting), see [docs/install.md](./docs/install.md).
 
 ## Packages
 
@@ -99,7 +98,7 @@ runtime (engine)  cognition (reasoning)  utilities (shared lib)
     safety (composite)     memory (composite)
 ```
 
-See [codemap.md](./codemap.md) for the full repo atlas and [CONTRIBUTING.md](./CONTRIBUTING.md) for the plugin SDK reference.
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for the plugin SDK reference and hook categories.
 
 ## License
 
