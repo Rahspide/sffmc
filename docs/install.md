@@ -1,10 +1,32 @@
 # Installing SFFMC
 
-SFFMC is a monorepo of OpenCode plugins installed as `file://` entries in
-`~/.config/opencode/opencode.json`. The one-liner below clones the repo and
-runs `sffmc init` to add the plugin paths automatically.
+SFFMC is a monorepo of OpenCode plugins. The recommended way to install
+is the `sffmc` CLI: it adds the plugins to `~/.config/opencode/opencode.json`
+automatically. For a one-line install, an `install.sh`/`install.ps1` script
+clones the repo and runs `sffmc init` for you.
 
-## Quick install
+## Quick install (npm, simplest)
+
+```bash
+npm install -g @sffmc/runtime @sffmc/cognition @sffmc/memory @sffmc/safety @sffmc/utilities
+```
+
+Then add to `~/.config/opencode/opencode.json`:
+
+```json
+{
+  "plugin": [
+    "@sffmc/safety",
+    "@sffmc/memory",
+    "@sffmc/runtime",
+    "@sffmc/cognition"
+  ]
+}
+```
+
+Restart OpenCode. Verify with `sffmc doctor`.
+
+## Alternative: one-liner install (clones repo, runs sffmc init)
 
 ### macOS / Linux
 
@@ -31,7 +53,7 @@ cd ~/.sffmc/plugins/sffmc
 1. Clones `https://github.com/Rahspide/sffmc.git` to `~/.sffmc/plugins/sffmc`
    (or `$SFFMC_INSTALL_DIR` if the env var is set).
 2. Runs `sffmc init`, which detects your `opencode.json`, backs it up, and
-   adds 4 `file://` entries for the installable plugins: 2 composites
+   adds 4 entries for the installable plugins: 2 composites
    (`safety`, `memory`) + 2 most-used standalones (`runtime`, `cognition`).
 3. Restart OpenCode. Done.
 
