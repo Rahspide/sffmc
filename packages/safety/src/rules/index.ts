@@ -8,10 +8,9 @@ import {
   type CompiledRule,
 } from "./rules";
 import { evaluate } from "./gate";
-import { type PluginContext, createLogger } from "@sffmc/utilities";
+import { type PluginContext, createLogger, configHome } from "@sffmc/utilities";
 import { existsSync } from "fs";
 import { resolve } from "path";
-import { homedir } from "os";
 
 const log = createLogger("rules");
 
@@ -54,7 +53,7 @@ interface PluginState {
 
 export const id = "@sffmc/safety"
 export const server = async (ctx: PluginContext) => {
-  const configPath = resolve(homedir(), ".config/SFFMC/rules.yaml");
+  const configPath = resolve(configHome(), "SFFMC/rules.yaml");
 
   const initialRules = loadRulesWithFallback(configPath);
 
@@ -72,7 +71,8 @@ export const server = async (ctx: PluginContext) => {
       const { rules: recompiled } = compileRules(newRules);
       state.rules = recompiled;
     });
-  } catch {
+  } catch (e) {
+    log.warn({ err: e, configPath }, "rules: watcher failed to start — using static rules only")
     // watcher failed to start — static rules only
   }
 
@@ -138,7 +138,8 @@ function loadRulesWithFallback(configPath: string): Rules {
       return parseRules(DEFAULT_RULES_YAML);
     }
     return fromDisk;
-  } catch {
+  } catch (e) {
+    log.warn({ err: e, configPath }, "rules: loadRulesWithFallback failed — using defaults")
     return parseRules(DEFAULT_RULES_YAML);
   }
 }
