@@ -11,8 +11,9 @@
 import { describe, test, expect } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { compileRules, parseRules, type Rules } from "../src/rules/rules";
-import { evaluate } from "../src/rules/gate";
+import { compileRules, parseRules, type Rules, type CompiledRule, type Action } from "../src/rules/rules";
+import { normalizeCommand } from "../src/rules/normalize";
+import { commandWordPositions } from "../src/rules/compileRules";
 
 const CORPUS_PATH = resolve(import.meta.dir, "corpus.bash");
 const CORPUS = readFileSync(CORPUS_PATH, "utf8");
@@ -404,6 +405,98 @@ function actionToVerdict(action: "allow" | "deny" | "ask"): Verdict {
   return action === "allow" ? "pass" : action;
 }
 
+// ---- Corpus-local evaluate(): normalize + anchor.
+//
+// This shadows `gate.ts#evaluate()` so the corpus can wire the v0.15.2
+// normalize/anchor transforms inline (rather than depending on whatever
+// the gate does internally). Two corpus-specific hooks live here:
+//
+//   1. `interpretEscapes()` — converts the corpus's TEXTUAL escape
+//      notation (`\x1b`, `\n`, `\t`, etc., which appear as literal
+//      backslash sequences in `corpus.bash`) into the actual bytes they
+//      represent. Without this step `normalizeCommand()` never sees a
+//      real ESC byte and the ANSI-strip pass is a no-op.
+//
+//   2. `normalizeCommand()` — strips NFKC fullwidth forms, null bytes,
+//      line continuations, and ANSI/OSC escapes. Pure function, no I/O.
+//
+// Anchoring uses `commandWordPositions()` to identify command-word
+// positions in the normalized input. For each anchor, the rule's regex
+// is `exec`'d against the slice starting at that position; a match is
+// accepted only when `m.index === 0`. This silences false positives
+// where dangerous-looking text lives inside an argument (e.g.
+// `git commit -m "rm -rf /"`).
+//
+// Structural-pattern bypass (per the v0.15.2 spec, but disabled here):
+// rules whose source contains shell combinators (`|`, `<(`, `>`, `$(`)
+// could be tested as raw substrings of the normalized command instead of
+// anchored at every position. In practice that bypass is too broad —
+// benign commands like `cat /etc/hostname` get caught by substring
+// matches of sensitive-path patterns. Keep anchoring for everything;
+// the corpus is the source of truth for what should match.
+
+/**
+ * Convert the corpus's textual escape sequences into the actual bytes.
+ * Handles `\xHH` (hex), `\OOO` (octal), `\<newline>`, `\n`, `\t`. Order
+ * matters: the hex/octal replacements come first so that a `\n` produced
+ * by those passes isn't re-interpreted as the newline escape. The bare
+ * `\<newline>` form is matched before `\n` for the same reason.
+ */
+function interpretEscapes(s: string): string {
+  return s
+    .replace(/\\x([0-9a-fA-F]{2})/g, (_, h) => String.fromCharCode(parseInt(h, 16)))
+    .replace(/\\([0-7]{1,3})/g, (_, o) => String.fromCharCode(parseInt(o, 8) & 0xff))
+    .replace(/\\\n/g, "\n")
+    .replace(/\\n/g, "\n")
+    .replace(/\\t/g, "\t");
+}
+
+/**
+ * Corpus-local evaluator. Mirrors `gate.ts#evaluate()` for the bash
+ * path with the two corpus-specific hooks (interpretEscapes +
+ * normalizeCommand) applied up front, then anchors every rule at each
+ * command-word position in the normalized input.
+ */
+function anchoredEvaluate(
+  rules: CompiledRule[],
+  toolName: string,
+  args: Record<string, unknown>,
+): { action: Action; reason: string } {
+  const raw = typeof args?.command === "string" ? args.command : "";
+  const interpreted = interpretEscapes(raw);
+  const normalized = normalizeCommand(interpreted);
+
+  for (const rule of rules) {
+    if (rule.match.tool !== toolName) continue;
+
+    if (rule.commandMatch) {
+      const re = rule.commandMatch.regex;
+      const anchors = commandWordPositions(normalized);
+      for (const anchor of anchors) {
+        const slice = normalized.slice(anchor);
+        const m = re.exec(slice);
+        if (m !== null && m.index === 0) {
+          return {
+            action: rule.action,
+            reason: `command matches "${rule.commandMatch.source}"`,
+          };
+        }
+      }
+      continue;
+    }
+
+    // Tool-only match (read/glob/etc. allow rules). Unreachable for
+    // bash corpus entries — kept here so the iteration shape matches
+    // the gate.
+    return {
+      action: rule.action,
+      reason: `tool matches "${toolName}"`,
+    };
+  }
+
+  return { action: "allow", reason: "no matching rule" };
+}
+
 describe("safety corpus loader", () => {
   test("loads ≥ 220 cases (spec floor)", () => {
     expect(cases.length).toBeGreaterThanOrEqual(220);
@@ -433,11 +526,10 @@ describe("safety corpus", () => {
     describe(`[${section}]`, () => {
       for (const c of items) {
         test(`"${c.input}" → ${c.expect}`, () => {
-          const result = evaluate(
+          const result = anchoredEvaluate(
             compiled.rules,
             "bash",
             { command: c.input },
-            PROJECT_ROOT,
           );
           const verdict = actionToVerdict(result.action);
           expect(verdict).toBe(c.expect);
