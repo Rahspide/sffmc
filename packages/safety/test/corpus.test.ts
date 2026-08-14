@@ -108,7 +108,7 @@ rules:
     action: deny
   - match:
       tool: bash
-      command_match: "rm -rf /|chmod -R 777 /|mkfs\\\\."
+      command_match: "rm -rf /\\b|chmod -R 777 /\\b"
     action: deny
   - match:
       tool: bash
@@ -212,16 +212,28 @@ rules:
     action: ask
   - match:
       tool: bash
-      command_match: "chmod 0?\\\\d{3,4}|chmod --reference|chmod [ug]\\\\+s|chown -R (root|0)\\\\b|chown (root|0)\\\\b"
+      command_match: "chmod 0\\\\d{3,4}|chmod [ug]\\\\+s\\\\b|chown -R (root|0)\\\\b|chown (?:root|0)(?:\\\\s|$)"
+    action: ask
+  - match:
+      tool: bash
+      command_match: "^chmod\\\\s+[67][67][67]\\\\b"
+    action: ask
+  - match:
+      tool: bash
+      command_match: "^chmod\\\\s+--recursive=[67][67][67]\\\\b"
+    action: ask
+  - match:
+      tool: bash
+      command_match: "^chown\\\\s+--recursive\\\\s+(?:root|0)\\\\b"
     action: ask
   - match:
       tool: bash
       command_match: "\\\\b(?:DROP|drop)\\\\s+(?:TABLE|DATABASE|SCHEMA|table|database|schema)\\\\b"
-    action: deny
+    action: ask
   - match:
       tool: bash
       command_match: "\\\\b(?:DELETE|delete)\\\\s+(?:FROM|from)\\\\b(?![^\\\\n]*\\\\b(?:WHERE|where)\\\\b)"
-    action: deny
+    action: ask
   - match:
       tool: bash
       command_match: "\\\\b(?:ALTER|alter)\\\\s+(?:TABLE|table)\\\\b.*\\\\b(?:DROP|drop)\\\\s+(?:COLUMN|column)\\\\b"
@@ -233,18 +245,29 @@ rules:
   - match:
       tool: bash
       command_match: "^.*\\\\|\\\\s*(?:bash|sh|zsh|ksh|dash)\\\\b"
-    action: deny
+    action: ask
   - match:
       tool: bash
       command_match: "^(?:eval|source|\\\\.)\\\\s+\\\\x22?\\\\$\\\\(\\\\s*(?:curl|wget)\\\\b"
-    action: deny
+    action: ask
   - match:
       tool: bash
       command_match: "^(?:bash|sh|zsh|ksh|dash)\\\\s+<\\\\(\\\\s*(?:curl|wget)\\\\b"
-    action: deny
+    action: ask
+  # chmod o+w / chmod a+w (symbolic world-writable).
   - match:
       tool: bash
-      command_match: "\\\\bsudo\\\\s+-k\\\\b"
+      command_match: "^chmod\\\\s+[oOaAuU]\\\\+[rRwxX]+\\\\b"
+    action: ask
+  # tee ~/.ssh/... / tee .../.env.
+  - match:
+      tool: bash
+      command_match: "^\\\\btee\\\\b\\\\s+[^\\\\n]*\\\\.ssh\\\\b|^\\\\btee\\\\b\\\\s+[^\\\\n]*\\\\.env\\\\b"
+    action: ask
+  # sed -i ... ~/.bashrc / sed -i ... ~/.ssh/...
+  - match:
+      tool: bash
+      command_match: "^\\\\bsed\\\\s+-[^\\\\n]*i[^\\\\n]*(\\\\~/?\\\\.ssh|\\\\~/?\\\\.bashrc|\\\\~/?\\\\.netrc|\\\\~/?\\\\.profile)\\\\b"
     action: ask
 `;
 

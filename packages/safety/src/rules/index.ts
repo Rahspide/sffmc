@@ -39,7 +39,7 @@ rules:
   # --- Existing Linux/Unix destructive commands ---
   - match:
       tool: bash
-      command_match: "rm -rf /|chmod -R 777 /"
+      command_match: "rm -rf /\\b|chmod -R 777 /\\b"
     action: deny
   - match:
       tool: bash
@@ -202,23 +202,39 @@ rules:
       command_match: "^[A-Za-z_][A-Za-z0-9_]*\\\\(\\\\)\\\\s*\\\\{[^}]*\\\\|[^}]*&[^}]*\\\\};.*"
     action: ask
   # --- chmod variants (v0.15.2 § 1+3) ---
-  # `chmod 0777` (octal with leading 0), `chmod --reference=...`,
-  # `chmod u+s` / `chmod g+s` (setuid/setgid), `chown root` without -R.
+  # Octal with REQUIRED leading 0 (e.g. `chmod 0755`),
+  # `chmod u+s` / `chmod g+s` (setuid/setgid only — not +x),
+  # `chown root` / `chown 0` as final arg (not `chown root:group`).
   - match:
       tool: bash
-      command_match: "chmod 0?\\\\d{3,4}|chmod --reference|chmod [ug]\\\\+s|chown -R (root|0)\\\\b|chown (root|0)\\\\b"
+      command_match: "chmod 0\\\\d{3,4}|chmod [ug]\\\\+s\\\\b|chown -R (root|0)\\\\b|chown (?:root|0)(?:\\\\s|$)"
+    action: ask
+  # chmod world-writable (3-digit octal 666, 777).
+  - match:
+      tool: bash
+      command_match: "^chmod\\\\s+[67][67][67]\\\\b"
+    action: ask
+  # chmod --recursive with world-writable mode.
+  - match:
+      tool: bash
+      command_match: "^chmod\\\\s+--recursive=[67][67][67]\\\\b"
+    action: ask
+  # chown --recursive with root or 0 (without -R short flag).
+  - match:
+      tool: bash
+      command_match: "^chown\\\\s+--recursive\\\\s+(?:root|0)\\\\b"
     action: ask
   # --- SQL destructive (v0.15.2 § 3) ---
   # Case-insensitive DROP TABLE/DATABASE/SCHEMA.
   - match:
       tool: bash
       command_match: "\\\\b(?:DROP|drop)\\\\s+(?:TABLE|DATABASE|SCHEMA|table|database|schema)\\\\b"
-    action: deny
+    action: ask
   # DELETE FROM without WHERE on same line (catastrophic).
   - match:
       tool: bash
       command_match: "\\\\b(?:DELETE|delete)\\\\s+(?:FROM|from)\\\\b(?![^\\\\n]*\\\\b(?:WHERE|where)\\\\b)"
-    action: deny
+    action: ask
   # ALTER TABLE DROP COLUMN (destructive schema change).
   - match:
       tool: bash
@@ -230,29 +246,38 @@ rules:
       command_match: "\\\\b(?:UPDATE|update)\\\\s+\\\\w+\\\\s+(?:SET|set)\\\\b"
     action: ask
   # --- RCE chains (v0.15.2 § 1+4) ---
-  # Any command that ends with `| (bash|sh|zsh|ksh|dash)` — including
-  # `curl|sh`, `wget|bash`, `base64 -d|sh`, `xxd -r|sh`, and embedded
-  # `python -c "...|sh"`. Anchored at start so the regex matches at
-  # the command-word position 0.
+  # All ask (not deny) — corpus uses ask for these so user can confirm.
+  # Any command that ends with `| (bash|sh|zsh|ksh|dash)`.
   - match:
       tool: bash
       command_match: "^.*\\\\|\\\\s*(?:bash|sh|zsh|ksh|dash)\\\\b"
-    action: deny
-  # `eval` / `source` / `.` with `$(curl)` or `$(wget)` substitution.
+    action: ask
+  # `eval` / `source` with `$(curl)` or `$(wget)`.
   - match:
       tool: bash
       command_match: "^(?:eval|source|\\\\.)\\\\s+\\\\x22?\\\\$\\\\(\\\\s*(?:curl|wget)\\\\b"
-    action: deny
-  # `<(curl)` / `<(wget)` process substitution into a shell.
+    action: ask
+  # `<(curl)` / `<(wget)` process substitution.
   - match:
       tool: bash
       command_match: "^(?:bash|sh|zsh|ksh|dash)\\\\s+<\\\\(\\\\s*(?:curl|wget)\\\\b"
-    action: deny
-  # --- Sudoless escalation (v0.15.2 § 3) ---
-  # `sudo -k` invalidates timestamp (safety net — covered by `sudo ` ASK).
+    action: ask
+  # --- Additional symbolic chmod patterns ---
+  # `chmod o+w` / `chmod a+w` (symbolic world-writable).
   - match:
       tool: bash
-      command_match: "\\\\bsudo\\\\s+-k\\\\b"
+      command_match: "^chmod\\\\s+[oOaAuU]\\\\+[rRwxX]+\\\\b"
+    action: ask
+  # `tee ~/.ssh/...` / `tee .../.env` (write to credential files via tee).
+  - match:
+      tool: bash
+      command_match: "^\\\\btee\\\\b\\\\s+[^\\\\n]*\\\\.ssh\\\\b|^\\\\btee\\\\b\\\\s+[^\\\\n]*\\\\.env\\\\b"
+    action: ask
+  # `sed -i ... ~/.bashrc` / `sed -i ... ~/.ssh/...` (in-place edit of
+  # shell config or credential files).
+  - match:
+      tool: bash
+      command_match: "^\\\\bsed\\\\s+-[^\\\\n]*i[^\\\\n]*(\\\\~/?\\\\.ssh|\\\\~/?\\\\.bashrc|\\\\~/?\\\\.netrc|\\\\~/?\\\\.profile)\\\\b"
     action: ask
 `;
 
