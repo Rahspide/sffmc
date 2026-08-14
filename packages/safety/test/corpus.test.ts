@@ -269,6 +269,40 @@ rules:
       tool: bash
       command_match: "^\\\\bsed\\\\s+-[^\\\\n]*i[^\\\\n]*(\\\\~/?\\\\.ssh|\\\\~/?\\\\.bashrc|\\\\~/?\\\\.netrc|\\\\~/?\\\\.profile)\\\\b"
     action: ask
+  # sed -i /etc/passwd / shadow / sudoers.
+  - match:
+      tool: bash
+      command_match: "^\\\\bsed\\\\s+-[^\\\\n]*i[^\\\\n]*/etc/(passwd|shadow|sudoers)\\\\b"
+    action: ask
+  # rm -rf on system top-level directories.
+  - match:
+      tool: bash
+      command_match: "^rm\\\\s+-r[f]?\\\\s+/etc\\\\b"
+    action: deny
+  - match:
+      tool: bash
+      command_match: "^rm\\\\s+-r[f]?\\\\s+/(home|root|usr|var|bin|sbin|boot|lib|opt)\\\\b"
+    action: deny
+  # rm -rf with quoted home variable forms.
+  - match:
+      tool: bash
+      command_match: "^rm\\\\s+-r[f]?\\\\s+\\\"\\\\$\\\\{?HOME\\\\}?\\\""
+    action: deny
+  # rm -rf with quoted root slash forms.
+  - match:
+      tool: bash
+      command_match: "^rm\\\\s+-r[f]?\\\\s+\\\"/\\\"|^rm\\\\s+-r[f]?\\\\s+\\\"//\\\""
+    action: deny
+  # chmod -R 777 on /etc / /home / /root etc.
+  - match:
+      tool: bash
+      command_match: "^chmod\\\\s+-R\\\\s+[67][67][67]\\\\s+/etc\\\\b"
+    action: deny
+  # git push --force-with-lease (safer variant).
+  - match:
+      tool: bash
+      command_match: "^git\\\\s+push\\\\b[^\\\\n]*--force-with-lease\\\\b"
+    action: allow
 `;
 
 const rules: Rules = parseRules(DEFAULT_RULES_YAML);

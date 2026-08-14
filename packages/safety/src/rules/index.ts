@@ -273,12 +273,51 @@ rules:
       tool: bash
       command_match: "^\\\\btee\\\\b\\\\s+[^\\\\n]*\\\\.ssh\\\\b|^\\\\btee\\\\b\\\\s+[^\\\\n]*\\\\.env\\\\b"
     action: ask
-  # `sed -i ... ~/.bashrc` / `sed -i ... ~/.ssh/...` (in-place edit of
+  # sed -i ... ~/.bashrc / sed -i ... ~/.ssh/... (in-place edit of
   # shell config or credential files).
   - match:
       tool: bash
       command_match: "^\\\\bsed\\\\s+-[^\\\\n]*i[^\\\\n]*(\\\\~/?\\\\.ssh|\\\\~/?\\\\.bashrc|\\\\~/?\\\\.netrc|\\\\~/?\\\\.profile)\\\\b"
     action: ask
+  # sed -i /etc/passwd / shadow / sudoers (system credential file edit).
+  - match:
+      tool: bash
+      command_match: "^\\\\bsed\\\\s+-[^\\\\n]*i[^\\\\n]*/etc/(passwd|shadow|sudoers)\\\\b"
+    action: ask
+  # rm -rf on system top-level directories (deny — recovery requires boot media).
+  - match:
+      tool: bash
+      command_match: "^rm\\\\s+-r[f]?\\\\s+/etc\\\\b"
+    action: deny
+  - match:
+      tool: bash
+      command_match: "^rm\\\\s+-r[f]?\\\\s+/(home|root|usr|var|bin|sbin|boot|lib|opt)\\\\b"
+    action: deny
+  # rm -rf with quoted home variable forms.
+  - match:
+      tool: bash
+      command_match: "^rm\\\\s+-r[f]?\\\\s+\\\"\\\\$\\\\{?HOME\\\\}?\\\""
+    action: deny
+  # rm -rf with quoted root slash forms.
+  - match:
+      tool: bash
+      command_match: "^rm\\\\s+-r[f]?\\\\s+\\\"/\\\"|^rm\\\\s+-r[f]?\\\\s+\\\"//\\\""
+    action: deny
+  # chmod -R 777 on /etc / /home / /root etc (recursive world-writable on system paths).
+  - match:
+      tool: bash
+      command_match: "^chmod\\\\s+-R\\\\s+[67][67][67]\\\\s+/etc\\\\b"
+    action: deny
+  # dd with of=<block-device> (writes to disk, dangerous direction).
+  - match:
+      tool: bash
+      command_match: "^dd\\\\b[^\\\\n]*\\\\bof=/dev/(?:sd|nvme|hd|mmcblk|vd|xvd)[a-z0-9]+\\\\b"
+    action: ask
+  # git push --force-with-lease is the safer variant — don't lump with --force.
+  - match:
+      tool: bash
+      command_match: "^git\\\\s+push\\\\b[^\\\\n]*--force-with-lease\\\\b"
+    action: allow
 `;
 
 interface PluginState {
