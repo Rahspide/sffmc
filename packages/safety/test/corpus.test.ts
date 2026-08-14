@@ -303,6 +303,98 @@ rules:
       tool: bash
       command_match: "^git\\\\s+push\\\\b[^\\\\n]*--force-with-lease\\\\b"
     action: allow
+  # === v0.15.2 corpus gap closure — Obfuscation wrappers (deny, BEFORE ASK) ===
+  # Mirror of packages/safety/src/rules/index.ts — must match exactly.
+  # Wrappers that execute their argument or substitution. The corpus treats
+  # the obfuscation attempt itself as the threat.
+  # bash -c wrapper (deny).
+  - match:
+      tool: bash
+      command_match: "^(?:bash|sh|zsh|ksh|dash)\\\\s+-[a-zA-Z]*c\\\\b"
+    action: deny
+  # xargs wrapper (deny).
+  - match:
+      tool: bash
+      command_match: "^xargs\\\\b"
+    action: deny
+  # env with $() (deny).
+  - match:
+      tool: bash
+      command_match: "^env\\\\b\\\\s+[^\\\\n]*\\\\$\\\\("
+    action: deny
+  # bare $() (deny).
+  - match:
+      tool: bash
+      command_match: "^\\\\$\\\\("
+    action: deny
+  # eval (deny).
+  - match:
+      tool: bash
+      command_match: "^eval\\\\s+"
+    action: deny
+  # ANSI-C-quoted command name with -rf / (deny).
+  - match:
+      tool: bash
+      command_match: "^\\\\$'[a-zA-Z]+.*-rf\\\\s+/"
+    action: deny
+  # printf with quoted rm -rf / (deny).
+  - match:
+      tool: bash
+      command_match: "^printf\\\\s+['\\\"][^'\\\"]*rm\\\\s+-rf\\\\s+/['\\\"]"
+    action: deny
+  # variable assignment + execution (deny).
+  - match:
+      tool: bash
+      command_match: "^[a-zA-Z_]\\\\w*=\\\\$'[^']*rm[^']*'\\\\s*;\\\\s*\\\\$\\\\w"
+    action: deny
+  # alias + execution (deny).
+  - match:
+      tool: bash
+      command_match: "^alias\\\\s+\\\\w+=.*;\\\\s*\\\\w+\\\\s+-rf\\\\s+/"
+    action: deny
+  # sudo with NUL-collapsed rm (deny).
+  - match:
+      tool: bash
+      command_match: "^sudo.*rm\\\\s+-rf\\\\s+/"
+    action: deny
+  # rm -rf /tmp/* (ask — BEFORE bundled DENY).
+  - match:
+      tool: bash
+      command_match: "^rm\\\\s+-rf\\\\s+/tmp/"
+    action: ask
+  # case-insensitive + whitespace-flexible rm -rf / (deny).
+  - match:
+      tool: bash
+      command_match: "^(?:rm|RM)\\\\s+-\\\\s*(?:rf|RF)\\\\s+/"
+    action: deny
+  # rmdash (ask).
+  - match:
+      tool: bash
+      command_match: "^rmdash\\\\b"
+    action: ask
+  # === v0.15.2 corpus gap closure — dd allow without block device ===
+  # Mirror of packages/safety/src/rules/index.ts — must match exactly.
+  # Allow dd when the command does NOT reference any block device path.
+  - match:
+      tool: bash
+      command_match: "^dd\\\\b(?!.*\\\\b/dev/(?:sd|nvme|hd|mmcblk|vd|xvd))"
+    action: allow
+  # === v0.15.2 corpus gap closure — defensive wrappers ===
+  # env $(...) /bin/sh — env runs substitution then /bin/sh.
+  - match:
+      tool: bash
+      command_match: "^env\\\\b[^\\\\n]*\\\\$\\\\([^\\\\n]*\\\\)[^\\\\n]*[/]bin[/]sh\\\\b"
+    action: deny
+  # sudo -c wrapper (sudo runs a command).
+  - match:
+      tool: bash
+      command_match: "^sudo\\\\s+-[a-zA-Z]*c\\\\b"
+    action: ask
+  # script -c wrapper (script records a session).
+  - match:
+      tool: bash
+      command_match: "^script\\\\s+-[a-zA-Z]*c\\\\b"
+    action: ask
 `;
 
 const rules: Rules = parseRules(DEFAULT_RULES_YAML);
