@@ -36,13 +36,223 @@ rules:
       tool: edit
       path_outside: PROJECT_ROOT
     action: deny
+  # --- Existing Linux/Unix destructive commands ---
   - match:
       tool: bash
-      command_match: "rm -rf /|chmod -R 777 /|mkfs\\\\."
+      command_match: "rm -rf /|chmod -R 777 /"
     action: deny
   - match:
       tool: bash
       command_match: "rm -rf|chmod 777|chmod -R|dd if=|mkfs|DROP TABLE|TRUNCATE|git push --force|git reset --hard|>|sudo "
+    action: ask
+  # --- Windows coverage (v0.15.2 § 2 — Subagent B) ---
+  # cmd /c del / cmd /k rmdir / cmd /c erase — destructive cmd.exe invocations.
+  # Anchored on \\bcmd(.exe)? followed by /c|/k and then a destructive verb.
+  - match:
+      tool: bash
+      command_match: "\\\\bcmd(?:\\\\.exe)?\\\\s+/(?:c|k)\\\\b[^\\\\n]*\\\\b(?:del|erase|rd|rmdir|deltree)\\\\b"
+    action: ask
+  # PowerShell Remove-Item aliases (Remove-Item|rm|del|ri|erase|rd|rmdir) with
+  # a recurse flag (-Recurse or short -r), in either flag-then-cmdlet or
+  # cmdlet-then-flag order. Matches ri -r -fo, del -Recurse -Force, etc.
+  - match:
+      tool: bash
+      command_match: "(?:\\\\b(?:Remove-Item|rm|del|ri|erase|rd|rmdir)\\\\b[^\\\\n]*-(?:[rR]ecurse|[rR]\\\\b)|-(?:[rR]ecurse|[rR]\\\\b)[^\\\\n]*\\\\b(?:Remove-Item|rm|del|ri|erase|rd|rmdir)\\\\b)"
+    action: ask
+  # PowerShell destructive cmdlets against a Windows drive-letter path.
+  # Plain rm C:\\temp, rmdir C:\\Users, Remove-Item C:\\foo -- no
+  # recurse flag needed because the drive letter makes the target obvious.
+  - match:
+      tool: bash
+      command_match: "\\\\b(?:rm|rmdir|Remove-Item)\\\\b[^\\\\n]*\\\\b[a-zA-Z]:"
+    action: ask
+  # icacls <path> /grant <principal> — always a permission change.
+  # Principal list is irrelevant; /grant is the destructive primitive.
+  - match:
+      tool: bash
+      command_match: "icacls\\\\b[^\\\\n]*\\\\s/grant\\\\b"
+    action: ask
+  # taskkill /F — forced termination (matches both /F and /f, with or
+  # without /IM, /PID, /T — the force flag is the trigger).
+  - match:
+      tool: bash
+      command_match: "taskkill\\\\b[^\\\\n]*\\\\s+/[fF]\\\\b"
+    action: ask
+  # reg(.exe)? delete — registry key deletion (anchored on \\breg + delete).
+  - match:
+      tool: bash
+      command_match: "\\\\breg(?:\\\\.exe)?\\\\s+delete\\\\b"
+    action: ask
+  # format <drive> / format.com <drive> — drive formatting. ASK rather
+  # than DENY because legitimate use (USB stick reformat) is plausible
+  # and the existing mkfs rule already ASK-classes for the same reason.
+  - match:
+      tool: bash
+      command_match: "format(?:\\\\.com)?\\\\s+[a-zA-Z]:"
+    action: ask
+  # cipher /w:<path> — secure-wipe free space on a volume.
+  - match:
+      tool: bash
+      command_match: "cipher\\\\s+/w\\\\b"
+    action: ask
+  # vssadmin / wbadmin delete — shadow copy / backup catalog deletion
+  # (a common ransomware step before encryption). Case-insensitive on the
+  # delete verb because Windows tools accept /Delete, /DELETE, /delete.
+  - match:
+      tool: bash
+      command_match: "\\\\b(?:vssadmin|wbadmin)\\\\b[^\\\\n]*\\\\b[dD]elete\\\\b"
+    action: ask
+  # PowerShell -EncodedCommand / -enc / -e — base64-obfuscated payload.
+  # The substring before any of these flags is the indicator; matched
+  # as three alternatives to keep star-height ≤ 1 (safe-regex compliant).
+  - match:
+      tool: bash
+      command_match: "(?:\\\\b(?:powershell|pwsh)\\\\b[^\\\\n]*-[eE]\\\\b|\\\\b(?:powershell|pwsh)\\\\b[^\\\\n]*-[eE][nN][cC]\\\\b|\\\\b(?:powershell|pwsh)\\\\b[^\\\\n]*-[eE]ncoded[cC]ommand\\\\b)"
+    action: ask
+  # PowerShell Format-Volume / Clear-Disk — disk-level destruction.
+  - match:
+      tool: bash
+      command_match: "\\\\b(?:format-volume|clear-disk|Format-Volume|Clear-Disk)\\\\b"
+    action: ask
+  # --- Redirect-target rules (v0.15.2 anchor extension) ---
+  # Watch out: the generic `>` substring in the rule above is anchored
+  # to command-word positions, so it doesn't catch `echo data > /dev/sda`
+  # (the `>` is at position 10, the redirect target at position 12).
+  # These two rules anchor on the redirect-target position so they
+  # fire correctly under the v0.15.2 anchor logic.
+  # Redirect to /dev/sd* / /dev/nvme* / /dev/mmcblk* / /dev/vd* / /dev/xvd* —
+  # raw block device writes (mirror Hermes hardline). ask (not deny) so
+  # legitimate USB-stick reformat still works through the confirmation
+  # handler, matching the existing `mkfs` rule's posture.
+  - match:
+      tool: bash
+      command_match: "/dev/(?:sd|nvme|hd|mmcblk|vd|xvd)[a-z0-9]+"
+    action: ask
+  # Redirect into sensitive system paths or credential files. The list
+  # mirrors the Hermes sensitivity list — /etc/*, /root/*, /home/*,
+  # /var/*, /sys/*, ~/.ssh/*, .env, config.yaml, .bashrc, .netrc.
+  # The redirect target is always a command-word position when preceded
+  # by `>`/`>>`. The pattern uses `~?` to handle home-relative paths
+  # (`~/.netrc` has 8 chars: `~ + / + .netrc` — the explicit `/` is
+  # required because `~?\.netrc` does NOT match `~/.netrc` since the
+  # `/` is between `~` and `.netrc`).
+  - match:
+      tool: bash
+      command_match: "~?(?:/\\.ssh|/\\.bashrc|/\\.netrc|/\\.profile|/\\.bash_history)|/(?:etc|root|home|var|sys)/|\\.env\\b|config\\.yaml\\b"
+    action: ask
+  # --- Git destructive (additional cases beyond the bundled alternation) ---
+  # Catches edge cases like `git push -f`, `git clean -f`, branch/stash/tag
+  # destruction, and reflog expiry. All ask (recoverable via user
+  # confirmation). Literal alternation — passes safe-regex.
+  - match:
+      tool: bash
+      command_match: "git push -f|git clean -f|git branch -D|git branch --delete --force|git stash drop|git stash clear|git tag -d|git remote remove|git reflog expire"
+    action: ask
+  # --- Process termination (kill all) ---
+  # `kill -9 -1` / `kill -9 0` — SIGKILL all processes / process group. Ask (recoverable).
+  - match:
+      tool: bash
+      command_match: "^kill -9 -?(?:1|0)(?=[ \\\\t]|$)"
+    action: ask
+  # `kill -1` — SIGTERM to all processes (init group). Ask.
+  - match:
+      tool: bash
+      command_match: "^kill -1(?=[ \\\\t]|$)"
+    action: ask
+  # `pkill -9` — SIGKILL via pgrep-style tool. Ask.
+  - match:
+      tool: bash
+      command_match: "^pkill -9(?=[ \\\\t]|$)"
+    action: ask
+  # `killall -9` / `killall -KILL` / `killall -SIGKILL` — SIGKILL by name. Ask.
+  - match:
+      tool: bash
+      command_match: "^killall -(?:9|KILL|SIGKILL)(?=[ \\\\t]|$)"
+    action: ask
+  # `kill -KILL` / `kill -SIGKILL` (without -9 short form). Ask.
+  - match:
+      tool: bash
+      command_match: "^kill -(?:KILL|SIGKILL)(?=[ \\\\t]|$)"
+    action: ask
+  # --- System shutdown ---
+  # `shutdown` / `poweroff` / `halt` — ask (recoverable; user can confirm reboot).
+  - match:
+      tool: bash
+      command_match: "^(?:shutdown|poweroff|halt)(?=[ \\\\t]|$)"
+    action: ask
+  # `reboot` — ask.
+  - match:
+      tool: bash
+      command_match: "^reboot(?=[ \\\\t]|$)"
+    action: ask
+  # --- Service management ---
+  # `systemctl stop|restart|disable|mask` — recoverable via user confirmation.
+  - match:
+      tool: bash
+      command_match: "^systemctl (?:stop|restart|disable|mask)(?=[ \\\\t]|$)"
+    action: ask
+  # --- Fork bomb ---
+  # Classic `:` fork bomb + while-loop variant + named function-form fork bombs.
+  - match:
+      tool: bash
+      command_match: ":(){ :|:& };:|while true; do fork & done"
+    action: ask
+  - match:
+      tool: bash
+      command_match: "^[A-Za-z_][A-Za-z0-9_]*\\\\(\\\\)\\\\s*\\\\{[^}]*\\\\|[^}]*&[^}]*\\\\};.*"
+    action: ask
+  # --- chmod variants (v0.15.2 § 1+3) ---
+  # `chmod 0777` (octal with leading 0), `chmod --reference=...`,
+  # `chmod u+s` / `chmod g+s` (setuid/setgid), `chown root` without -R.
+  - match:
+      tool: bash
+      command_match: "chmod 0?\\\\d{3,4}|chmod --reference|chmod [ug]\\\\+s|chown -R (root|0)\\\\b|chown (root|0)\\\\b"
+    action: ask
+  # --- SQL destructive (v0.15.2 § 3) ---
+  # Case-insensitive DROP TABLE/DATABASE/SCHEMA.
+  - match:
+      tool: bash
+      command_match: "\\\\b(?:DROP|drop)\\\\s+(?:TABLE|DATABASE|SCHEMA|table|database|schema)\\\\b"
+    action: deny
+  # DELETE FROM without WHERE on same line (catastrophic).
+  - match:
+      tool: bash
+      command_match: "\\\\b(?:DELETE|delete)\\\\s+(?:FROM|from)\\\\b(?![^\\\\n]*\\\\b(?:WHERE|where)\\\\b)"
+    action: deny
+  # ALTER TABLE DROP COLUMN (destructive schema change).
+  - match:
+      tool: bash
+      command_match: "\\\\b(?:ALTER|alter)\\\\s+(?:TABLE|table)\\\\b.*\\\\b(?:DROP|drop)\\\\s+(?:COLUMN|column)\\\\b"
+    action: ask
+  # UPDATE ... SET (mass update).
+  - match:
+      tool: bash
+      command_match: "\\\\b(?:UPDATE|update)\\\\s+\\\\w+\\\\s+(?:SET|set)\\\\b"
+    action: ask
+  # --- RCE chains (v0.15.2 § 1+4) ---
+  # Any command that ends with `| (bash|sh|zsh|ksh|dash)` — including
+  # `curl|sh`, `wget|bash`, `base64 -d|sh`, `xxd -r|sh`, and embedded
+  # `python -c "...|sh"`. Anchored at start so the regex matches at
+  # the command-word position 0.
+  - match:
+      tool: bash
+      command_match: "^.*\\\\|\\\\s*(?:bash|sh|zsh|ksh|dash)\\\\b"
+    action: deny
+  # `eval` / `source` / `.` with `$(curl)` or `$(wget)` substitution.
+  - match:
+      tool: bash
+      command_match: "^(?:eval|source|\\\\.)\\\\s+\\\\x22?\\\\$\\\\(\\\\s*(?:curl|wget)\\\\b"
+    action: deny
+  # `<(curl)` / `<(wget)` process substitution into a shell.
+  - match:
+      tool: bash
+      command_match: "^(?:bash|sh|zsh|ksh|dash)\\\\s+<\\\\(\\\\s*(?:curl|wget)\\\\b"
+    action: deny
+  # --- Sudoless escalation (v0.15.2 § 3) ---
+  # `sudo -k` invalidates timestamp (safety net — covered by `sudo ` ASK).
+  - match:
+      tool: bash
+      command_match: "\\\\bsudo\\\\s+-k\\\\b"
     action: ask
 `;
 
