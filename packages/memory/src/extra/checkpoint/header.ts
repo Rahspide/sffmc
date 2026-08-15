@@ -380,7 +380,8 @@ function migrateV1ToV2InPlace(
 function readV1BodyLines(raw: string): ToolCall[] {
   const calls: ToolCall[] = [];
   const lines = raw.split("\n");
-  for (const line of lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
     const trimmed = line.trim();
     if (!trimmed) continue;
     try {

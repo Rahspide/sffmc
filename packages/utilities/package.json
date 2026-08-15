@@ -1,6 +1,6 @@
 {
   "name": "@sffmc/utilities",
-  "version": "0.16.1",
+  "version": "0.16.2",
   "category": "sffmc-original",
   "type": "module",
   "main": "src/index.ts",
@@ -28,7 +28,7 @@
     "package.json",
     "src/**/*.ts"
   ],
-  "description": "Shared SDK library for SFFMC plugins \u2014 loadConfig, mergeHooks, EventBus, FsOps, redactSecrets. Not a plugin entry; consumed via workspace:* by the other 4 packages.",
+  "description": "Shared SDK library for SFFMC plugins — loadConfig, mergeHooks, EventBus, FsOps, redactSecrets. Not a plugin entry; consumed via workspace:* by the other 4 packages.",
   "keywords": [
     "sffmc",
     "opencode",

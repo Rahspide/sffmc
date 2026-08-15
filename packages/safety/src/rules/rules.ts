@@ -20,6 +20,21 @@ export interface RuleMatch {
   tool: string;
   command_match?: string;
   path_outside?: string;
+  /**
+   * Which form of the bash command this rule is tested against.
+   *
+   * - `normalized` (default): the command after `normalizeCommand()` —
+   *   NFKC-folded, ANSI/null/line-continuation stripped. Use this when
+   *   the rule cares about WHAT the shell will execute.
+   * - `raw`: the command exactly as received. Use this when the rule
+   *   cares about HOW the payload was encoded — e.g. distinguishing an
+   *   ANSI-obfuscated `printf` (deny) from a NUL-obfuscated one (ask),
+   *   which normalization erases by design.
+   *
+   * Raw-phase rules are still anchored (`anchoredTest`) on the raw
+   * string, so obfuscation hidden in an argument does not fire them.
+   */
+  phase?: "raw" | "normalized";
 }
 
 export interface Rule {
@@ -45,6 +60,8 @@ export interface CompiledRule {
     /** Original pattern string from YAML — used in the `reason` message. */
     source: string;
     regex: RegExp;
+    /** Matching phase — mirrored from `RuleMatch.phase` (default normalized). */
+    phase?: "raw" | "normalized";
   };
 }
 
@@ -76,7 +93,11 @@ export function compileRules(rawRules: Rules): {
     rules.push({
       match: rule.match,
       action: rule.action,
-      commandMatch: { source: patternSource, regex: new RegExp(patternSource) },
+      commandMatch: {
+        source: patternSource,
+        regex: new RegExp(patternSource),
+        phase: rule.match.phase === "raw" ? "raw" : "normalized",
+      },
     });
   }
   return { rules, errors };

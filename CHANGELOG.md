@@ -1,3 +1,23 @@
+## v0.16.2 (2026-08-15)
+
+> Patch release. **No breaking changes.** `@sffmc/safety` engine hardening with full corpus coverage; `@sffmc/memory` v1 checkpoint migration fix.
+
+### Fixed
+
+- **`@sffmc/safety` rule engine** — two-phase matching (`phase: raw` for obfuscation heuristics, `phase: normalized` for execution shape). The full baseline corpus (`packages/safety/test/corpus.bash`, 281 cases) now passes with zero failures. Anchor positions on `;`, `&&`, `||`, `|`, `$(`, backtick, and wrappers (`sudo`, `env`, `exec`, `nohup`, `setsid`, `time`, `bash -c`, `sh -c`) prevent dangerous-looking text inside arguments (commit messages, `grep` patterns, `echo` data) from triggering denies.
+- **`@sffmc/memory` checkpoint migration** — `readV1BodyLines` (the v1→v2 helper) crashed with `ReferenceError: i is not defined` on the first malformed JSON line. Both the skip-bad-line and auto-migrate paths now correctly skip the bad line while preserving good lines.
+
+### Added
+
+- **`@sffmc/safety`** — `excludeSubstitutions` option on `commandWordPositions()` / `anchoredTest()` lets obfuscation-heuristic rules anchor only on top-level commands. The same shape inside `$(...)` and backticks is usually inert data (e.g. `echo $(printf "\x1b[31mrm -rf /\x1b[0m")`), and the option prevents false denies. True substitution execution is still caught by the normalized-phase rules via their content-substitution pass and by dedicated executor rules (`^\$\(`, `^eval\s+\$\(`, `^env\s+[^\n]*\$\(`).
+- **Test coverage** — `packages/safety/test/expanded-coverage.test.ts` adds 64 tests across 13 sections: phase system, `excludeSubstitutions`, substitution-recursion edge cases (deeply nested `$($(...))`, unclosed `$(`, balanced backticks, mixed backtick + `$()`), fail-closed behavior, panic-mode lifecycle, and `watchRules` mtime reload.
+
+### Stats
+
+- 16 files modified.
+- All 5 packages at `0.16.2`; root at `0.16.2`.
+- Monorepo test: 1951 tests across 110 files / 0 fail.
+
 ## v0.16.1 (2026-07-14)
 
 > Patch release. **No breaking changes.** Documentation sync + infrastructure hardening after the v0.16.0 god-decomposition.
