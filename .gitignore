@@ -36,3 +36,11 @@ dependencies/
 /*handoff*.md
 /*HANDOFF*.md
 /NEW-CHAT-PROMPT.md
+
+# Release-process scratch (patterns, agents, drafts) -- never tracked.
+# The umbrella `.sffmc/` line above already covers these; explicit
+# entries document intent for reviewers reading .gitignore.
+/.sffmc/patterns/
+/.sffmc/agents/
+/.sffmc/releases/
+/.sffmc/workflows/
