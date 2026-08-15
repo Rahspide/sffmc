@@ -164,7 +164,7 @@
 #### Дрейф документации
 
 - **`docs/dynamic-workflow.md`** - «12 hours wall-clock» → «1 hour wall-clock» (×3 ссылки; было снижение Manriel v0.12.1, не дошедшее до доков). «Direct MCP bindings planned» → «available since v0.14.0» (было ложью, mcp.list()/mcp.call() отгружены в v0.14.0).
-- **`bin/sffmc` (bash) help-текст обновлён** - «13 packages / 13-check diagnostic» → «5 packages / 9-check diagnostic» (v0.15.1 фиксил только PowerShell). Описание `--minimal`: «3 composite packages» → «4 packages (2 composites + 2 most-used standalones)».
+- **`bin/sffmc` (bash) help-текст обновлён** - «13 packages / 13-check diagnostic» → «5 packages / 9-check diagnostic» (v0.15.1 фиксил только PowerShell). Описание `—minimal`: «3 composite packages» → «4 packages (2 composites + 2 most-used standalones)».
 - **`CONTRIBUTING.md`** - «v0.15.1 is the current release» → «v0.15.3 is the current release».
 - **`docs/install.md`** - `SFFMC_VERSION=v0.15.0` (×2) → `SFFMC_VERSION=v0.15.3`.
 - **`CHANGELOG.md`** - устаревшие ссылки «v0.14.7» (×2) → «v0.14.9» (v0.14.7 никогда не выходил; auto-миграция отгружена в v0.14.9).
@@ -197,7 +197,7 @@
 
 ### Критично
 
-- **`bin/sffmc.ps1`** - PowerShell CLI с v0.15.0 был сломан: `PLUGIN_DIRS` содержал 13 путей к удалённым пакетам. `sffmc init --minimal` тихо пропускал `agentic` warning'ом и регистрировал только 2 из 4 валидных плагинов. PLUGIN_DIRS сокращён до 4 валидных плагинов, PKG_MAP обновлён, help text исправлен (5 packages / 9-check diagnostic).
+- **`bin/sffmc.ps1`** - PowerShell CLI с v0.15.0 был сломан: `PLUGIN_DIRS` содержал 13 путей к удалённым пакетам. `sffmc init —minimal` тихо пропускал `agentic` warning'ом и регистрировал только 2 из 4 валидных плагинов. PLUGIN_DIRS сокращён до 4 валидных плагинов, PKG_MAP обновлён, help text исправлен (5 packages / 9-check diagnostic).
 
 ### Исправлено
 
@@ -265,7 +265,7 @@ v1 в v2 - односторонняя. После того как файл ст�
 Бенчмарки (bun 1.3.14, `flushThreshold = 50` по умолчанию):
 
 | Размер буфера | Пропускная способность | Размер файла |
-|---|---|---|
+|—-|—-|—-|
 | 10 вызовов | ~10k ops/sec | 1062 Б |
 | 100 вызовов | ~130k ops/sec | 9882 Б |
 | 1000 вызовов | ~350k ops/sec | 100782 Б |
@@ -408,7 +408,7 @@ Hotfix: наблюдаемость автоматического cap'а + ре�
 - Рефакторинг схемы, объединённый хелпер редактирования.
 - Дедлайн песочницы grace-период 12 часов → 1 час (риск регрессии; требует хука в AGENTS.md).
 
----
+—-
 
 ## v0.12.0 (2026-06-18)
 
@@ -524,7 +524,7 @@ max-mode и workflow переведены в `@sffmc/shared`. Без измен�
 ### Добавлено
 
 - **Установка одной строкой**: `curl -fsSL .../install.sh | sh` (Linux/macOS) и `irm .../install.ps1 | iex` (Windows). Клонирует в `~/.sffmc/plugins/sffmc` и автоматически запускает init.
-- **CLI `sffmc`**: 6 подкоманд - `init` (авто-правка `opencode.json` с `--minimal|--all|--only`), `update`, `uninstall`, `doctor` (13-check диагностика), `path`, `help`.
+- **CLI `sffmc`**: 6 подкоманд - `init` (авто-правка `opencode.json` с `—minimal|—all|—only`), `update`, `uninstall`, `doctor` (13-check диагностика), `path`, `help`.
 - `docs/install.md`: полное руководство по установке с troubleshooting.
 - README Quick start заменён на одно-строчную установку.
 
@@ -553,7 +553,7 @@ irm https://raw.githubusercontent.com/Rahspide/sffmc/main/install.ps1 | iex
 
 # Затем
 sffmc init              # 3 композита (по умолчанию)
-sffmc init --all        # все 13 пакетов
+sffmc init —all        # все 13 пакетов
 sffmc doctor            # 13-check диагностика
 ```
 
@@ -601,7 +601,7 @@ sffmc doctor            # 13-check диагностика
 свои подфункции в единую точку входа OpenCode-плагина.
 
 | Композит | Подфункции | Хуки | Инструменты | Новые навыки |
-|---|---|---|---|---|
+|—-|—-|—-|—-|—-|
 | `@sffmc/safety` | watchdog, rules, auto-max, eos-stripper, log-whitelist | 9 ключей | 0 | 3 |
 | `@sffmc/memory` | memory-core, checkpoint, judge, dream | 5 ключей | 3 (extra_*) | 4 |
 | `@sffmc/agentic` | max-mode, workflow, compose, health | 5 ключей | 3 | 5 |
@@ -798,7 +798,7 @@ judge_auto: false     # авто-judge по маркерам в сообщени
 ### Объём документации по плагинам (в словах)
 
 | Плагин | Пакет | src | Итого |
-|---|---|---|---|
+|—-|—-|—-|—-|
 | memory | 954 | 1187 | 2141 |
 | rules | 585 | 730 | 1315 |
 | watchdog | 535 | 714 | 1249 |
@@ -823,10 +823,10 @@ judge_auto: false     # авто-judge по маркерам в сообщени
 
 ### Добавлено
 
-- **Pre-commit хук** (`.git/hooks/pre-commit`): запускает `bun test` + typecheck + аудит load-order + health-чек. Обход: `git commit --no-verify`.
+- **Pre-commit хук** (`.git/hooks/pre-commit`): запускает `bun test` + typecheck + аудит load-order + health-чек. Обход: `git commit —no-verify`.
 - **`bun run test:watch`**: перезапускает все тесты на каждое сохранение `.ts`
 - **`scripts/run-health.ts`**: CLI-скрипт для вызова `@sffmc/health`
-- **`bun run typecheck`**: теперь использует `bun build --no-bundle` (нативно для Bun, без внешнего `tsc`)
+- **`bun run typecheck`**: теперь использует `bun build —no-bundle` (нативно для Bun, без внешнего `tsc`)
 
 ### Изменено
 
@@ -852,7 +852,7 @@ Health возрождён как настоящий диагностически
   1. `hook_conflicts` - 0 реальных конфликтов в 9 плагинах
   2. `test_presence` - в каждом пакете должен быть `*.test.ts`
   3. `readme_presence` - в каждом пакете должен быть `README.md`
-  4. `type_check` - `bun build --no-bundle` по плагинам
+  4. `type_check` - `bun build —no-bundle` по плагинам
   5. `tool_registration` - предотвращает известную регрессию регистрации инструмента
   6. `version_consistency` - версия root совпадает со всеми плагинами
   7. `license` - LICENSE присутствует + каждый README ссылается на него

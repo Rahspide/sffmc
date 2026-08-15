@@ -89,7 +89,7 @@ agent(task: string, opts?: {
 goes wrong - it returns `null`. 5 reasons why:
 
 | Reason | When | What to do in workflow |
-|---|---|---|
+|—-|—-|—-|
 | `over-cap` | Steps/tokens/time exceeded limit | Return intermediate result |
 | `spawn-reject` | LLM call threw exception | Retry with fallback prompt |
 | `timeout` | Agent didn't respond within `timeoutMs` | Increase timeout or simplify task |
@@ -210,7 +210,7 @@ const answer = await agent("What is 2+2?")
 Beyond `agent`/`parallel`/`pipeline`, the following are available inside workflow:
 
 | Primitive | Signature | What it does |
-|---|---|---|
+|—-|—-|—-|
 | `phase(title)` | `(title: string) => void` | Sets the current phase (reflected in `workflow status`) |
 | `log(msg)` | `(msg: string) => void` | Writes to the JSONL journal (visible in `workflow status`) |
 | `args` | `unknown` | Arguments passed at launch |
@@ -261,7 +261,7 @@ When using the workflow tool via `createWorkflowTool(runtime)`, observability li
 5 cap levels, all configurable:
 
 | Cap | Default | Override |
-|---|---|---|
+|—-|—-|—-|
 | **Lifecycle agents** | 1000 | `config.maxLifecycleAgents` |
 | **Steps per run** | 200 | `config.maxSteps` |
 | **Concurrent agents** | 16 | Global semaphore (auto = 2×CPU) |
@@ -403,7 +403,7 @@ workflow({ operation: "run", name: "deep-research", args: { question: "What is t
 ## Comparison to MiMo-Code
 
 | Aspect | MiMo-Code | SFFMC Workflow |
-|---|---|---|
+|—-|—-|—-|
 | **Sandbox** | `vm.createContext` (Node-only) | quickjs-emscripten WASM (Bun/Node/browser) |
 | **Primitives** | agent, parallel, pipeline | agent, parallel, pipeline (same signatures) |
 | **State** | 3-layer (SQLite + script + JSONL) | Same + WAL extension |

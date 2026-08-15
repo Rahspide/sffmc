@@ -4,7 +4,7 @@ Five ready-to-copy examples for `@sffmc/runtime`.
 Each can be saved as `.sffmc/workflows/<name>.ts` and run
 via `workflow({ operation: "run", name: "<name>" })`.
 
----
+—-
 
 ## 1. Hello world
 
@@ -35,7 +35,7 @@ is loaded.
 **Common mistake**: forgot `export default async function main()` - without
 `main()` the script runs, but the result won't end up in `outcome.result`.
 
----
+—-
 
 ## 2. API migration (3-stage pipeline)
 
@@ -107,7 +107,7 @@ size).
 **Common mistake**: didn't specify `tools: ["grep_app"]` - agent won't be
 able to search code and will return `null` (no-deliverable).
 
----
+—-
 
 ## 3. Security audit (parallel per file)
 
@@ -209,7 +209,7 @@ by severity. `outcome.result.summary` - text summary.
 large projects (node_modules, dist). Use a specific path:
 `glob("src/**/*.ts")`.
 
----
+—-
 
 ## 4. Daily report (read → summarize → write)
 
@@ -273,7 +273,7 @@ export default async function main(args) {
 to read them in full. Use `tools: ["bash"]` with `head`/`tail`
 instead of `tools: ["read"]`.
 
----
+—-
 
 ## 5. Deep research (built-in, 6 phases)
 
@@ -307,7 +307,7 @@ What happens inside (280 lines of sandbox code):
 **Constants** (only changeable in the builtin code):
 
 | Parameter | Value | What it does |
-|---|---|---|
+|—-|—-|—-|
 | `JURY_SIZE` | 3 | How many jurors per fact |
 | `REJECT_QUORUM` | 2 | How many reject votes kill a fact |
 | `SOURCE_BUDGET` | 15 | Maximum sources read |
@@ -324,7 +324,7 @@ dropped).
 This means sources are weak or the question is too broad. Narrow the
 question or increase `SOURCE_BUDGET` in the code.
 
----
+—-
 
 ## Tips
 

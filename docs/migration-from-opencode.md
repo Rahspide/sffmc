@@ -19,7 +19,7 @@ If you know one, you know all three. The differences are in what gets injected i
 ## What's Different
 
 | Feature | vanilla OpenCode | MiMo-Code (fork) | SFFMC (plugin suite) |
-|---|---|---|---|
+|—-|—-|—-|—-|
 | **Memory** | No | Built-in (hardcoded) | Plugin (`@sffmc/memory`) |
 | **Rules** | No | Built-in (hardcoded) | Plugin (`@sffmc/safety`) |
 | **Watchdog** | No | Built-in (hardcoded) | Plugin (`@sffmc/safety`) |

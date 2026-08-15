@@ -164,7 +164,7 @@ All notable changes to SFFMC are documented here. Dates use `YYYY-MM-DD`.
 #### Documentation drift
 
 - **`docs/dynamic-workflow.md`** - "12 hours wall-clock" → "1 hour wall-clock" (×3 refs; was Manriel v0.12.1 reduction that never propagated to docs). "Direct MCP bindings planned" → "available since v0.14.0" (was false, mcp.list()/mcp.call() shipped in v0.14.0).
-- **`bin/sffmc` (bash) help text updated** - "13 packages / 13-check diagnostic" → "5 packages / 9-check diagnostic" (v0.15.1 fixed PowerShell only). `--minimal` flag description: "3 composite packages" → "4 packages (2 composites + 2 most-used standalones)".
+- **`bin/sffmc` (bash) help text updated** - "13 packages / 13-check diagnostic" → "5 packages / 9-check diagnostic" (v0.15.1 fixed PowerShell only). `—minimal` flag description: "3 composite packages" → "4 packages (2 composites + 2 most-used standalones)".
 - **`CONTRIBUTING.md`** - "v0.15.1 is the current release" → "v0.15.3 is the current release".
 - **`docs/install.md`** - `SFFMC_VERSION=v0.15.0` (×2) → `SFFMC_VERSION=v0.15.3`.
 - **`CHANGELOG.md`** - "v0.14.7" stale references (×2) → "v0.14.9" (v0.14.7 never released; auto-migration shipped in v0.14.9).
@@ -199,7 +199,7 @@ All notable changes to SFFMC are documented here. Dates use `YYYY-MM-DD`.
 
 - **Broken documentation links** - `packages/memory/README.md` linked to the deleted `../extra/README.md`; `packages/safety/README.md` linked to 5 sibling sub-feature paths that no longer existed as top-level packages. All repointed.
 
-- **`install.sh` help text** - `sffmc init --all install all 13 packages` and `sffmc doctor run 13-check diagnostic` updated to `5 packages` and `9-check diagnostic`.
+- **`install.sh` help text** - `sffmc init —all install all 13 packages` and `sffmc doctor run 13-check diagnostic` updated to `5 packages` and `9-check diagnostic`.
 
 - **`packages/safety/skills/write-rule.md`** - `bun test packages/rules/` → `bun test packages/safety/src/rules/` (rules is now a sub-folder).
 
@@ -239,7 +239,7 @@ All notable changes to SFFMC are documented here. Dates use `YYYY-MM-DD`.
 ### Migration
 
 | Old npm | New npm | Migration |
-|---|---|---|
+|—-|—-|—-|
 | `@sffmc/workflow` | `@sffmc/runtime` | rename |
 | `@sffmc/max-mode` | `@sffmc/cognition` | rename |
 | `@sffmc/compose` | `@sffmc/cognition` | rename (composite subsumes) |
@@ -257,7 +257,7 @@ All notable changes to SFFMC are documented here. Dates use `YYYY-MM-DD`.
 
 > **Note on `@sffmc/utilities`:** not a plugin entry point. Consumers using the SDK as a library must update their imports; do not add `"@sffmc/utilities": {}` to `opencode.json` `plugins[]`.
 
----
+—-
 
 ## v0.14.9 (2026-06-28)
 
@@ -265,7 +265,7 @@ All notable changes to SFFMC are documented here. Dates use `YYYY-MM-DD`.
 
 - **Dropped v1 checkpoint readers** - `packages/extra/src/checkpoint.ts` no longer exposes `migrateV1ToV2` or the `CheckpointHeaderV1` type. The header parser auto-migrates any v1 file to v2 on read; the migrated file is atomically rewritten as v2 so subsequent reads hit the fast path.
 
----
+—-
 
 ## v0.14.8 (2026-06-28)
 
@@ -304,7 +304,7 @@ v1 to v2 is one-way. Once a file is v2, the reader does not rewrite it as v1. v1
 Benchmarks (bun 1.3.14, default `flushThreshold = 50`):
 
 | Buffer size | Throughput | File size |
-|---|---|---|
+|—-|—-|—-|
 | 10 calls | ~10k ops/sec | 1062 B |
 | 100 calls | ~130k ops/sec | 9882 B |
 | 1000 calls | ~350k ops/sec | 100782 B |
@@ -443,7 +443,7 @@ Security hardening - 30 fixes from **@Manriel**'s external security audit.
 - Schema refactor, shared redaction helper.
 - Sandbox deadline 12 hours → 1 hour grace period (regression risk; needs AGENTS.md hook).
 
----
+—-
 
 ## v0.12.0 (2026-06-18)
 
@@ -558,7 +558,7 @@ Post-v0.10.0 cleanup. No API changes - all work preserves v0.10.0 breaking inter
 ### Added
 
 - **One-liner install**: `curl -fsSL .../install.sh | sh` (Linux/macOS) and `irm .../install.ps1 | iex` (Windows). Clones to `~/.sffmc/plugins/sffmc` and auto-runs init.
-- **`sffmc` CLI**: 6 subcommands - `init` (auto-edit `opencode.json` with `--minimal|--all|--only`), `update`, `uninstall`, `doctor` (13-check diagnostic), `path`, `help`.
+- **`sffmc` CLI**: 6 subcommands - `init` (auto-edit `opencode.json` with `—minimal|—all|—only`), `update`, `uninstall`, `doctor` (13-check diagnostic), `path`, `help`.
 - `docs/install.md`: Full install guide with troubleshooting.
 - README Quick start replaced with one-liner install.
 
@@ -587,7 +587,7 @@ irm https://raw.githubusercontent.com/Rahspide/sffmc/main/install.ps1 | iex
 
 # Then
 sffmc init              # 3 composites (default)
-sffmc init --all        # all 13 packages
+sffmc init —all        # all 13 packages
 sffmc doctor            # 13-check diagnostic
 ```
 
@@ -635,7 +635,7 @@ The 3 composites use a new `mergeHooks()` utility from `@sffmc/shared` to compos
 their sub-features into a single OpenCode plugin entry point.
 
 | Composite | Sub-features | Hooks | Tools | New skills |
-|---|---|---|---|---|
+|—-|—-|—-|—-|—-|
 | `@sffmc/safety` | watchdog, rules, auto-max, eos-stripper, log-whitelist | 9 keys | 0 | 3 |
 | `@sffmc/memory` | memory-core, checkpoint, judge, dream | 5 keys | 3 (extra_*) | 4 |
 | `@sffmc/agentic` | max-mode, workflow, compose, health | 5 keys | 3 | 5 |
@@ -832,7 +832,7 @@ judge_auto: false     # auto-judge markers in messages
 ### Plugin codemap word counts
 
 | Plugin | Package | src | Total |
-|---|---|---|---|
+|—-|—-|—-|—-|
 | memory | 954 | 1187 | 2141 |
 | rules | 585 | 730 | 1315 |
 | watchdog | 535 | 714 | 1249 |
@@ -857,10 +857,10 @@ judge_auto: false     # auto-judge markers in messages
 
 ### Added
 
-- **Pre-commit hook** (`.git/hooks/pre-commit`): runs `bun test` + typecheck + load-order audit + health check. Bypass with `git commit --no-verify`.
+- **Pre-commit hook** (`.git/hooks/pre-commit`): runs `bun test` + typecheck + load-order audit + health check. Bypass with `git commit —no-verify`.
 - **`bun run test:watch`**: re-runs all tests on every `.ts` save
 - **`scripts/run-health.ts`**: CLI invocation script for `@sffmc/health`
-- **`bun run typecheck`**: now uses `bun build --no-bundle` (Bun-native, no external `tsc` required)
+- **`bun run typecheck`**: now uses `bun build —no-bundle` (Bun-native, no external `tsc` required)
 
 ### Changed
 
@@ -886,7 +886,7 @@ Revived Health as a real diagnostic tool. Plugin authors can now run `sffmc_heal
   1. `hook_conflicts` - 0 real conflicts across 9 plugins
   2. `test_presence` - every package must have `*.test.ts`
   3. `readme_presence` - every package must have `README.md`
-  4. `type_check` - `bun build --no-bundle` per plugin
+  4. `type_check` - `bun build —no-bundle` per plugin
   5. `tool_registration` - prevents a known tool registration regression
   6. `version_consistency` - root version matches all plugins
   7. `license` - LICENSE present + every README references it

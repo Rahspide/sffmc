@@ -17,7 +17,7 @@ OpenCode plugins from Xiaomi's [MiMo-Code](https://github.com/XiaomiMiMo/MiMo-Co
 
 </div>
 
----
+—-
 
 ## 🤔 What is SFFMC?
 
@@ -31,7 +31,7 @@ SFFMC ships the productivity wins from Xiaomi's [MiMo-Code](https://github.com/X
 
 The name is a small wink at the upstream project: **S**ome **F**eature **f**rom **M**imo **C**ode.
 
----
+—-
 
 ## 📦 What's in the box?
 
@@ -45,7 +45,7 @@ The name is a small wink at the upstream project: **S**ome **F**eature **f**rom 
 
 > `utilities` is a **library**, not a plugin — it's consumed by the other four packages and never appears in your `plugin` slot.
 
----
+—-
 
 ## 📥 Install
 
@@ -93,7 +93,7 @@ cd ~/.sffmc/plugins/sffmc
 > 📖 **Full guide** (version pinning, troubleshooting, platform notes):
 > [docs/install.md](./docs/install.md)
 
----
+—-
 
 ## ⚡ Quick start
 
@@ -113,7 +113,7 @@ That's the workflow engine kicking in. From here: write your own
 workflows, add rules to `@sffmc/safety`, extend memory with custom
 checkpoints.
 
----
+—-
 
 ## 🏗️ Architecture
 
@@ -158,7 +158,7 @@ Hook categories (dispatched by `mergeHooks` from `@sffmc/utilities`):
 
 > 📖 **Full SDK reference**: [CONTRIBUTING.md](./CONTRIBUTING.md)
 
----
+—-
 
 ## 📚 Documentation
 
@@ -173,7 +173,7 @@ Hook categories (dispatched by `mergeHooks` from `@sffmc/utilities`):
 | [🚀 Drone CI](./docs/drone-ci.md) | CI pipeline reference |
 | [✨ MiMo features](./docs/mimo-code-features.md) | What's ported, what's not |
 
----
+—-
 
 ## 🧪 Quality gates
 
@@ -186,13 +186,13 @@ Every commit runs a 7-step gate chain:
 | 3 | Load-order audit | AST-based hook-conflict detection |
 | 4 | Test suite | 1951 tests across 110 files |
 | 5 | Health summary | 13 monorepo diagnostics |
-| 6 | Typecheck | `bun build --no-bundle` |
-| 7 | Install frozen | `bun install --frozen-lockfile` |
+| 6 | Typecheck | `bun build —no-bundle` |
+| 7 | Install frozen | `bun install —frozen-lockfile` |
 
 > The `bun.lock` is regenerated on every version bump to keep
 > workspace pins in sync with manifests.
 
----
+—-
 
 ## 🤝 Contributing
 
@@ -205,7 +205,7 @@ Local dev: clone, then add `file://` entries to `opencode.json`
 pointing at your working copy — your edits hot-reload without
 re-running the installer.
 
----
+—-
 
 ## 📝 License
 
@@ -213,6 +213,6 @@ re-running the installer.
 adapted from [MiMo-Code](https://github.com/XiaomiMiMo/MiMo-Code)
 under the upstream license.
 
----
+—-
 
 <sub>Built with 🧡 by Rahspide. Powered by Bun.</sub>

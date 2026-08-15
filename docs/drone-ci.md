@@ -36,8 +36,8 @@ publish workflow.
 ### Step reference
 
 | Step | Runs on | Purpose |
-|---|---|---|
-| `install` | push / PR / tag | `bun install --frozen-lockfile` |
+|—-|—-|—-|
+| `install` | push / PR / tag | `bun install —frozen-lockfile` |
 | `typecheck` | push / PR / tag | `bun run typecheck` (0 errors) |
 | `test` | push / PR / tag | `bun run test` (see CHANGELOG for current test counts; this value is fluid across god-decomposition releases) |
 | `verify-load` | push / PR / tag | Load-order audit on the 3 composite packages |
@@ -46,7 +46,7 @@ publish workflow.
 | `tag-gate-test` | tag only | Re-run full test suite on the tag commit |
 | `tag-gate-audit` | tag only | Re-run public-content audit on the tag commit |
 | `tag-gate-health` | tag only | `bun run scripts/run-health.ts` (all checks green) |
-| `publish` | tag only, all gates green | `bun run scripts/release.sh --actual` |
+| `publish` | tag only, all gates green | `bun run scripts/release.sh —actual` |
 | `notify` | tag only, regardless of publish outcome | Optional Slack/Discord webhook |
 
 ### Why pre-publish gates?
@@ -73,7 +73,7 @@ ensures reproducible builds.
 Two host-persistent volumes cache build state across runs:
 
 | Volume | Host path | Mounted at |
-|---|---|---|
+|—-|—-|—-|
 | `node_modules` | `/var/lib/drone/sffmc-node_modules` | `/drone/src/node_modules` |
 | `bun-cache` | `/var/lib/drone/sffmc-bun-cache` | `/root/.bun/install/cache` |
 
@@ -92,7 +92,7 @@ work. They are set per-repository via the `drone` CLI or the Drone web
 UI.
 
 | Secret | Required? | Source | Used by step |
-|---|---|---|---|
+|—-|—-|—-|—-|
 | `npm_token` | **Yes** | `~/.npmrc` ([REDACTED-NPM], bypass-2FA granular token, publish scope on `@sffmc`) | `publish` |
 | `github_token` | Recommended | GitHub PAT with `repo` scope | `publish` |
 | `slack_webhook` | Optional | Slack/Discord incoming-webhook URL | `notify` |
@@ -159,19 +159,19 @@ The end-to-end release flow is:
 
    This re-runs only the `publish` step (and its transitive deps) on
    the same build. Packages already published will fail with
-   `bun publish --tolerate-republish` and the script will continue
+   `bun publish —tolerate-republish` and the script will continue
    (see `scripts/release.sh` for retry semantics).
 
 6. **After publish**, the `notify` step fires. If `slack_webhook` is
    not set, check the Drone build log for the publish summary.
 
-### What `scripts/release.sh --actual` does
+### What `scripts/release.sh —actual` does
 
-The publish step runs `bun run scripts/release.sh --actual`, which:
+The publish step runs `bun run scripts/release.sh —actual`, which:
 
 1. **Precondition checks** (fail-fast, exit 2 on any miss):
    - `bun` is on PATH
-   - `git status --porcelain` is empty
+   - `git status —porcelain` is empty
    - `npm whoami` succeeds (uses `$NPM_TOKEN` from drone secret via
      `~/.npmrc` written by the step)
    - `npm org ls sffmc` succeeds
@@ -202,7 +202,7 @@ The publish step is the only step in the pipeline that needs
 publish fails:
 
 | Symptom | Fix |
-|---|---|
+|—-|—-|
 | Tag-gate failed (test/typecheck/audit/health) | Fix the underlying issue, push a new commit, delete the old tag, re-tag |
 | Publish failed (network / npm 5xx) | `drone build promote Rahspide/sffmc <build> <target>` |
 | `npm_token` is invalid | Update the secret (`drone secret update`), then promote the build |

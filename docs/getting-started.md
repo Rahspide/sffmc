@@ -9,7 +9,7 @@ SFFMC ("Some Features From MiMo Code") is a monorepo of **5 MIT-licensed OpenCod
 ## 2. Prerequisites
 
 | Requirement | Minimum | Check |
-|---|---|---|
+|—-|—-|—-|
 | OpenCode | 1.17.6 or newer | `opencode --version` |
 | Bun runtime | 1.0 or newer (for the plugin host) | `bun --version` |
 | Disk | ~50 MB for the plugin set | - |
@@ -96,7 +96,7 @@ The six phases execute in order inside a single sandboxed JavaScript runtime: **
 Built-ins are useful, but the real win is writing your own. Workflows are TypeScript files with a `meta` export (parsed without execution, used for the tool list and progress bar) and a `main` default export. Drop them in either of two locations:
 
 | Location | Used by |
-|---|---|
+|—-|—-|
 | `~/.sffmc/workflows/<name>.ts` | Project-shared or user-global workflows |
 | `<project>/.claude/workflows/<name>.ts` | Legacy Claude Code compatibility |
 

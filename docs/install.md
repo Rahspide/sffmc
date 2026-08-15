@@ -67,7 +67,7 @@ export PATH="$HOME/.sffmc/plugins/sffmc/bin:$PATH"
 ```
 
 | Command | What it does |
-|---|---|
+|—-|—-|
 | `sffmc init` | Auto-detect config + add 2 composite plugins + 2 standalones (safety, memory, runtime, cognition) |
 | `sffmc init --all` | Add all 5 plugin paths (utilities is a library, installed separately via npm if needed) |
 | `sffmc init --only p1,p2,...` | Add specific packages (comma-separated names) |
