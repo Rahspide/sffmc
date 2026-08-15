@@ -9,7 +9,7 @@ documented in the project's own source tree and public repository.
 > verbatim, with file:line citations throughout. It does not compare, contrast,
 > or otherwise engage with any other system.
 
----
+—-
 
 ## Table of Contents
 
@@ -19,14 +19,14 @@ documented in the project's own source tree and public repository.
 4. [Built-in Workflows](#4-built-in-workflows)
 5. [Memory / Context](#5-memory--context)
 6. [Plugins / Hooks](#6-plugins--hooks)
-7. [Configuration & Persistence](#7-configuration--persistence)
-8. [Concurrency & Determinism](#8-concurrency--determinism)
+7. [Configuration & Persistence](#7-configuration—persistence)
+8. [Concurrency & Determinism](#8-concurrency—determinism)
 9. [Sandbox Security Model](#9-sandbox-security-model)
 10. [Adoption Patterns](#10-adoption-patterns)
 11. [Comparisons (Within MiMo's Own Framing)](#11-comparisons-within-mimos-own-framing)
 12. [References](#12-references)
 
----
+—-
 
 ## 1. Overview
 
@@ -44,7 +44,7 @@ this document is **v0.1.5** (tagged 2026-07-07, latest as of last check; v0.16.0
 actively pushed to as recently as 2026-06-19. As of the snapshot:
 
 | Stat | Value | Source |
-| --- | --- | --- |
+| —- | —- | —- |
 | Stars | 9,921 | GitHub API `stargazers_count` |
 | Forks | 914 | GitHub API `forks_count` |
 | Watchers | 60 | GitHub API |
@@ -59,7 +59,7 @@ actively pushed to as recently as 2026-06-19. As of the snapshot:
 Top contributors (GitHub API `/contributors`):
 
 | GitHub login | Contributions |
-| --- | --- |
+| —- | —- |
 | `MiMoHardFather` | 19 |
 | `yanyihan-xiaomi` | 9 |
 | `qiaozongming` | 9 |
@@ -71,7 +71,7 @@ Top contributors (GitHub API `/contributors`):
 The repository is a monorepo of 1 composite (compose) plus several satellite plugins (snapshot from v0.1.1, may have grown by v0.1.5); the load-bearing ones are:
 
 | Package | Purpose | Source root |
-| --- | --- | --- |
+| —- | —- | —- |
 | `app` | TUI/CLI app entrypoint | `packages/app/` |
 | `console` | Console/web client | `packages/console/` |
 | `containers` | Containerised environments | `packages/containers/` |
@@ -95,7 +95,7 @@ The repository is a monorepo of 1 composite (compose) plus several satellite plu
 ### Technical stack
 
 | Concern | Choice | Evidence |
-| --- | --- | --- |
+| —- | —- | —- |
 | Language | TypeScript (strict, native preview) | `packages/opencode/tsconfig.json`; `package.json` uses `@typescript/native-preview` |
 | Effect system | `effect` (Effect.gen / Layer / Scope) | `packages/opencode/src/workflow/runtime.ts:1-25` |
 | Schema | `zod` (with `.strictObject`, `.discriminatedUnion`) | `packages/opencode/src/tool/workflow.ts:12-51` |
@@ -124,7 +124,7 @@ The default model on install is **MiMo Auto** ("anonymous channel, zero
 configuration" - `README.md:36`). The npm CLI binary is `mimo`
 (`packages/opencode/package.json:14`).
 
----
+—-
 
 ## 2. Workflow Engine
 
@@ -398,7 +398,7 @@ Enforced both in-guest (`rt.setInterruptHandler(shouldInterruptAfterDeadline(...
 Every run's state lives in three coordinated places:
 
 | Layer | Location | Format | Lifecycle |
-| --- | --- | --- | --- |
+| —- | —- | —- | —- |
 | SQLite row | `workflow_run` table | Drizzle row | One row per runID; updates on phase / counter / terminal |
 | Script body | `<data>/workflow/<runID>.js` | JS source | Re-read on resume |
 | Event journal | `<data>/workflow/<runID>.jsonl` | NDJSON | Append-only |
@@ -576,7 +576,7 @@ The rationale is at `runtime.ts:1181-1187`:
 Six `BusEvent`s are published (`packages/opencode/src/workflow/events.ts:1-71`):
 
 | Event | Payload | When |
-| --- | --- | --- |
+| —- | —- | —- |
 | `workflow.phase`     | `{ sessionID, runID, title }`            | On every `phase(title)` call |
 | `workflow.log`       | `{ sessionID, runID, message }`          | On every `log(message)` call |
 | `workflow.started`   | `{ sessionID, runID, name }`             | When `launch` is called |
@@ -618,7 +618,7 @@ Each `agent()` call follows the exact counter discipline
 ```
 running++    // BEFORE spawn attempt
 spawn()
-running--    // AFTER settle
+running—    // AFTER settle
 if (value !== null) succeeded++
 else              failed++
 ```
@@ -674,7 +674,7 @@ type WorkflowMeta = {
   catalog renderer (`registry.ts:67-83`).
 - `model` is reserved for future use.
 
----
+—-
 
 ## 3. LLM Tools (Tool Layer)
 
@@ -775,7 +775,7 @@ The `actor` tool is the LLM-facing interface for spawning subagents. Tool
 ID: `actor`. Schema (per `actor.txt:14-31`):
 
 | Action | Required | Optional |
-| --- | --- | --- |
+| —- | —- | —- |
 | `run` | `subagent_type`, `description`, `prompt` | `actor_id`, `timeout_ms`, `command`, `context` (`none`/`state`/`full`), `output_schema` |
 | `spawn` | `subagent_type`, `description`, `prompt` | `actor_id`, `command`, `context`, `output_schema` |
 | `status` | `actor_id` | - |
@@ -831,7 +831,7 @@ enum ["open", "in_progress", "blocked", "done", "abandoned"]
 ```
 
 The tool also supports a **shell-invocation style** - `task create <summary>
---parent T1`, etc. - via the optional `shell.parse` field (`task.ts:449-453`).
+—parent T1`, etc. - via the optional `shell.parse` field (`task.ts:449-453`).
 When the LLM invokes via shell, a tokenizer (`shell-tokenize.ts`) splits the
 command, and `parseTaskScript` maps each verb to its JSON-schema operation
 (`task.ts:143-161`).
@@ -839,7 +839,7 @@ command, and `parseTaskScript` maps each verb to its JSON-schema operation
 ### 3.4 Other tools in the registry
 
 | Tool | Purpose | Source file | LOC |
-| --- | --- | --- | --- |
+| —- | —- | —- | —- |
 | `bash` | Run shell commands | `tool/bash.ts` | 696 |
 | `bash-interactive` | Interactive shell sessions | `tool/bash-interactive.ts` | 183 |
 | `read` | Read files (with truncation) | `tool/read.ts` | 327 |
@@ -905,7 +905,7 @@ When `tools(model)` is called for a given model:
   (`actor.txt`-style), skill catalog, or workflow catalog depending on which
   tool id is being described (`registry.ts:357-361`).
 
----
+—-
 
 ## 4. Built-in Workflows
 
@@ -961,7 +961,7 @@ const FACT_CAP       = 25  // hard cap on facts that reach crosscheck
 #### Six phases, in detail
 
 | Phase | `agent()` calls | Pipeline behavior |
-| --- | --- | --- |
+| —- | —- | —- |
 | **Plan** | 1 (plan agent, `schema: PLAN_SHAPE`) | Hard barrier before search |
 | **Search** | 1 per search line, in parallel (`schema: HITS_SHAPE`) | Each line's hits stream into the dedup gate |
 | **Extract** | 1 per *fresh* URL (`schema: READ_SHAPE`) | De-dup by canonical URL; respect `SOURCE_BUDGET`; over-budget slots only admit `fit: high` |
@@ -1036,7 +1036,7 @@ The `.mimocode/workflows` directory is checked first (project-local wins
 over `.claude/workflows`). Names are constrained to `^[A-Za-z0-9._-]+$` to
 prevent path traversal (`resolve.ts:20-23`).
 
----
+—-
 
 ## 5. Memory / Context
 
@@ -1084,7 +1084,7 @@ function parsePath(absPath: string): MemoryLocator | null {
 ```
 
 | Scope | On-disk location | Example |
-| --- | --- | --- |
+| —- | —- | —- |
 | `global`    | `<data>/memory/global/<key>.md` | `<data>/memory/global/MEMORY.md` |
 | `projects`  | `<data>/memory/projects/<pid>/<key>.md` | `<data>/memory/projects/<pid>/MEMORY.md` |
 | `sessions`  | `<data>/memory/sessions/<sid>/<key>.md` | `<data>/memory/sessions/<sid>/checkpoint.md` |
@@ -1209,7 +1209,7 @@ Token budgets per section are configured under `checkpoint.<section>` in
 `config.ts:280-298`:
 
 | Section | Default token cap |
-| --- | --- |
+| —- | —- |
 | `memory_titles` | 500 |
 | `global` (global memory) | 6,000 |
 | `checkpoint` | 11,000 |
@@ -1240,7 +1240,7 @@ export const Task = z.object({
 `task/sql.ts` holds the table; `task/registry.ts` provides the
 `TaskRegistry` service that the `task` tool binds to.
 
----
+—-
 
 ## 6. Plugins / Hooks
 
@@ -1288,7 +1288,7 @@ export interface Hooks {
 ### 6.2 Hook names (grouped)
 
 | Category | Hook names |
-| --- | --- |
+| —- | —- |
 | **Lifecycle** | `config`, `event` |
 | **Tool surface** | `tool`, `tool.definition` |
 | **Auth/Provider** | `auth`, `provider` |
@@ -1378,7 +1378,7 @@ function fromPlugin(id: string, def: ToolDefinition): Tool.Def {
 }
 ```
 
----
+—-
 
 ## 7. Configuration & Persistence
 
@@ -1552,7 +1552,7 @@ The repo ships a bundle of 15 skills at
 `packages/opencode/src/skill/compose/.bundle/`:
 
 | Skill | Purpose (from `SKILL.md` frontmatter) |
-| --- | --- |
+| —- | —- |
 | `ask` | Asking the user - covers question tool + never-ask fallback |
 | `brainstorm` | Pre-implementation: turn ideas into designs and specs |
 | `debug` | Systematic debugging before proposing fixes |
@@ -1578,7 +1578,7 @@ README).
 The README lists three primary agents (`README.md:46-52`):
 
 | Agent | Description |
-| --- | --- |
+| —- | —- |
 | `build` | Default. Full tool permissions for development |
 | `plan`  | Read-only analysis mode |
 | `compose` | Orchestration mode for specs-driven / skill-driven workflows |
@@ -1595,7 +1595,7 @@ skill bundle above.
   `MIMOCODE_DB`.
 - Project-local workflows under `.mimocode/workflows/<name>.js`.
 
----
+—-
 
 ## 8. Concurrency & Determinism
 
@@ -1680,7 +1680,7 @@ delete globalThis.FinalizationRegistry;
 Documented in detail in §2.13. The short version:
 
 - `running++` happens **before** the spawn attempt.
-- `running--` and exactly one of `succeeded++` or `failed++` happens
+- `running—` and exactly one of `succeeded++` or `failed++` happens
   **after** settle.
 - Settle runs even when the spawn rejects (so a `spawn-reject` increments
   `failed`).
@@ -1759,7 +1759,7 @@ bytecode (`sandbox.ts:184-189`):
 > and rejects when the budget elapses. The `finally` below still disposes the
 > unsettled deferred before the context, so no process abort on cleanup.
 
----
+—-
 
 ## 9. Sandbox Security Model
 
@@ -1776,7 +1776,7 @@ The sandbox doc-comment at `sandbox.ts:66-77` justifies the choice of
 The key wins, by elimination:
 
 | Sandbox | Why not |
-| --- | --- |
+| —- | —- |
 | `bun:vm` | Shares the host runtime - a malicious script could escape via `process` / `Bun` |
 | `vm2` | CVE history; `process.mainModule.require('child_process').execSync(...)` escapes |
 | `isolated-vm` | Native bindings, heavier; the chosen approach gets the same isolation through wasm |
@@ -1793,7 +1793,7 @@ to parsing:
 ### 9.2 Globals injected (guest)
 
 | Global | Type | Source |
-| --- | --- | --- |
+| —- | —- | —- |
 | `agent(prompt, opts?)` | async host fn | `runtime.ts:798` |
 | `phase(title)` | sync host fn | `runtime.ts:875` |
 | `log(message)` | sync host fn | `runtime.ts:883` |
@@ -1845,7 +1845,7 @@ strips them (`sandbox.ts:97-100`):
 ### 9.4 Resource limits
 
 | Limit | Default | Override |
-| --- | --- | --- |
+| —- | —- | —- |
 | Wall-clock per script | 12 h | `scriptDeadlineMs` (per run or per config) |
 | Wall-clock per agent | off | `agentTimeoutMs` (per run) or `opts.timeoutMs` (per call) |
 | Memory | 64 MiB | `SandboxOptions.memoryLimitBytes` |
@@ -1882,7 +1882,7 @@ Other notes:
   without a scheme+host, so scripts' `try/catch` fallbacks behave like
   the real URL (`sandbox.test.ts:238-244`).
 
----
+—-
 
 ## 10. Adoption Patterns
 
@@ -2033,7 +2033,7 @@ For spec-driven development, the README points users to **compose mode**
 These skills drive the LLM through a structured workflow: brainstorm → plan
 → tdd → execute → review → verify → merge → report.
 
----
+—-
 
 ## 11. Comparisons (Within MiMo's Own Framing)
 
@@ -2061,7 +2061,7 @@ No other explicit comparisons (to Claude Code, Codex CLI, or any peer
 product) appear in the README, the public docs folder, or the bundled
 skills.
 
----
+—-
 
 ## 12. References
 
@@ -2070,7 +2070,7 @@ skills.
 All citations in this document resolve against:
 
 | Topic | File |
-| --- | --- |
+| —- | —- |
 | Top-level README | `dependencies/MiMo-Code/README.md` |
 | License | `dependencies/MiMo-Code/LICENSE` |
 | Contributing | `dependencies/MiMo-Code/CONTRIBUTING.md` |
@@ -2119,7 +2119,7 @@ The local clone is shallow (single-commit), so permalinks are against
 `XiaomiMiMo/MiMo-Code@main`:
 
 | Resource | URL |
-| --- | --- |
+| —- | —- |
 | Repository | https://github.com/XiaomiMiMo/MiMo-Code |
 | README | https://github.com/XiaomiMiMo/MiMo-Code/blob/main/README.md |
 | License | https://github.com/XiaomiMiMo/MiMo-Code/blob/main/LICENSE |
@@ -2179,7 +2179,7 @@ as of the snapshot, and are flagged here so a future reader does not
 mistake absence for error:
 
 | Topic | Status |
-| --- | --- |
+| —- | —- |
 | Long-form blog posts about MiMo-Code's internals | The README links to `https://mimo.xiaomi.com/en/blog/mimo-code-long-horizon` and `https://mimo.xiaomi.com/en/mimocode`. Both URLs returned HTTP 404 at the snapshot. |
 | Tutorials / cookbooks beyond `deep-research.js` | None in the public repo. `docs/` contains only `build-release.md`. |
 | A formal "adversarial jury" paper / blog | The constants (`JURY_SIZE=3`, `REJECT_QUORUM=2`, `SOURCE_BUDGET=15`, `FACT_CAP=25`) are documented only inside `deep-research.js` itself. |
@@ -2193,6 +2193,6 @@ mistake absence for error:
 These gaps are **not** claimed to be limitations of MiMo-Code; they are
 simply items the public documentation does not currently cover.
 
----
+—-
 
 *End of document.*

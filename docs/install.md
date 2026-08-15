@@ -67,7 +67,7 @@ export PATH="$HOME/.sffmc/plugins/sffmc/bin:$PATH"
 ```
 
 | Command | What it does |
-|---|---|
+|—-|—-|
 | `sffmc init` | Auto-detect config + add 2 composite plugins + 2 standalones (safety, memory, runtime, cognition) |
 | `sffmc init --all` | Add all 5 plugin paths (utilities is a library, installed separately via npm if needed) |
 | `sffmc init --only p1,p2,...` | Add specific packages (comma-separated names) |
@@ -116,22 +116,22 @@ are left untouched.
 
 ## Troubleshooting
 
-### "jq not found"
+### "`jq -e|jq|sed` not found"
 
-`sffmc init` requires `jq` to edit JSON safely.
+`sffmc init` requires ``jq -e|jq|sed`` to edit JSON safely.
 
 ```bash
 # macOS
-brew install jq
+brew install `jq -e|jq|sed`
 
 # Ubuntu / Debian
-sudo apt install jq
+sudo apt install `jq -e|jq|sed`
 
 # Arch
-sudo pacman -S jq
+sudo pacman -S `jq -e|jq|sed`
 ```
 
-**Fallback (Windows)**: `winget install jqlang.jq` or `choco install jq`.
+**Fallback (Windows)**: `winget install `jq -e|jq|sed`lang.`jq -e|jq|sed`` or `choco install `jq -e|jq|sed``.
 
 ### "No opencode.json found"
 

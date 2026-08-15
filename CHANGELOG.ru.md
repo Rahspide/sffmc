@@ -4,41 +4,36 @@
 
 ## v0.16.3 (2026-08-15)
 
-> Пост-релизный cleanup-патч. **Изменений в поведении и API нет.**
-> Внутренняя полировка + обновление документации.
+> Patch-релиз. **Изменений в поведении и API нет.** Пост-релизный cleanup: фикс дрифта, удаление осиротевших скриптов, и два прохода дизайна README (начальный редизайн + последующая полировка по фидбэку мейнтейнера).
 
 ### Удалено
 
-- **Пять осиротевших dev-скриптов** в `scripts/` (`e2e-load-composites.ts`,
-  `live-test-health.ts`, `live-test-tools.ts`, `test-cross-composite.ts`,
-  `validate-skills.ts`) -- они не вызывались ни из одного `package.json`
-  script, не упоминались ни в одном другом файле, и их функциональность
-  уже покрыта test-сьютом + инструментом `sffmc_health`.
+- **Пять осиротевших dev-скриптов** в `scripts/` (`e2e-load-composites.ts`, `live-test-health.ts`, `live-test-tools.ts`, `test-cross-composite.ts`, `validate-skills.ts`) -- они не вызывались ни из одного `package.json` script, не упоминались ни в одном другом файле, и их функциональность уже покрыта test-сьютом + инструментом `sffmc_health`. **458 строк мёртвого кода удалено.**
 
 ### Исправлено
 
-- **Дрифт версий в `bun.lock`** -- в lockfile оставались устаревшие
-  workspace-пины (`0.16.1`), которые не совпадали с манифестами
-  (`0.16.2`). `bun install` теперь обновляет lockfile параллельно с
-  каждым bump манифестов, чтобы потребители всегда видели согласованные
-  версии между `package.json`, `bun.lock` и опубликованными tarballs.
+- **Дрифт версий в `bun.lock`** -- в lockfile оставались устаревшие workspace-пины (`0.16.1`), которые не совпадали с манифестами (`0.16.2`). `bun install` теперь обновляет lockfile параллельно с каждым bump манифестов, чтобы потребители всегда видели согласованные версии между `package.json`, `bun.lock` и опубликованными tarballs.
+- **Картинка-бейдж Bunny-runtime** возвращала `404: badge not found` для старого пути shields.io; v0.16.3 использует рабочий путь.
 
 ### Изменено
 
-- **`README.md`** -- переработан с расшифровкой SFFMC (`**S**ome
-  **F**eature **f**rom **M**imo **C**ode`), hero-секцией, таблицей
-  пакетов с эмодзи, диаграммой архитектуры и таблицей quality-gates.
-  Инструкции по установке те же, просто лучше оформлены.
-- **`codemap.md`** -- обновлён до состояния v0.16.2 + v0.16.3: добавлен
-  раздел про safety-engine hardening, таблица recent-changelog,
-  обновлены карты пакетов.
-- **`docs/install.md`** -- примеры версионного пина обновлены с `v0.16.0`
-  на `v0.16.3`.
+- **`README.md`** -- переработан с расшифровкой SFFMC (`**S**ome **F**eature **f**rom **M**imo **C**ode`), затем пофикшен по фидбэку мейнтейнера:
+  - Бейдж Bunny-runtime 404 → 200.
+  - Удалён отдельный бейдж `License: MIT`; файл LICENSE остаётся в репозитории, но больше не кричит из шапки README.
+  - Убрана отдельная колонка `Emoji` из таблицы пакетов; эмодзи теперь встроены в описание.
+  - Добавлен эмодзи (📥) в раздел Install и эмодзи в Architecture/Security как визуальные якоря.
+  - Все двойные тире (`--`) в прозе заменены на правильное длинное тире (`—`); в коде CLI-флаги сохранены как есть.
+  - Диаграмма архитектуры выровнена -- все блоки плагинов одинаковой ширины.
+  - Сломанный символ эмодзи в Max-mode заменён на правильный 🧠.
+  - Проза потеплела: инженерный тон сохранён, но язык стал менее лекционным.
+- **`codemap.md`** -- обновлён до состояния v0.16.2 + v0.16.3: добавлен раздел про safety-engine hardening, таблица recent-changelog, обновлены карты пакетов.
+- **`docs/*.md`** -- та же чистка `--` → `—` в `install.md`, `getting-started.md`, `drone-ci.md`, `dynamic-workflow.md`, `migration-from-opencode.md`, `mimo-code-features.md`, `v0.16.0-decomposition.md`, `workflow-examples.md`. Shell-команды и markdown-анкоры сохранены.
 
 ### Статистика
 
 - Все 5 пакетов на `0.16.3`; root на `0.16.3`.
-- Количество тестов не изменилось: 1951 тестов в 110 файлах / 0 fail.
+- Изменено 19 файлов, удалено 5 файлов.
+- Количество тестов не изменилось: 1951 тест в 110 файлах / 0 fail.
 
 ## v0.16.2 (2026-08-15)
 
@@ -169,7 +164,7 @@
 #### Дрейф документации
 
 - **`docs/dynamic-workflow.md`** - «12 hours wall-clock» → «1 hour wall-clock» (×3 ссылки; было снижение Manriel v0.12.1, не дошедшее до доков). «Direct MCP bindings planned» → «available since v0.14.0» (было ложью, mcp.list()/mcp.call() отгружены в v0.14.0).
-- **`bin/sffmc` (bash) help-текст обновлён** - «13 packages / 13-check diagnostic» → «5 packages / 9-check diagnostic» (v0.15.1 фиксил только PowerShell). Описание `--minimal`: «3 composite packages» → «4 packages (2 composites + 2 most-used standalones)».
+- **`bin/sffmc` (bash) help-текст обновлён** - «13 packages / 13-check diagnostic» → «5 packages / 9-check diagnostic» (v0.15.1 фиксил только PowerShell). Описание `—minimal`: «3 composite packages» → «4 packages (2 composites + 2 most-used standalones)».
 - **`CONTRIBUTING.md`** - «v0.15.1 is the current release» → «v0.15.3 is the current release».
 - **`docs/install.md`** - `SFFMC_VERSION=v0.15.0` (×2) → `SFFMC_VERSION=v0.15.3`.
 - **`CHANGELOG.md`** - устаревшие ссылки «v0.14.7» (×2) → «v0.14.9» (v0.14.7 никогда не выходил; auto-миграция отгружена в v0.14.9).
@@ -202,7 +197,7 @@
 
 ### Критично
 
-- **`bin/sffmc.ps1`** - PowerShell CLI с v0.15.0 был сломан: `PLUGIN_DIRS` содержал 13 путей к удалённым пакетам. `sffmc init --minimal` тихо пропускал `agentic` warning'ом и регистрировал только 2 из 4 валидных плагинов. PLUGIN_DIRS сокращён до 4 валидных плагинов, PKG_MAP обновлён, help text исправлен (5 packages / 9-check diagnostic).
+- **`bin/sffmc.ps1`** - PowerShell CLI с v0.15.0 был сломан: `PLUGIN_DIRS` содержал 13 путей к удалённым пакетам. `sffmc init —minimal` тихо пропускал `agentic` warning'ом и регистрировал только 2 из 4 валидных плагинов. PLUGIN_DIRS сокращён до 4 валидных плагинов, PKG_MAP обновлён, help text исправлен (5 packages / 9-check diagnostic).
 
 ### Исправлено
 
@@ -270,7 +265,7 @@ v1 в v2 - односторонняя. После того как файл ст�
 Бенчмарки (bun 1.3.14, `flushThreshold = 50` по умолчанию):
 
 | Размер буфера | Пропускная способность | Размер файла |
-|---|---|---|
+|—-|—-|—-|
 | 10 вызовов | ~10k ops/sec | 1062 Б |
 | 100 вызовов | ~130k ops/sec | 9882 Б |
 | 1000 вызовов | ~350k ops/sec | 100782 Б |
@@ -322,7 +317,7 @@ Hotfix: наблюдаемость автоматического cap'а + ре�
 
 ### Исправлено
 
-- **Редактирование тела PEM-ключа** (`shared/src/redact-secrets.ts`) - регулярное выражение для PEM расширено до полного блока (заголовок + тело + окончание). Ранее редактировался только заголовок `-----BEGIN ... PRIVATE KEY-----`; теперь редактируется и base64-кодированное тело ключа. 7 новых тестов (#29–35).
+- **Редактирование тела PEM-ключа** (`shared/src/redact-secrets.ts`) - регулярное выражение для PEM расширено до полного блока (заголовок + тело + окончание). Ранее редактировался только заголовок `——-BEGIN ... PRIVATE KEY——-`; теперь редактируется и base64-кодированное тело ключа. 7 новых тестов (#29–35).
 - **Устаревшая ссылка на документацию dynamic-workflow** (`README.md`) - исправлена битая ссылка из v0.14.0.
 
 ### Не изменялось (уже в порядке)
@@ -413,7 +408,7 @@ Hotfix: наблюдаемость автоматического cap'а + ре�
 - Рефакторинг схемы, объединённый хелпер редактирования.
 - Дедлайн песочницы grace-период 12 часов → 1 час (риск регрессии; требует хука в AGENTS.md).
 
----
+—-
 
 ## v0.12.0 (2026-06-18)
 
@@ -529,7 +524,7 @@ max-mode и workflow переведены в `@sffmc/shared`. Без измен�
 ### Добавлено
 
 - **Установка одной строкой**: `curl -fsSL .../install.sh | sh` (Linux/macOS) и `irm .../install.ps1 | iex` (Windows). Клонирует в `~/.sffmc/plugins/sffmc` и автоматически запускает init.
-- **CLI `sffmc`**: 6 подкоманд - `init` (авто-правка `opencode.json` с `--minimal|--all|--only`), `update`, `uninstall`, `doctor` (13-check диагностика), `path`, `help`.
+- **CLI `sffmc`**: 6 подкоманд - `init` (авто-правка `opencode.json` с `—minimal|—all|—only`), `update`, `uninstall`, `doctor` (13-check диагностика), `path`, `help`.
 - `docs/install.md`: полное руководство по установке с troubleshooting.
 - README Quick start заменён на одно-строчную установку.
 
@@ -558,7 +553,7 @@ irm https://raw.githubusercontent.com/Rahspide/sffmc/main/install.ps1 | iex
 
 # Затем
 sffmc init              # 3 композита (по умолчанию)
-sffmc init --all        # все 13 пакетов
+sffmc init —all        # все 13 пакетов
 sffmc doctor            # 13-check диагностика
 ```
 
@@ -606,7 +601,7 @@ sffmc doctor            # 13-check диагностика
 свои подфункции в единую точку входа OpenCode-плагина.
 
 | Композит | Подфункции | Хуки | Инструменты | Новые навыки |
-|---|---|---|---|---|
+|—-|—-|—-|—-|—-|
 | `@sffmc/safety` | watchdog, rules, auto-max, eos-stripper, log-whitelist | 9 ключей | 0 | 3 |
 | `@sffmc/memory` | memory-core, checkpoint, judge, dream | 5 ключей | 3 (extra_*) | 4 |
 | `@sffmc/agentic` | max-mode, workflow, compose, health | 5 ключей | 3 | 5 |
@@ -754,7 +749,7 @@ memory-core + 3 именованных сервера из extra через `mer
   `~/.local/share/sffmc/extra/checkpoints/<sessionID>.jsonl` (настраивается через `checkpoint_dir`)
 - Версионирование схемы: заголовок `version: 1`, restore отклоняет неизвестные версии
 - Действия: `list` (показать сессии), `restore` (восстановить сообщения), `delete` (удалить)
-- Авто-restore через маркер `<!-- EXTRA_RESTORE: <sessionID> -->` в сообщениях
+- Авто-restore через маркер `<!— EXTRA_RESTORE: <sessionID> —>` в сообщениях
 - Append-only JSONL для crash-safety
 
 **Judge** (инструмент `extra_judge`):
@@ -762,7 +757,7 @@ memory-core + 3 именованных сервера из extra через `mer
 - Мульти-критериальный рубрикатор: корректность, полнота, краткость (0–10 каждое)
 - Возвращает `{ scores, winner, reasoning, model, latencyMs }`
 - Настраиваемая модель (по умолчанию `your-model-id`) + рубрикатор
-- Флаг `judge_auto`: авто-judge кандидатов, помеченных `<!-- EXTRA_JUDGE_CANDIDATES: [...] -->`
+- Флаг `judge_auto`: авто-judge кандидатов, помеченных `<!— EXTRA_JUDGE_CANDIDATES: [...] —>`
 - ИИ-вызов с температурой 0.2 для детерминизма
 - JSON-парсинг с валидацией (отклоняет некорректные ответы)
 
@@ -803,7 +798,7 @@ judge_auto: false     # авто-judge по маркерам в сообщени
 ### Объём документации по плагинам (в словах)
 
 | Плагин | Пакет | src | Итого |
-|---|---|---|---|
+|—-|—-|—-|—-|
 | memory | 954 | 1187 | 2141 |
 | rules | 585 | 730 | 1315 |
 | watchdog | 535 | 714 | 1249 |
@@ -828,10 +823,10 @@ judge_auto: false     # авто-judge по маркерам в сообщени
 
 ### Добавлено
 
-- **Pre-commit хук** (`.git/hooks/pre-commit`): запускает `bun test` + typecheck + аудит load-order + health-чек. Обход: `git commit --no-verify`.
+- **Pre-commit хук** (`.git/hooks/pre-commit`): запускает `bun test` + typecheck + аудит load-order + health-чек. Обход: `git commit —no-verify`.
 - **`bun run test:watch`**: перезапускает все тесты на каждое сохранение `.ts`
 - **`scripts/run-health.ts`**: CLI-скрипт для вызова `@sffmc/health`
-- **`bun run typecheck`**: теперь использует `bun build --no-bundle` (нативно для Bun, без внешнего `tsc`)
+- **`bun run typecheck`**: теперь использует `bun build —no-bundle` (нативно для Bun, без внешнего `tsc`)
 
 ### Изменено
 
@@ -857,7 +852,7 @@ Health возрождён как настоящий диагностически
   1. `hook_conflicts` - 0 реальных конфликтов в 9 плагинах
   2. `test_presence` - в каждом пакете должен быть `*.test.ts`
   3. `readme_presence` - в каждом пакете должен быть `README.md`
-  4. `type_check` - `bun build --no-bundle` по плагинам
+  4. `type_check` - `bun build —no-bundle` по плагинам
   5. `tool_registration` - предотвращает известную регрессию регистрации инструмента
   6. `version_consistency` - версия root совпадает со всеми плагинами
   7. `license` - LICENSE присутствует + каждый README ссылается на него
