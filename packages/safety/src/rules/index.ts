@@ -113,10 +113,50 @@ rules:
       tool: bash
       command_match: "^dd +--of=/dev/"
     action: ask
+  # dd --if=... --of=/dev/sd* (long form both flags).
+  - match:
+      tool: bash
+      command_match: "^dd +--if=[^ ]+ --of=/dev/"
+    action: ask
+  # dd if=/dev/X of=<non-device-file> (read device, write to file = safe).
+  - match:
+      tool: bash
+      command_match: "^dd +if=/dev/[^ ]+ +of=[^/]"
+    action: allow
+  # NFKC rm long-form (uppercase flags — preserves lowercase rm -rf /tmp).
+  - match:
+      tool: bash
+      command_match: "^[Rr][Mm] +-{1,2}[R][F] +/"
+    action: deny
+  # source <(curl|wget) — process substitution RCE chain.
+  - match:
+      tool: bash
+      command_match: "^source +<[(]curl"
+    action: ask
+  - match:
+      tool: bash
+      command_match: "^source +<[(]wget"
+    action: ask
   # rm -rf / / /./ /./. / (root slash variants).
   - match:
       tool: bash
       command_match: "^rm +-r[f]? +/$"
+    action: deny
+  # rm -rf "/" or "//" (quoted root — quotes do not make it safer).
+  - match:
+      tool: bash
+      command_match: '^rm\\s+-r[f]?\\s+["'']//?["'']$'
+    action: deny
+  # rm -rf with quoted home expansion (dollar-HOME / dollar-brace-HOME).
+  - match:
+      tool: bash
+      command_match: '^rm\\s+-r[f]?\\s+["''][$][{]?HOME[}]?["'']'
+    action: deny
+  # rm -rf / optionally closed by a quote — covers the slice inside
+  # bash -c "rm -rf /" where the anchor lands on rm -rf /" .
+  - match:
+      tool: bash
+      command_match: '^rm\\s+-r[f]?\\s+/["'']?$'
     action: deny
   - match:
       tool: bash
@@ -391,11 +431,22 @@ rules:
       tool: bash
       command_match: "^\\\\$'[a-zA-Z]+.*-rf\\\\s+/"
     action: deny
-  # printf with quoted rm -rf / (deny).
+  # printf carrying an ANSI-obfuscated rm payload — RAW phase: the ESC
+  # bytes are what distinguish this from the benign form, and
+  # normalization strips them by design. Substitution recursion is off,
+  # so an inert printf inside a command substitution stays silent.
   - match:
       tool: bash
-      command_match: "^printf\\\\s+['\\\"][^'\\\"]*rm\\\\s+-rf\\\\s+/['\\\"]"
+      command_match: '^printf.*\\x1b'
+      phase: raw
     action: deny
+  # printf carrying a NUL-obfuscated payload — RAW phase, ask (lower
+  # severity than the ANSI variant per corpus).
+  - match:
+      tool: bash
+      command_match: '^printf.*\\x00'
+      phase: raw
+    action: ask
   # variable assignment + execution (deny).
   - match:
       tool: bash

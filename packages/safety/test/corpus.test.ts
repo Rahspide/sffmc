@@ -213,6 +213,22 @@ rules:
       tool: bash
       command_match: "^rm +-r[f]? +/$"
     action: deny
+  # rm -rf "/" or "//" (quoted root — quotes do not make it safer).
+  - match:
+      tool: bash
+      command_match: '^rm\\s+-r[f]?\\s+["'']//?["'']$'
+    action: deny
+  # rm -rf with quoted home expansion (dollar-HOME / dollar-brace-HOME).
+  - match:
+      tool: bash
+      command_match: '^rm\\s+-r[f]?\\s+["''][$][{]?HOME[}]?["'']'
+    action: deny
+  # rm -rf / optionally closed by a quote — covers the slice inside
+  # bash -c "rm -rf /" where the anchor lands on rm -rf /" .
+  - match:
+      tool: bash
+      command_match: '^rm\\s+-r[f]?\\s+/["'']?$'
+    action: deny
   - match:
       tool: bash
       command_match: "^rm\\\\s+-r[f]?\\\\s+/\\\\."
@@ -486,11 +502,22 @@ rules:
       tool: bash
       command_match: "^\\\\$'[a-zA-Z]+.*-rf\\\\s+/"
     action: deny
-  # printf with quoted rm -rf / (deny).
+  # printf carrying an ANSI-obfuscated rm payload — RAW phase: the ESC
+  # bytes are what distinguish this from the benign form, and
+  # normalization strips them by design. Substitution recursion is off,
+  # so an inert printf inside a command substitution stays silent.
   - match:
       tool: bash
-      command_match: "^printf\\\\s+['\\\"][^'\\\"]*rm\\\\s+-rf\\\\s+/['\\\"]"
+      command_match: '^printf.*\\x1b'
+      phase: raw
     action: deny
+  # printf carrying a NUL-obfuscated payload — RAW phase, ask (lower
+  # severity than the ANSI variant per corpus).
+  - match:
+      tool: bash
+      command_match: '^printf.*\\x00'
+      phase: raw
+    action: ask
   # variable assignment + execution (deny).
   - match:
       tool: bash
@@ -601,9 +628,8 @@ function interpretEscapes(s: string): string {
 
 /**
  * Corpus-local evaluator. Mirrors `gate.ts#evaluate()` for the bash
- * path with the two corpus-specific hooks (interpretEscapes +
- * normalizeCommand) applied up front, then anchors every rule at each
- * command-word position in the normalized input.
+ * path: two-phase (raw + normalized) matching with the corpus-specific
+ * `interpretEscapes` hook applied up front.
  */
 function anchoredEvaluate(
   rules: CompiledRule[],
@@ -618,16 +644,52 @@ function anchoredEvaluate(
     if (rule.match.tool !== toolName) continue;
 
     if (rule.commandMatch) {
-      const re = rule.commandMatch.regex;
-      const anchors = commandWordPositions(normalized);
-      for (const anchor of anchors) {
-        const slice = normalized.slice(anchor);
-        const m = re.exec(slice);
-        if (m !== null && m.index === 0) {
-          return {
-            action: rule.action,
-            reason: `command matches "${rule.commandMatch.source}"`,
-          };
+      const phase = rule.commandMatch.phase ?? "normalized";
+      if (phase === "raw") {
+        // Obfuscation heuristic — see the original encoding, anchor on
+        // the raw string, no substitution recursion.
+        const anchors = commandWordPositions(interpreted, {
+          excludeSubstitutions: true,
+        });
+        for (const anchor of anchors) {
+          const slice = interpreted.slice(anchor);
+          const m = rule.commandMatch.regex.exec(slice);
+          if (m !== null && m.index === 0) {
+            return {
+              action: rule.action,
+              reason: `command matches "${rule.commandMatch.source}" (raw phase)`,
+            };
+          }
+        }
+      } else {
+        const anchors = commandWordPositions(normalized);
+        for (const anchor of anchors) {
+          const slice = normalized.slice(anchor);
+          const m = rule.commandMatch.regex.exec(slice);
+          if (m !== null && m.index === 0) {
+            return {
+              action: rule.action,
+              reason: `command matches "${rule.commandMatch.source}"`,
+            };
+          }
+        }
+        // Substitution recursion (normalized phase only) — mirrors
+        // `matchesInsideSubstitution` in compileRules.ts: the output of
+        // `$(…)` is fed back into the calling context.
+        const subAnchors = commandWordPositions(normalized);
+        const recursivePositions = new Set(subAnchors);
+        // Recurse into substitutions for extra positions:
+        for (const p of substitutionPositions(normalized)) {
+          if (!recursivePositions.has(p)) {
+            const slice = normalized.slice(p);
+            const m = rule.commandMatch.regex.exec(slice);
+            if (m !== null && m.index === 0) {
+              return {
+                action: rule.action,
+                reason: `command matches "${rule.commandMatch.source}"`,
+              };
+            }
+          }
         }
       }
       continue;
@@ -643,6 +705,42 @@ function anchoredEvaluate(
   }
 
   return { action: "allow", reason: "no matching rule" };
+}
+
+/** Positions inside `$(...)` / backtick substitutions (recursive scan). */
+function substitutionPositions(cmd: string): number[] {
+  const out: number[] = [];
+  const scan = (s: string, base: number) => {
+    let i = 0;
+    while (i < s.length) {
+      if (s[i] === "`") {
+        const end = s.indexOf("`", i + 1);
+        if (end === -1) break;
+        const inner = s.slice(i + 1, end);
+        for (const p of commandWordPositions(inner)) out.push(base + i + 1 + p);
+        scan(inner, base + i + 1);
+        i = end + 1;
+        continue;
+      }
+      if (s[i] === "$" && s[i + 1] === "(") {
+        let depth = 1;
+        let j = i + 2;
+        while (j < s.length && depth > 0) {
+          if (s[j] === "(") depth++;
+          else if (s[j] === ")") depth--;
+          if (depth > 0) j++;
+        }
+        const inner = s.slice(i + 2, j);
+        for (const p of commandWordPositions(inner)) out.push(base + i + 2 + p);
+        scan(inner, base + i + 2);
+        i = j + 1;
+        continue;
+      }
+      i++;
+    }
+  };
+  scan(cmd, 0);
+  return out;
 }
 
 describe("safety corpus loader", () => {

@@ -36,14 +36,27 @@ export function evaluate(
   projectRoot: string,
 ): { action: Action; reason: string } {
   try {
-    // Normalize the bash command at entry — strips ANSI/NFKC/null/
-    // line-continuation before any rule sees it. Mutating a fresh
-    // local (not the caller's object) keeps the API total without
-    // side effects on the caller's args.
-    let normalizedArgs = args;
-    if (toolName === "bash" && typeof args?.command === "string") {
-      normalizedArgs = { ...args, command: normalizeCommand(args.command) };
-    }
+    // Two-phase matching (v0.15.2 § 1):
+    //
+    //   raw        — the command exactly as received. Rules flagged
+    //                `phase: raw` are obfuscation heuristics: they must
+    //                see the ORIGINAL encoding (ANSI vs NUL bytes vs
+    //                fullwidth forms) because normalization erases the
+    //                difference by design. Raw rules anchor on the raw
+    //                string with substitution recursion disabled — the
+    //                same shape inside `$(…)` is usually inert data.
+    //   normalized — the command after `normalizeCommand()` (NFKC,
+    //                null strip, line-continuation join, ANSI/OSC
+    //                strip). The default phase: these rules care about
+    //                WHAT the shell will execute.
+    //
+    // Mutating fresh locals (not the caller's object) keeps the API
+    // total without side effects on the caller's args.
+    const isBash = toolName === "bash" && typeof args?.command === "string";
+    const rawCommand = isBash ? (args!.command as string) : null;
+    const normalizedArgs = isBash
+      ? { ...args, command: normalizeCommand(rawCommand!) }
+      : args;
 
     const compiled: CompiledRule[] = isRules(rulesInput)
       ? compileRules(rulesInput).rules
@@ -53,8 +66,25 @@ export function evaluate(
       if (rule.match.tool !== toolName) continue;
 
       if (rule.commandMatch) {
-        if (toolName === "bash" && typeof normalizedArgs?.command === "string") {
-          if (anchoredTest(normalizedArgs.command, rule.commandMatch.regex)) {
+        if (isBash) {
+          const phase = rule.commandMatch.phase ?? "normalized";
+          if (phase === "raw") {
+            if (
+              anchoredTest(rawCommand!, rule.commandMatch.regex, {
+                excludeSubstitutions: true,
+              })
+            ) {
+              return {
+                action: rule.action,
+                reason: `command matches "${rule.commandMatch.source}" (raw phase)`,
+              };
+            }
+          } else if (
+            anchoredTest(
+              normalizedArgs!.command as string,
+              rule.commandMatch.regex,
+            )
+          ) {
             return {
               action: rule.action,
               reason: `command matches "${rule.commandMatch.source}"`,

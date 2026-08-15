@@ -48,13 +48,36 @@
  * Duplicate positions are deduplicated. The set is exposed as a plain
  * array so it can be unit-tested without depending on `Set` insertion order.
  */
-export function commandWordPositions(cmd: string): number[] {
+/**
+ * Options controlling which positions qualify as command-word positions.
+ */
+export interface AnchorOptions {
+  /**
+   * Exclude positions that come from recursing into `$(...)` and
+   * backtick substitutions. Rules that detect OBFUSCATION HEURISTICS
+   * (e.g. a printf carrying an ANSI-hidden `rm -rf /`) must only fire
+   * on the command the user actually typed at top level — inside a
+   * substitution, the same shape is often inert data being printed
+   * (`echo "before" $(printf "\x1b[31mrm -rf /\x1b[0m") "after"`).
+   * Inner-substitution commands that genuinely execute are still
+   * caught by the ordinary anchored rules plus the executor rules
+   * (`^\$\(`, `^eval\s+\$\(`, …).
+   */
+  excludeSubstitutions?: boolean;
+}
+
+export function commandWordPositions(
+  cmd: string,
+  opts?: AnchorOptions,
+): number[] {
   if (cmd.length === 0) return [];
   const positions = new Set<number>([0]);
 
   positionsFromSeparators(cmd, positions);
-  positionsFromCommandSubstitutions(cmd, positions);
   positionsFromWrappers(cmd, positions);
+  if (!opts?.excludeSubstitutions) {
+    positionsFromCommandSubstitutions(cmd, positions);
+  }
 
   return [...positions].sort((a, b) => a - b);
 }
@@ -71,8 +94,12 @@ export function commandWordPositions(cmd: string): number[] {
  * pre-compiled once at rule-load time, so this stays cheap on the hot
  * tool-call path.
  */
-export function anchoredTest(cmd: string, regex: RegExp): boolean {
-  const positions = commandWordPositions(cmd);
+export function anchoredTest(
+  cmd: string,
+  regex: RegExp,
+  opts?: AnchorOptions,
+): boolean {
+  const positions = commandWordPositions(cmd, opts);
   for (const pos of positions) {
     // Slice rather than mutating the regex's lastIndex: keeps the same
     // regex reusable for many calls and avoids the `g`/`y` flag bookkeeping.
@@ -89,6 +116,12 @@ export function anchoredTest(cmd: string, regex: RegExp): boolean {
   // inner content (no anchor), so `$(printf "rm -rf /")` matches the
   // deny pattern even though `rm` isn't at a command-word position
   // inside the substitution.
+  //
+  // Raw-phase (obfuscation-heuristic) rules skip this pass entirely:
+  // for them the same shape inside a substitution is usually inert
+  // data (`echo $(printf "…rm -rf /…")`), and true substitution
+  // execution is covered by dedicated executor rules.
+  if (opts?.excludeSubstitutions) return false;
   if (matchesInsideSubstitution(cmd, regex)) return true;
   return false;
 }
