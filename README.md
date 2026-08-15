@@ -36,7 +36,7 @@ The name is a small wink at the upstream project: **S**ome **F**eature **f**rom 
 ## 📦 What's in the box?
 
 | Package | Role |
-|————-|———|
+|---|---|
 | [`@sffmc/runtime`](./packages/runtime) | ⚙️ Sandboxed JS workflow orchestrator + 7 built-in workflows |
 | [`@sffmc/cognition`](./packages/cognition) | 🧠 Max-mode reasoning, compose skills, health diagnostics |
 | [`@sffmc/memory`](./packages/memory) | 💾 Cross-session memory, judge, dream, checkpoint |
@@ -123,34 +123,34 @@ state between plugins. Hot-pluggable — add or remove a package
 without affecting the others.
 
 ```
-                  ┌─────────────────────┐
-                  │     OpenCode CLI    │
-                  └──────────�──────────┘
-                             │ plugin slot
-            ┌────────────────┼────────────────┐
-            │                │                │
-     ┌──────▼──────┐   ┌──────▼──────┐   ┌──────▼──────┐
-     │   safety    │   │   memory    │   │   runtime   │
-     │  composite  │   │  composite  │   │ standalone  │
-     └──────┬──────┘   └──────┬──────┘   └──────┬──────┘
-            │                │                │
-            └────────────────┼────────────────┘
-                             │
-                      ┌──────▼──────┐
-                      │  cognition  │
-                      │ standalone  │
-                      └──────┬──────┘
-                             │
-                      ┌──────▼──────�
-                      │ utilities   │
-                      │   library   │
-                      └─────────────┘
+               ┌────────────────────┐
+               │    OpenCode CLI    │
+               └──────────┬─────────┘
+                          │ plugin slot
+       ┌┬─────────────────┼─────────────────┬┐
+        │                 │                 │
+┌───────────────┐ ┌───────────────┐ ┌───────────────┐
+│    safety     │ │    memory     │ │    runtime    │
+│  (composite)  │ │  (composite)  │ │ (standalone)  │
+└───────┬───────┘ └───────┬───────┘ └───────┬───────┘
+        │                 │                 │
+       └┴─────────────────┼─────────────────┴┘
+                          │
+                  ┌───────────────┐
+                  │   cognition   │
+                  │ (standalone)  │
+                  └───────┬───────┘
+                          │
+                  ┌───────────────┐
+                  │   utilities   │
+                  │   (library)   │
+                  └───────────────┘
 ```
 
 Hook categories (dispatched by `mergeHooks` from `@sffmc/utilities`):
 
 | Category | Semantics | Hook keys |
-|—-|—-|—-|
+|---|---|---|
 | TRANSFORM | Chain (first → last) | `experimental.chat.messages.transform`, `experimental.chat.system.transform`, `experimental.text.complete` |
 | GATE | First-truthy-wins | `tool.execute.before`, `tool.execute.after`, `permission.ask`, `command.execute.before` |
 | SIDE_EFFECT | All run, return discarded | `config`, `event`, `experimental.session.start`, `experimental.session.end` |
@@ -163,7 +163,7 @@ Hook categories (dispatched by `mergeHooks` from `@sffmc/utilities`):
 ## 📚 Documentation
 
 | Doc | What's inside |
-|——-|———————-|
+|---|---|
 | [📥 Getting started](./docs/getting-started.md) | Install, first workflow, debugging |
 | [⚙️ Dynamic workflow](./docs/dynamic-workflow.md) | Sandbox internals, budgets, error model |
 | [🧪 Workflow examples](./docs/workflow-examples.md) | 5 copy-paste workflows |
@@ -180,7 +180,7 @@ Hook categories (dispatched by `mergeHooks` from `@sffmc/utilities`):
 Every commit runs a 7-step gate chain:
 
 | # | Gate | What it checks |
-|—-|———|———————-|
+|---|---|---|
 | 1 | Cleanroom | Banned identifiers, external URLs, workflow-term regex |
 | 2 | ReDoS audit | `safe-regex` over the redaction-rules catalogue |
 | 3 | Load-order audit | AST-based hook-conflict detection |

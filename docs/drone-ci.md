@@ -104,7 +104,7 @@ UI.
 drone repo add Rahspide/sffmc
 
 # Required: npm publish token
-drone secret add —repository Rahspide/sffmc \
+drone secret add --repository Rahspide/sffmc \
   —name npm_token —value "$NPM_TOKEN_FROM_NPMRC"
 
 # Recommended: github PAT for post-publish status updates
@@ -185,7 +185,7 @@ The publish step runs `bun run scripts/release.sh —actual`, which:
      - `@sffmc/runtime`
      - `@sffmc/safety`
 
-3. **Uses `bun publish —access public —tolerate-republish`** per
+3. **Uses `bun publish --access public —tolerate-republish`** per
    package, so re-running the step on a partial publish doesn't
    fail-fast on already-published versions.
 
