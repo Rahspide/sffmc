@@ -111,6 +111,99 @@ rules:
       tool: bash
       command_match: "rm -rf /\\b|chmod -R 777 /\\b"
     action: deny
+  # v0.15.2 final polish: deny rules for rm -rf on system top-level dirs.
+  # Split into multiple safe (non-ReDoS) patterns.
+  - match:
+      tool: bash
+      command_match: "^rm\\\\s+-r[f]?\\\\s+/etc\\\\b"
+    action: deny
+  - match:
+      tool: bash
+      command_match: "^rm\\\\s+-r[f]?\\\\s+/home\\\\b"
+    action: deny
+  - match:
+      tool: bash
+      command_match: "^rm\\\\s+-r[f]?\\\\s+/root\\\\b"
+    action: deny
+  - match:
+      tool: bash
+      command_match: "^rm\\\\s+-r[f]?\\\\s+/usr\\\\b"
+    action: deny
+  - match:
+      tool: bash
+      command_match: "^rm\\\\s+-r[f]?\\\\s+/var\\\\b"
+    action: deny
+  - match:
+      tool: bash
+      command_match: "^rm\\\\s+-r[f]?\\\\s+/bin\\\\b"
+    action: deny
+  - match:
+      tool: bash
+      command_match: "^rm\\\\s+-r[f]?\\\\s+/sbin\\\\b"
+    action: deny
+  - match:
+      tool: bash
+      command_match: "^rm\\\\s+-r[f]?\\\\s+/boot\\\\b"
+    action: deny
+  - match:
+      tool: bash
+      command_match: "^rm\\\\s+-r[f]?\\\\s+/lib\\\\b"
+    action: deny
+  - match:
+      tool: bash
+      command_match: "^rm\\\\s+-r[f]?\\\\s+/opt\\\\b"
+    action: deny
+  # rm -rf / / /./ /./. / (root slash variants).
+  - match:
+      tool: bash
+      command_match: "^rm\\\\s+-r[f]?\\\\s+/$"
+    action: deny
+  - match:
+      tool: bash
+      command_match: "^rm\\\\s+-r[f]?\\\\s+/\\\\."
+    action: deny
+  - match:
+      tool: bash
+      command_match: "^rm\\\\s+-r[f]?\\\\s+/\\\\*"
+    action: deny
+  # v0.15.2 final polish: allow rules for cases bundled ASK wrongly flags.
+  - match:
+      tool: bash
+      command_match: "^chmod\\\\s+[0-7]?[0-7]?[0-7]?[0-7]\\\\b"
+    action: allow
+  - match:
+      tool: bash
+      command_match: "^chmod\\\\s+-R\\\\s+[0-7]?[0-7]?[0-7]?[0-7]\\\\b"
+    action: allow
+  - match:
+      tool: bash
+      command_match: "^chmod\\\\s+--reference\\\\b"
+    action: allow
+  - match:
+      tool: bash
+      command_match: "^chmod\\\\s+[ugoa]\\\\+[xX]\\\\b"
+    action: allow
+  - match:
+      tool: bash
+      command_match: "^dd\\\\b(?!.*\\\\b(?:if|of)=/dev/(?:sd|nvme|hd|mmcblk|vd|xvd))"
+    action: allow
+  - match:
+      tool: bash
+      command_match: "^git\\\\s+push\\\\b[^\\\\n]*--force-with-lease\\\\b"
+    action: allow
+  - match:
+      tool: bash
+      command_match: "^sudo\\\\s+-k\\\\b"
+    action: allow
+  # Case-insensitive mkfs / chmod 777.
+  - match:
+      tool: bash
+      command_match: "^[mM][kK][fF][sS]\\\\b"
+    action: ask
+  - match:
+      tool: bash
+      command_match: "^[cC][hH][mM][oO][dD]\\\\s+777\\\\b"
+    action: ask
   - match:
       tool: bash
       command_match: "rm -rf|chmod 777|chmod -R|dd if=|mkfs|DROP TABLE|TRUNCATE|git push --force|git reset --hard|>|sudo "
