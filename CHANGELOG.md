@@ -18,6 +18,10 @@
 - All 5 packages at `0.16.2`; root at `0.16.2`.
 - Monorepo test: 1951 tests across 110 files / 0 fail.
 
+### Credits
+
+- Thanks to **Professor_Sovers** for the security audit that surfaced the corpus failures and drove the two-phase rule matching architecture.
+
 ## v0.16.1 (2026-07-14)
 
 > Patch release. **No breaking changes.** Documentation sync + infrastructure hardening after the v0.16.0 god-decomposition.
