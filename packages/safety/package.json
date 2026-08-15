@@ -1,6 +1,6 @@
 {
   "name": "@sffmc/safety",
-  "version": "0.16.1",
+  "version": "0.16.2",
   "category": "msp",
   "type": "module",
   "main": "src/index.ts",
@@ -39,7 +39,7 @@
   },
   "role": "safety",
   "composes": [],
-  "description": "Safety composite \u2014 composes watchdog, rules, auto-max, eos-stripper, log-whitelist",
+  "description": "Safety composite — composes watchdog, rules, auto-max, eos-stripper, log-whitelist",
   "files": [
     "LICENSE",
     "README.md",
