@@ -184,6 +184,30 @@ rules:
       tool: bash
       command_match: "^dd +--of=/dev/"
     action: ask
+  # dd --if=... --of=/dev/sd* (long form both flags).
+  - match:
+      tool: bash
+      command_match: "^dd +--if=[^ ]+ --of=/dev/"
+    action: ask
+  # dd if=/dev/X of=<non-device-file> (read device, write to file = safe).
+  - match:
+      tool: bash
+      command_match: "^dd +if=/dev/[^ ]+ +of=[^/]"
+    action: allow
+  # NFKC rm long-form (uppercase flags — preserves lowercase rm -rf /tmp).
+  - match:
+      tool: bash
+      command_match: "^[Rr][Mm] +-{1,2}[R][F] +/"
+    action: deny
+  # source <(curl|wget) — process substitution RCE chain.
+  - match:
+      tool: bash
+      command_match: "^source +<[(]curl"
+    action: ask
+  - match:
+      tool: bash
+      command_match: "^source +<[(]wget"
+    action: ask
   # rm -rf / / /./ /./. / (root slash variants).
   - match:
       tool: bash
