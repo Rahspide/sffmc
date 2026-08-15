@@ -153,10 +153,41 @@ rules:
       tool: bash
       command_match: "^rm\\\\s+-r[f]?\\\\s+/opt\\\\b"
     action: deny
+  # v0.15.2 final polish batch 3 (YAML-safe): simple literal-space patterns
+  # to avoid the YAML JSON-schema invalid-escape trap on \\s and flow-seq
+  # interpretation of [^\"] inside double-quoted YAML.
+  # chmod 666 / chmod 777 (world-writable octal).
+  - match:
+      tool: bash
+      command_match: "^chmod +666"
+    action: ask
+  - match:
+      tool: bash
+      command_match: "^chmod +777 +/etc"
+    action: ask
+  - match:
+      tool: bash
+      command_match: "^chmod +777 +/tmp"
+    action: ask
+  # chmod -R 777 on /etc (recursive world-writable on system path).
+  - match:
+      tool: bash
+      command_match: "^chmod +-R +777 +/etc"
+    action: ask
+  # dd of=/dev/sd* (write-to-device, dangerous direction).
+  - match:
+      tool: bash
+      command_match: "^dd +of=/dev/"
+    action: ask
+  # dd --of=/dev/sd* long form.
+  - match:
+      tool: bash
+      command_match: "^dd +--of=/dev/"
+    action: ask
   # rm -rf / / /./ /./. / (root slash variants).
   - match:
       tool: bash
-      command_match: "^rm\\\\s+-r[f]?\\\\s+/$"
+      command_match: "^rm +-r[f]? +/$"
     action: deny
   - match:
       tool: bash
