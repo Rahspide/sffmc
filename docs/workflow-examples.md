@@ -251,7 +251,7 @@ export default async function main(args) {
   phase("Write")
   const report = summaries
     .map((s, i) => `## ${logFiles[i]}\n\n${s ?? "(no summary available)"}\n`)
-    .join("\n---\n\n")
+    .join("\n—-\n\n")
 
   const header = `# Daily Report - ${new Date().toISOString().slice(0, 10)}\n\n`
   await writeFile(reportPath, header + report)

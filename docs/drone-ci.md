@@ -105,15 +105,15 @@ drone repo add Rahspide/sffmc
 
 # Required: npm publish token
 drone secret add --repository Rahspide/sffmc \
-  --name npm_token --value "$NPM_TOKEN_FROM_NPMRC"
+  —name npm_token —value "$NPM_TOKEN_FROM_NPMRC"
 
 # Recommended: github PAT for post-publish status updates
-drone secret add --repository Rahspide/sffmc \
-  --name github_token --value "$GITHUB_PAT"
+drone secret add —repository Rahspide/sffmc \
+  —name github_token —value "$GITHUB_PAT"
 
 # Optional: slack/discord webhook
-drone secret add --repository Rahspide/sffmc \
-  --name slack_webhook --value "https://hooks.slack.com/services/..."
+drone secret add —repository Rahspide/sffmc \
+  —name slack_webhook —value "https://hooks.slack.com/services/..."
 ```
 
 To extract the existing `npm_token` from your local `~/.npmrc`:
@@ -132,7 +132,7 @@ environment variables named after the secret (e.g. `npm_token` →
 The end-to-end release flow is:
 
 1. **Bump versions** in each `packages/*/package.json` and
-   `package.json (root)` (use `git diff main -- package.json packages/*/package.json` to see the current state). Keep all 5 packages on the same version.
+   `package.json (root)` (use `git diff main — package.json packages/*/package.json` to see the current state). Keep all 5 packages on the same version.
 
 2. **Commit + push** the version bumps to `main`. Wait for CI to pass.
 
@@ -185,7 +185,7 @@ The publish step runs `bun run scripts/release.sh --actual`, which:
      - `@sffmc/runtime`
      - `@sffmc/safety`
 
-3. **Uses `bun publish --access public --tolerate-republish`** per
+3. **Uses `bun publish --access public —tolerate-republish`** per
    package, so re-running the step on a partial publish doesn't
    fail-fast on already-published versions.
 

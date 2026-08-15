@@ -18,7 +18,7 @@ Example: a 6-phase research workflow (Plan → Search → Extract →
 Group → Crosscheck → Report) runs with a single command:
 
 ```bash
-workflow run --name deep-research --args.question "What is the best Rust web framework for 2026?"
+workflow run --name deep-research —args.question "What is the best Rust web framework for 2026?"
 ```
 
 Under the hood: ~30 agents (planner + searchers + readers + jury +

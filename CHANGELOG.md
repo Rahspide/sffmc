@@ -4,41 +4,35 @@ All notable changes to SFFMC are documented here. Dates use `YYYY-MM-DD`.
 
 ## v0.16.3 (2026-08-15)
 
-> Post-release cleanup patch. **No behavior changes, no API changes.**
-> Internal polish + documentation refresh.
+> Patch release. **No behavior changes, no API changes.** Post-release cleanup: drift fix, orphan removal, and two README design passes (initial redesign + maintainer follow-up polish).
 
 ### Removed
 
-- **Five orphan dev scripts** under `scripts/` (`e2e-load-composites.ts`,
-  `live-test-health.ts`, `live-test-tools.ts`, `test-cross-composite.ts`,
-  `validate-skills.ts`) -- they were not invoked from any `package.json`
-  script, not referenced from any other file, and their functionality is
-  already covered by the test suite + the `sffmc_health` tool.
+- **Five orphan dev scripts** under `scripts/` (`e2e-load-composites.ts`, `live-test-health.ts`, `live-test-tools.ts`, `test-cross-composite.ts`, `validate-skills.ts`) -- they were not invoked from any `package.json` script, not referenced from any other file, and their functionality is already covered by the test suite + the `sffmc_health` tool. **458 lines of dead code gone.**
 
 ### Fixed
 
-- **`bun.lock` version drift** -- the lockfile had stale workspace pins
-  (`0.16.1`) that no longer matched the package manifests (`0.16.2`).
-  `bun install` now refreshes the lockfile alongside every manifest bump
-  so consumers always see a consistent version across `package.json`,
-  `bun.lock`, and the published tarballs.
+- **`bun.lock` version drift** -- the lockfile had stale workspace pins (`0.16.1`) that no longer matched the package manifests (`0.16.2`). `bun install` now refreshes the lockfile alongside every manifest bump so consumers always see a consistent version across `package.json`, `bun.lock`, and the published tarballs.
+- **Bunny-runtime shield image** returned `404: badge not found` for the previous shields.io path; v0.16.3 uses a path that resolves correctly.
 
 ### Changed
 
-- **`README.md`** -- redesigned with the SFFMC expansion (`**S**ome
-  **F**eature **f**rom **M**imo **C**ode`), a hero section, a "What's
-  in the box?" table with package emojis, an architecture diagram, and
-  a quality-gates table. Same install instructions, just better laid
-  out.
-- **`codemap.md`** -- refreshed to reflect v0.16.2 + v0.16.3 state:
-  added the safety-engine hardening summary, a recent-changelog section,
-  and updated package maps.
-- **`docs/install.md`** -- version-pin examples updated from `v0.16.0`
-  to `v0.16.3`.
+- **`README.md`** -- redesigned with the SFFMC expansion (`**S**ome **F**eature **f**rom **M**imo **C**ode`), then polished again based on maintainer feedback:
+  - Working Bunny-runtime badge (404 → 200).
+  - Removed the dedicated `License: MIT` badge -- the LICENSE file remains in the repo but no longer shouts from the README header.
+  - Dropped the standalone `Emoji` column from the package table; each package's emoji now lives inline in its description.
+  - Added Install-section emoji (📥) and Architecture-section emoji for visual anchors.
+  - Replaced all double-dash sequences (`--`) with the proper em-dash (`—`) in prose; reverted replacements that broke CLI flags inside code blocks.
+  - Tightened the architecture diagram so every plugin box is the same width.
+  - Replaced the Max-mode broken character glyph with a proper 🧠 emoji.
+  - Warm-up pass on the prose -- kept the engineer tone, but made it less lecture-y.
+- **`codemap.md`** -- refreshed to reflect v0.16.2 + v0.16.3 state: added the safety-engine hardening summary, a recent-changelog section, and updated package maps.
+- **`docs/*.md`** -- same `--` → `—` cleanup across `install.md`, `getting-started.md`, `drone-ci.md`, `dynamic-workflow.md`, `migration-from-opencode.md`, `mimo-code-features.md`, `v0.16.0-decomposition.md`, `workflow-examples.md`. Shell commands and markdown anchors preserved.
 
 ### Stats
 
 - All 5 packages at `0.16.3`; root at `0.16.3`.
+- 19 files modified, 5 files deleted.
 - Test count unchanged: 1951 tests across 110 files / 0 fail.
 
 ## v0.16.2 (2026-08-15)
@@ -362,7 +356,7 @@ Hotfix: auto-max cap observability + PEM body redaction + ReDoS CI gate + dynami
 
 ### Fixed
 
-- **PEM key body redaction** (`shared/src/redact-secrets.ts`) - PEM regex extended to match full block (header + body + footer). Previously only `-----BEGIN ... PRIVATE KEY-----` header was redacted; the base64-encoded key material body now also redacted. 7 new tests (#29-35).
+- **PEM key body redaction** (`shared/src/redact-secrets.ts`) - PEM regex extended to match full block (header + body + footer). Previously only `——-BEGIN ... PRIVATE KEY——-` header was redacted; the base64-encoded key material body now also redacted. 7 new tests (#29-35).
 - **Stale dynamic-workflow documentation link** (`README.md`) - fixed broken link from v0.14.0.
 
 ### Not Changed (already clean)
@@ -789,7 +783,7 @@ All features disabled by default - toggle per feature via config flags.
   `~/.local/share/sffmc/extra/checkpoints/<sessionID>.jsonl` (configurable via `checkpoint_dir`)
 - Schema versioning: `version: 1` header, restore rejects unknown versions
 - Actions: `list` (show sessions), `restore` (reconstruct messages), `delete` (remove)
-- Auto-restore via `<!-- EXTRA_RESTORE: <sessionID> -->` marker in messages
+- Auto-restore via `<!— EXTRA_RESTORE: <sessionID> —>` marker in messages
 - Append-only JSONL for crash safety
 
 **Judge** (`extra_judge` tool):
@@ -797,7 +791,7 @@ All features disabled by default - toggle per feature via config flags.
 - Multi-criteria rubric: correctness, completeness, conciseness (0-10 each)
 - Returns `{ scores, winner, reasoning, model, latencyMs }`
 - Configurable model (default `your-model-id`) + rubric
-- `judge_auto` flag: auto-judge candidates marked with `<!-- EXTRA_JUDGE_CANDIDATES: [...] -->`
+- `judge_auto` flag: auto-judge candidates marked with `<!— EXTRA_JUDGE_CANDIDATES: [...] —>`
 - LLM call at temperature 0.2 for determinism
 - JSON parsing with validation (rejects malformed responses)
 

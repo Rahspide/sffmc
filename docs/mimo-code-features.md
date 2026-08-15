@@ -19,8 +19,8 @@ documented in the project's own source tree and public repository.
 4. [Built-in Workflows](#4-built-in-workflows)
 5. [Memory / Context](#5-memory--context)
 6. [Plugins / Hooks](#6-plugins--hooks)
-7. [Configuration & Persistence](#7-configuration--persistence)
-8. [Concurrency & Determinism](#8-concurrency--determinism)
+7. [Configuration & Persistence](#7-configuration—persistence)
+8. [Concurrency & Determinism](#8-concurrency—determinism)
 9. [Sandbox Security Model](#9-sandbox-security-model)
 10. [Adoption Patterns](#10-adoption-patterns)
 11. [Comparisons (Within MiMo's Own Framing)](#11-comparisons-within-mimos-own-framing)
@@ -618,7 +618,7 @@ Each `agent()` call follows the exact counter discipline
 ```
 running++    // BEFORE spawn attempt
 spawn()
-running--    // AFTER settle
+running—    // AFTER settle
 if (value !== null) succeeded++
 else              failed++
 ```
@@ -1680,7 +1680,7 @@ delete globalThis.FinalizationRegistry;
 Documented in detail in §2.13. The short version:
 
 - `running++` happens **before** the spawn attempt.
-- `running--` and exactly one of `succeeded++` or `failed++` happens
+- `running—` and exactly one of `succeeded++` or `failed++` happens
   **after** settle.
 - Settle runs even when the spawn rejects (so a `spawn-reject` increments
   `failed`).
