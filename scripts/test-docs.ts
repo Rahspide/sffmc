@@ -30,7 +30,7 @@ import { execSync } from "node:child_process"
 // --------------------------------------------------------------------------
 
 const REPO_ROOT = resolve(import.meta.dir, "..")
-const NPM_VERSION_EXPECTED = "0.16.2"
+const NPM_VERSION_EXPECTED = "0.16.3"
 const README_LINE_LIMIT = 150
 
 const AI_TELL_WORDS = [

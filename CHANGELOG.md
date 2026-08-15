@@ -1,3 +1,46 @@
+# Changelog
+
+All notable changes to SFFMC are documented here. Dates use `YYYY-MM-DD`.
+
+## v0.16.3 (2026-08-15)
+
+> Post-release cleanup patch. **No behavior changes, no API changes.**
+> Internal polish + documentation refresh.
+
+### Removed
+
+- **Five orphan dev scripts** under `scripts/` (`e2e-load-composites.ts`,
+  `live-test-health.ts`, `live-test-tools.ts`, `test-cross-composite.ts`,
+  `validate-skills.ts`) -- they were not invoked from any `package.json`
+  script, not referenced from any other file, and their functionality is
+  already covered by the test suite + the `sffmc_health` tool.
+
+### Fixed
+
+- **`bun.lock` version drift** -- the lockfile had stale workspace pins
+  (`0.16.1`) that no longer matched the package manifests (`0.16.2`).
+  `bun install` now refreshes the lockfile alongside every manifest bump
+  so consumers always see a consistent version across `package.json`,
+  `bun.lock`, and the published tarballs.
+
+### Changed
+
+- **`README.md`** -- redesigned with the SFFMC expansion (`**S**ome
+  **F**eature **f**rom **M**imo **C**ode`), a hero section, a "What's
+  in the box?" table with package emojis, an architecture diagram, and
+  a quality-gates table. Same install instructions, just better laid
+  out.
+- **`codemap.md`** -- refreshed to reflect v0.16.2 + v0.16.3 state:
+  added the safety-engine hardening summary, a recent-changelog section,
+  and updated package maps.
+- **`docs/install.md`** -- version-pin examples updated from `v0.16.0`
+  to `v0.16.3`.
+
+### Stats
+
+- All 5 packages at `0.16.3`; root at `0.16.3`.
+- Test count unchanged: 1951 tests across 110 files / 0 fail.
+
 ## v0.16.2 (2026-08-15)
 
 > Patch release. **No breaking changes.** `@sffmc/safety` engine hardening with full corpus coverage; `@sffmc/memory` v1 checkpoint migration fix.
