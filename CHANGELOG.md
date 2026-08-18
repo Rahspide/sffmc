@@ -2,6 +2,15 @@
 
 All notable changes to SFFMC are documented here. Dates use `YYYY-MM-DD`.
 
+## v0.16.4 (in development)
+
+> Patch-релиз. **В процессе разработки.** Анти-slop cleanup: SAFETY комментарии на type assertions (647), переименование shape-symbols в memory (20), refactor chained assertions (124).
+
+### Changed
+
+- Добавлены `// SAFETY: <reason>` комментарии ко всем 647 type assertions (anti-slop rule `require-safety-comment-for-type-assertion`)
+- Переименованы identifiers с подстрокой `shape` → `form` в `packages/memory` (20 violations)
+
 ## v0.16.3 (2026-08-15)
 
 > Patch release. **No behavior changes, no API changes.** Post-release cleanup: drift fix, orphan removal, and two README design passes (initial redesign + maintainer follow-up polish).

@@ -1,6 +1,6 @@
 {
   "name": "@sffmc/utilities",
-  "version": "0.16.3",
+  "version": "0.16.4",
   "category": "sffmc-original",
   "type": "module",
   "main": "src/index.ts",
