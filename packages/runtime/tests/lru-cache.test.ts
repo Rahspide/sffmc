@@ -240,6 +240,7 @@ describe("WorkflowRuntime.outcomes wraps BoundedLRU via OutcomeStore", () => {
     try {
       process.env.WORKFLOW_OUTCOMES_CACHE_SIZE = "7"
       const runtime = new WorkflowRuntime(mockCtx)
+      // SAFETY: test uses reflection to inspect the private `outcomes` field; the inline shape declares the documented private surface for assertion
       const outcomes = (runtime as unknown as {
         outcomes: OutcomeStore<string, unknown>
       }).outcomes
@@ -256,6 +257,7 @@ describe("WorkflowRuntime.outcomes wraps BoundedLRU via OutcomeStore", () => {
     try {
       process.env.WORKFLOW_OUTCOMES_CACHE_SIZE = "not-a-number"
       const runtime = new WorkflowRuntime(mockCtx)
+      // SAFETY: reflection pattern matches the previous outcomes-assertion block; verifies the malformed-env fallback returns 500
       const outcomes = (runtime as unknown as {
         outcomes: OutcomeStore<string, unknown>
       }).outcomes
@@ -271,6 +273,7 @@ describe("WorkflowRuntime.outcomes wraps BoundedLRU via OutcomeStore", () => {
     try {
       process.env.WORKFLOW_OUTCOMES_CACHE_SIZE = "7"
       const runtime = new WorkflowRuntime(mockCtx, { completedOutcomesCacheSize: 3 })
+      // SAFETY: reflection pattern matches the previous outcomes-assertion blocks; verifies the constructor option overrides the env-var value
       const outcomes = (runtime as unknown as {
         outcomes: OutcomeStore<string, unknown>
       }).outcomes
@@ -286,6 +289,7 @@ describe("WorkflowRuntime.outcomes wraps BoundedLRU via OutcomeStore", () => {
     const runtime = new WorkflowRuntime(mockCtx, { completedOutcomesCacheSize: 2 })
 
     // Populate via reflection on completeRun (private method).
+    // SAFETY: test uses reflection to access the private `completeRun` method; the inline shape declares the documented private surface (called via .bind to preserve `this`)
     const completeRun = (
       runtime as unknown as {
         completeRun: (e: unknown) => void
@@ -341,6 +345,7 @@ describe("WorkflowRuntime.outcomes wraps BoundedLRU via OutcomeStore", () => {
     }
 
     // Cache size capped at 2 — oldest two should have been evicted.
+    // SAFETY: reflection pattern matches the previous outcomes-assertion blocks; verifies the LRU eviction behavior on the outcomes store
     const outcomes = (runtime as unknown as {
       outcomes: OutcomeStore<string, unknown>
     }).outcomes

@@ -65,6 +65,7 @@ function parseCorpus(text: string): { cases: Case[]; section: string } {
     if (expectMatch && pendingInput !== null) {
       cases.push({
         input: pendingInput,
+        // SAFETY: narrowed by regex match on line 64 — Verdict is one of deny|ask|pass
         expect: expectMatch[1] as Verdict,
         section,
       });

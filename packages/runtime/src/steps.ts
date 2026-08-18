@@ -54,20 +54,32 @@ export class StepsRepository {
     }
   }
 
+  // SAFETY: loadCompletedSteps returns WorkflowStep[]; the type annotation reflects the mapped rows from SELECT * on workflow_steps
   loadCompletedSteps(runID: string): WorkflowStep[] {
     safeRunID(runID)
     const rows = this.db
+      // SAFETY: bun:sqlite query() returns unknown; Record<string, unknown>[] is the schema for SELECT * result rows
       .query("SELECT * FROM workflow_steps WHERE run_id = ? ORDER BY step_index")
+      // SAFETY: bun:sqlite .all() returns unknown; Record<string, unknown>[] re-states the SELECT * row shape for the typed assignment
       .all(runID) as Record<string, unknown>[]
     return rows.map((row) => ({
+      // SAFETY: row comes from SELECT * on workflow_steps (typed schema); `run_id` column is TEXT NOT NULL
       runID: row.run_id as string,
+      // SAFETY: row comes from SELECT * on workflow_steps (typed schema); `step_index` column is INTEGER NOT NULL
       stepIndex: row.step_index as number,
+      // SAFETY: row comes from SELECT * on workflow_steps (typed schema); `kind` column is TEXT with WorkflowStep["kind"] values
       kind: row.kind as WorkflowStep["kind"],
+      // SAFETY: row comes from SELECT * on workflow_steps (typed schema); `input_prompt` column is TEXT nullable
       input: (row.input_prompt as string) || undefined,
+      // SAFETY: row comes from SELECT * on workflow_steps (typed schema); `output_result` column is TEXT nullable
       output: (row.output_result as string) || undefined,
+      // SAFETY: row comes from SELECT * on workflow_steps (typed schema); `cost_tokens` column is INTEGER NOT NULL
       costTokens: row.cost_tokens as number,
+      // SAFETY: row comes from SELECT * on workflow_steps (typed schema); `duration_ms` column is INTEGER NOT NULL
       durationMs: row.duration_ms as number,
+      // SAFETY: row comes from SELECT * on workflow_steps (typed schema); `error` column is TEXT nullable
       error: (row.error as string) || undefined,
+      // SAFETY: row comes from SELECT * on workflow_steps (typed schema); `timestamp` column is INTEGER NOT NULL
       timestamp: row.timestamp as number,
     }))
   }

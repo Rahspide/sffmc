@@ -58,11 +58,13 @@ export const server = async (ctx: PluginContext) => {
 
   // Register observability listeners on the runtime's event bus
   runtime.events.on("workflow:agent_failed", (e) => {
+    // SAFETY: event emitter is typed as `unknown`; WorkflowAgentFailedEvent is the documented payload shape for "workflow:agent_failed"
     const ev = e as WorkflowAgentFailedEvent
     log.warn(`agent ${ev.agentKey} in ${ev.runID} failed: ${ev.reason}`)
   })
 
   runtime.events.on("workflow:finished", (e) => {
+    // SAFETY: event emitter is typed as `unknown`; WorkflowFinishedEvent is the documented payload shape for "workflow:finished"
     const ev = e as WorkflowFinishedEvent
     if (ev.status !== "completed") {
       log.warn(`${ev.runID} finished: ${ev.status}${ev.error ? ` — ${ev.error}` : ""}`)

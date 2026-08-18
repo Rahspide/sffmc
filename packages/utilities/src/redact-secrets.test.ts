@@ -442,6 +442,7 @@ describe("redact-secrets — user regex ReDoS guard", () => {
     // does NOT appear in the compiled cache: feeding input that would match
     // it (e.g. "aaaaaaaab") must not be redacted as a user-rule category.
     const probe = redactSecrets("aaaaaaaab")
+    // SAFETY: invariant — `as never` for string literal test against dynamic ReDoS categories array
     const matchedRedos = probe.categories.includes("redos-bad" as never)
     expect(matchedRedos).toBe(false)
   })
@@ -468,6 +469,7 @@ describe("redact-secrets — user regex ReDoS guard", () => {
     __setRedactionConfigHome(configDir)
     await ensureRedactionRules()
     const r = redactSecrets("token=eyJhbGciOiJIUzI1NiJ9.payload")
+    // SAFETY: invariant — `as never` for string literal test against dynamic categories array
     expect(r.categories).toContain("user-jwt" as never)
     expect(r.redacted).toContain("[REDACTED:user-jwt]")
   })
@@ -487,7 +489,9 @@ describe("redact-secrets — user regex ReDoS guard", () => {
     __setRedactionConfigHome(configDir)
     await ensureRedactionRules()
     const r = redactSecrets("SECRET_FOO and bbbbbbbb")
+    // SAFETY: invariant — `as never` for string literal test against dynamic categories array
     expect(r.categories).toContain("good-rule" as never)
+    // SAFETY: invariant — `as never` for string literal test against dynamic categories array
     expect(r.categories).not.toContain("bad-rule" as never)
   })
 

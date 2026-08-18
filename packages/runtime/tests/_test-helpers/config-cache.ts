@@ -52,6 +52,7 @@ export {
  *  is reached through a Symbol registry populated by constants.ts at
  *  module load — not through a public export. */
 export function __setWorkflowConfig(cfg: unknown): void {
+  // SAFETY: globalThis typed as `typeof globalThis` lacks Symbol keys; Record<symbol, unknown> is the documented escape hatch for symbol-keyed registry lookup
   const fn = (globalThis as Record<symbol, unknown>)[__SET_WORKFLOW_CONFIG_SYMBOL] as
     | ((c: unknown) => void)
     | undefined

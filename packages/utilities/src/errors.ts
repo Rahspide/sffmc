@@ -15,6 +15,7 @@ export function extractErrorType(output: unknown): string {
     if (errMatch) return errMatch[1].toUpperCase()
   }
   if (output && typeof output === "object") {
+    // SAFETY: narrowed by typeof check on line 17 — output is non-null object
     const o = output as Record<string, unknown>
     if (typeof o.code === "string") return o.code
     if (typeof o.name === "string") return o.name

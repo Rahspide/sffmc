@@ -61,7 +61,9 @@ describe("builtin meta shape", () => {
           expect(phase).not.toBeNull()
           expect(typeof phase.title).toBe("string")
           expect(phase.title.length).toBeGreaterThan(0)
+          // SAFETY: phase is typed via typeof === "object" + !== null checks above; the inline shape declares the optional .detail field for the existence test
           if ((phase as { detail?: unknown }).detail !== undefined) {
+            // SAFETY: detail existence is verified by the guard above; the cast re-states the shape for the typeof check on .detail
             expect(typeof (phase as { detail: unknown }).detail).toBe("string")
           }
         }

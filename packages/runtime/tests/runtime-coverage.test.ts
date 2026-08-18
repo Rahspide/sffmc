@@ -178,6 +178,7 @@ describe("spawnAgent depth check", () => {
 describe("failRun() budget_exceeded pattern matching", () => {
   test("failRun sets status to budget_exceeded when error matches budget/deadline pattern", () => {
     const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
+    // SAFETY: test uses reflection to access the private `failRun` method; the inline shape declares the documented private surface (called via .bind to preserve `this`)
     const failRun = (runtime as unknown as {
       failRun: (entry: unknown, error: string | Error) => void
     }).failRun.bind(runtime)
@@ -299,6 +300,7 @@ describe("scheduleFlush / flushNow DB counter flush", () => {
     // error. The runtime exposes flushManager as a public field; the
     // test reads it via a narrow type cast to keep the test-side
     // dependency minimal (no need to import FlushManager).
+    // SAFETY: test uses reflection to access the public `flushManager` field's `flushNow` method; the inline shape declares the documented surface (called via .bind to preserve `this`)
     const flushNow = (
       runtime as unknown as { flushManager: { flushNow: (e: unknown) => void } }
     ).flushManager.flushNow.bind(runtime.flushManager)
@@ -414,6 +416,7 @@ describe("executeAgentCall schema-based structured extract", () => {
       emitEvent: () => {},
       callLLM: async (_entry, prompt, opts) => {
         calls.push({ prompt, opts })
+        // SAFETY: stubbedResult is the documented return type for callLLM (CallLLMResult); the conditional type infers the awaited return type from the callLLM signature
         return stubbedResult as Awaited<ReturnType<typeof callLLM>> extends infer R
           ? R
           : never

@@ -34,6 +34,7 @@ export function makeToolsSpyCtx(): PluginContext & {
         message: async (args: Record<string, unknown>) => {
           calls.push({
             messages: args.messages,
+            // SAFETY: args.model is unknown; string | undefined is the documented LLM SDK call.model parameter type
             model: args.model as string | undefined,
             tools: args.tools,
           })

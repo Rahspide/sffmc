@@ -60,6 +60,7 @@ Set stream: true to receive partial results as they become available (useful for
         return { ok: false, error: validated.error };
       }
       const { candidates } = validated;
+      // SAFETY: narrowed by validated.kind === "error" on line 59
       const effectiveRubric = (input?.rubric as string | undefined) || rubric;
 
       // Try LLM judge

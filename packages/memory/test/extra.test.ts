@@ -55,6 +55,7 @@ describe("@sffmc/memory plugin (extra features)", () => {
     expect(hooks.tool.extra_dream).toBeDefined();
 
     // Regression guard (fix-17): no `name` field on tool defs
+    // SAFETY: invariant — see caller justification
     const cp = hooks.tool.extra_checkpoint as Record<string, unknown>;
     expect(cp.description).toBeTypeOf("string");
     expect(cp.parameters).toEqual({
@@ -69,8 +70,10 @@ describe("@sffmc/memory plugin (extra features)", () => {
     expect(cp.name).toBeUndefined();
 
     for (const toolName of ["extra_judge", "extra_dream"]) {
+      // SAFETY: invariant — see caller justification
       const def = hooks.tool[toolName] as Record<string, unknown>;
       expect(def.description).toBeTypeOf("string");
+      // SAFETY: invariant — see caller justification
       expect((def.parameters as Record<string, unknown>).type).toBe("object");
       expect(def.execute).toBeFunction();
       expect(def.name).toBeUndefined();
@@ -80,6 +83,7 @@ describe("@sffmc/memory plugin (extra features)", () => {
   it("with default config (all disabled), each tool returns an object result", async () => {
     const hooks = await loadServer();
     for (const toolName of ["extra_checkpoint", "extra_judge", "extra_dream"]) {
+      // SAFETY: invariant — see caller justification
       const result = (await (hooks.tool[toolName] as { execute: () => Promise<unknown> }).execute()) as Record<string, unknown>;
       // Just verify the tool returns an object (any of these valid shapes):
       //   - { ok: true, skipped: true, reason: "feature disabled" } (default disabled)

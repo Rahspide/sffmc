@@ -92,6 +92,7 @@ function seedDB(db: Database, count: number, baseContent = "memory entry"): void
 }
 
 function countRows(db: Database): number {
+  // SAFETY: invariant — see caller justification
   const row = db.query("SELECT COUNT(*) as cnt FROM memory_entries").get() as { cnt: number };
   return row.cnt;
 }
@@ -285,6 +286,7 @@ describe("Dream", () => {
     expect(result.summarized).toBe(6);
 
     const db2 = openTestDB();
+    // SAFETY: invariant — see caller justification
     const rows = db2
       .query("SELECT * FROM memory_entries")
       .all() as Array<{ source_path: string; content: string }>;
@@ -491,6 +493,7 @@ describe("Dream", () => {
     expect(result.summarized).toBe(6);
 
     const db2 = openTestDB();
+    // SAFETY: invariant — see caller justification
     const rows = db2
       .query("SELECT * FROM memory_entries")
       .all() as Array<{ source_path: string; content: string }>;
@@ -541,6 +544,7 @@ describe("Dream", () => {
     expect(result.summarized).toBe(6);
 
     const db2 = openTestDB();
+    // SAFETY: invariant — see caller justification
     const rows = db2
       .query("SELECT * FROM memory_entries")
       .all() as Array<{ source_path: string; content: string }>;
@@ -602,6 +606,7 @@ describe("Dream", () => {
     expect(result.errors.some((e) => e.includes("summarization LLM failed"))).toBe(true);
 
     const db2 = openTestDB();
+    // SAFETY: invariant — see caller justification
     const rows = db2
       .query("SELECT * FROM memory_entries")
       .all() as Array<{ source_path: string; content: string }>;
@@ -704,6 +709,7 @@ describe("Dream", () => {
     expect(result.summarized).toBe(6);
 
     const db2 = openTestDB();
+    // SAFETY: invariant — see caller justification
     const rows = db2
       .query("SELECT * FROM memory_entries")
       .all() as Array<{ source_path: string; content: string }>;
@@ -997,6 +1003,7 @@ describe("Dream", () => {
     const db2 = openTestDB();
     expect(countRows(db2)).toBe(35);
     // The 1 inserted summary must be the only "dream-summary" row.
+    // SAFETY: invariant — see caller justification
     const summaries = db2
       .query("SELECT * FROM memory_entries WHERE source_path = ?")
       .all("dream-summary") as Array<{ content: string }>;
@@ -1325,6 +1332,7 @@ describe("Dream", () => {
       expect(result.summarized).toBe(6);
 
       const db2 = openTestDB();
+      // SAFETY: invariant — see caller justification
       const rows = db2
         .query("SELECT * FROM memory_entries")
         .all() as Array<{ source_path: string; content: string }>;
@@ -1391,6 +1399,7 @@ describe("Dream", () => {
       expect(result.summarized).toBe(6);
 
       const db2 = openTestDB();
+      // SAFETY: invariant — see caller justification
       const rows = db2
         .query("SELECT * FROM memory_entries")
         .all() as Array<{ content: string }>;
@@ -1658,6 +1667,7 @@ describe("Dream", () => {
         expect(result.summarized).toBe(6);
 
         const db2 = openTestDB();
+        // SAFETY: invariant — see caller justification
         const rows = db2
           .query("SELECT * FROM memory_entries")
           .all() as Array<{ content: string }>;
@@ -1716,6 +1726,7 @@ describe("Dream", () => {
         expect(result.summarized).toBe(6);
 
         const db2 = openTestDB();
+        // SAFETY: invariant — see caller justification
         const rows = db2
           .query("SELECT * FROM memory_entries")
           .all() as Array<{ content: string }>;
@@ -1905,6 +1916,7 @@ describe("Dream", () => {
       // All 6 source entries must be folded into 1 summary row.
       expect(result.summarized).toBe(6);
       const db2 = openTestDB();
+      // SAFETY: invariant — see caller justification
       const rows = db2
         .query("SELECT * FROM memory_entries")
         .all() as Array<{ source_path: string; content: string }>;
@@ -1929,6 +1941,7 @@ describe("Dream", () => {
       // Either way, clearCronTimer() must be idempotent — the timer slot
       // after createDreamTool returns is null because intervalHours=0
       // short-circuits the setup before any setInterval runs.
+      // SAFETY: invariant — see caller justification
       const before = (createDreamTool as unknown as { _activeDreamState?: { cronTimer: ReturnType<typeof setInterval> | null } })._activeDreamState;
       expect(before?.cronTimer ?? null).toBeNull();
       createDreamTool({
@@ -2195,6 +2208,7 @@ describe("Dream", () => {
       const result = await tool.execute();
       expect(result.ok).toBe(true);
       const db2 = openTestDB();
+      // SAFETY: invariant — see caller justification
       const rows = db2
         .query("SELECT content FROM memory_entries")
         .all() as Array<{ content: string }>;

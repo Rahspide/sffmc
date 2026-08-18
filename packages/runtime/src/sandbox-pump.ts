@@ -75,6 +75,7 @@ export function createDeadlineRace(
       ms,
     )
   })
+  // SAFETY: timer is assigned synchronously inside the Promise executor before .then/.catch can observe undefined; the cast removes the optional type
   return { promise, timer: timer as ReturnType<typeof setTimeout> }
 }
 

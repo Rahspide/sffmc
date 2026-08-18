@@ -47,7 +47,9 @@ export async function callLLM(
   const resolvedTools = await resolveInheritedTools(opts.tools, ctx)
 
   // Use ctx.client.session.message() — bypasses Max Mode + tool.execute hooks
+  // SAFETY: ctx is typed as unknown at SDK boundary; the inline shape narrows the optional message method
   if ((ctx as { client?: { session?: { message?: Function } } }).client?.session?.message) {
+    // SAFETY: ctx.client.session.message signature verified by the existence check above; the inline cast re-states the shape for the call site
     return (ctx as {
       client: { session: { message: (args: unknown) => Promise<CallLLMResult> } }
     }).client.session.message({

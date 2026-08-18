@@ -97,6 +97,7 @@ export const server = async (ctx: PluginContext) => {
       const { tool, sessionID } = toolCtx;
       const output = result.output ?? result.metadata ?? "";
 
+      // SAFETY: invariant — metadata cast to record for hasMetadataError indexing
       const meta = result.metadata as Record<string, unknown> | undefined;
       const isError = isToolError(output);
       const hasErrorFlag = hasMetadataError(meta);

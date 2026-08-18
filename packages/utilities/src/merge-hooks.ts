@@ -112,6 +112,7 @@ export function mergeHooks(servers: PluginServer[]): PluginServer {
   const toolMerged: Record<string, unknown> = {};
   for (const s of servers) {
     if (!s.tool) continue;
+    // SAFETY: invariant — narrowed by truthy check on line 114; cast to Record for indexer access
     const tools = s.tool as Record<string, unknown>;
     for (const tkey of Object.keys(tools)) {
       if (tkey in toolMerged) {
@@ -129,6 +130,7 @@ export function mergeHooks(servers: PluginServer[]): PluginServer {
     const handlers: Array<(...args: unknown[]) => unknown> = [];
     for (const s of servers) {
       const h = s[key];
+      // SAFETY: invariant — narrowed by undefined check on line 131; cast to fn signature for hook chain
       if (h !== undefined) handlers.push(h as (...args: unknown[]) => unknown);
     }
 

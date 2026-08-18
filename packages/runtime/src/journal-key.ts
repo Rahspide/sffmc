@@ -20,6 +20,7 @@ import { createHash } from "node:crypto"
 function canonical(value: unknown): unknown {
   if (value === null || typeof value !== "object") return value
   if (Array.isArray(value)) return value.map(canonical)
+  // SAFETY: typeof === "object" + not Array narrowed by lines 21-22; remaining cases are object literals
   const rec = value as Record<string, unknown>
   const sortedKeys = Object.keys(rec).sort()
   const result: Record<string, unknown> = {}

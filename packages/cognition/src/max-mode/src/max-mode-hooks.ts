@@ -155,7 +155,8 @@ export function createMaxModeHooks(
     ) => {
       const sessionID =
         _input && typeof _input === "object"
-          ? ((_input as { sessionID?: string }).sessionID ?? "")
+          ? // SAFETY: narrowed by typeof check on line 157
+            ((_input as { sessionID?: string }).sessionID ?? "")
           : "";
       if (!sessionID) return data;
       const message = consumeWinnerResult(state, sessionID);

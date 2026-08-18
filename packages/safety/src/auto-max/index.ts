@@ -124,6 +124,7 @@ export const server = async (_ctx: PluginContext) => {
 
       const { tool, sessionID } = toolCtx;
       const output = result.output ?? result.metadata ?? "";
+      // SAFETY: invariant — metadata cast to record for hasMetadataError indexing
       const meta = result.metadata as { error?: unknown } | null | undefined;
 
       // Compute the error type once. extractErrorType walks o.code / o.name /

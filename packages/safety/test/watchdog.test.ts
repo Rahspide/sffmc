@@ -234,6 +234,7 @@ describe("tool.execute.after error detection", () => {
     // extractErrorType finds "Error:" as leftmost match → "ERROR:"
     // logger calls console.warn("[watchdog]", message) — check second arg
     const warnCalls1 = warnSpy.mock.calls.filter(
+      // SAFETY: narrowed by typeof check on line 237
       (c: unknown[]) => typeof c[1] === "string" && (c[1] as string).includes("failure: bash:ERROR:"),
     );
     expect(warnCalls1.length).toBe(1);
@@ -255,6 +256,7 @@ describe("tool.execute.after error detection", () => {
     // isToolError returns true for length > 4096 (likely error dump)
     // extractErrorType finds no token → "UNKNOWN"
     const warnCalls2 = warnSpy.mock.calls.filter(
+      // SAFETY: narrowed by typeof check on line 258
       (c: unknown[]) => typeof c[1] === "string" && (c[1] as string).includes("failure: read:UNKNOWN"),
     );
     expect(warnCalls2.length).toBe(1);
@@ -271,6 +273,7 @@ describe("tool.execute.after error detection", () => {
 
     // extractErrorType finds no error-code token → "UNKNOWN"
     const warnCalls3 = warnSpy.mock.calls.filter(
+      // SAFETY: narrowed by typeof check on line 276
       (c: unknown[]) => typeof c[1] === "string" && (c[1] as string).includes("failure: bash:UNKNOWN"),
     );
     expect(warnCalls3.length).toBe(1);

@@ -82,6 +82,7 @@ Examples:
 
     execute: async (args: WorkflowToolArgs, _ctx?: unknown): Promise<string> => {
       // Quick runtime guard — LLM may send malformed args despite schema
+      // SAFETY: typeof !== "object" + null narrowed by the leading checks; Record<string, unknown> allows property access on the validated object
       if (typeof args !== "object" || args === null || typeof (args as Record<string, unknown>).operation !== "string") {
         return "Error: workflow tool requires 'operation' field (run|status|wait|cancel|resume)"
       }
@@ -95,12 +96,14 @@ Examples:
             if (args.name && args.script) {
               return "Error: workflow run: provide either \`name\` or \`script\`, not both"
             }
+            // SAFETY: object literal is cast to runtime.start's first parameter type via Parameters<>; field names match StartInput and tool args are validated upstream
             const startInput = {
               name: args.name,
               script: args.script,
               args: args.args,
               workspace: args.workspace,
               sessionID: "tool-call",
+              // SAFETY: object literal is cast to runtime.start's first parameter type via Parameters<>; field names match StartInput and tool args are validated upstream
             } as Parameters<typeof runtime.start>[0]
             return JSON.stringify(await runtime.start(startInput))
           }
@@ -130,6 +133,7 @@ Examples:
             return JSON.stringify(await runtime.resume({ runID: args.run_id, agentTimeoutMs: args.agent_timeout_ms }))
           }
           default:
+            // SAFETY: default branch runs after the validated switch cases; the cast mirrors the typeof check on line 86 (args is narrowed to object with .operation)
             return `Error: unknown operation "${(args as Record<string, unknown>).operation}". Valid: run, status, wait, cancel, resume`
         }
       } catch (e) {

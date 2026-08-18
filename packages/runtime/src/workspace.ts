@@ -77,6 +77,7 @@ export class WorkspaceJail {
       try {
         real = realpathSync(current)
       } catch (e: unknown) {
+        // SAFETY: realpathSync rejects with NodeJS.ErrnoException; `code` is the documented field for ENOENT vs other errors
         if ((e as NodeJS.ErrnoException).code !== "ENOENT") {
           throw e
         }
@@ -129,6 +130,7 @@ export class WorkspaceJail {
       try {
         const buf = Buffer.alloc(handle.statSync ? -1 : 0) // unused
         const fh = await handle.readFile({ encoding: "utf-8" })
+        // SAFETY: encoding: "utf-8" on the call above guarantees fh is a string per the documented overload signature
         return fh as string
       } finally {
         await handle.close()
@@ -161,6 +163,7 @@ export class WorkspaceJail {
     try {
       return await this.safeRead(abs)
     } catch (e: unknown) {
+      // SAFETY: file operations reject with NodeJS.ErrnoException; `code` is the documented field for ENOENT detection
       if ((e as NodeJS.ErrnoException).code === "ENOENT") return null
       throw e
     }

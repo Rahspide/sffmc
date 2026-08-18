@@ -158,11 +158,13 @@ export function watchRules(
 
 export function parseRules(yaml: string): Rules {
   try {
+    // SAFETY: validated by yaml parser schema on line 161 — Schema.JSON enforces object shape
     const parsed = parseYaml(yaml, { schema: Schema.JSON }) as Record<string, unknown>;
     if (!parsed || !Array.isArray(parsed.rules)) {
       throw new Error('Invalid rules format: missing "rules" array');
     }
 
+    // SAFETY: narrowed by Array.isArray on line 162 — parsed.rules is guaranteed to be an array
     for (const rule of parsed.rules as Rule[]) {
       if (!rule.match || typeof rule.match.tool !== "string") {
         throw new Error(`Invalid rule: missing match.tool`);
@@ -175,6 +177,7 @@ export function parseRules(yaml: string): Rules {
     }
 
     panicMode = false;
+    // SAFETY: validated by rule loop on lines 166-177 — each rule has match.tool and valid action
     return parsed as unknown as Rules;
   } catch (err) {
     panicMode = true;

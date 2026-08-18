@@ -401,6 +401,7 @@ describe("Plugin entry", () => {
       );
     }
 
+    // SAFETY: test mock — empty array cast to string[] for system.transform signature
     const data = { system: [] as string[] };
     await hooks["experimental.chat.system.transform"]!(
       { sessionID: sid },
@@ -429,6 +430,7 @@ describe("Plugin entry", () => {
       );
     }
 
+    // SAFETY: test mock — empty array cast to string[] for system.transform signature
     const data = { system: [] as string[] };
     await hooks["experimental.chat.system.transform"]!(
       { sessionID: sid },
@@ -437,6 +439,7 @@ describe("Plugin entry", () => {
 
     // Trigger is consumed even if data.system was empty before — verify by
     // calling transform again and confirming no second injection.
+    // SAFETY: test mock — empty array cast to string[] for system.transform signature
     const data2 = { system: [] as string[] };
     await hooks["experimental.chat.system.transform"]!(
       { sessionID: sid },
@@ -470,6 +473,7 @@ describe("Plugin entry", () => {
 
     // Observable: system.transform renders the AUTO-MAX fragment with the
     // tool that triggered it
+    // SAFETY: test mock — empty array cast to string[] for system.transform signature
     const data = { system: [] as string[] };
     await hooks["experimental.chat.system.transform"]!({ sessionID: sid }, data);
     expect(data.system.length).toBe(1);
@@ -502,6 +506,7 @@ describe("Plugin entry", () => {
     );
 
     // Observable: trigger rendered into AUTO-MAX fragment includes tool:errorType
+    // SAFETY: test mock — empty array cast to string[] for system.transform signature
     const data = { system: [] as string[] };
     await hooks["experimental.chat.system.transform"]!({ sessionID: sid }, data);
     expect(data.system.length).toBe(1);
@@ -578,7 +583,9 @@ describe("Plugin entry", () => {
 
       const calls = warnSpy.mock.calls.filter(
         (c: unknown[]) =>
+          // SAFETY: narrowed by typeof check on line 587
           (typeof c[0] === "string" && (c[0] as string).includes("would trigger")) ||
+          // SAFETY: narrowed by typeof check on line 588
           (typeof c[1] === "string" && (c[1] as string).includes("would trigger")),
       );
       expect(calls.length).toBeGreaterThan(0);
@@ -606,6 +613,7 @@ describe("Plugin entry", () => {
       );
     }
     // Consume trigger via system.transform — observable proof of first trigger
+    // SAFETY: test mock — empty array cast to string[] for system.transform signature
     const data1 = { system: [] as string[] };
     await hooks["experimental.chat.system.transform"]!({ sessionID: sid }, data1);
     expect(data1.system.length).toBe(1);
@@ -625,6 +633,7 @@ describe("Plugin entry", () => {
       );
     }
     // Second trigger must also fire — proves the reset took effect
+    // SAFETY: test mock — empty array cast to string[] for system.transform signature
     const data2 = { system: [] as string[] };
     await hooks["experimental.chat.system.transform"]!({ sessionID: sid }, data2);
     expect(data2.system.length).toBe(1);
@@ -649,6 +658,7 @@ describe("Plugin entry", () => {
       );
     }
     // Consume first trigger
+    // SAFETY: test mock — empty array cast to string[] for system.transform signature
     const data1 = { system: [] as string[] };
     await hooks["experimental.chat.system.transform"]!({ sessionID: sid }, data1);
     expect(data1.system.length).toBe(1);
@@ -667,6 +677,7 @@ describe("Plugin entry", () => {
       );
     }
     // Second trigger must fire — proves reset targeted the right session
+    // SAFETY: test mock — empty array cast to string[] for system.transform signature
     const data2 = { system: [] as string[] };
     await hooks["experimental.chat.system.transform"]!({ sessionID: sid }, data2);
     expect(data2.system.length).toBe(1);
@@ -694,6 +705,7 @@ describe("Plugin entry", () => {
     }
 
     // Observable: errorType renders as "<name>" in the fragment
+    // SAFETY: test mock — empty array cast to string[] for system.transform signature
     const data = { system: [] as string[] };
     await hooks["experimental.chat.system.transform"]!({ sessionID: sid }, data);
     expect(data.system.length).toBe(1);
@@ -719,6 +731,7 @@ describe("Plugin entry", () => {
     }
 
     // Observable: errorType renders as "ERR_TIMEOUT" (no prefix)
+    // SAFETY: test mock — empty array cast to string[] for system.transform signature
     const data = { system: [] as string[] };
     await hooks["experimental.chat.system.transform"]!({ sessionID: sid }, data);
     expect(data.system.length).toBe(1);

@@ -45,6 +45,7 @@ export function parseMeta(script: string): ParseResult {
   if (typeof meta !== "object" || meta === null || Array.isArray(meta)) {
     return { ok: false, error: "meta must be an object" }
   }
+  // SAFETY: typeof === "object" && !== null && !isArray narrowed by lines 45-46 guard
   const m = meta as Record<string, unknown>
   if (typeof m.name !== "string" || !m.name) {
     return { ok: false, error: "meta.name (non-empty string) is required" }
@@ -55,5 +56,6 @@ export function parseMeta(script: string): ParseResult {
   const endIndex = close + 1 + (script[close + 1] === ";" ? 1 : 0)
   const matched = script.slice(start.index, endIndex)
   const body = script.slice(0, start.index) + matched.replace(/[^\n]/g, " ") + script.slice(endIndex)
+  // SAFETY: double cast via unknown is required to cross Record<string, unknown> → Meta (structural mismatch); fields are validated individually on lines 49-54
   return { ok: true, meta: m as unknown as Meta, body }
 }

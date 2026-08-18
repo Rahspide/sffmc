@@ -68,6 +68,7 @@ describe("FlushManager", () => {
     const { mgr, p } = makeMgr()
     const runID = p.createRun("undefined.ts", "undefined", "deadbeef")
     // Bare-minimum entry — no `counters` field.
+    // SAFETY: test fixture; double cast via unknown is required because the test only provides `{ runID }` to verify flushNow's missing-counters coercion contract
     mgr.flushNow({ runID } as unknown as Parameters<typeof mgr.flushNow>[0])
     const row = p.loadRun(runID)
     expect(row).not.toBeNull()

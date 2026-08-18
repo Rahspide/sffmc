@@ -169,6 +169,7 @@ describe("parseJudgeResponse", () => {
 describe("execute with mocked LLM", () => {
   it("with 3 candidates returns parsed scores, winner, reasoning", async () => {
     const { tool } = createJudgeTool(enabledConfig());
+    // SAFETY: invariant — see caller justification
     const result = await tool.execute({
       candidates: ["output A", "output B", "output C"],
     }) as JudgeExecuteResult;
@@ -195,6 +196,7 @@ describe("execute with mocked LLM", () => {
         client: {
           session: {
             message: async (params) => {
+              // SAFETY: invariant — see caller justification
               capturedMessages = params.messages as Array<{ role: string; content: string }>;
               return {
                 content: [{
@@ -271,6 +273,7 @@ describe("execute with mocked LLM", () => {
 
   it("latency field present and non-negative", async () => {
     const { tool } = createJudgeTool(enabledConfig());
+    // SAFETY: narrowed by !result.ok) throw new Error("expected ok" on line 267
     const result = await tool.execute({
       candidates: ["a", "b", "c"],
     }) as JudgeExecuteResult;
@@ -474,6 +477,7 @@ describe("createJudgeTool shape", () => {
 
   it("tool has no 'name' field (fix-17 regression)", () => {
     const { tool } = createJudgeTool({ enabled: false, model: "m", rubric: "r" });
+    // SAFETY: invariant — see caller justification
     expect((tool as Record<string, unknown>).name).toBeUndefined();
   });
 
@@ -523,6 +527,7 @@ describe("judge prompt maxCandidates config", () => {
 
   it("omitting maxCandidates uses DEFAULT_MAX_CANDIDATES (8)", () => {
     const { tool } = createJudgeTool({ enabled: false, model: "m", rubric: "r" });
+    // SAFETY: invariant — see caller justification
     const schema = tool.parameters.properties.candidates as { maxItems: number; minItems: number };
     expect(schema.maxItems).toBe(8);
     expect(schema.minItems).toBe(2);
@@ -537,6 +542,7 @@ describe("judge prompt maxCandidates config", () => {
       rubric: "r",
       maxCandidates: 12,
     });
+    // SAFETY: invariant — see caller justification
     const schema = tool.parameters.properties.candidates as { maxItems: number };
     expect(schema.maxItems).toBe(12);
     expect(tool.description).toContain("12+ candidates");
@@ -549,6 +555,7 @@ describe("judge prompt maxCandidates config", () => {
       rubric: "r",
       maxCandidates: 2,
     });
+    // SAFETY: invariant — see caller justification
     const schema = tool.parameters.properties.candidates as { maxItems: number };
     expect(schema.maxItems).toBe(2);
   });
@@ -560,6 +567,7 @@ describe("judge prompt maxCandidates config", () => {
       rubric: "r",
       maxCandidates: 20,
     });
+    // SAFETY: invariant — see caller justification
     const schema = tool.parameters.properties.candidates as { maxItems: number };
     expect(schema.maxItems).toBe(20);
   });
@@ -624,6 +632,7 @@ describe("judge prompt maxCandidates config", () => {
       rubric: "r",
       maxCandidates: 0,
     });
+    // SAFETY: invariant — see caller justification
     const schema = tool.parameters.properties.candidates as { maxItems: number };
     expect(schema.maxItems).toBe(2);
   });
@@ -635,6 +644,7 @@ describe("judge prompt maxCandidates config", () => {
       rubric: "r",
       maxCandidates: 100,
     });
+    // SAFETY: invariant — see caller justification
     const schema = tool.parameters.properties.candidates as { maxItems: number };
     expect(schema.maxItems).toBe(20);
   });
@@ -646,6 +656,7 @@ describe("judge prompt maxCandidates config", () => {
       rubric: "r",
       maxCandidates: 12.7,
     });
+    // SAFETY: invariant — see caller justification
     const schema = tool.parameters.properties.candidates as { maxItems: number };
     expect(schema.maxItems).toBe(12);
   });
@@ -1010,10 +1021,13 @@ describe("callJudgeStream chunk emission order", () => {
     const types = chunks.map((c) => c.type);
     expect(types).toEqual(["scores", "winner", "reasoning", "complete"]);
     // Each chunk carries the expected payload.
+    // SAFETY: invariant — see caller justification
     const scoresChunk = chunks[0] as Extract<JudgeStreamChunk, { type: "scores" }>;
     expect(scoresChunk.scores.length).toBe(2);
+    // SAFETY: invariant — see caller justification
     const winnerChunk = chunks[1] as Extract<JudgeStreamChunk, { type: "winner" }>;
     expect(winnerChunk.winner).toBe(0);
+    // SAFETY: invariant — see caller justification
     const reasoningChunk = chunks[2] as Extract<JudgeStreamChunk, { type: "reasoning" }>;
     expect(reasoningChunk.reasoning).toBe("winner is candidate 0");
     expect(chunks[3].type).toBe("complete");

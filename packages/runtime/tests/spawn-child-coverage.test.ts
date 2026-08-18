@@ -87,6 +87,7 @@ describe("spawnChildWorkflow journal replay", () => {
       const sha = computeScriptSha("journal-replay-parent")
       const fakeRunID = p.createRun("parent.ts", "jr-parent", sha)
 
+      // SAFETY: test fixture; fake entry is intentionally partial — it only mirrors the subset of InternalRunEntry fields used by the journal-replay parent path; double cast via unknown is required for the structural mismatch
       const fakeEntry = {
         runID: fakeRunID,
         // Fix-10: include a CounterManager on the fake entry so
@@ -114,6 +115,7 @@ describe("spawnChildWorkflow journal replay", () => {
         },
       } as unknown as Parameters<typeof runtime["spawnChildWorkflow"]>[0]
 
+      // SAFETY: test uses reflection to access the private `spawnChildWorkflow` method; the inline shape declares the documented private surface (called via .bind to preserve `this`)
       const spawnChildWorkflow = (
         runtime as unknown as {
           spawnChildWorkflow: (

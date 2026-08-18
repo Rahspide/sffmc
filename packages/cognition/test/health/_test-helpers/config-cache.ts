@@ -31,6 +31,7 @@ export {
  *  registry populated by src/index.ts at module load — not through a
  *  public export. */
 export function __setHealthConfig(cfg: unknown): void {
+  // SAFETY: invariant — globalThis cast retrieves Symbol-registered fn; undefined-safe per check below
   const fn = (globalThis as Record<symbol, unknown>)[__SET_HEALTH_CONFIG_SYMBOL] as
     | ((c: unknown) => void)
     | undefined

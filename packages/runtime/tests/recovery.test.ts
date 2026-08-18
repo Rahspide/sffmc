@@ -42,6 +42,7 @@ function makeFakePersistence(opts: {
   const flushJournalSync = mock(() => {})
 
   // We only touch these 4 methods in the recovery path; cast for type.
+  // SAFETY: test fixture; double cast via unknown is required because the fake persistence implements only the 4 methods exercised by recoverOrphanedWorkflows
   return {
     listRunningRuns,
     hasJournalEvents,
@@ -51,12 +52,14 @@ function makeFakePersistence(opts: {
 }
 
 function makeFakeRuns(hasIds: Set<string>): WorkflowActivation<InternalRunEntry> {
+  // SAFETY: test fixture; double cast via unknown is required because the fake runs-stub implements only the `has` method used by recoverOrphanedWorkflows
   return {
     has: (id: string) => hasIds.has(id),
   } as unknown as WorkflowActivation<InternalRunEntry>
 }
 
 function makeRow(runID: string, createdAtSec: number): WorkflowRun {
+  // SAFETY: test fixture; WorkflowRun is the documented row shape mapped from SELECT * on workflow_runs; partial fields are filled with deterministic defaults
   return {
     runID,
     name: "test",
@@ -100,6 +103,7 @@ describe("recovery.recoverOrphanedWorkflows", () => {
     const runs = makeFakeRuns(new Set())
     await recoverOrphanedWorkflows({ persistence, runs }, 60_000)
     expect(persistence.updateRunStatus).toHaveBeenCalledTimes(1)
+    // SAFETY: persistence.updateRunStatus is a mock function with the documented WorkflowPersistence.updateRunStatus signature; cast re-states the tuple shape for the call args
     const call = (persistence.updateRunStatus as ReturnType<typeof mock>)
       .mock.calls[0] as [string, WorkflowStatus, string]
     expect(call[0]).toBe("r-1")
@@ -117,6 +121,7 @@ describe("recovery.recoverOrphanedWorkflows", () => {
     })
     const runs = makeFakeRuns(new Set())
     await recoverOrphanedWorkflows({ persistence, runs }, 60_000)
+    // SAFETY: persistence.updateRunStatus mock.calls[0] shape matches the documented (runID, status, reason) tuple; cast re-states the tuple shape for the call args
     const call = (persistence.updateRunStatus as ReturnType<typeof mock>)
       .mock.calls[0] as [string, WorkflowStatus, string]
     expect(call[1]).toBe("paused")
@@ -132,6 +137,7 @@ describe("recovery.recoverOrphanedWorkflows", () => {
     })
     const runs = makeFakeRuns(new Set())
     await recoverOrphanedWorkflows({ persistence, runs }, 60_000)
+    // SAFETY: persistence.updateRunStatus mock.calls[0] shape matches the documented (runID, status, reason) tuple; cast re-states the tuple shape for the call args
     const call = (persistence.updateRunStatus as ReturnType<typeof mock>)
       .mock.calls[0] as [string, WorkflowStatus, string]
     expect(call[1]).toBe("crashed")
@@ -163,6 +169,7 @@ describe("recovery.recoverOrphanedWorkflows", () => {
     const runs = makeFakeRuns(new Set())
     await recoverOrphanedWorkflows({ persistence, runs }, 60_000)
     expect(persistence.updateRunStatus).toHaveBeenCalledTimes(3)
+    // SAFETY: persistence.updateRunStatus mock.calls is the documented (runID, status, reason) tuple array; cast re-states the array element shape for the Map construction
     const calls = (persistence.updateRunStatus as ReturnType<typeof mock>)
       .mock.calls as Array<[string, WorkflowStatus, string]>
     const byID = new Map(calls.map((c) => [c[0], c[1]]))

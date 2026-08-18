@@ -167,7 +167,9 @@ describe("persistence.clearJournal v1-header preservation", () => {
       // Inspect internal state via escape hatch. With per-instance state,
       // A's set contains runA's journal path; B's set is still null (B
       // never appended, so the lazy initializer hasn't fired).
+      // SAFETY: test uses reflection to inspect the private `fsyncPendingPaths` field; the inline shape declares the documented private surface for assertion
       const aPending = (a as unknown as { fsyncPendingPaths: Set<string> | null }).fsyncPendingPaths
+      // SAFETY: same reflection pattern as aPending above; per-instance state should isolate A and B
       const bPending = (b as unknown as { fsyncPendingPaths: Set<string> | null }).fsyncPendingPaths
       expect(aPending).not.toBeNull()
       expect(aPending!.size).toBe(1)
@@ -177,6 +179,7 @@ describe("persistence.clearJournal v1-header preservation", () => {
       // CRITICAL: B's flushJournalSync must NOT drain A's pending set.
       // With module-level state, this would have cleared A's set too.
       b.flushJournalSync()
+      // SAFETY: reflection pattern matches the earlier aPending/bPending assertions; verifies B's flushJournalSync did NOT drain A's set
       const aPendingAfterBFlush = (a as unknown as { fsyncPendingPaths: Set<string> | null }).fsyncPendingPaths
       expect(aPendingAfterBFlush).not.toBeNull()
       expect(aPendingAfterBFlush!.size).toBe(1)
@@ -185,6 +188,7 @@ describe("persistence.clearJournal v1-header preservation", () => {
       // Now drain A's pending paths explicitly. After flushJournalSync,
       // the set is reset to null (and the timer is cleared).
       a.flushJournalSync()
+      // SAFETY: reflection pattern matches the earlier aPending/bPending assertions; verifies A's flushJournalSync drained A's set to null
       const aPendingAfterAFlush = (a as unknown as { fsyncPendingPaths: Set<string> | null }).fsyncPendingPaths
       expect(aPendingAfterAFlush).toBeNull()
     } finally {

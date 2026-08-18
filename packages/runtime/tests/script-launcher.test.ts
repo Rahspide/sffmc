@@ -32,7 +32,9 @@ const fakeRunSandboxed = mock(async (
 ): Promise<unknown> => {
   captured = {
     source,
+    // SAFETY: launchScript mock signature declares primitives as unknown; Record<string, unknown> is the documented shape for the captured primitives bag
     primitives: primitives as Record<string, unknown>,
+    // SAFETY: options is unknown; CapturedCall["options"] is the documented options shape captured for the test assertion
     options: options as CapturedCall["options"],
   }
   return "sentinel-result"
@@ -167,14 +169,18 @@ describe("script-launcher.launchScript", () => {
     await launchScript(deps, entry, script, "x", [], jail)
     // Call each primitive and verify it routes to the injected dep.
     const { primitives } = captured!
+    // SAFETY: primitives.agent is the documented (task) => Promise<unknown> primitive signature from the launchScript mock
     await (primitives.agent as (t: string) => Promise<unknown>)("task")
     expect(deps.spawnAgent).toHaveBeenCalledTimes(1)
+    // SAFETY: primitives.parallel is the documented <T>(thunks) => Promise<unknown> primitive signature from the launchScript mock
     await (primitives.parallel as <T>(t: Array<() => Promise<T>>) => Promise<unknown>)([])
     expect(deps.runParallel).toHaveBeenCalledTimes(1)
     // `phase` is the guest-side name; it routes to the injected setPhase.
+    // SAFETY: primitives.phase is the documented (title) => void primitive signature from the launchScript mock
     ;(primitives.phase as (t: string) => void)("phase-x")
     expect(deps.setPhase).toHaveBeenCalledWith(entry, "phase-x")
     // `log` is the guest-side name; it routes to the injected appendLog.
+    // SAFETY: primitives.log is the documented (msg) => void primitive signature from the launchScript mock
     ;(primitives.log as (m: string) => void)("log-y")
     expect(deps.appendLog).toHaveBeenCalledWith(entry, "log-y")
   })

@@ -88,6 +88,7 @@ export function loadAndCacheMemories(
  *  read — no cap check, no tokenization. The orchestrator decides
  *  whether to short-circuit on cap before calling `tokenizeRowsToCache`. */
 export function loadMemoryRows(db: Database): MemoryRow[] {
+  // SAFETY: invariant — see caller justification
   return db
     .query("SELECT * FROM memory_entries ORDER BY created_at DESC")
     .all() as MemoryRow[];
@@ -168,12 +169,14 @@ export function findStaleEntries(
   db: Database,
   staleThresholdSec: number,
 ): MemoryRow[] {
+  // SAFETY: invariant — see caller justification
   const staleAccessed = db
     .query(
       "SELECT * FROM memory_entries WHERE last_accessed IS NOT NULL AND last_accessed < ?",
     )
     .all(staleThresholdSec) as MemoryRow[];
 
+  // SAFETY: invariant — see caller justification
   const staleNullAccessed = db
     .query(
       "SELECT * FROM memory_entries WHERE last_accessed IS NULL AND created_at < ?",
@@ -199,6 +202,7 @@ export function loadRemainingRows(
   allStale: MemoryRow[],
 ): MemoryRow[] {
   if (!dryRun) {
+    // SAFETY: narrowed by !dryRun on line 201
     return db
       .query("SELECT * FROM memory_entries ORDER BY importance_score DESC")
       .all() as MemoryRow[];

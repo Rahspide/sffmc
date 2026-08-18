@@ -112,6 +112,7 @@ export async function launchScript(
   // Build primitives — each closure captures `entry`, the per-run
   // occurrence counters, and the jail.
   const primitives: SandboxPrimitives = {
+    // SAFETY: sandbox primitives API uses Record<string, unknown> as the guest-side agent options bag; AgentOptions is the documented host-side shape with the same fields
     agent: (task: string, agentOpts?: Record<string, unknown>) =>
       deps.spawnAgent(entry, task, agentOpts as AgentOptions | undefined, occ),
     parallel: <T>(thunks: Array<() => Promise<T>>) => deps.runParallel<T>(thunks),

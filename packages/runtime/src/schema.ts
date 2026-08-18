@@ -51,6 +51,7 @@ export function applySchema(db: import("bun:sqlite").Database): void {
   // Runtime validation: ensure WORKFLOW_LIMITS values are safe integers
   const limits = WORKFLOW_LIMITS;
   for (const [key, val] of Object.entries(limits)) {
+    // SAFETY: Object.entries returns [string, unknown] tuples; Number.isInteger(val) on left guarantees val is a number for the comparisons
     if (!Number.isInteger(val) || (val as number) <= 0 || (val as number) > 100_000_000) {
       throw new Error(`Invalid WORKFLOW_LIMITS.${key}: ${val}`);
     }
@@ -61,6 +62,7 @@ export function applySchema(db: import("bun:sqlite").Database): void {
   // v0.13.0 — additive migration: workspace column for resume() to restore
   // the original lexical jail root across crashes. Idempotent guard via
   // PRAGMA table_info so re-running applySchema() is a no-op.
+  // SAFETY: bun:sqlite PRAGMA table_info returns rows with a `name` column (typed schema); the cast narrows to the documented shape
   const cols = db.query("PRAGMA table_info(workflow_runs)").all() as Array<{ name: string }>
   if (!cols.some((c) => c.name === "workspace")) {
     db.exec("ALTER TABLE workflow_runs ADD COLUMN workspace TEXT")

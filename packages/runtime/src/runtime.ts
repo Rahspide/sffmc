@@ -182,6 +182,7 @@ export class WorkflowRuntime {
       globalSem: this.globalSem,
       scheduleFlush: (entry) => this.flushManager.scheduleFlush(entry),
       emitEvent: (name: string, payload: unknown) => this.events.emit(name, payload),
+      // SAFETY: this.ctx typed as unknown at SDK boundary; Parameters<typeof callLLMModule>[0] restates the documented callLLM signature
       callLLM: (entry, prompt, opts) => callLLMModule(this.ctx as Parameters<typeof callLLMModule>[0], entry, prompt, opts),
       appendJournal: (runID: string, e: unknown) => this.persistence.appendJournalSync(runID, e),
       failRun: (entry, error) => this.runCompleter.failRun(entry, error),
@@ -554,6 +555,7 @@ export class WorkflowRuntime {
       deadlineMs: SCRIPT_DEADLINE_MS,
     }
     return (entry, script, name, args, jail: unknown) =>
+      // SAFETY: jail parameter declared unknown at the factory boundary; WorkspaceJail is the documented jail shape for the script launcher
       launchScript(launchDeps, entry, script, name, args, jail as WorkspaceJail)
   }
 

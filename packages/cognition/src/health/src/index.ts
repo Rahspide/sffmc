@@ -83,6 +83,7 @@ export async function runAllChecks(
 
 export const id = "@sffmc/cognition"
 export const server = async (ctx: PluginContext) => {
+  // SAFETY: invariant — PluginContext declares projectRoot:string (utilities/src/context.ts); casts retained for indexer access
   const repoRoot = (ctx as Record<string, unknown>).projectRoot as string;
 
   return {

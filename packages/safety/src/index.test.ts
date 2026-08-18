@@ -6,6 +6,7 @@ import safety, { id, server } from "./index.ts"
 import type { PluginContext } from "@sffmc/utilities";
 
 describe("@sffmc/safety", () => {
+  // SAFETY: test mock — empty ctx cast to PluginContext for type signature
   const ctx = {} as PluginContext
 
   test("id is @sffmc/safety", () => {

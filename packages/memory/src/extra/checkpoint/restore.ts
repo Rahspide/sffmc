@@ -96,6 +96,7 @@ export function sanitizeValue(value: unknown): unknown {
   }
   if (value && typeof value === "object") {
     const out: Record<string, unknown> = {}
+    // SAFETY: narrowed by typeof check on line 97
     for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
       out[k] = sanitizeValue(v)
     }

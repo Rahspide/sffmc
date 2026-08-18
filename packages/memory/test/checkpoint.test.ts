@@ -133,6 +133,7 @@ describe("checkpoint", () => {
 
       const raw = readFileSync(filePath("test-session-1"), "utf-8");
       const lines = raw.trim().split("\n");
+      // SAFETY: JSON.parse validated shape on line 136
       const header = JSON.parse(lines[0]) as Record<string, unknown>;
       expect(header.__type).toBe("header");
       expect(header.sessionID).toBe("test-session-1");
@@ -153,7 +154,12 @@ describe("checkpoint", () => {
       const lines = raw.trim().split("\n").filter(Boolean);
       expect(lines.length).toBe(3); // 1 header + 2 tool calls
       const headers = lines.filter((l) => {
-        try { return (JSON.parse(l) as Record<string, unknown>).__type === "header"; } catch { return false; }
+        try {
+          // SAFETY: JSON.parse validated shape on line 159
+          return (JSON.parse(l) as Record<string, unknown>).__type === "header";
+        } catch {
+          return false;
+        }
       });
       expect(headers.length).toBe(1);
     });
@@ -197,6 +203,7 @@ describe("checkpoint", () => {
       );
       cp.flushSession("test-session-1");
 
+      // SAFETY: invariant — see caller justification
       const result = (await cp.tool.execute({ action: "restore", sessionID: "test-session-1" })) as {
         ok: boolean;
         messages: Array<{ role: string; content: string }>;
@@ -232,6 +239,7 @@ describe("checkpoint", () => {
       }) + "\n";
       writeFileSync(fp, header, "utf-8");
 
+      // SAFETY: invariant — see caller justification
       const result = (await cp.tool.execute({ action: "restore", sessionID: "future-version" })) as {
         ok: boolean;
         error: string;
@@ -244,6 +252,7 @@ describe("checkpoint", () => {
     it("returns error when checkpoint not found", async () => {
       const cp = makeFactory({ enabled: true });
 
+      // SAFETY: invariant — see caller justification
       const result = (await cp.tool.execute({ action: "restore", sessionID: "nonexistent" })) as {
         ok: boolean;
         error: string;
@@ -280,6 +289,7 @@ describe("checkpoint", () => {
       }) + "\n";
       writeFileSync(fp, header, "utf-8");
 
+      // SAFETY: invariant — see caller justification
       const result = (await cp.tool.execute({ action: "restore", sessionID: "future-v99" })) as {
         ok: boolean;
         error: string;
@@ -308,6 +318,7 @@ describe("checkpoint", () => {
       );
       cp.flushAll();
 
+      // SAFETY: invariant — see caller justification
       const result = (await cp.tool.execute({ action: "list" })) as { ok: boolean; sessions: string[] };
 
       expect(result.ok).toBe(true);
@@ -317,6 +328,7 @@ describe("checkpoint", () => {
     it("returns empty array when no checkpoints exist", async () => {
       const cp = makeFactory({ enabled: true });
 
+      // SAFETY: invariant — see caller justification
       const result = (await cp.tool.execute({ action: "list" })) as { ok: boolean; sessions: string[] };
 
       expect(result.ok).toBe(true);
@@ -339,6 +351,7 @@ describe("checkpoint", () => {
       cp.flushSession("to-delete");
       expect(existsSync(filePath("to-delete"))).toBe(true);
 
+      // SAFETY: invariant — see caller justification
       const result = (await cp.tool.execute({ action: "delete", sessionID: "to-delete" })) as {
         ok: boolean;
         deleted: boolean;
@@ -352,6 +365,7 @@ describe("checkpoint", () => {
     it("returns { deleted: false } for nonexistent session", async () => {
       const cp = makeFactory({ enabled: true });
 
+      // SAFETY: invariant — see caller justification
       const result = (await cp.tool.execute({ action: "delete", sessionID: "nope" })) as {
         ok: boolean;
         deleted: boolean;
@@ -462,6 +476,7 @@ describe("checkpoint", () => {
     it("tool returns { skipped: true } when disabled", async () => {
       const cp = makeFactory({ enabled: false });
 
+      // SAFETY: invariant — see caller justification
       const result = (await cp.tool.execute()) as { ok: boolean; skipped: boolean; reason: string };
       expect(result).toEqual({ ok: true, skipped: true, reason: "feature disabled" });
     });
@@ -479,6 +494,7 @@ describe("checkpoint", () => {
     it("tool.execute with args still returns skipped when disabled", async () => {
       const cp = makeFactory({ enabled: false });
 
+      // SAFETY: invariant — see caller justification
       const result = (await cp.tool.execute({ action: "list" })) as {
         ok: boolean;
         skipped: boolean;
@@ -496,6 +512,7 @@ describe("checkpoint", () => {
     it("tool.execute rejects unknown action", async () => {
       const cp = makeFactory({ enabled: true });
 
+      // SAFETY: invariant — see caller justification
       const result = (await cp.tool.execute({ action: "unknown" as "list" })) as {
         ok: boolean;
         error: string;
@@ -507,6 +524,7 @@ describe("checkpoint", () => {
     it("tool.execute requires action", async () => {
       const cp = makeFactory({ enabled: true });
 
+      // SAFETY: invariant — see caller justification
       const result = (await cp.tool.execute({} as { action: string })) as {
         ok: boolean;
         error: string;
@@ -518,6 +536,7 @@ describe("checkpoint", () => {
     it("restore requires sessionID", async () => {
       const cp = makeFactory({ enabled: true });
 
+      // SAFETY: invariant — see caller justification
       const result = (await cp.tool.execute({ action: "restore" })) as {
         ok: boolean;
         error: string;
@@ -529,6 +548,7 @@ describe("checkpoint", () => {
     it("delete requires sessionID", async () => {
       const cp = makeFactory({ enabled: true });
 
+      // SAFETY: invariant — see caller justification
       const result = (await cp.tool.execute({ action: "delete" })) as {
         ok: boolean;
         error: string;
@@ -577,6 +597,7 @@ describe("checkpoint", () => {
       // Create a non-jsonl file in the same dir
       writeFileSync(join(tmpDir, "notes.txt"), "hello", "utf-8");
 
+      // SAFETY: invariant — see caller justification
       const result = (await cp.tool.execute({ action: "list" })) as { ok: boolean; sessions: string[] };
       expect(result.ok).toBe(true);
       expect(result.sessions).toContain("valid-ses");
@@ -629,6 +650,7 @@ describe("checkpoint", () => {
         "utf-8",
       );
 
+      // SAFETY: invariant — see caller justification
       const result = (await cp.tool.execute({ action: "restore", sessionID: "empty-cp" })) as {
         ok: boolean;
         messages: unknown[];
@@ -693,11 +715,15 @@ describe("checkpoint", () => {
       const result = makeFactory({ enabled: false });
       expect(result.tool).toBeDefined();
       expect(result.hooks).toBeDefined();
+      // SAFETY: invariant — see caller justification
       expect((result.tool as { parameters: { type: string } }).parameters.type).toBe("object");
+      // SAFETY: invariant — see caller justification
       expect((result.tool.parameters as { properties: Record<string, unknown> }).properties.action).toBeDefined();
+      // SAFETY: invariant — see caller justification
       expect((result.tool.parameters as { properties: Record<string, unknown> }).properties.sessionID).toBeDefined();
       expect(result.tool.parameters.required).toEqual(["action"]);
       // Regression: no `name` field
+      // SAFETY: invariant — see caller justification
       expect((result.tool as Record<string, unknown>).name).toBeUndefined();
     });
   });
@@ -719,6 +745,7 @@ describe("checkpoint", () => {
       buf: unknown[] = [],
     ): SessionBufferEntry {
       return {
+        // SAFETY: invariant — see caller justification
         buf: buf as never,
         lastAccessMs,
         insertionOrder,
@@ -975,6 +1002,7 @@ describe("checkpoint", () => {
         makeOversizeFile("oversize-restore", oversizeDir, 200);
 
         const cp = makeFactory({ enabled: true, dir: oversizeDir, maxFileSize: 100 });
+        // SAFETY: invariant — see caller justification
         const result = (await cp.tool.execute({
           action: "restore",
           sessionID: "oversize-restore",

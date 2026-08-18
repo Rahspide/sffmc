@@ -72,6 +72,7 @@ describe("safeRunID", () => {
       safeRunID(bogus)
       throw new Error("should have thrown")
     } catch (e) {
+      // SAFETY: invariant — try/catch on lines 71-76 catches thrown Error; cast to Error for message test
       expect((e as Error).message).toContain(JSON.stringify(bogus))
     }
   })

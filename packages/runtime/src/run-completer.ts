@@ -75,6 +75,7 @@ export class RunCompleter implements IRunCompleter {
     // human-readable cause (e.g. "Token budget exceeded: cap … exceeded"),
     // and `.message` is the same as the input for plain strings.
     const errorMessage = error instanceof Error ? error.message : error
+    // SAFETY: entry.status is WorkflowStatus enum but outcomeFor signature accepts the failed/budget_exceeded subset; only those two values can reach this branch
     const outcome = outcomeFor(entry, entry.status as "failed" | "budget_exceeded", { error: errorMessage })
     entry.resolveOutcome(outcome)
     this.deps.persistence.updateRunStatus(entry.runID, entry.status, errorMessage)

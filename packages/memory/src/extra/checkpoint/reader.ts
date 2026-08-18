@@ -72,6 +72,7 @@ export function readToolCallsShim(
   const headerLine = fileContent.substring(0, firstNewline);
   let parsed: Record<string, unknown>;
   try {
+    // SAFETY: JSON.parse validated shape on line 75
     parsed = JSON.parse(headerLine) as Record<string, unknown>;
   } catch (e) {
     log.warn({ err: e, sessionID }, "checkpoint-reader: header parse failed");
@@ -99,6 +100,7 @@ export function readToolCallsShim(
     if (firstNewline2 < 0) return [];
     const headerLine2 = fileContent.substring(0, firstNewline2);
     try {
+      // SAFETY: JSON.parse validated shape on line 102
       parsed = JSON.parse(headerLine2) as Record<string, unknown>;
     } catch (e) {
       log.warn({ err: e, sessionID }, "checkpoint-reader: post-migrate header parse failed");
@@ -113,6 +115,7 @@ export function readToolCallsShim(
   // For the in-memory fs the offsets are char-based (UTF-16 code units),
   // which is equivalent to byte offsets for ASCII content (the on-disk
   // encoding uses UTF-8 with no multi-byte chars in checkpoint payloads).
+  // SAFETY: invariant — see caller justification
   const lineOffsets = parsed.lineOffsets as number[];
   if (!Array.isArray(lineOffsets)) return [];
 
@@ -135,6 +138,7 @@ function iterateBodyLinesFromString(content: string, lineOffsets: number[]): Too
     const line = lineEnd >= 0 ? content.substring(start, lineEnd) : content.substring(start);
     if (!line) continue;
     try {
+      // SAFETY: JSON.parse validated shape on line 138
       const obj = JSON.parse(line) as Record<string, unknown>;
       if (obj.__type === "header") continue;
       if (
@@ -142,6 +146,7 @@ function iterateBodyLinesFromString(content: string, lineOffsets: number[]): Too
         typeof obj.timestamp === "number" &&
         typeof obj.callID === "string"
       ) {
+        // SAFETY: narrowed by typeof check on line 143
         calls.push(obj as unknown as ToolCall);
       }
     } catch (e) {

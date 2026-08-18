@@ -74,6 +74,7 @@ describe("loadConfig — validate callback", () => {
       configHome: configDir,
       validate: (parsed) => {
         // Validator coerces and tightens the shape.
+        // SAFETY: invariant — parsed is from loadConfig; cast to { limit?: unknown } for validator access
         const p = (parsed ?? {}) as { limit?: unknown }
         return { limit: typeof p.limit === "number" ? p.limit : defaults.limit, label: "validated" }
       },

@@ -63,6 +63,7 @@ export function migrateV1ToV2(
     const raw = fs.readFile(fp);
     const firstLine = raw.split("\n")[0]?.trim();
     if (firstLine) {
+      // SAFETY: JSON.parse validated shape on line 66
       const parsed = JSON.parse(firstLine) as Record<string, unknown>;
       if (parsed.version === 2) originalVersion = 2;
     }

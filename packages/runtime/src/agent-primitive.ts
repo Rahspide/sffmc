@@ -56,6 +56,7 @@ export class AgentPrimitive implements IAgentPrimitive {
     opts: AgentOptions | undefined,
     occ: Map<string, number>,
   ): Promise<AgentResult> {
+    // SAFETY: empty object literal satisfies AgentOptions via structural compatibility (all fields optional)
     const agentOpts = opts ?? ({} as AgentOptions)
     const promptStr = String(task)
 
@@ -73,6 +74,7 @@ export class AgentPrimitive implements IAgentPrimitive {
     if (entry.journalResults.has(key)) {
       entry.counters.recordJournalHit()
       this.deps.scheduleFlush(entry)
+      // SAFETY: has(key) on line above guarantees get(key) is defined; TS Map.get doesn't narrow
       return entry.journalResults.get(key) as AgentResult
     }
 
@@ -178,6 +180,7 @@ export class AgentPrimitive implements IAgentPrimitive {
         pass: entry.journalPass,
       })
 
+      // SAFETY: deliverable narrowed to non-null on line 162 and originates from result.structured/finalText (validated by LLM result type)
       return deliverable as AgentResult
     } catch (e) {
       reason = AFR.SpawnReject

@@ -108,6 +108,7 @@ describe("FlushManager: clearAll cancels all pending debounce timers (no leaked 
       setTimeout(() => {
         // No flush should have run: no row in workflow_runs.
         const db = persistence.getDB()
+        // SAFETY: SELECT count(*) returns a row with a `c` column (integer); cast to the documented { c: number } shape for the assertion
         const result = db.query("SELECT count(*) as c FROM workflow_runs").get() as { c: number }
         expect(result.c).toBe(0)
         try {

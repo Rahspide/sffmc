@@ -107,12 +107,14 @@ describe("max-mode checkpoint integration — maxMode.maxCandidates", () => {
       content: [{ type: "text" as const, text: "draft" }],
       usage: { totalTokens: 1 },
     });
+    // SAFETY: test mock — ctx cast to Parameters<typeof generateCandidates>[2] for signature compatibility
     const ctx = {
       client: { session: { message: mockMessage } },
       config: { model: "test-model" },
     } as unknown as Parameters<typeof generateCandidates>[2];
 
     let calls = 0;
+    // SAFETY: test mock — countingCtx cast to Parameters<typeof generateCandidates>[2] for signature compatibility
     const countingCtx = {
       client: {
         session: {
@@ -141,6 +143,7 @@ describe("max-mode checkpoint integration — maxMode.maxCandidates", () => {
   it("(c) generateCandidates does NOT clamp when n < maxCandidates", async () => {
     // n=3 with maxCandidates=10 → all 3 fire, no clamping.
     let calls = 0;
+    // SAFETY: test mock — ctx cast to Parameters<typeof generateCandidates>[2] for signature compatibility
     const ctx = {
       client: {
         session: {
@@ -171,6 +174,7 @@ describe("max-mode checkpoint integration — maxMode.maxCandidates", () => {
     // omitted from GenerateConfig, the safety cap falls back to 10
     // (matching the prior module-level const).
     let calls = 0;
+    // SAFETY: test mock — ctx cast to Parameters<typeof generateCandidates>[2] for signature compatibility
     const ctx = {
       client: {
         session: {
@@ -200,6 +204,7 @@ describe("max-mode checkpoint integration — maxMode.maxCandidates", () => {
   it("(c) module-level MAX_CANDIDATES export is removed (max-mode checkpoint integration migration complete)", async () => {
     // The prior `export const MAX_CANDIDATES = 10` constant must be gone.
     const mod = await import("../../src/max-mode/src/candidates");
+    // SAFETY: invariant — module cast for indexer access; verifies MAX_CANDIDATES export is undefined
     expect((mod as Record<string, unknown>).MAX_CANDIDATES).toBeUndefined();
   });
 });

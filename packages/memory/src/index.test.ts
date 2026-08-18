@@ -6,6 +6,7 @@ import memory, { id, server } from "./index.ts"
 import type { PluginContext } from "@sffmc/utilities"
 
 describe("@sffmc/memory", () => {
+  // SAFETY: invariant — see caller justification
   const ctx = {} as PluginContext
 
   test("id is @sffmc/memory", () => {

@@ -70,6 +70,7 @@ describe("mcp.ts: resolveInheritedTools", () => {
     const ctx = {
       config: {},
       tools: ["mcp__filesystem__read", "mcp__git__status"],
+    // SAFETY: test fixture; partial ctx object with only `config` + `tools` to exercise the Source 1 (ctx.tools) resolution path; double cast via unknown is required because PluginContext has many optional fields
     } as unknown as PluginContext
     const result = await resolveInheritedTools("INHERIT", ctx)
     expect(result).toEqual(["mcp__filesystem__read", "mcp__git__status"])
@@ -96,6 +97,7 @@ describe("mcp.ts: resolveInheritedTools", () => {
           },
         },
       },
+    // SAFETY: test fixture; partial ctx with only the `client.tool.list()` surface to exercise the Source 2 (SDK method) resolution path; double cast via unknown is required because PluginContext has many optional fields
     } as unknown as PluginContext
     const result = await resolveInheritedTools("INHERIT", ctx)
     expect(result).toEqual(["tool_a", "tool_b"])
@@ -114,6 +116,7 @@ describe("mcp.ts: resolveInheritedTools", () => {
           },
         },
       },
+    // SAFETY: test fixture; partial ctx with throwing `client.tool.list()` to exercise the SDK-rejection fallback path; double cast via unknown is required because PluginContext has many optional fields
     } as unknown as PluginContext
     const result = await resolveInheritedTools("INHERIT", ctx)
     expect(result).toBe("INHERIT")
@@ -128,6 +131,7 @@ describe("mcp.ts: resolveInheritedTools", () => {
         mcp__fs__read: { description: "..." },
         mcp__git__status: { description: "..." },
       },
+    // SAFETY: test fixture; object-form ctx.tools to exercise the Source 1 object-form resolution path; double cast via unknown is required because PluginContext has many optional fields
     } as unknown as PluginContext
     const result = await discoverParentTools(ctx)
     expect(result).not.toBeNull()
@@ -251,6 +255,7 @@ describe("mcp.ts: makeMcpPrimitives dispatch", () => {
       await prim.call("b", null)
     } catch (e) {
       threw = true
+      // SAFETY: caught error is unknown; the bridge's budget-reject path always rejects with an Error instance; cast narrows for .message access
       expect((e as Error).message).toContain("MCP budget exceeded")
     }
     expect(threw).toBe(true)
@@ -269,6 +274,7 @@ describe("mcp.ts: makeMcpPrimitives dispatch", () => {
       await prim.call("a", null)
     } catch (e) {
       threw = true
+      // SAFETY: caught error is unknown; the dispatcher throws an Error; cast narrows for .message access
       expect((e as Error).message).toContain("SDK offline")
     }
     expect(threw).toBe(true)
@@ -313,6 +319,7 @@ describe("mcp.ts: makeMcpPrimitives dispatch", () => {
       await prim.call("saturate", null)
     } catch (e) {
       threw = true
+      // SAFETY: caught error is unknown; the recursion-reject path always rejects with an Error instance; cast narrows for .message access
       errMsg = (e as Error).message
     }
     expect(threw).toBe(true)
@@ -338,6 +345,7 @@ describe("mcp.ts: makeMcpPrimitives dispatch", () => {
     const dispatch = async (name: string) => ({ ok: name })
     const prim = makeMcpPrimitives(bridge, dispatch)
     // Stub list() via the bridge to return 2 tools.
+    // SAFETY: test uses reflection to attach a stub `list()` method on the primitives object; the inline shape declares the documented private surface
     ;(prim as unknown as { list: () => Promise<string[]> }).list = async () => ["a", "b"]
     const bound = await prim.bindAll()
     expect(Object.keys(bound).sort()).toEqual(["a", "b"])
@@ -385,6 +393,7 @@ describe("WorkflowRuntime.callLLM with INHERIT", () => {
           },
         },
       },
+    // SAFETY: test fixture; partial ctx with the `tools` + `client.session.message` surface to verify callLLM forwards INHERIT-resolved tools; double cast via unknown is required because PluginContext has many optional fields
     } as unknown as PluginContext
 
     const fakeEntry = { runID: "wf_x", cfg: { maxTokens: 100 } }
@@ -436,6 +445,7 @@ describe("sandbox guest can call mcp.list() and mcp.call()", () => {
           }),
         },
       },
+    // SAFETY: test fixture; partial ctx for the guest mcp.list() sandbox test; double cast via unknown is required because PluginContext has many optional fields
     } as unknown as PluginContext
 
     const runtime = new WorkflowRuntime(ctx, {
@@ -478,6 +488,7 @@ describe("sandbox guest can call mcp.list() and mcp.call()", () => {
           },
         },
       },
+    // SAFETY: test fixture; partial ctx with the full `client.session` + `client.tool` surfaces to exercise the guest mcp.call() SDK dispatch path; double cast via unknown is required because PluginContext has many optional fields
     } as unknown as PluginContext
 
     const runtime = new WorkflowRuntime(ctx, {
@@ -517,6 +528,7 @@ describe("sandbox guest can call mcp.list() and mcp.call()", () => {
         },
         // NO tool.call
       },
+    // SAFETY: test fixture; partial ctx WITHOUT client.tool.call to exercise the no-SDK-surface failure path in the guest sandbox; double cast via unknown is required because PluginContext has many optional fields
     } as unknown as PluginContext
 
     const runtime = new WorkflowRuntime(ctx, {
@@ -536,6 +548,7 @@ describe("sandbox guest can call mcp.list() and mcp.call()", () => {
     })
     const outcome = await runtime.wait({ runID, timeoutMs: 5000 })
     expect(outcome.status).toBe("completed")
+    // SAFETY: outcome.status === "completed" narrowed by the line above; result is the documented guest-script return payload shape
     const result = outcome.result as { caught: boolean; msg?: string }
     expect(result.caught).toBe(true)
     expect(result.msg).toContain("no MCP SDK surface")
@@ -562,6 +575,7 @@ describe("sandbox guest can call mcp.list() and mcp.call()", () => {
           call: async (_name: string, args: unknown) => ({ ok: args }),
         },
       },
+    // SAFETY: test fixture; partial ctx for the budget happy-path sandbox test; double cast via unknown is required because PluginContext has many optional fields
     } as unknown as PluginContext
 
     const runtime = new WorkflowRuntime(ctx, {

@@ -6,6 +6,7 @@ import { ChildWorkflowPrimitive } from "../src/child-workflow-primitive.ts"
 import type { InternalRunEntry } from "../src/internal-run-entry.ts"
 
 // Fake persistence — captures createRun/writeScript/appendJournal calls.
+// SAFETY: test fixture; double cast via unknown is required because the fake persistence implements only the subset of methods used by ChildWorkflowPrimitive
 function makeFakePersistence() {
   return {
     createRun: (name: string, _name2: string, sha: string, _x: unknown, ws: string, args: unknown) => {
@@ -23,10 +24,12 @@ function makeFakePersistence() {
     },
   } as unknown as ConstructorParameters<typeof ChildWorkflowPrimitive>[0]["persistence"]
 }
+// SAFETY: test fixture; `as any[]` and `as string[]` are documented escape hatches for the captured-call arrays where the element shape is heterogeneous
 const fakePersistence = { created: [] as any[], written: [] as string[], journaled: [] as any[] }
 
 function makeFakeEvents() {
   const emitted: any[] = []
+  // SAFETY: test fixture; `as any` is the documented escape hatch for the fake event-bus stub
   return {
     emit: (name: string, payload: unknown) => emitted.push({ name, payload }),
     _emitted: emitted,
@@ -34,15 +37,18 @@ function makeFakeEvents() {
 }
 
 function makeFakeRuns() {
+  // SAFETY: test fixture; `as any` is the documented escape hatch for the fake runs-stub
   return {
     register: (runID: string, _entry: any) => {
       fakeRuns.registered.push(runID)
     },
   } as any
 }
+// SAFETY: test fixture; `as string[]` is the documented escape hatch for the captured-call array of runID strings
 const fakeRuns = { registered: [] as string[] }
 
 function makeEntry(overrides: Partial<InternalRunEntry> = {}): InternalRunEntry {
+  // SAFETY: test fixture; double cast via unknown is required because the fake entry exposes only the subset of InternalRunEntry fields under test
   return {
     runID: "run_parent",
     journalResults: new Map(),
@@ -67,9 +73,11 @@ describe("ChildWorkflowPrimitive", () => {
     const startCalls: any[] = []
     const settleCalls: any[] = []
     const flushes: any[] = []
+    // SAFETY: test fixture; `as any` is the documented escape hatch for the fake persistence injected into the deps bag
     const deps: ConstructorParameters<typeof ChildWorkflowPrimitive>[0] = {
       persistence: makeFakePersistence() as any,
       events,
+      // SAFETY: test fixture; `as any` is the documented escape hatch for the fake runs stub injected into the deps bag
       runs: makeFakeRuns() as any,
       scheduleFlush: (entry: any) => flushes.push(entry),
       startChildWorkflow: (parent: any, script: string, name: string, args: unknown, childRunID: string) => {

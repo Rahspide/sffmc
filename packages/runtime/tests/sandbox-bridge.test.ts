@@ -55,6 +55,7 @@ describe("dumpHostFnArgs — handle lifecycle", () => {
       dump: (h) => h.dumpPayload,
     }
 
+    // SAFETY: test fixture; `as any` is the documented escape hatch for the FakeCtx stub passed to dumpHostFnArgs
     const args = dumpHostFnArgs(ctx as any, [h1, h2, h3])
 
     expect(args).toEqual(["first", 42, { nested: true }])
@@ -84,6 +85,7 @@ describe("dumpHostFnArgs — handle lifecycle", () => {
 
     let caught: unknown = null
     try {
+      // SAFETY: test fixture; `as any` is the documented escape hatch for the throwing FakeCtx stub
       dumpHostFnArgs(ctx as any, [h1, h2, h3])
     } catch (e) {
       caught = e
@@ -91,6 +93,7 @@ describe("dumpHostFnArgs — handle lifecycle", () => {
 
     // The dump failure must propagate (so the caller can observe it).
     expect(caught).toBeInstanceOf(Error)
+    // SAFETY: caught is unknown; the dump failure is constructed as an Error above; cast narrows for .message access
     expect((caught as Error).message).toBe("boom")
 
     // Both reached handles disposed despite the throw — no leak.
@@ -118,6 +121,7 @@ describe("dumpHostFnArgs — handle lifecycle", () => {
       },
     }
 
+    // SAFETY: test fixture; `as any` is the documented escape hatch for the throwing FakeCtx stub
     expect(() => dumpHostFnArgs(ctx as any, [h1, h2, h3])).toThrow("boom")
     expect(h1.disposed).toBe(true)
     expect(h2.disposed).toBe(true)
@@ -126,6 +130,7 @@ describe("dumpHostFnArgs — handle lifecycle", () => {
 
   test("empty handle array returns empty result", () => {
     const ctx: FakeCtx = { dump: () => { throw new Error("should not be called") } }
+    // SAFETY: test fixture; `as any` is the documented escape hatch for the FakeCtx stub (dump is never called on the empty-array path)
     expect(dumpHostFnArgs(ctx as any, [])).toEqual([])
   })
 })
@@ -214,6 +219,7 @@ function makeMarshalCtx(opts: {
         // (no result was produced).
         throw new Error("evalCode boom")
       }
+      // SAFETY: test fixture; makeMarshalHandle returns a fake handle; cast to EvalResultFake is the documented pattern for the marshalIn mock context
       return makeMarshalHandle() as unknown as EvalResultFake
     },
     unwrapResult(_res: EvalResultFake) {
@@ -240,6 +246,7 @@ function makeMarshalCtx(opts: {
       if (opts.callFunctionThrows) {
         throw new Error("callFunction boom")
       }
+      // SAFETY: test fixture; makeMarshalHandle returns a fake handle; cast to EvalResultFake is the documented pattern for the marshalIn mock context
       return makeMarshalHandle() as unknown as EvalResultFake
     },
   } satisfies MarshalCtxFake
@@ -250,17 +257,22 @@ describe("marshalIn — handle lifecycle (gen-2 #8)", () => {
     // Track whether evalCode/unwrapResult/callFunction ever fire. Primitive
     // paths must short-circuit without touching them.
     let roundTripInvoked = false
+    // SAFETY: test fixture; double cast via unknown is required because makeMarshalCtx returns a stub MarshalCtxFake (subset of marshalIn's QuickJS context parameter)
     const ctx = makeMarshalCtx() as unknown as Parameters<typeof marshalIn>[0]
+    // SAFETY: test uses reflection to override the evalCode stub; inline shape declares the documented marshalIn surface
     ;(ctx as unknown as { evalCode: (c: string) => EvalResultFake }).evalCode = (
       _c: string,
     ) => {
       roundTripInvoked = true
+      // SAFETY: test fixture; makeMarshalHandle returns a fake handle; cast to EvalResultFake mirrors the marshalIn return contract
       return makeMarshalHandle() as unknown as EvalResultFake
     }
+    // SAFETY: test uses reflection to override the callFunction stub; inline shape declares the documented marshalIn surface
     ;(ctx as unknown as { callFunction: (...args: unknown[]) => EvalResultFake }).callFunction = (
       ..._args: unknown[]
     ) => {
       roundTripInvoked = true
+      // SAFETY: test fixture; makeMarshalHandle returns a fake handle; cast to EvalResultFake mirrors the marshalIn return contract
       return makeMarshalHandle() as unknown as EvalResultFake
     }
 
@@ -284,13 +296,16 @@ describe("marshalIn — handle lifecycle (gen-2 #8)", () => {
       parseFn?: MarshalHandleFake
       callRes?: { alive: boolean; dispose(): void }
     } = {}
+    // SAFETY: test fixture; double cast via unknown is required because makeMarshalCtx returns a stub MarshalCtxFake (subset of marshalIn's QuickJS context parameter)
     const ctx = makeMarshalCtx() as unknown as Parameters<typeof marshalIn>[0]
+    // SAFETY: test uses reflection to override the newString stub; inline shape declares the documented marshalIn surface
     ;(ctx as unknown as { newString: (s: string) => MarshalHandleFake }).newString = (
       _s: string,
     ) => {
       refs.json = makeMarshalHandle()
       return refs.json
     }
+    // SAFETY: test uses reflection to override the unwrapResult stub; inline shape declares the documented marshalIn surface
     ;(ctx as unknown as {
       unwrapResult: (r: EvalResultFake) => MarshalHandleFake
     }).unwrapResult = (r) => {
@@ -304,15 +319,20 @@ describe("marshalIn — handle lifecycle (gen-2 #8)", () => {
       }
       // Dispose the callRes passed in (simulates real ctx.unwrapResult
       // consuming result types).
+      // SAFETY: r is the documented EvalResultFake (has optional dispose); inline shape narrows to read dispose safely
       if (typeof (r as { dispose?: () => void }).dispose === "function") {
+        // SAFETY: dispose() existence verified by the typeof check above; cast re-states the shape for the call
         ;(r as { dispose: () => void }).dispose()
       }
       return makeMarshalHandle()
     }
+    // SAFETY: test uses reflection to override the callFunction stub; inline shape declares the documented marshalIn surface
     ;(ctx as unknown as { callFunction: (...args: unknown[]) => EvalResultFake }).callFunction = (
       ..._args: unknown[]
     ) => {
+      // SAFETY: test fixture; callFunction in marshalIn returns EvalResultFake (QuickJS handle); the local cast to { alive, dispose } records the dispose call for the assertion
       refs.callRes = makeMarshalHandle() as { alive: boolean; dispose(): void }
+      // SAFETY: refs.callRes is the callFunction return value; cast back to EvalResultFake satisfies the marshalIn contract
       return refs.callRes as unknown as EvalResultFake
     }
 
@@ -338,7 +358,9 @@ describe("marshalIn — handle lifecycle (gen-2 #8)", () => {
   // disposed. Previously only the happy path disposed them — both leaked.
   test("REGRESSION: disposes json + parseFn when ctx.callFunction throws", () => {
     const refs: { json?: MarshalHandleFake; parseFn?: MarshalHandleFake } = {}
+    // SAFETY: test fixture; double cast via unknown is required because makeMarshalCtx returns a stub MarshalCtxFake (subset of marshalIn's QuickJS context parameter)
     const ctx = makeMarshalCtx({ callFunctionThrows: true }) as unknown as Parameters<typeof marshalIn>[0]
+    // SAFETY: test uses reflection to override the newString stub; inline shape declares the documented marshalIn surface
     ;(ctx as unknown as { newString: (s: string) => MarshalHandleFake }).newString = (
       _s: string,
     ) => {
@@ -346,6 +368,7 @@ describe("marshalIn — handle lifecycle (gen-2 #8)", () => {
       return refs.json
     }
     let observedParseFn: MarshalHandleFake | null = null
+    // SAFETY: test uses reflection to override the unwrapResult stub; inline shape declares the documented marshalIn surface
     ;(ctx as unknown as {
       unwrapResult: (r: EvalResultFake) => MarshalHandleFake
     }).unwrapResult = (_r) => {
@@ -364,6 +387,7 @@ describe("marshalIn — handle lifecycle (gen-2 #8)", () => {
 
     // The throw must propagate so the caller can observe it.
     expect(caught).toBeInstanceOf(Error)
+    // SAFETY: caught is unknown; the callFunction throw is constructed as an Error above; cast narrows for .message access
     expect((caught as Error).message).toBe("callFunction boom")
 
     // BOTH handles must be disposed despite the callFunction throw.
@@ -378,9 +402,11 @@ describe("marshalIn — handle lifecycle (gen-2 #8)", () => {
   // parseFn was never assigned; json leaked.
   test("REGRESSION: disposes json when ctx.unwrapResult throws on parse", () => {
     const refs: { json?: MarshalHandleFake } = {}
+    // SAFETY: test fixture; double cast via unknown is required because makeMarshalCtx returns a stub MarshalCtxFake (subset of marshalIn's QuickJS context parameter)
     const ctx = makeMarshalCtx({
       unwrapEvalThrows: true,
     }) as unknown as Parameters<typeof marshalIn>[0]
+    // SAFETY: test uses reflection to override the newString stub; inline shape declares the documented marshalIn surface
     ;(ctx as unknown as { newString: (s: string) => MarshalHandleFake }).newString = (
       _s: string,
     ) => {
@@ -396,6 +422,7 @@ describe("marshalIn — handle lifecycle (gen-2 #8)", () => {
     }
 
     expect(caught).toBeInstanceOf(Error)
+    // SAFETY: caught is unknown; the unwrapResult throw is constructed as an Error above; cast narrows for .message access
     expect((caught as Error).message).toBe("unwrapResult(eval) boom")
     expect(refs.json).toBeDefined()
     expect(refs.json!.alive).toBe(false)
@@ -405,9 +432,11 @@ describe("marshalIn — handle lifecycle (gen-2 #8)", () => {
   // handle must still be disposed.
   test("REGRESSION: disposes json when ctx.evalCode throws", () => {
     const refs: { json?: MarshalHandleFake } = {}
+    // SAFETY: test fixture; double cast via unknown is required because makeMarshalCtx returns a stub MarshalCtxFake (subset of marshalIn's QuickJS context parameter)
     const ctx = makeMarshalCtx({ evalCodeThrows: true }) as unknown as Parameters<
       typeof marshalIn
     >[0]
+    // SAFETY: test uses reflection to override the newString stub; inline shape declares the documented marshalIn surface
     ;(ctx as unknown as { newString: (s: string) => MarshalHandleFake }).newString = (
       _s: string,
     ) => {
@@ -423,6 +452,7 @@ describe("marshalIn — handle lifecycle (gen-2 #8)", () => {
     }
 
     expect(caught).toBeInstanceOf(Error)
+    // SAFETY: caught is unknown; the evalCode throw is constructed as an Error above; cast narrows for .message access
     expect((caught as Error).message).toBe("evalCode boom")
     expect(refs.json).toBeDefined()
     expect(refs.json!.alive).toBe(false)

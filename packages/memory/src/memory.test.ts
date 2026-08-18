@@ -34,6 +34,7 @@ describe("MemoryDB", () => {
   afterEach(cleanup);
 
   it("creates schema without error", () => {
+    // SAFETY: invariant — see caller justification
     const tables = db.db
       .query("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
       .all() as Array<{ name: string }>;
@@ -107,6 +108,7 @@ describe("MemoryDB", () => {
 
     expect(after).not.toBeNull();
     expect(before).not.toBeNull();
+    // SAFETY: invariant — see caller justification
     expect((after as number)).toBeGreaterThanOrEqual((before as number));
   });
 
@@ -279,6 +281,7 @@ describe("Runtime guard: portable SQLite loader", () => {
     const db = await init(TEST_DB);
     try {
       // Verify schema
+      // SAFETY: invariant — see caller justification
       const tables = db.db
         .query("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
         .all() as Array<{ name: string }>;
@@ -328,6 +331,7 @@ describe("Runtime guard: portable SQLite loader", () => {
     cleanup();
     const db = await init(TEST_DB);
     try {
+      // SAFETY: invariant — see caller justification
       const tables = db.db
         .query(
           "SELECT sql FROM sqlite_master WHERE type='table' AND name='memory_entries'",

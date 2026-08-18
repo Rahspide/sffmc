@@ -246,6 +246,7 @@ function compileUserRule(
   const flags = isFilenameOnly ? "i" : "gi"
   try {
     return {
+      // SAFETY: invariant — rule.id sourced from validated YAML config; cast to RedactionCategory string union
       id: rule.id as RedactionCategory,
       pattern: new RegExp(rule.pattern, flags),
       filenameOnly: isFilenameOnly,
@@ -272,6 +273,7 @@ function compileUserRule(
  */
 function sanitizeRedactionConfig(parsed: unknown): RedactionConfig {
   if (!parsed || typeof parsed !== "object") return { ...defaultConfig }
+  // SAFETY: narrowed by typeof check on line 275 — parsed is non-null object
   const rawConfig = parsed as Record<string, unknown>
   return {
     extraFilenameRules: sanitizeRuleList(rawConfig.extraFilenameRules, "extraFilenameRules"),
@@ -309,6 +311,7 @@ function sanitizeRuleList(
   const out: Array<{ id: string; pattern: string }> = []
   for (const rule of rules) {
     if (!rule || typeof rule !== "object") continue
+    // SAFETY: narrowed by typeof check on line 313 — rule is non-null object
     const r = rule as { id?: unknown; pattern?: unknown }
     if (typeof r.id !== "string" || typeof r.pattern !== "string") continue
     if (!validateSafeRegex(r.pattern)) {

@@ -30,18 +30,21 @@ export async function discoverParentTools(
   ctx: RichPluginContext,
 ): Promise<string[] | null> {
   // Source 1: ctx.tools — pre-resolved list (preferred path).
+  // SAFETY: ctx typed at SDK boundary; inline shape declares optional .tools field
   const ctxTools = (ctx as { tools?: unknown }).tools
   if (Array.isArray(ctxTools)) {
     return ctxTools.filter((t): t is string => typeof t === "string")
   }
   // Object form (Map of name→descriptor) — extract names.
   if (ctxTools && typeof ctxTools === "object") {
+    // SAFETY: typeof === "object" + truthy narrowed by line 38 guard; Object.keys treats unknown object as Record
     const names = Object.keys(ctxTools as Record<string, unknown>)
     if (names.length > 0) return names
   }
 
   // Source 2: ctx.client.tool.list() — SDK method (may or may not exist
   // depending on OpenCode version). Returned async; swallow rejections.
+  // SAFETY: ctx.client typed at SDK boundary; inline shape declares optional .tool.list() surface
   const client = ctx.client as
     | { tool?: { list?: () => Promise<unknown> } }
     | undefined
@@ -52,6 +55,7 @@ export async function discoverParentTools(
         return raw.filter((t): t is string => typeof t === "string")
       }
       if (raw && typeof raw === "object") {
+        // SAFETY: typeof === "object" + truthy narrowed by guard; Object.keys treats unknown object as Record
         return Object.keys(raw as Record<string, unknown>)
       }
     } catch (e) {

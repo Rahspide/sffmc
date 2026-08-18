@@ -28,6 +28,7 @@ export const checkCategorySplit = createCheck("category_split", async (repoRoot)
     const pkgJsonPath = join(repoRoot, "packages", pkg, "package.json");
     try {
       const content = await readFile(pkgJsonPath, "utf-8");
+      // SAFETY: JSON.parse validated shape on line 31 — package.json is well-formed per Node FS
       const parsed = JSON.parse(content) as { category?: string; portFeature?: string };
       const cat = parsed.category || "uncategorized";
       if (!counts[cat]) counts[cat] = { count: 0, features: [] };

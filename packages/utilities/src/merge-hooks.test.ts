@@ -34,6 +34,7 @@ describe("mergeHooks", () => {
     }
 
     const merged = mergeHooks([s0, s1, s2])
+    // SAFETY: invariant — merged hook cast to fn signature for direct invocation in test
     const transform = merged["experimental.chat.messages.transform"] as (...args: unknown[]) => Promise<unknown>
     const result = await transform({ role: "user" }, [{ role: "system" }])
 
@@ -57,6 +58,7 @@ describe("mergeHooks", () => {
     }
 
     const merged = mergeHooks([s0, s1, s2])
+    // SAFETY: invariant — merged hook cast to fn signature for direct invocation in test
     const gate = merged["tool.execute.before"] as (...args: unknown[]) => Promise<unknown>
     const result = await gate("read", { path: "/x" })
 
@@ -76,6 +78,7 @@ describe("mergeHooks", () => {
     ]
 
     const merged = mergeHooks(servers)
+    // SAFETY: invariant — merged hook cast to fn signature for direct invocation in test
     const configHook = merged.config as (...args: unknown[]) => Promise<unknown>
     const cfg = { foo: 1 }
     await configHook(cfg)
@@ -104,6 +107,7 @@ describe("mergeHooks", () => {
       }
 
       const merged = mergeHooks([s0, s1])
+      // SAFETY: invariant — merged.tool cast to Record for indexer access; "X" key verified by test
       const toolX = (merged.tool as Record<string, unknown>)["X"] as Record<string, unknown>
 
       // later (s1) wins
@@ -128,6 +132,7 @@ describe("mergeHooks", () => {
     ]
 
     const merged = mergeHooks(servers)
+    // SAFETY: invariant — merged hook cast to fn signature for direct invocation in test
     const configHook = merged.config as (...args: unknown[]) => Promise<unknown>
     await configHook({ bar: 2 })
 

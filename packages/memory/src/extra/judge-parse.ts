@@ -12,8 +12,9 @@ export function parseJudgeResponse(raw: string, candidateCount: number): JudgeRe
   try {
     const json = extractJudgeJsonObject(raw);
     if (json === null) return null;
+    // SAFETY: JSON.parse validated shape on line 15
     const parsed = JSON.parse(json) as JudgeResponse;
-    return validateJudgeResponseShape(parsed, candidateCount);
+    return validateJudgeResponseForm(parsed, candidateCount);
   } catch (e) {
     log.debug({ err: e }, "judge-parse: parseJudgeResponse failed (returning null)")
     return null;
@@ -30,11 +31,11 @@ function extractJudgeJsonObject(raw: string): string | null {
   return jsonMatch ? jsonMatch[0] : null;
 }
 
-/** Validate the parsed JudgeResponse shape (scores / winner / reasoning).
+/** Validate the parsed JudgeResponse form (scores / winner / reasoning).
  *  Returns the normalized response (with reasoning trimmed) on success,
  *  or `null` on any structural failure. The caller is responsible for the
  *  outer try/catch around `JSON.parse`. */
-function validateJudgeResponseShape(
+function validateJudgeResponseForm(
   parsed: JudgeResponse,
   candidateCount: number,
 ): JudgeResponse | null {
@@ -49,13 +50,13 @@ function validateJudgeResponseShape(
 }
 
 /** `winner` must be an integer in `[0, candidateCount)`. Used as the second gate
- *  in validateJudgeResponseShape after the scores array check. */
+ *  in validateJudgeResponseForm after the scores array check. */
 function isValidWinnerIndex(winner: unknown, candidateCount: number): winner is number {
   return typeof winner === "number" && winner >= 0 && winner < candidateCount;
 }
 
 /** `reasoning` must be a non-empty string after trimming. Used as the
- *  third gate in validateJudgeResponseShape. */
+ *  third gate in validateJudgeResponseForm. */
 function hasNonEmptyReason(reasoning: unknown): reasoning is string {
   return typeof reasoning === "string" && reasoning.trim().length > 0;
 }
@@ -75,6 +76,7 @@ function hasValidJudgeScores(scores: unknown, candidateCount: number): scores is
  *  "scores 0-10 cap" test (line 710-729) on the fallback heuristic. */
 function isValidScoreTriplet(s: unknown): s is JudgeScore {
   if (typeof s !== "object" || s === null) return false;
+  // SAFETY: narrowed by typeof check on line 77
   const e = s as Partial<JudgeScore>;
   return (
     typeof e.correctness === "number" &&

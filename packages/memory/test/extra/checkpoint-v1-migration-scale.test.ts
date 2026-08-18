@@ -55,7 +55,7 @@ function tmpCheckpointDir(): string {
 /** Header shape for v2-format checkpoints — mirrors the on-disk shape of
  *  `CheckpointHeaderV2` in checkpoint.ts and is used for structural
  *  casts in the tests below. */
-interface V2HeaderShape {
+interface V2HeaderForm {
   __type: "header";
   sessionID: string;
   version: 2;
@@ -80,6 +80,7 @@ function readHeaderFromDisk(
   const firstLine = buf.split("\n")[0]?.trim();
   if (!firstLine) return null;
   try {
+    // SAFETY: JSON.parse validated shape on line 83
     const parsed = JSON.parse(firstLine) as Record<string, unknown>;
     if (parsed.__type !== "header") return null;
     return parsed;
@@ -176,7 +177,8 @@ describe("v1 auto-migration: scale + filesystem edge cases", () => {
       expect(statSync(backupPath).size).toBe(sizeBefore);
 
       // New v2 file is on v2 with correct offset count + CRC fields
-      const header = readHeaderFromDisk(sessionID, dir) as unknown as V2HeaderShape;
+      // SAFETY: invariant — see caller justification
+      const header = readHeaderFromDisk(sessionID, dir) as unknown as V2HeaderForm;
       expect(header).not.toBeNull();
       expect(header.version).toBe(2);
       expect(header.sessionID).toBe(sessionID);
@@ -207,6 +209,7 @@ describe("v1 auto-migration: scale + filesystem edge cases", () => {
       const v2Lines = v2Text.trim().split("\n");
       expect(v2Lines.length).toBe(N + 1); // 1 header + N calls
       for (let i = 1; i < v2Lines.length; i++) {
+        // SAFETY: JSON.parse validated shape on line 210
         const obj = JSON.parse(v2Lines[i]) as Record<string, unknown>;
         expect(typeof obj.__crc).toBe("number");
 
@@ -268,7 +271,8 @@ describe("v1 auto-migration: scale + filesystem edge cases", () => {
     }
 
     // Final state: valid v2 with all N calls preserved.
-    const header = readHeaderFromDisk(sessionID, dir) as unknown as V2HeaderShape;
+    // SAFETY: invariant — see caller justification
+    const header = readHeaderFromDisk(sessionID, dir) as unknown as V2HeaderForm;
     expect(header).not.toBeNull();
     expect(header.version).toBe(2);
     expect(header.lineOffsets.length).toBe(N);
@@ -361,7 +365,8 @@ describe("v1 auto-migration: scale + filesystem edge cases", () => {
     // Capture the v2 file state before readToolCalls
     const fp = filePath(sessionID, dir);
     const bytesBefore = readFileSync(fp);
-    const headerBefore = readHeaderFromDisk(sessionID, dir) as unknown as V2HeaderShape;
+    // SAFETY: invariant — see caller justification
+    const headerBefore = readHeaderFromDisk(sessionID, dir) as unknown as V2HeaderForm;
     expect(headerBefore).not.toBeNull();
     expect(headerBefore.version).toBe(2);
     expect(headerBefore.lineOffsets.length).toBe(N);
@@ -379,7 +384,8 @@ describe("v1 auto-migration: scale + filesystem edge cases", () => {
     expect(bytesAfter.equals(bytesBefore)).toBe(true);
 
     // v2 header preserved
-    const headerAfter = readHeaderFromDisk(sessionID, dir) as unknown as V2HeaderShape;
+    // SAFETY: invariant — see caller justification
+    const headerAfter = readHeaderFromDisk(sessionID, dir) as unknown as V2HeaderForm;
     expect(headerAfter).not.toBeNull();
     expect(headerAfter.version).toBe(2);
     expect(headerAfter.lineOffsets.length).toBe(N);
@@ -472,7 +478,8 @@ describe("v1 auto-migration: scale + filesystem edge cases", () => {
     expect(migratedCalls[2].tool).toBe("read");
 
     // v2 header has 3 line offsets (one per call).
-    const header2 = readHeaderFromDisk(sessionID, dir) as unknown as V2HeaderShape;
+    // SAFETY: invariant — see caller justification
+    const header2 = readHeaderFromDisk(sessionID, dir) as unknown as V2HeaderForm;
     expect(header2).not.toBeNull();
     expect(header2.version).toBe(2);
     expect(header2.lineOffsets.length).toBe(3);

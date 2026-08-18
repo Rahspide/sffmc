@@ -117,6 +117,7 @@ describe("CounterManager — addTokens()", () => {
     // Real runtime.ts:812 calls `addTokens(tokens?.input ?? 0, tokens?.output ?? 0)`,
     // but the CounterManager should also tolerate being called with raw undefined
     // values to mirror that null-safety in case callers forget.
+    // SAFETY: test fixture; double cast `undefined as unknown as number` is the documented pattern to feed `undefined` into a `number`-typed parameter for the null-tolerance test
     cm.addTokens(undefined as unknown as number, undefined as unknown as number)
     expect(cm.tokensUsed).toBe(0)
   })

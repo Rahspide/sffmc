@@ -105,6 +105,7 @@ export function validateJournalEvent(
       error: { line: lineNo, raw, error: "expected JSON object" },
     }
   }
+  // SAFETY: JSON.parse on line above produces unknown; typeof === "object" && !== null && !isArray narrowed by guard on line 102
   const obj = parsed as Record<string, unknown>
 
   // ── v1 header (`{"v":1}`) — not a journal event, leave it alone. ────
@@ -129,6 +130,7 @@ export function validateJournalEvent(
       error: { line: lineNo, raw, error: "missing or non-string `t` field" },
     }
   }
+  // SAFETY: KNOWN_EVENT_TYPES.has(t) on next line validates the value against the JournalEventType set; cast is safe when true
   if (!KNOWN_EVENT_TYPES.has(t as JournalEventType)) {
     return {
       ok: false,
@@ -173,9 +175,11 @@ export function validateJournalEvent(
     const event: JournalEventAgent = {
       t: "agent",
       key: obj.key,
+      // SAFETY: obj.args is unknown; Record<string, unknown> | undefined is the documented schema for the agent event args payload
       args: (obj.args as Record<string, unknown> | undefined) ?? {},
       result: obj.result,
       pass: obj.pass,
+      // SAFETY: obj.tokens is unknown; number is the documented scalar type for the optional tokens field
       ...(obj.tokens !== undefined ? { tokens: obj.tokens as number } : {}),
     }
     return { ok: true, event }

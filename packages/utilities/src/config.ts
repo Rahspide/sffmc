@@ -89,5 +89,6 @@ export async function loadConfig<T extends object>(
       return { ...defaults }
     }
   }
+  // SAFETY: invariant — parsed comes from yaml parser on line 79; cast to Partial<T> for merge with defaults
   return { ...defaults, ...(parsed as Partial<T>) }
 }

@@ -223,6 +223,7 @@ describe("testability: __setClock → time-travel through dream staleness", () =
     })
 
     const beforeCount = (
+      // SAFETY: invariant — see caller justification
       new Database(dbPath, { readonly: true })
         .query("SELECT COUNT(*) AS c FROM memory_entries")
         .get() as { c: number }
@@ -234,6 +235,7 @@ describe("testability: __setClock → time-travel through dream staleness", () =
     expect(result.archived).toBe(1) // exactly the stale row
 
     const afterCount = (
+      // SAFETY: invariant — see caller justification
       new Database(dbPath, { readonly: true })
         .query("SELECT COUNT(*) AS c FROM memory_entries")
         .get() as { c: number }

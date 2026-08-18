@@ -439,6 +439,7 @@ function buildDreamHooks(
  *  NULL (the query's max aggregate value is always numeric, so this is
  *  just a defensive narrowing). Pure DB read — no mutation. */
 function countMemoryRows(getDB: () => Database): number {
+  // SAFETY: invariant — see caller justification
   const row = getDB()
     .query("SELECT COUNT(*) as cnt FROM memory_entries")
     .get() as { cnt: number } | null;

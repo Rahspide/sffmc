@@ -135,6 +135,7 @@ export function marshalIn(ctx: QuickJSContext, value: unknown): QuickJSHandle {
   try {
     parseFn = ctx.unwrapResult(ctx.evalCode("JSON.parse"))
     try {
+      // SAFETY: ctx.callFunction returns unknown; the inline typeof re-asserts the documented QuickJS call-result shape
       callRes = ctx.callFunction(parseFn, ctx.undefined, json) as typeof callRes
     } finally {
       parseFn.dispose()
@@ -149,6 +150,7 @@ export function marshalIn(ctx: QuickJSContext, value: unknown): QuickJSHandle {
     throw err
   }
   json.dispose()
+  // SAFETY: callRes narrowed by the catch-all above (no throw path); Parameters<typeof ctx.unwrapResult>[0] re-states the documented handle shape
   return ctx.unwrapResult(callRes as Parameters<typeof ctx.unwrapResult>[0])
 }
 

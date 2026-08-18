@@ -10,6 +10,7 @@ import { BudgetExceededError, WorkflowStatus } from "../src/types.ts"
 // capturing calls so the assertions can inspect side-effects.
 
 function makeFakePersistence() {
+  // SAFETY: test fixture; double cast via unknown is required because the fake persistence implements only the 2 methods exercised by RunCompleter
   return {
     updateRunStatus: (runID: string, status: string, error?: string) => {
       fakePersistence.updates.push({ runID, status, error })
@@ -24,6 +25,7 @@ const fakePersistence = { updates: [] as Array<{ runID: string; status: string; 
 
 function makeFakeEvents() {
   const emitted: Array<{ name: string; payload: unknown }> = []
+  // SAFETY: test fixture; double cast via unknown is required because the fake events object exposes an extra `_emitted` field for assertion introspection
   return {
     emit: (name: string, payload: unknown) => {
       emitted.push({ name, payload })
@@ -33,6 +35,7 @@ function makeFakeEvents() {
 }
 
 function makeFakeOutcomes() {
+  // SAFETY: test fixture; double cast via unknown is required because the fake outcomes-stub implements only the `put` method used by RunCompleter
   return {
     put: (runID: string, outcome: unknown) => {
       fakeOutcomes.puts.push({ runID, outcome })
@@ -42,6 +45,7 @@ function makeFakeOutcomes() {
 const fakeOutcomes = { puts: [] as Array<{ runID: string; outcome: unknown }> }
 
 function makeFakeRuns() {
+  // SAFETY: test fixture; double cast via unknown is required because the fake runs-stub implements only the `release` method used by RunCompleter
   return {
     release: (runID: string) => {
       fakeRuns.released.push(runID)
@@ -79,6 +83,7 @@ describe("RunCompleter", () => {
       events,
       outcomes: makeFakeOutcomes(),
       runs: makeFakeRuns(),
+      // SAFETY: test fixture; the launchScript stub is cast to the documented launchScript signature (async () => unknown) — the runtime ignores the return value in this test
       launchScript: (async () => "ok") as ConstructorParameters<typeof RunCompleter>[0]["launchScript"],
     })
   })
@@ -172,6 +177,7 @@ describe("RunCompleter", () => {
         events: makeFakeEvents(),
         outcomes: makeFakeOutcomes(),
         runs: makeFakeRuns(),
+        // SAFETY: test fixture; the launchScript stub returns a non-null result to drive the completeRun path
         launchScript: (async () => "result-ok") as ConstructorParameters<typeof RunCompleter>[0]["launchScript"],
       })
       await completerWithLaunch.settleEntry(entry, "script", "name", [], "jail")
@@ -185,6 +191,7 @@ describe("RunCompleter", () => {
         events: makeFakeEvents(),
         outcomes: makeFakeOutcomes(),
         runs: makeFakeRuns(),
+        // SAFETY: test fixture; the launchScript stub returns null to drive the failRun path with "Sandbox execution failed"
         launchScript: (async () => null) as ConstructorParameters<typeof RunCompleter>[0]["launchScript"],
       })
       await completerWithLaunch.settleEntry(entry, "script", "name", [], "jail")
@@ -199,6 +206,7 @@ describe("RunCompleter", () => {
         events: makeFakeEvents(),
         outcomes: makeFakeOutcomes(),
         runs: makeFakeRuns(),
+        // SAFETY: test fixture; the launchScript stub throws an Error to drive the failRun path with the error message
         launchScript: (async () => { throw new Error("kaboom") }) as ConstructorParameters<typeof RunCompleter>[0]["launchScript"],
       })
       await completerWithLaunch.settleEntry(entry, "script", "name", [], "jail")
@@ -213,6 +221,7 @@ describe("RunCompleter", () => {
         events: makeFakeEvents(),
         outcomes: makeFakeOutcomes(),
         runs: makeFakeRuns(),
+        // SAFETY: test fixture; the launchScript stub throws a non-Error (string) to drive the coerce-to-string path in failRun
         launchScript: (async () => { throw "string-throw" }) as ConstructorParameters<typeof RunCompleter>[0]["launchScript"],
       })
       await completerWithLaunch.settleEntry(entry, "script", "name", [], "jail")
@@ -226,6 +235,7 @@ describe("RunCompleter", () => {
         events: makeFakeEvents(),
         outcomes: makeFakeOutcomes(),
         runs: makeFakeRuns(),
+        // SAFETY: test fixture; the launchScript stub throws to verify settleEntry itself does not propagate the throw
         launchScript: (async () => { throw new Error("explode") }) as ConstructorParameters<typeof RunCompleter>[0]["launchScript"],
       })
       // settleEntry itself should resolve, not throw

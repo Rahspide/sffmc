@@ -91,6 +91,7 @@ describe("v0.14.3 schema journal validation initial release: journal event schem
     const v = validateJournalEvent(raw, 42)
     expect(v.ok).toBe(false)
     if (!v.ok) {
+      // SAFETY: !v.ok narrowed by the line above; v.error is the documented error payload (JournalValidationError) for the failed-validation case
       const err = v.error as JournalValidationError
       expect(err.line).toBe(42)
       expect(err.error.length).toBeGreaterThan(0)

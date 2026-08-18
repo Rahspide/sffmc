@@ -70,6 +70,7 @@ export class McpDispatcher implements IMcpDispatcher {
       // Dispatch through parent SDK. `ctx.client.tool.call` is the OpenCode
       // convention. When the surface is absent we fail closed with a typed
       // error — the bridge still records the attempt for observability.
+      // SAFETY: ctx.client typed as unknown at SDK boundary; inline shape declares the optional .tool.call surface
       const tool = (this.deps.getCtx().client as { tool?: { call?: (n: string, a: unknown) => Promise<unknown> } } | undefined)?.tool
       if (!tool?.call) {
         bridge.recordError(name, args, "no MCP SDK surface available")

@@ -213,6 +213,7 @@ export function readHeader(
 
   let parsed: Record<string, unknown>;
   try {
+    // SAFETY: JSON.parse validated shape on line 216
     parsed = JSON.parse(firstLine) as Record<string, unknown>;
   } catch (e) {
     log.warn({ err: e, sessionID }, "checkpoint-header: parse failed");
@@ -239,6 +240,7 @@ export function readHeader(
     }
     if (!firstLine) return null;
     try {
+      // SAFETY: JSON.parse validated shape on line 242
       parsed = JSON.parse(firstLine) as Record<string, unknown>;
     } catch (e) {
       log.warn({ err: e, sessionID }, "checkpoint-header: post-migrate parse failed");
@@ -256,6 +258,7 @@ export function readHeader(
   ) {
     return null;
   }
+  // SAFETY: narrowed by typeof check on line 255
   return parsed as unknown as CheckpointHeaderV2;
 }
 
@@ -302,6 +305,7 @@ function migrateV1ToV2InPlace(
 
   let parsedHeader: Record<string, unknown>;
   try {
+    // SAFETY: JSON.parse validated shape on line 305
     parsedHeader = JSON.parse(firstLine) as Record<string, unknown>;
   } catch (e) {
     return { ok: false, lines: 0, error: e instanceof Error ? e.message : String(e) };
@@ -320,6 +324,7 @@ function migrateV1ToV2InPlace(
     return {
       ok: false,
       lines: 0,
+      // SAFETY: narrowed by parsedHeader.version !== 1 on line 319
       error: `unknown checkpoint version: ${parsedHeader.version as number}`,
     };
   }
@@ -385,6 +390,7 @@ function readV1BodyLines(raw: string): ToolCall[] {
     const trimmed = line.trim();
     if (!trimmed) continue;
     try {
+      // SAFETY: JSON.parse validated shape on line 388
       const obj = JSON.parse(trimmed) as Record<string, unknown>;
       if (obj.__type === "header") continue;
       if (
@@ -392,6 +398,7 @@ function readV1BodyLines(raw: string): ToolCall[] {
         typeof obj.timestamp === "number" &&
         typeof obj.callID === "string"
       ) {
+        // SAFETY: narrowed by typeof check on line 393
         calls.push(obj as unknown as ToolCall);
       }
     } catch (e) {

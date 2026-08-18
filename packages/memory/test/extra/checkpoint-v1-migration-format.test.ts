@@ -69,7 +69,7 @@ function makeV1BodyLine(tool: string, callID: string, ts = 1700000000000): strin
 /** Header shape for v2-format checkpoints — mirrors the on-disk shape
  *  of `CheckpointHeaderV2` in checkpoint.ts and is used to assert
  *  post-migration on-disk state. */
-interface V2HeaderShape {
+interface V2HeaderForm {
   __type: "header";
   sessionID: string;
   version: 2;
@@ -93,6 +93,7 @@ function readHeaderFromDisk(
   const firstLine = buf.split("\n")[0]?.trim();
   if (!firstLine) return null;
   try {
+    // SAFETY: JSON.parse validated shape on line 96
     const parsed = JSON.parse(firstLine) as Record<string, unknown>;
     if (parsed.__type !== "header") return null;
     return parsed;
@@ -171,7 +172,8 @@ describe("v1 migration: file format anomalies", () => {
       expect(existsSync(join(dir, `${sessionID}.jsonl.v1.bak`))).toBe(true);
 
       // On-disk file is now v2 with an empty lineOffsets array.
-      const onDisk = readHeaderFromDisk(sessionID, dir) as unknown as V2HeaderShape;
+      // SAFETY: invariant — see caller justification
+      const onDisk = readHeaderFromDisk(sessionID, dir) as unknown as V2HeaderForm;
       expect(onDisk).not.toBeNull();
       expect(onDisk.version).toBe(2);
       expect(onDisk.sessionID).toBe(sessionID);
@@ -213,7 +215,8 @@ describe("v1 migration: file format anomalies", () => {
       expect(calls[0].callID).toBe("c-good");
 
       // On-disk state: v2 with 1 line offset.
-      const header = readHeaderFromDisk(sessionID, dir) as unknown as V2HeaderShape;
+      // SAFETY: invariant — see caller justification
+      const header = readHeaderFromDisk(sessionID, dir) as unknown as V2HeaderForm;
       expect(header).not.toBeNull();
       expect(header.version).toBe(2);
       expect(header.lineOffsets.length).toBe(1);
@@ -342,9 +345,11 @@ describe("v1 migration: file format anomalies", () => {
       const v2Buf = readFileSync(filePath(sessionID, dir));
       const v2Lines = v2Buf.toString("utf-8").trim().split("\n");
       expect(v2Lines.length).toBe(4); // header + 3 body lines
+      // SAFETY: JSON.parse validated shape on line 345
       const v2Header = JSON.parse(v2Lines[0]!) as Record<string, unknown>;
       expect(v2Header.version).toBe(2);
       expect(Array.isArray(v2Header.lineOffsets)).toBe(true);
+      // SAFETY: narrowed by Array.isArray on line 347
       expect((v2Header.lineOffsets as unknown[]).length).toBe(3);
     }, 5000);
   });

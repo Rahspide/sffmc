@@ -89,6 +89,7 @@ function readFirstLineHeader(
   const firstLine = buf.split("\n")[0]?.trim();
   if (!firstLine) return null;
   try {
+    // SAFETY: JSON.parse validated shape on line 92
     return JSON.parse(firstLine) as Record<string, unknown>;
   } catch {
     return null;

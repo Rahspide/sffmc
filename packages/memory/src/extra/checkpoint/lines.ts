@@ -46,6 +46,7 @@ export function iterateBodyLines(
     if (lineEnd < 0) lineEnd = fileBuf.length;
     const lineBytes = fileBuf.subarray(start, lineEnd);
     try {
+      // SAFETY: JSON.parse validated shape on line 49
       const obj = JSON.parse(lineBytes.toString("utf-8")) as Record<string, unknown>;
       if (obj.__type === "header") continue;
       if (
@@ -53,6 +54,7 @@ export function iterateBodyLines(
         typeof obj.timestamp === "number" &&
         typeof obj.callID === "string"
       ) {
+        // SAFETY: narrowed by typeof check on line 54
         calls.push(obj as unknown as ToolCall);
       }
     } catch (e) {

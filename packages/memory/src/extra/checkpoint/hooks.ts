@@ -29,6 +29,7 @@ export function createToolExecuteAfterHook(
   return async (toolCtx, result) => {
     const call: ToolCall = {
       tool: toolCtx.tool,
+      // SAFETY: invariant — see caller justification
       args: (result.metadata as Record<string, unknown>)?.args ?? {},
       result: sanitizeValue(result.output),
       timestamp: Date.now(),

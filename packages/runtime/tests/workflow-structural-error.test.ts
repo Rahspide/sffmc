@@ -52,6 +52,7 @@ describe("WorkflowStructuralError typed class", () => {
     }
     expect(caught).toBeInstanceOf(WorkflowStructuralError)
     expect(caught).toBeInstanceOf(Error)
+    // SAFETY: caught narrowed by .toBeInstanceOf(WorkflowStructuralError) on the previous line; cast re-states the shape for the .message access
     expect((caught as WorkflowStructuralError).message).toBe("unknown workflow: \"bar\"")
   })
 })
@@ -95,6 +96,7 @@ describe("Classification branch returns the correct outcome type", () => {
     }
     expect(caught).toBeInstanceOf(Error)
     expect(caught).not.toBeInstanceOf(WorkflowStructuralError)
+    // SAFETY: caught narrowed by .toBeInstanceOf(Error) on the previous line; cast re-states the Error shape for the .message access
     expect((caught as Error).message).toBe("expected structural prefix")
   })
 

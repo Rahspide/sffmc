@@ -272,6 +272,7 @@ describe("parseMeta: edge cases", () => {
     const r = PARSE('export const meta = { name: "x", description: "y", tag: "trueish" }')
     expect(r.ok).toBe(true)
     if (r.ok) {
+      // SAFETY: r.ok narrowed by the line above; r.meta is the documented successful-parse payload (validated by the meta parser schema)
       expect((r.meta as Record<string, unknown>).tag).toBe("trueish")
     }
   })
