@@ -58,6 +58,7 @@ export class StepsRepository {
   // SAFETY: loadCompletedSteps returns WorkflowStep[]; the type annotation reflects the mapped rows from SELECT * on workflow_steps
   loadCompletedSteps(runID: string): WorkflowStep[] {
     safeRunID(runID)
+    // SAFETY: bun:sqlite's `.all()` returns unknown[]; the cast re-states the documented SqliteRow[] shape for the selected columns
     const rows = this.db
       .query("SELECT * FROM workflow_steps WHERE run_id = ? ORDER BY step_index")
       .all(runID) as SqliteRow[]

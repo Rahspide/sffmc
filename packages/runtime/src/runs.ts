@@ -26,6 +26,22 @@ export type SqliteRow = Record<string, string | number | null>
  *  treat `undefined` as "no args" and skip the column. */
 export type JsonValue = string | number | boolean | null | { [k: string]: JsonValue } | JsonValue[]
 
+/** Parse the `args` column (TEXT JSON) of a workflow_runs row.
+ *  Malformed JSON is logged and treated as undefined — the column is
+ *  writer-controlled (we write JSON.stringify in createRun) so a parse
+ *  failure indicates a corrupted row, which must not throw on read. */
+// SAFETY: row.args is the documented `string | null` SQLite TEXT shape; JSON.parse validated by try/catch, so a malformed value degrades to undefined rather than throwing
+function parseArgsColumn(row: SqliteRow): unknown {
+  if (!row.args) return undefined
+  try {
+    // SAFETY: row.args narrowed to string by truthy check above; cast re-states the documented TEXT column type
+    return JSON.parse(row.args as string)
+  } catch (e) {
+    log.debug({ err: e, runID: row.id }, "runs: row.args JSON.parse failed — returning undefined")
+    return undefined
+  }
+}
+
 /** Map a workflow_runs row to the typed WorkflowRun shape.
  *  Args round-trip through JSON.parse (with try/catch fallback to
  *  undefined for malformed entries — the row was written by us, but
@@ -50,7 +66,7 @@ export function rowToRun(row: SqliteRow): WorkflowRun {
     // SAFETY: row comes from SELECT * on workflow_runs (typed schema); `parent_run_id` column is TEXT nullable
     parentRunID: (row.parent_run_id as string) || undefined,
     // SAFETY: row comes from SELECT * on workflow_runs (typed schema); `args` column is TEXT JSON nullable; JSON.parse validated by try/catch
-    args: (() => { try { return row.args ? JSON.parse(row.args as string) : undefined } catch (e) { log.debug({ err: e, runID: row.id }, "runs: row.args JSON.parse failed — returning undefined"); return undefined } })(),
+    args: parseArgsColumn(row),
     // SAFETY: row comes from SELECT * on workflow_runs (typed schema); `script_sha` column is TEXT nullable
     scriptSha: (row.script_sha as string) || undefined,
     // SAFETY: row comes from SELECT * on workflow_runs (typed schema); `agent_timeout_ms` column is INTEGER nullable
@@ -94,6 +110,7 @@ export class RunsRepository {
 
   loadRun(runID: string): WorkflowRun | null {
     safeRunID(runID)
+    // SAFETY: bun:sqlite's `.get()` returns unknown; the cast re-states the documented SqliteRow shape narrowed by runID filter
     const row = this.db.query("SELECT * FROM workflow_runs WHERE id = ?").get(runID) as SqliteRow | undefined
     return row ? rowToRun(row) : null
   }
@@ -109,6 +126,7 @@ export class RunsRepository {
 
   // SAFETY: listRuns returns WorkflowRun[]; the type annotation reflects the mapped rows from SELECT * on workflow_runs
   listRuns(): WorkflowRun[] {
+    // SAFETY: bun:sqlite's `.all()` returns unknown[]; the cast re-states the documented SqliteRow[] shape for the selected columns
     const rows = this.db.query("SELECT * FROM workflow_runs ORDER BY time_created DESC").all() as SqliteRow[]
     return rows.map(rowToRun)
   }
@@ -118,6 +136,7 @@ export class RunsRepository {
    *  'paused' (journal replay possible) or 'crashed' (no journal). */
   // SAFETY: listRunningRuns returns WorkflowRun[]; the type annotation reflects the filtered rows from SELECT * WHERE status='running'
   listRunningRuns(): WorkflowRun[] {
+    // SAFETY: bun:sqlite's `.all()` returns unknown[]; the cast re-states the documented SqliteRow[] shape for the selected columns
     const rows = this.db
       .query("SELECT * FROM workflow_runs WHERE status = 'running' ORDER BY time_created DESC")
       .all() as SqliteRow[]

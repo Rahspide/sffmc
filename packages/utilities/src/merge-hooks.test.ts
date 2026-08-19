@@ -2,12 +2,7 @@
 // @sffmc/utilities — see ../../LICENSE
 
 import { describe, test, expect, mock } from "bun:test"
-import {
-  mergeHooks,
-  TRANSFORM_HOOKS,
-  GATE_HOOKS,
-  SIDE_EFFECT_HOOKS,
-} from "./merge-hooks.ts"
+import { mergeHooks } from "./merge-hooks.ts"
 import type { PluginServer } from "./merge-hooks.ts"
 
 /** Generic chat-message entry used by transform-hook test mocks. */
@@ -46,11 +41,11 @@ describe("mergeHooks", () => {
     }
 
     const merged = mergeHooks([s0, s1, s2])
-    // SAFETY: invariant — merged hook cast to fn signature for direct invocation in test
     type MessagesTransform = (
       _ctx: { sessionID?: string },
       msgs: ChatMessage[],
     ) => Promise<ChatMessage[]>;
+    // SAFETY: `as MessagesTransform` is the documented escape hatch — merged hook values are typed `Function` (per the mergeHooks contract), so we narrow back to the documented per-hook signature for direct invocation in the test
     const transform = merged["experimental.chat.messages.transform"] as MessagesTransform
     const result = await transform({ role: "user" }, [{ role: "system" }])
 
@@ -79,11 +74,11 @@ describe("mergeHooks", () => {
     }
 
     const merged = mergeHooks([s0, s1, s2])
-    // SAFETY: invariant — merged hook cast to fn signature for direct invocation in test
     type ToolBefore = (
       tool: string,
       args: { path?: string },
     ) => Promise<string | undefined>;
+    // SAFETY: `as ToolBefore` is the documented escape hatch — merged hook values are typed `Function` (per the mergeHooks contract), so we narrow back to the documented per-hook signature for direct invocation in the test
     const gate = merged["tool.execute.before"] as ToolBefore
     const result = await gate("read", { path: "/x" })
 
@@ -103,8 +98,8 @@ describe("mergeHooks", () => {
     ]
 
     const merged = mergeHooks(servers)
-    // SAFETY: invariant — merged hook cast to fn signature for direct invocation in test
     type ConfigHook = (cfg: { foo?: number }) => Promise<void>;
+    // SAFETY: `as ConfigHook` is the documented escape hatch — merged hook values are typed `Function` (per the mergeHooks contract), so we narrow back to the documented per-hook signature for direct invocation in the test
     const configHook = merged.config as ConfigHook
     const cfg = { foo: 1 }
     await configHook(cfg)
@@ -133,8 +128,8 @@ describe("mergeHooks", () => {
       }
 
       const merged = mergeHooks([s0, s1])
-      // SAFETY: invariant — merged.tool cast to structural shape for indexer access; "X" key verified by test
       type ToolDef = { description: string; execute: string };
+      // SAFETY: the two casts below (`as { X?: ToolDef }` and `as ToolDef`) are documented escape hatches — merged.tool is the open-typed tool-record field, and the `X` key is verified by the test's toolX.execute assertion below
       const toolX = (merged.tool as { X?: ToolDef })["X"] as ToolDef
 
       // later (s1) wins
@@ -159,8 +154,8 @@ describe("mergeHooks", () => {
     ]
 
     const merged = mergeHooks(servers)
-    // SAFETY: invariant — merged hook cast to fn signature for direct invocation in test
     type ConfigHook = (cfg: { bar?: number }) => Promise<void>;
+    // SAFETY: `as ConfigHook` is the documented escape hatch — merged hook values are typed `Function` (per the mergeHooks contract), so we narrow back to the documented per-hook signature for direct invocation in the test
     const configHook = merged.config as ConfigHook
     await configHook({ bar: 2 })
 

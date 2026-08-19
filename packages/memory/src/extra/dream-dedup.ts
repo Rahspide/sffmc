@@ -4,10 +4,7 @@
 // from dream.ts (M-3 Wave 1). Pure data shape; no LLM, no orchestration.
 
 import { Database } from "bun:sqlite";
-import { createLogger } from "@sffmc/utilities";
 import { MAX_OVERFLOW, type MemoryRow } from "./dream-types.ts";
-
-const log = createLogger("extra-dream");
 
 // ---------------------------------------------------------------------------
 // Jaccard similarity primitives
@@ -17,15 +14,6 @@ function tokenize(s: string): Set<string> {
   const cleaned = s.toLowerCase().replace(/[^\w\s]/g, " ");
   const tokens = cleaned.split(/\s+/).filter((t) => t.length > 0);
   return new Set(tokens);
-}
-
-function jaccard(a: string, b: string): number {
-  const setA = tokenize(a);
-  const setB = tokenize(b);
-  if (setA.size === 0 && setB.size === 0) return 0;
-  const intersection = new Set([...setA].filter((x) => setB.has(x)));
-  const union = new Set([...setA, ...setB]);
-  return intersection.size / union.size;
 }
 
 /** Jaccard similarity between pre-tokenized sets. Avoids re-tokenizing on

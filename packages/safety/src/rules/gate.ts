@@ -68,6 +68,7 @@ export function evaluate(
     // Mutating fresh locals (not the caller's object) keeps the API
     // total without side effects on the caller's args.
     const isBash = toolName === "bash" && v.is(v.string(), args?.command);
+    // SAFETY: `isBash` guard above guarantees `args?.command` is a string; the non-null assertion + cast re-state the documented command-string shape
     const rawCommand = isBash ? (args!.command as string) : null;
     const normalizedArgs = isBash
       ? { ...args, command: normalizeCommand(rawCommand!) }
@@ -95,6 +96,7 @@ export function evaluate(
               };
             }
           } else if (
+            // SAFETY: `normalizedArgs` is the documented `args` shape with a string `command` after the `isBash` check on line above; the non-null assertion + cast re-state the documented command-string shape
             anchoredTest(
               normalizedArgs!.command as string,
               rule.commandMatch.regex,

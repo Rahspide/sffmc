@@ -95,7 +95,7 @@ export class ChildWorkflowPrimitive implements IChildWorkflowPrimitive {
         ? { source: spec, meta: parseMeta(spec), kind: "inline" as const }
         : await resolveWorkflow(spec, workspace)
       childScript = resolved.source
-    } catch (e) {
+    } catch {
       // Typed throw (gen-2 #4). The discriminant prefix lives in the
       // message so the bridge serializes it as a "WorkflowStructuralError: ..."
       // string the parent classification site can recover, and on the typed

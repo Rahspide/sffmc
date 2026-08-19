@@ -48,11 +48,6 @@ import { evalAndDiscard, evalAndReturn } from "./sandbox-eval.ts"
 import { startMicrotaskPump, createDeadlineRace } from "./sandbox-pump.ts"
 import { injectHooks, marshalIn } from "./sandbox-bridge.ts"
 import type {
-  DeadlineFactory,
-  EvalExecutor,
-  HostBridge,
-  MarshalingService,
-  MicrotaskPumpFactory,
   SandboxRuntimeFactory,
   SandboxServices,
 } from "./sandbox-services.ts"
@@ -219,7 +214,6 @@ export async function runSandboxed(
       // so no type assertion needed.
       const r = resolved.r
       if (r.error) {
-        const err = ctx.dump(r.error)
         r.error.dispose()
         return null
       }

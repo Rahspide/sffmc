@@ -16,7 +16,7 @@
 // is the production code path.
 
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import { writeFileSync, unlinkSync, existsSync, utimesSync } from "fs";
+import { writeFileSync, unlinkSync, utimesSync } from "fs";
 import {
   compileRules,
   parseRules,
@@ -126,6 +126,7 @@ rules:
 
   let compiled: CompiledRule[];
   beforeEach(() => {
+    // SAFETY: PHASE_YAML is a hardcoded test fixture; parseRules returns the documented Rules type for valid YAML
     const parsed = parseRules(PHASE_YAML) as Rules;
     const result = compileRules(parsed);
     expect(result.errors).toEqual([]);
@@ -218,6 +219,7 @@ rules:
 `;
   let compiled: CompiledRule[];
   beforeEach(() => {
+    // SAFETY: PHASE_YAML is a hardcoded test fixture; parseRules returns the documented Rules type for valid YAML
     const parsed = parseRules(PHASE_YAML) as Rules;
     compiled = compileRules(parsed).rules;
   });
@@ -482,6 +484,7 @@ describe("evaluate() — fail-closed", () => {
         { match: { tool: "bash", command_match: "rm -rf /" }, action: "deny" },
       ],
     };
+    // SAFETY: test fixture intentionally passes a non-string `command` to exercise the unexpected-type branch; `as string` is the documented escape hatch for the test invariant
     const result = evaluate(
       rules,
       "bash",
@@ -617,6 +620,7 @@ describe("evaluate() — path_outside edge cases", () => {
   });
 
   test("non-string path entry in array — ignored, not crash", () => {
+    // SAFETY: test fixture intentionally passes a non-string path entry to exercise the unexpected-type branch; `as string` is the documented escape hatch for the test invariant
     expect(
       evaluate(
         rules,

@@ -26,9 +26,8 @@ import { FlushManager } from "../src/flush-manager.ts"
 import { WorkflowPersistence } from "../src/persistence.ts"
 import { McpBridge } from "../src/mcp.ts"
 import { startWorkflowWatcher } from "../src/workflow-watcher.ts"
-import { WorkspaceJail } from "../src/workspace.ts"
 import { tmpdir } from "node:os"
-import { mkdtempSync, writeFileSync, symlinkSync, unlinkSync, readlinkSync } from "node:fs"
+import { mkdtempSync, writeFileSync } from "node:fs"
 import path from "node:path"
 
 // =============================================================================

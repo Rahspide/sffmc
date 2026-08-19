@@ -9,7 +9,7 @@
 import { describe, test, expect } from "bun:test"
 import * as v from "valibot"
 import { resolve } from "node:path"
-import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from "node:fs"
+import { mkdtempSync, rmSync, mkdirSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { checkHookConflicts } from "../hook-conflicts.ts"

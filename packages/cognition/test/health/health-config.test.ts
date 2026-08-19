@@ -20,7 +20,6 @@ import {
   ensureHealthConfig,
   getHealthConfigSync,
   __setHealthConfig,
-  type HealthConfig,
 } from "./_test-helpers/config-cache.ts";
 
 // ---------------------------------------------------------------------------

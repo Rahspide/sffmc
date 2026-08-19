@@ -100,7 +100,9 @@ function readHeaderFromDisk(
     // `__type === "header"` discriminator is checked explicitly.
     const RawObjectSchema = v.record(v.string(), v.unknown());
     const parsed = v.parse(RawObjectSchema, JSON.parse(firstLine));
+    // SAFETY: narrowed by v.is(v.object({}), parsed) check on the same line — the cast re-states the documented __type field shape for the header-skip branch
     if (!parsed || !v.is(v.object({}), parsed) || (parsed as { __type?: unknown }).__type !== "header") return null;
+    // SAFETY: validated by v.parse(RawObjectSchema, …) on the line above + the __type === "header" discriminator check on the line above — cast re-states the documented CheckpointHeaderRaw shape
     return parsed as unknown as CheckpointHeaderRaw;
   } catch {
     return null;
@@ -354,12 +356,14 @@ describe("v1 migration: file format anomalies", () => {
       // are untyped at this layer; the assertions below narrow them via
       // typeof / Array.isArray.
       const RawObjectSchema = v.record(v.string(), v.unknown());
+      // SAFETY: validated by v.parse(RawObjectSchema, …) on the line — cast re-states the documented shape of the v2-specific permissive fields
       const v2Header = v.parse(RawObjectSchema, JSON.parse(v2Lines[0]!)) as {
         version?: unknown;
         lineOffsets?: unknown;
       };
       expect(v2Header.version).toBe(2);
       expect(Array.isArray(v2Header.lineOffsets)).toBe(true);
+      // SAFETY: narrowed by Array.isArray(v2Header.lineOffsets) check on the line above; the cast re-states the array shape for `.length` access
       expect((v2Header.lineOffsets as unknown[]).length).toBe(3);
     }, 5000);
   });

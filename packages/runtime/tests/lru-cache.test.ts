@@ -287,7 +287,7 @@ describe("WorkflowRuntime.outcomes wraps BoundedLRU via OutcomeStore", () => {
     const completeRun = (runtime as any).completeRun.bind(runtime)
 
     // SAFETY: test uses reflection to access the private `persistence` field with custom loadRun signature; `as any` is the documented escape hatch
-    const p = (runtime as any).persistence as { loadRun: (id: string) => { runID: string } | null }
+    void (runtime as any).persistence as { loadRun: (id: string) => { runID: string } | null }
 
     function makeFakeEntry(runID: string) {
       let resolveOutcome: (o: unknown) => void = () => {}

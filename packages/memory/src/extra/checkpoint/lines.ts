@@ -49,6 +49,7 @@ export function iterateBodyLines(
     const lineBytes = fileBuf.subarray(start, lineEnd);
     try {
       const parsed = JSON.parse(lineBytes.toString("utf-8"));
+      // SAFETY: narrowed by v.is(v.object({}), parsed) check on the same line — the cast re-states the documented __type field shape for the header-skip branch
       if (parsed && v.is(v.object({}), parsed) && (parsed as { __type?: unknown }).__type === "header") continue;
       const obj = v.parse(ToolCallSchema, parsed);
       calls.push(obj);

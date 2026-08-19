@@ -12,9 +12,9 @@ import type { JsonValue } from "../src/runs.ts"
 type Args = JsonValue
 
 // Fake persistence — captures createRun/writeScript/appendJournal calls.
-// SAFETY: test fixture; `as any` is the documented escape hatch because the fake persistence implements only the subset of methods used by ChildWorkflowPrimitive
 function makeFakePersistence() {
-  return {
+  // SAFETY: test fixture; `as ConstructorParameters<typeof ChildWorkflowPrimitive>[0]["persistence"]` is the documented escape hatch — the fake persistence implements only the subset of methods used by ChildWorkflowPrimitive
+  const fake = {
     createRun: (name: string, _name2: string, sha: string, _x: Args, ws: string, args: Args) => {
       fakePersistence.created.push({ name, sha, workspace: ws, args })
       return `run_${fakePersistence.created.length}`
@@ -30,6 +30,7 @@ function makeFakePersistence() {
     },
   // @ts-expect-error - fake persistence intentionally omits methods required by ChildWorkflowPrimitive's deps bag
   } as ConstructorParameters<typeof ChildWorkflowPrimitive>[0]["persistence"]
+  return fake
 }
 // SAFETY: test fixture; `as any[]` and `as string[]` are documented escape hatches for the captured-call arrays where the element shape is heterogeneous
 const fakePersistence = { created: [] as any[], written: [] as string[], journaled: [] as any[] }

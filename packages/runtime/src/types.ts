@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/runtime — see ../../LICENSE
 
-import { DEFAULT_GRACE_PERIOD_MS, SCRIPT_DEADLINE_MS, WORKFLOW_LIMITS } from "./constants.ts"
+import { DEFAULT_GRACE_PERIOD_MS, WORKFLOW_LIMITS } from "./constants.ts"
 import type { OutcomeStore } from "./outcome-store.ts"
 
 /** Status of a workflow run. Const-object pattern (mirrors

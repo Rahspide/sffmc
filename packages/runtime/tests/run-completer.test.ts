@@ -22,6 +22,7 @@ function makeFakePersistence() {
   } as ConstructorParameters<typeof RunCompleter>[0]["persistence"]
 }
 
+// SAFETY: test fixture; `as Array<...>` is the documented escape hatch for the captured-call array — empty-literal inferred type would default to `never[]`
 const fakePersistence = { updates: [] as Array<{ runID: string; status: string; error?: string }>, flushes: 0 }
 
 function makeFakeEvents() {
@@ -45,6 +46,7 @@ function makeFakeOutcomes() {
   // @ts-expect-error - fake outcomes intentionally omits methods required by RunCompleter's deps bag
   } as ConstructorParameters<typeof RunCompleter>[0]["outcomes"]
 }
+// SAFETY: test fixture; `as Array<...>` is the documented escape hatch for the captured-call array — empty-literal inferred type would default to `never[]`
 const fakeOutcomes = { puts: [] as Array<{ runID: string; outcome: unknown }> }
 
 function makeFakeRuns() {
@@ -56,6 +58,7 @@ function makeFakeRuns() {
   // @ts-expect-error - fake runs intentionally omits methods required by RunCompleter's deps bag
   } as ConstructorParameters<typeof RunCompleter>[0]["runs"]
 }
+// SAFETY: test fixture; `as string[]` is the documented escape hatch for the captured-call array — empty-literal inferred type would default to `never[]`
 const fakeRuns = { released: [] as string[] }
 
 function makeEntry(overrides: Partial<InternalRunEntry> = {}): InternalRunEntry & { resolveOutcome: ReturnType<typeof mock>; _resolved: unknown[] } {

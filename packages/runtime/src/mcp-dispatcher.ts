@@ -31,7 +31,7 @@ export class McpDispatcher implements IMcpDispatcher {
   /** List the MCP tools available in the parent OpenCode context.
    *  Returns an empty array when discovery returns no tools or when
    *  the parent SDK is missing the discovery surface. */
-  async list(entry: InternalRunEntry): Promise<string[]> {
+  async list(_entry: InternalRunEntry): Promise<string[]> {
     const discovered = await discoverParentTools(this.deps.getCtx())
     return discovered ?? []
   }

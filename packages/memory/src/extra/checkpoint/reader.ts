@@ -9,7 +9,6 @@ import * as v from "valibot";
 
 import { DEFAULT_MAX_CHECKPOINT_FILE_SIZE } from "./constants";
 import { readHeader } from "./header";
-import { iterateBodyLines } from "./lines";
 import { filePath, getCheckpointDir } from "./paths";
 import {
   CheckpointTooLargeError,
@@ -142,6 +141,7 @@ function iterateBodyLinesFromString(content: string, lineOffsets: number[]): Too
     if (!line) continue;
     try {
       const parsed = JSON.parse(line);
+      // SAFETY: narrowed by v.is(v.object({}), parsed) check on the same line — the cast re-states the documented __type field shape for the header-skip branch
       if (parsed && v.is(v.object({}), parsed) && (parsed as { __type?: unknown }).__type === "header") continue;
       const obj = v.parse(ToolCallSchema, parsed);
       calls.push(obj);

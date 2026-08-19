@@ -46,26 +46,31 @@ function makeMockRt(): any {
   }
 }
 
+/** Shared noop-dispose for mock handle stubs. The `this: any` shape lets
+ *  the call site cast via `as MockHandle` without a typed `this` parameter
+ *  on every helper, keeping the mock definition sites concise. */
+function makeMockDispose() {
+  return function (this: any) { (this as any).alive = false }
+}
+
 function makeMockCtx(): any {
   // SAFETY: test fixture; `as any` is the documented escape hatch for the QuickJSContext mock (subset of methods exercised by the orchestrator)
   return {
     newFunction: (_n: string, _fn: (...a: any[]) => any) => ({
       alive: true,
-      // SAFETY: `this` is the newFunction return object; cast as any to mutate the alive flag in the mock without typing the self-reference
-      dispose() { (this as any).alive = false },
+      dispose: makeMockDispose(),
     }),
     setProp: () => {},
     global: { setProp: () => {} },
     evalCode: () => ({
       error: undefined,
-      // SAFETY: evalCode result handle is a fake object; cast as any to mutate the alive flag in the mock self-reference
-      value: { alive: true, dispose() { (this as any).alive = false } },
+      value: { alive: true, dispose: makeMockDispose() },
     }),
     newString: (_s: string) => ({ alive: true, dispose: () => {} }),
     newNumber: (_n: number) => ({ alive: true, dispose: () => {} }),
     newPromise: () => {
       let resolveFn: (v: any) => void = () => {}
-      const promise = new Promise<any>((r) => { resolveFn = r })
+      const _promise = new Promise<any>((r) => { resolveFn = r })
       // SAFETY: test fixture; the newPromise mock returns the documented { handle, resolve, reject, settled, alive, dispose } shape; cast as any for the untyped handle
       return {
         handle: { alive: true, dispose: () => {} },
@@ -90,7 +95,7 @@ function makeMockCtx(): any {
 /** Build a container of mock services that records every call. */
 function makeMockServices() {
   const calls: Call[] = []
-  const record = (method: string) => (...args: unknown[]) => {
+  const _record = (method: string) => (...args: unknown[]) => {
     calls.push({ method, args })
   }
 

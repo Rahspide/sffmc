@@ -1,19 +1,47 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/utilities — see ../../LICENSE
 
+import * as v from "valibot"
 import { createLogger } from "./logger.ts"
 
 const log = createLogger("sffmc/shared")
 
 /**
+ * Schema for an OpenCode plugin tool definition. The runtime shape is
+ * `{ description?, execute }` where `execute` is a callable supplied by
+ * the plugin (we don't model it in the schema — Valibot can't validate
+ * functions). The narrow primitive surface (just `description`) is enough
+ * to give callers a concrete string contract for the metadata side.
+ */
+const ToolDefSchema = v.object({
+  description: v.optional(v.string()),
+})
+type ToolDefBase = v.InferOutput<typeof ToolDefSchema>
+
+/**
+ * Public tool-definition contract: the schema-derived metadata plus an
+ * `execute` function. `Function` (not `(...args: unknown[]) => unknown`)
+ * keeps the index-signature hook map from falling back to `unknown`
+ * without changing the runtime contract — every plugin-supplied hook is
+ * a callable.
+ */
+export type ToolDef = ToolDefBase & { execute: Function }
+
+/**
  * Type for the return value of an OpenCode plugin's `server()` function.
- * `id` is the plugin identifier; all other keys are hook names.
+ * `id` is the plugin identifier; `tool` carries per-tool definitions
+ * (keyed by tool name); all other keys are hook names whose values are
+ * callables (any hook signature — OpenCode dispatches by key name).
+ *
+ * The index signature uses `Function` (rather than `unknown`) so the
+ * dictionary value has a concrete contract — every hook is a callable,
+ * even though we don't model its specific signature here.
  */
 export type PluginServer = {
-  id: string;
-  tool?: Record<string, unknown>;
-  [hook: string]: unknown;
-};
+  id: string
+  tool?: Record<string, ToolDef>
+  [hook: string]: Function
+}
 
 // ---------------------------------------------------------------------------
 // Hook name constants — single source of truth for OpenCode hook keys.
@@ -55,7 +83,7 @@ export const TRANSFORM_HOOKS: ReadonlySet<string> = new Set([
   HOOK_CHAT_MESSAGES_TRANSFORM,
   HOOK_CHAT_SYSTEM_TRANSFORM,
   HOOK_TEXT_COMPLETE,
-]);
+])
 
 /** Hook keys where the first handler returning a truthy value wins and short-circuits. */
 export const GATE_HOOKS: ReadonlySet<string> = new Set([
@@ -63,7 +91,7 @@ export const GATE_HOOKS: ReadonlySet<string> = new Set([
   HOOK_TOOL_EXECUTE_AFTER,
   HOOK_PERMISSION_ASK,
   HOOK_COMMAND_EXECUTE_BEFORE,
-]);
+])
 
 /** Hook keys where all handlers are called sequentially with the same args (side effects, no return value). */
 export const SIDE_EFFECT_HOOKS: ReadonlySet<string> = new Set([
@@ -71,7 +99,7 @@ export const SIDE_EFFECT_HOOKS: ReadonlySet<string> = new Set([
   "event",
   HOOK_SESSION_START,
   HOOK_SESSION_END,
-]);
+])
 
 /**
  * Merge multiple `server()` return values into a single one that preserves
@@ -102,13 +130,13 @@ export function mergeHooks(servers: PluginServer[]): PluginServer {
   // no-known-value-widening firing on the function return.
   if (servers.length === 0) {
     // SAFETY: empty target cast — properties merged in below
-    return Object.assign({} as PluginServer, { id: "merged" });
+    return Object.assign({} as PluginServer, { id: "merged" })
   }
 
-  const allHookKeys = new Set<string>();
+  const allHookKeys = new Set<string>()
   for (const s of servers) {
     for (const key of Object.keys(s)) {
-      if (key !== "id" && key !== "tool") allHookKeys.add(key);
+      if (key !== "id" && key !== "tool") allHookKeys.add(key)
     }
   }
 
@@ -116,63 +144,74 @@ export function mergeHooks(servers: PluginServer[]): PluginServer {
   const result = Object.assign(
     {} as PluginServer,
     { id: servers[0]?.id ?? "merged" },
-  );
+  )
 
   // Merge tool definitions
-  const toolMerged: Record<string, unknown> = {};
+  const toolMerged: Record<string, ToolDef> = {}
   for (const s of servers) {
-    if (!s.tool) continue;
-    // SAFETY: invariant — narrowed by truthy check above; cast to Record for indexer access
-    const tools = s.tool as Record<string, unknown>;
+    if (!s.tool) continue
+    const tools = s.tool
     for (const tkey of Object.keys(tools)) {
       if (tkey in toolMerged) {
         log.warn(
           `mergeHooks: tool "${tkey}" registered by multiple servers — later wins`,
-        );
+        )
       }
-      toolMerged[tkey] = tools[tkey];
+      toolMerged[tkey] = tools[tkey]
     }
   }
-  if (Object.keys(toolMerged).length > 0) result.tool = toolMerged;
+  if (Object.keys(toolMerged).length > 0) result.tool = toolMerged
 
-  // Merge each hook key
+  // Merge each hook key. Handler arrays are typed as `Function[]` — every
+  // hook is a callable, but we don't (and can't, in TS) model the exact
+  // per-hook signature here. The cast `as Function` is the same shape
+  // OpenCode dispatches against, and `Function` keeps the array from
+  // falling back to `unknown`.
   for (const key of allHookKeys) {
-    const handlers: Array<(...args: unknown[]) => unknown> = [];
+    const handlers: Function[] = []
     for (const s of servers) {
-      const h = s[key];
-      // SAFETY: invariant — narrowed by undefined check above; cast to fn signature for hook chain
-      if (h !== undefined) handlers.push(h as (...args: unknown[]) => unknown);
+      const h = s[key]
+      if (h !== undefined) {
+        // SAFETY: `h` is the hook function returned by the plugin's `server()` call; we don't (and can't, in TS) model the per-hook signature, so we widen to `Function` to populate the handler array
+        handlers.push(h as Function)
+      }
     }
 
-    if (handlers.length === 0) continue;
+    if (handlers.length === 0) continue
 
     if (TRANSFORM_HOOKS.has(key)) {
-      result[key] = async (...args: unknown[]) => {
-        const ctxArgs = args.slice(0, -1);
-        let value = args[args.length - 1];
+      // SAFETY: `as Function` is the documented escape hatch — the inner async arrow receives `unknown[]` and returns a value of unknown type, which OpenCode then dispatches by key; widening to `Function` keeps the result map from falling back to `unknown`
+      const transformHook: Function = async (...args: unknown[]) => {
+        const ctxArgs = args.slice(0, -1)
+        let value = args[args.length - 1]
         for (const h of handlers) {
-          value = await h(...ctxArgs, value);
+          value = await h(...ctxArgs, value)
         }
-        return value;
-      };
+        return value
+      }
+      result[key] = transformHook
     } else if (GATE_HOOKS.has(key)) {
-      result[key] = async (...args: unknown[]) => {
+      // SAFETY: `as Function` is the documented escape hatch — the inner async arrow receives `unknown[]` and returns a value of unknown type, which OpenCode then dispatches by key; widening to `Function` keeps the result map from falling back to `unknown`
+      const gateHook: Function = async (...args: unknown[]) => {
         for (const h of handlers) {
-          const r = await h(...args);
-          if (r) return r;
+          const r = await h(...args)
+          if (r) return r
         }
-        return undefined;
-      };
+        return undefined
+      }
+      result[key] = gateHook
     } else {
       // SIDE_EFFECT or unknown — run all sequentially
-      result[key] = async (...args: unknown[]) => {
+      // SAFETY: `as Function` is the documented escape hatch — the inner async arrow receives `unknown[]` and returns a value of unknown type, which OpenCode then dispatches by key; widening to `Function` keeps the result map from falling back to `unknown`
+      const sideEffectHook: Function = async (...args: unknown[]) => {
         for (const h of handlers) {
-          await h(...args);
+          await h(...args)
         }
-        return undefined;
-      };
+        return undefined
+      }
+      result[key] = sideEffectHook
     }
   }
 
-  return result;
+  return result
 }

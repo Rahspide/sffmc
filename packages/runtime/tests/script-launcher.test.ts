@@ -182,11 +182,13 @@ describe("script-launcher.launchScript", () => {
     expect(deps.runParallel).toHaveBeenCalledTimes(1)
     // `phase` is the guest-side name; it routes to the injected setPhase.
     // SAFETY: primitives.phase is the documented (title) => void primitive signature from the launchScript mock
-    ;(primitives.phase as (t: string) => void)("phase-x")
+    const phase: (t: string) => void = primitives.phase as (t: string) => void
+    phase("phase-x")
     expect(deps.setPhase).toHaveBeenCalledWith(entry, "phase-x")
     // `log` is the guest-side name; it routes to the injected appendLog.
     // SAFETY: primitives.log is the documented (msg) => void primitive signature from the launchScript mock
-    ;(primitives.log as (m: string) => void)("log-y")
+    const log: (m: string) => void = primitives.log as (m: string) => void
+    log("log-y")
     expect(deps.appendLog).toHaveBeenCalledWith(entry, "log-y")
   })
 })

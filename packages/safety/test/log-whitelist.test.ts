@@ -183,7 +183,7 @@ describe("filterLines with suppressPatterns", () => {
 
   it("suppression in filterLines via tool.execute.after hook", async () => {
     // Mock loadConfig returns a whitelist that catches errors, plus suppress patterns
-    const mod = await import("../src/log-whitelist/index");
+    await import("../src/log-whitelist/index");
 
     // We need to inject config with suppress_patterns. The server reads from
     // ~/.config/SFFMC/log-whitelist.yaml, which doesn't exist on this machine.

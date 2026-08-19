@@ -19,9 +19,9 @@
 // the memory value is read at sandbox invocation time, so we spy on
 // `runSandboxed`.
 
-import { describe, it, expect, beforeEach, afterEach } from "bun:test"
+import { describe, it, expect, afterEach } from "bun:test"
 import { tmpdir } from "node:os"
-import { mkdtempSync, rmSync } from "node:fs"
+import { mkdtempSync } from "node:fs"
 import path from "node:path"
 
 // ── Setup ──────────────────────────────────────────────────────────────────
@@ -350,8 +350,9 @@ describe(" resolveConfig uses SFFMC config, ctx.config is fallback only", () => 
     // Now clear via setConfig(null) and verify a fresh runtime does NOT
     // carry the override.
     const runtime2 = new WorkflowRuntime(baseCtx, { persistence })
-    // SAFETY: test uses reflection to call the private `setConfig(null)` to clear the override; inline shape declares the documented private surface
-    ;(runtime2 as any).setConfig(null)
+    // SAFETY: test uses reflection to call the private `setConfig(null)` to clear the override; `as any` is the documented escape hatch for accessing private surfaces
+    const runtime2Any = runtime2 as any
+    runtime2Any.setConfig(null)
     // SAFETY: reflection pattern matches the previous resolveConfig tests above
     const cfg2 = (runtime2 as any).resolveConfig() as { maxSteps: number }
     // After clearing, the next resolveConfig still reads from cache

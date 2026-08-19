@@ -124,7 +124,7 @@ const TINY_OK_SCRIPT = `export const meta = { name: "tiny", description: "t", ph
   async function main() { return "ok"; }`
 
 /** Run an inline script to completion and return the outcome. */
-async function runTiny(label = "tiny"): Promise<{
+async function runTiny(_label = "tiny"): Promise<{
   runtime: WorkflowRuntime
   runID: string
   outcome: Awaited<ReturnType<WorkflowRuntime["wait"]>>
@@ -251,7 +251,7 @@ describe("WorkflowRuntime.start", () => {
   })
 
   test("persists a 'running' DB row + the script side-effects that listeners depend on", async () => {
-    const { runtime, runID, outcome } = await runTiny()
+    const { runID, outcome } = await runTiny()
     // Observable: after settle, the DB row reflects the settled state.
     // This is what `list()` reads and what `workflow_status` returns —
     // so asserting the DB row pins a contract for all three.

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/memory (extra features) — see ../../LICENSE
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from "bun:test";
+import { describe, it, expect, beforeAll, afterAll } from "bun:test";
 import * as v from "valibot";
 import { mkdtempSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -31,7 +31,7 @@ afterAll(() => {
 });
 
 const loadServer = async (
-  config: Record<string, import("../src/extra/checkpoint/types.ts").JSONValue> = {},
+  _config: Record<string, import("../src/extra/checkpoint/types.ts").JSONValue> = {},
 ): Promise<Awaited<ReturnType<(typeof import("../src/index.ts"))["default"]["server"]>>> => {
   const mod = await import("../src/index.ts");
   const ctx: PluginContext = {
@@ -265,7 +265,7 @@ describe("@sffmc/utilities — second release migration (checkpoint buffer flush
   });
 
   it("flushIntervalMs override is reflected in the periodic timer (periodic flush interval, b-3)", async () => {
-    const { createCheckpointTool, filePath, __setCheckpointDir, readToolCalls } = await import(
+    const { createCheckpointTool, __setCheckpointDir, readToolCalls } = await import(
       "../src/extra/checkpoint.ts"
     );
     const testDir = mkdtempSync(join(tmpdir(), "sffmc-e4-interval-"));

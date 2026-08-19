@@ -33,6 +33,7 @@ export function createToolExecuteAfterHook(
       tool: toolCtx.tool,
       // Parse metadata as JSONValue before reading `args` so the inner
       // field is a known contract, not an `unknown` indexer hop.
+      // SAFETY: v.parse closes the unknown-to-JSONValue boundary for result.metadata; the cast re-states the documented `{ args?: unknown } | null` shape for the optional args field
       args: result.metadata ? (v.parse(JSONValueSchema, result.metadata) as { args?: unknown } | null)?.args ?? {} : {},
       result: sanitizeValue(result.output ?? null),
       timestamp: Date.now(),

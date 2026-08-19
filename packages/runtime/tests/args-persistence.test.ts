@@ -128,7 +128,7 @@ describe("WorkflowRuntime.start() persists input.args", () => {
 describe("WorkflowRuntime.resume() preserves args", () => {
   test("args survive process restart (new runtime reads from DB)", async () => {
     const args = { feature: "billing", priority: "high" }
-    const originalSha = computeScriptSha("args-resume")
+    void computeScriptSha("args-resume")
 
     // Phase 1: start with args in one runtime.
     {

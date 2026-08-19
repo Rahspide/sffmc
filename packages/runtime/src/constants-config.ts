@@ -64,7 +64,7 @@ function __setWorkflowConfig(cfg: WorkflowExtendedConfig | null): void {
  *  publicly. Registered at module load; the shim looks it up via
  *  `Symbol.for("@sffmc/runtime.__setWorkflowConfig")`. */
 const __SET_WORKFLOW_CONFIG_SYMBOL = Symbol.for("@sffmc/runtime.__setWorkflowConfig")
-// SAFETY: globalThis typed as `typeof globalThis` lacks Symbol keys; the typed `unknown` value is the contract for symbol-keyed registration (callers narrow via typeof guard)
+// SAFETY: the two chained casts (`as unknown` then `as Record<symbol, ...>`) install a typed index signature for the Symbol-keyed plugin registry; `as unknown` is the documented intermediate step required to cross the unrelated `typeof globalThis` type
 ;(globalThis as unknown as Record<symbol, (cfg: WorkflowExtendedConfig | null) => void>)[__SET_WORKFLOW_CONFIG_SYMBOL] = __setWorkflowConfig
 
 /** Sync accessor — returns the cached config or the defaults if the

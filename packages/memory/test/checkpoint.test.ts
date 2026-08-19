@@ -9,7 +9,6 @@ import { tmpdir } from "node:os";
 import {
   createCheckpointTool,
   readToolCalls,
-  listSessions,
   filePath,
   __setCheckpointDir,
   CURRENT_VERSION,

@@ -163,7 +163,7 @@ describe("persistence.clearJournal v1-header preservation", () => {
     const b = new WorkflowPersistence({ dataDir: tmpDir })
 
     const runA = a.createRun("iso-a.ts", "iso-a", computeScriptSha("iso-a"))
-    const runB = b.createRun("iso-b.ts", "iso-b", computeScriptSha("iso-b"))
+    void b.createRun("iso-b.ts", "iso-b", computeScriptSha("iso-b"))
 
     try {
       // A appends — populates A's fsyncPendingPaths only.

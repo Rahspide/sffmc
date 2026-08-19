@@ -102,6 +102,7 @@ function readFirstLineHeader(
   try {
     const parsed = v.parse(RawObjectSchema, JSON.parse(firstLine));
     if (!parsed || !v.is(v.object({}), parsed)) return null;
+    // SAFETY: validated by v.parse(RawObjectSchema, …) on the line above + v.is(v.object({}), parsed) guard on the same line — cast re-states the documented CheckpointHeaderRaw shape
     return parsed as unknown as CheckpointHeaderRaw;
   } catch {
     return null;

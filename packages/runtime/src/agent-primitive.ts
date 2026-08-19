@@ -183,7 +183,7 @@ export class AgentPrimitive implements IAgentPrimitive {
 
       // SAFETY: deliverable narrowed to non-null on line 162 and originates from result.structured/finalText (validated by LLM result type)
       return deliverable as AgentResult
-    } catch (e) {
+    } catch {
       reason = AFR.SpawnReject
       entry.counters.recordAgentFail()
       this.publishAgentFailed(entry.runID, key, reason)

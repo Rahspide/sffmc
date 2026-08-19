@@ -14,7 +14,7 @@
 
 import type { PluginContext } from "@sffmc/utilities";
 
-import { createCheck, type CheckFn, type CheckResult, type HealthResult } from "./check-factory.ts";
+import { type CheckFn, type HealthResult } from "./check-factory.ts";
 
 // Re-export the public schema so consumers (scripts, tests, agentic composite)
 // can `import { CheckResult, HealthResult, CheckFn } from "@sffmc/cognition"`.

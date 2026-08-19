@@ -13,7 +13,7 @@
 // Tests use the same makeToolsSpyCtx pattern from test-utils.ts when
 // inspecting the wire shape that callLLM forwards to the SDK.
 
-import { describe, test, expect, beforeAll, afterAll } from "bun:test"
+import { describe, test, expect, afterAll } from "bun:test"
 import { tmpdir } from "node:os"
 import { mkdtempSync, rmSync } from "node:fs"
 import path from "node:path"
@@ -31,7 +31,6 @@ import {
   resolveInheritedTools,
   makeMcpPrimitives,
   type ToolWhitelist,
-  type ResolvedTools,
 } from "../src/mcp"
 import type { JsonValue } from "../src/runs.ts"
 import { WorkflowPersistence } from "../src/persistence"
@@ -68,10 +67,10 @@ describe("mcp.ts: resolveInheritedTools", () => {
   test("'INHERIT' → resolves to ctx.tools array when present", async () => {
     // Parent SDK has pre-resolved the tool list and exposed it on ctx.tools.
     // resolveInheritedTools should return those exact names.
+    // SAFETY: test fixture; partial ctx object with only `config` + `tools` to exercise the Source 1 (ctx.tools) resolution path; cast is needed because PluginContext has many optional fields (only the supplied subset is exercised)
     const ctx = {
       config: {},
       tools: ["mcp__filesystem__read", "mcp__git__status"],
-    // SAFETY: test fixture; partial ctx object with only `config` + `tools` to exercise the Source 1 (ctx.tools) resolution path; cast is needed because PluginContext has many optional fields (only the supplied subset is exercised)
     } as PluginContext
     const result = await resolveInheritedTools("INHERIT", ctx)
     expect(result).toEqual(["mcp__filesystem__read", "mcp__git__status"])
@@ -88,6 +87,7 @@ describe("mcp.ts: resolveInheritedTools", () => {
 
   test("'INHERIT' → resolves via ctx.client.tool.list() when ctx.tools absent", async () => {
     const listCalls: Array<void> = []
+    // SAFETY: test fixture; partial ctx with only the `client.tool.list()` surface to exercise the Source 2 (SDK method) resolution path; cast is needed because PluginContext has many optional fields (only the supplied subset is exercised)
     const ctx = {
       config: {},
       client: {
@@ -98,7 +98,6 @@ describe("mcp.ts: resolveInheritedTools", () => {
           },
         },
       },
-    // SAFETY: test fixture; partial ctx with only the `client.tool.list()` surface to exercise the Source 2 (SDK method) resolution path; cast is needed because PluginContext has many optional fields (only the supplied subset is exercised)
     } as PluginContext
     const result = await resolveInheritedTools("INHERIT", ctx)
     expect(result).toEqual(["tool_a", "tool_b"])
@@ -108,6 +107,7 @@ describe("mcp.ts: resolveInheritedTools", () => {
   test("'INHERIT' → ctx.client.tool.list() rejection → fall back to literal", async () => {
     // When the SDK surface throws, log + fall back rather than crash.
     // The bridge must remain operational even if discovery is broken.
+    // SAFETY: test fixture; partial ctx with throwing `client.tool.list()` to exercise the SDK-rejection fallback path; cast is needed because PluginContext has many optional fields (only the supplied subset is exercised)
     const ctx = {
       config: {},
       client: {
@@ -117,7 +117,6 @@ describe("mcp.ts: resolveInheritedTools", () => {
           },
         },
       },
-    // SAFETY: test fixture; partial ctx with throwing `client.tool.list()` to exercise the SDK-rejection fallback path; cast is needed because PluginContext has many optional fields (only the supplied subset is exercised)
     } as PluginContext
     const result = await resolveInheritedTools("INHERIT", ctx)
     expect(result).toBe("INHERIT")
@@ -126,13 +125,13 @@ describe("mcp.ts: resolveInheritedTools", () => {
   test("discoverParentTools extracts keys from object-form ctx.tools", async () => {
     // Some SDK versions expose tools as {name: descriptor} rather than an
     // array. The bridge must accept both shapes.
+    // SAFETY: test fixture; object-form ctx.tools to exercise the Source 1 object-form resolution path; cast is needed because PluginContext has many optional fields (only the supplied subset is exercised)
     const ctx = {
       config: {},
       tools: {
         mcp__fs__read: { description: "..." },
         mcp__git__status: { description: "..." },
       },
-    // SAFETY: test fixture; object-form ctx.tools to exercise the Source 1 object-form resolution path; cast is needed because PluginContext has many optional fields (only the supplied subset is exercised)
     } as PluginContext
     const result = await discoverParentTools(ctx)
     expect(result).not.toBeNull()
@@ -347,7 +346,8 @@ describe("mcp.ts: makeMcpPrimitives dispatch", () => {
     const prim = makeMcpPrimitives(bridge, dispatch)
     // Stub list() via the bridge to return 2 tools.
     // SAFETY: test uses reflection to attach a stub `list()` method on the primitives object; the inline shape declares the documented private surface
-    ;(prim as { list: () => Promise<string[]> }).list = async () => ["a", "b"]
+    const primWithList = prim as { list: () => Promise<string[]> }
+    primWithList.list = async () => ["a", "b"]
     const bound = await prim.bindAll()
     expect(Object.keys(bound).sort()).toEqual(["a", "b"])
     expect(bridge.callCount).toBe(0)
@@ -379,6 +379,7 @@ describe("WorkflowRuntime.callLLM with INHERIT", () => {
     // it into AgentPrimitive). The spy captures every forwarded
     // `session.message` call so we can assert on the resolved tools.
     let capturedTools: unknown = undefined
+    // SAFETY: test fixture; partial ctx with the `tools` + `client.session.message` surface to verify callLLM forwards INHERIT-resolved tools; cast is needed because PluginContext has many optional fields (only the supplied subset is exercised)
     const ctx = {
       config: {},
       tools: ["mcp__custom__tool1", "mcp__custom__tool2"],
@@ -394,7 +395,6 @@ describe("WorkflowRuntime.callLLM with INHERIT", () => {
           },
         },
       },
-    // SAFETY: test fixture; partial ctx with the `tools` + `client.session.message` surface to verify callLLM forwards INHERIT-resolved tools; cast is needed because PluginContext has many optional fields (only the supplied subset is exercised)
     } as PluginContext
 
     const fakeEntry = { runID: "wf_x", cfg: { maxTokens: 100 } }
@@ -434,6 +434,7 @@ describe("WorkflowRuntime.callLLM with INHERIT", () => {
 
 describe("sandbox guest can call mcp.list() and mcp.call()", () => {
   test("guest script calls mcp.list() → returns parent tool list", async () => {
+    // SAFETY: test fixture; partial ctx for the guest mcp.list() sandbox test; cast is needed because PluginContext has many optional fields (only the supplied subset is exercised)
     const ctx = {
       config: {},
       tools: ["mcp__a", "mcp__b", "mcp__c"],
@@ -446,7 +447,6 @@ describe("sandbox guest can call mcp.list() and mcp.call()", () => {
           }),
         },
       },
-    // SAFETY: test fixture; partial ctx for the guest mcp.list() sandbox test; cast is needed because PluginContext has many optional fields (only the supplied subset is exercised)
     } as PluginContext
 
     const runtime = new WorkflowRuntime(ctx, {
@@ -470,6 +470,7 @@ describe("sandbox guest can call mcp.list() and mcp.call()", () => {
     // Wire ctx.client.tool.call — the runtime's dispatchMcpCall should hit
     // it and return the result through the guest.
     let toolCalls: Array<{ name: string; args: unknown }> = []
+    // SAFETY: test fixture; partial ctx with the full `client.session` + `client.tool` surfaces to exercise the guest mcp.call() SDK dispatch path; cast is needed because PluginContext has many optional fields (only the supplied subset is exercised)
     const ctx = {
       config: {},
       tools: ["mcp__echo"],
@@ -489,7 +490,6 @@ describe("sandbox guest can call mcp.list() and mcp.call()", () => {
           },
         },
       },
-    // SAFETY: test fixture; partial ctx with the full `client.session` + `client.tool` surfaces to exercise the guest mcp.call() SDK dispatch path; cast is needed because PluginContext has many optional fields (only the supplied subset is exercised)
     } as PluginContext
 
     const runtime = new WorkflowRuntime(ctx, {
@@ -516,6 +516,7 @@ describe("sandbox guest can call mcp.list() and mcp.call()", () => {
     // When ctx.client.tool.call is undefined, the dispatch throws. The
     // never-throw contract on agent() doesn't apply to primitives — mcp.call
     // throws synchronously, so the script must try/catch it.
+    // SAFETY: test fixture; partial ctx WITHOUT client.tool.call to exercise the no-SDK-surface failure path in the guest sandbox; cast is needed because PluginContext has many optional fields (only the supplied subset is exercised)
     const ctx = {
       config: {},
       tools: ["mcp__nope"],
@@ -529,7 +530,6 @@ describe("sandbox guest can call mcp.list() and mcp.call()", () => {
         },
         // NO tool.call
       },
-    // SAFETY: test fixture; partial ctx WITHOUT client.tool.call to exercise the no-SDK-surface failure path in the guest sandbox; cast is needed because PluginContext has many optional fields (only the supplied subset is exercised)
     } as PluginContext
 
     const runtime = new WorkflowRuntime(ctx, {

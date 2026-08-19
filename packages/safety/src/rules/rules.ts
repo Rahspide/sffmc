@@ -28,8 +28,6 @@ const ParsedRulesSchema = v.object({
 
 export type Action = "allow" | "deny" | "ask";
 
-const VALID_ACTIONS = new Set<Action>(["allow", "deny", "ask"]);
-
 // ReDoS guard for `command_match` patterns. Mirrors the redact-secrets
 // approach (star-height ≤ 1, repetition limit 25 — sourced from
 // `@sffmc/utilities/SAFE_REPETITION_LIMIT` for a single source of truth).

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/utilities — Dream tests
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from "bun:test";
+import { describe, it, expect, afterAll, beforeEach } from "bun:test";
 import * as v from "valibot";
 import { Database } from "bun:sqlite";
 import {
@@ -14,11 +14,10 @@ import {
   DREAM_SNIPPET_LENGTH,
   DREAM_LLM_SNIPPET_LENGTH,
   MAX_OVERFLOW,
-  type DreamResult,
   type RichPluginContext,
   type MemoryRow,
 } from "../src/extra/dream.ts";
-import { mkdirSync, existsSync, readFileSync, unlinkSync, rmdirSync, rmSync } from "node:fs";
+import { mkdirSync, existsSync, readFileSync, unlinkSync, rmSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { homedir, tmpdir } from "node:os";
 
@@ -304,7 +303,7 @@ describe("Dream", () => {
     expect(countRows(db)).toBe(100);
     db.close();
 
-    const { tool, hooks } = createDreamTool({
+    const { hooks } = createDreamTool({
       enabled: true,
       threshold: 50, // 100 > 50 → should trigger
       intervalHours: 0,

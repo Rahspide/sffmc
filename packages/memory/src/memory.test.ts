@@ -9,7 +9,6 @@ import {
   all,
   topByImportance,
   remove,
-  isBunSqlite,
   type MemoryDB,
 } from "./memory";
 import { buildRecon, tailFromMessages } from "./recon";

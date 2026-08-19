@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/runtime — see ../../LICENSE
 
-import { WorkflowRuntime, type RuntimeOpts } from "./runtime.ts"
+import { WorkflowRuntime } from "./runtime.ts"
 import { createWorkflowTool } from "./tool.ts"
 import type { PluginContext } from "./runtime.ts"
 import type { WorkflowAgentFailedEvent, WorkflowFinishedEvent } from "./events.ts"

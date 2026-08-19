@@ -100,7 +100,7 @@ describe("loadConfig — validate callback", () => {
     let called = false
     const result = await loadConfig("does-not-exist", defaults, {
       configHome: configDir,
-      validate: (parsed) => {
+      validate: () => {
         called = true
         return { limit: 0, label: "should-not-run" }
       },

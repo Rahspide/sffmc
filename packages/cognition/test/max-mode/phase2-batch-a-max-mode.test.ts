@@ -107,11 +107,7 @@ describe("max-mode checkpoint integration — maxMode.maxCandidates", () => {
       content: [{ type: "text" as const, text: "draft" }],
       usage: { totalTokens: 1 },
     });
-    // SAFETY: test mock — ctx shape narrowed via satisfies; no annotation, single inference
-    const ctx = {
-      client: { session: { message: mockMessage } },
-      config: { model: "test-model" },
-    } satisfies Parameters<typeof generateCandidates>[2];
+    void mockMessage;
 
     let calls = 0;
     // SAFETY: test mock — countingCtx shape narrowed via satisfies; no annotation, single inference

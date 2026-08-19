@@ -134,7 +134,6 @@ export class WorkspaceJail {
     if (O_NOFOLLOW) {
       const handle = await open(abs, fsConstants.O_RDONLY | O_NOFOLLOW)
       try {
-        const buf = Buffer.alloc(handle.statSync ? -1 : 0) // unused
         const fh = await handle.readFile({ encoding: "utf-8" })
         // SAFETY: encoding: "utf-8" on the call above guarantees fh is a string per the documented overload signature
         return fh as string

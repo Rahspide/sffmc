@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from "bun:test";
 import * as v from "valibot";
-import { parseRules, loadRules, isPanicMode, type Rules } from "../src/rules/rules.ts";
+import { parseRules, loadRules, isPanicMode } from "../src/rules/rules.ts";
 import { evaluate } from "../src/rules/gate.ts";
 import { writeFileSync, unlinkSync } from "fs";
 

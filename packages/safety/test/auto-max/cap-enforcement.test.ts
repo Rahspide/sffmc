@@ -15,7 +15,7 @@
 // cap blocks a trigger, making the enforcement observable.
 
 import { describe, it, expect, jest, beforeAll, afterAll } from "bun:test";
-import { mkdirSync, writeFileSync, unlinkSync, existsSync } from "fs";
+import { mkdirSync, unlinkSync, existsSync } from "fs";
 import { homedir } from "os";
 import { resolve } from "path";
 import * as v from "valibot";

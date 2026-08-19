@@ -27,8 +27,6 @@ interface Case {
   section: string;
 }
 
-const PROJECT_ROOT = "/tmp/sffmc-corpus-test";
-
 function parseCorpus(text: string) {
   const cases: Case[] = [];
   let section = "uncategorized";

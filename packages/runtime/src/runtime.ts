@@ -3,12 +3,9 @@
 
 import {
   WorkflowPersistence,
-  generateRunID,
   computeScriptSha,
-  journalKeyBase,
 } from "./persistence.ts"
 import { OutcomeStore } from "./outcome-store.ts"
-import { CounterManager } from "./counter-manager.ts"
 import { WorkflowEventEmitter } from "./event-emitter.ts"
 import { WorkflowActivation } from "./activation.ts"
 import { makeSemaphore, Concurrency } from "./concurrency.ts"
@@ -24,10 +21,6 @@ import { ChildWorkflowPrimitive } from "./child-workflow-primitive.ts"
 
 import { parseMeta } from "./meta.ts"
 import { callLLM as callLLMModule } from "./llm-call.ts"
-import {
-  resolveWorkflow,
-  isInlineScript,
-} from "./resolve.ts"
 import { WorkspaceJail } from "./workspace.ts"
 import { launchScript, type LaunchDeps } from "./script-launcher.ts"
 import { recoverOrphanedWorkflows } from "./recovery.ts"
@@ -39,10 +32,9 @@ import type {
   WorkflowStatusOutput,
   WorkflowOutcome,
   WorkflowOutcomeStore,
-  RunEntry,
 } from "./types.ts"
 import type { RuntimeServices } from "./runtime-services.ts"
-import { SCRIPT_DEADLINE_MS, getMaxConcurrentAgents, getSandboxMemoryMB } from "./constants.ts"
+import { SCRIPT_DEADLINE_MS, getMaxConcurrentAgents } from "./constants.ts"
 import { type RichPluginContext, createLogger } from "@sffmc/utilities"
 
 // ---------------------------------------------------------------------------

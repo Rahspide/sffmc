@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/runtime — see ../../LICENSE
 
-import { describe, it, expect, beforeEach, mock } from "bun:test"
-import { callLLM, type CallLLMResult } from "../src/llm-call.ts"
+import { describe, it, expect, beforeEach } from "bun:test"
+import { callLLM } from "../src/llm-call.ts"
 import type { AgentOptions, InternalRunEntry, PluginContext } from "../src/types.ts"
 
 // Minimal stand-ins. We do NOT want to construct a full InternalRunEntry or
@@ -12,11 +12,14 @@ import type { AgentOptions, InternalRunEntry, PluginContext } from "../src/types
 // SAFETY: test fixture; fake entry intentionally exposes no fields (callLLM does not read from entry in the current implementation); `as InternalRunEntry` is the documented escape hatch for empty fixtures
 const fakeEntry: InternalRunEntry = {} as InternalRunEntry
 
-const baseOpts = (overrides: Partial<AgentOptions> = {}): AgentOptions => ({
-  task: "test",
-  ...overrides,
+const baseOpts = (overrides: Partial<AgentOptions> = {}): AgentOptions => {
   // SAFETY: object spread of `{ task: "test" }` satisfies AgentOptions structurally; cast removes the inferred literal type for return-type compatibility
-} as AgentOptions)
+  const opts = {
+    task: "test",
+    ...overrides,
+  } as AgentOptions
+  return opts
+}
 
 describe("callLLM", () => {
   beforeEach(() => {

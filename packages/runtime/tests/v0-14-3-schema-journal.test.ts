@@ -27,7 +27,6 @@
 
 import { describe, test, expect } from "bun:test"
 import type {
-  JournalEvent,
   JournalEventType,
   JournalValidationError,
 } from "../src/schema-journal.ts"

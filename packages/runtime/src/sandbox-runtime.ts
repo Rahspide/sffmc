@@ -34,7 +34,7 @@ export interface SandboxRuntimeOpts {
  *  interrupt handler. The deadline is captured by reference in the
  *  closure, so it must be computed before `newRuntime()`. */
 export function createSandboxRuntime(opts: SandboxRuntimeOpts): QuickJSRuntime {
-  const seed = opts.seed ?? DEFAULT_PRNG_SEED
+  const _seed = opts.seed ?? DEFAULT_PRNG_SEED
   const memoryMB = opts.memoryMB ?? getSandboxMemoryMB()
   const stackSize = opts.stackSize ?? getSandboxStackSize()
   const runtime = opts.QJS.newRuntime()

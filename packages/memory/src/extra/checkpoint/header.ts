@@ -24,7 +24,6 @@ import { ensureDir, filePath, getCheckpointDir } from "./paths";
 import { CheckpointTooLargeError } from "./types";
 import {
   CheckpointHeaderSchema,
-  CheckpointHeaderV1Schema,
   CheckpointHeaderV2Schema,
   ToolCallSchema,
   type CheckpointHeader,
@@ -318,6 +317,7 @@ function migrateV1ToV2InPlace(
     return {
       ok: false,
       lines: 0,
+      // SAFETY: parsedHeader is the discriminated-union output above; version is the numeric literal-discriminator field
       error: `unknown checkpoint version: ${parsedHeader.version as number}`,
     };
   }
@@ -387,6 +387,7 @@ function readV1BodyLines(raw: string): ToolCall[] {
     if (!trimmed) continue;
     try {
       const parsed = JSON.parse(trimmed);
+      // SAFETY: narrowed by v.is(v.object({}), parsed) check on the same line — the cast re-states the documented __type field shape for the header-skip branch
       if (parsed && v.is(v.object({}), parsed) && (parsed as { __type?: unknown }).__type === "header") continue;
       const obj = v.parse(ToolCallSchema, parsed);
       calls.push(obj);

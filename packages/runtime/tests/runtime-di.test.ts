@@ -27,8 +27,6 @@ import type {
   IAgentPrimitive,
   IChildWorkflowPrimitive,
 } from "../src/runtime-services.ts"
-import type { InternalRunEntry } from "../src/internal-run-entry.ts"
-import type { WorkspaceJail } from "../src/workspace.ts"
 import { makeSemaphore } from "../src/concurrency.ts"
 
 /** Valibot primitive schema used at the test boundary to discriminate
@@ -36,6 +34,7 @@ import { makeSemaphore } from "../src/concurrency.ts"
 const FunctionSchema = v.function()
 
 function makeMockCtx(): PluginContext {
+  // SAFETY: test fixture; the entire `as PluginContext` cast on the return value is the documented escape hatch for the partial PluginContext fixture (only the supplied subset of optional fields is exercised)
   return {
     config: undefined,
     // SAFETY: test fixture; `as any` is the documented escape hatch for the minimal client stub (no methods are called from ctx.client in DI tests)
@@ -45,6 +44,7 @@ function makeMockCtx(): PluginContext {
     workspace: {} as any,
     // SAFETY: test fixture; `as any` is the documented escape hatch for the minimal shell-escape stub (not exercised by DI tests)
     $: {} as any,
+  // SAFETY: test fixture; `as PluginContext` is the documented escape hatch for the partial PluginContext fixture — only the supplied subset of optional fields is exercised
   } as PluginContext
 }
 

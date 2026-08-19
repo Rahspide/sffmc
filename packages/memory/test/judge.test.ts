@@ -28,7 +28,7 @@ function mockJsonResponse(scores: JudgeScore[], winner: number, reasoning: strin
 }
 
 /** Create a mock ctx with a client.session.message that returns a canned response. */
-function mockCtx(cannedText: string, latencyMs = 150): NonNullable<JudgeConfig["ctx"]> {
+function mockCtx(cannedText: string, _latencyMs = 150): NonNullable<JudgeConfig["ctx"]> {
   return {
     client: {
       session: {

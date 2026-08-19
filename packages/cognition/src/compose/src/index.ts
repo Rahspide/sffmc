@@ -162,7 +162,7 @@ export async function getComposeValidSkills(): Promise<readonly string[]> {
       .filter((f) => f.endsWith(".md"))
       .map((f) => basename(f, ".md"))
       .sort()
-  } catch (_err) {
+  } catch {
     // Unreadable directory — fall back to the hardcoded list. The plugin
     // can still load bundled skills via the default directory.
     return DEFAULT_SKILLS
@@ -185,7 +185,7 @@ function __setComposeConfig(cfg: ComposeConfig | null): void {
 }
 
 const __SET_COMPOSE_CONFIG_SYMBOL = Symbol.for("@sffmc/cognition.__setComposeConfig")
-// SAFETY: invariant — globalThis cast required for Symbol-keyed plugin registry
+// SAFETY: globalThis cast for Symbol-keyed plugin registry; the typed index signature is the documented contract for the registry
 ;(globalThis as Record<symbol, typeof __setComposeConfig>)[__SET_COMPOSE_CONFIG_SYMBOL] = __setComposeConfig
 
 // ---------------------------------------------------------------------------

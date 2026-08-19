@@ -42,6 +42,7 @@ export function parseJudgeResponse(raw: string, candidateCount: number): JudgeRe
     if (!isValidWinnerIndex(parsed.winner, candidateCount)) return null;
     if (!hasNonEmptyReason(parsed.reasoning)) return null;
     return {
+      // SAFETY: validated by judgeResponseSchema v.parse on line N — scores is the schema-typed JudgeScore[] field, cast re-states the array shape
       scores: parsed.scores as JudgeScore[],
       winner: parsed.winner,
       reasoning: parsed.reasoning.trim(),

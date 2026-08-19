@@ -4,7 +4,7 @@
 import { describe, it, expect, beforeEach } from "bun:test"
 import { AgentPrimitive } from "../src/agent-primitive.ts"
 import { journalKeyBase } from "../src/persistence.ts"
-import type { InternalRunEntry, AgentResult } from "../src/internal-run-entry.ts"
+import type { InternalRunEntry } from "../src/internal-run-entry.ts"
 import type { AgentOptions, AgentFailureReason } from "../src/types.ts"
 import { BudgetExceededError } from "../src/types.ts"
 
@@ -27,9 +27,9 @@ function makeFakeCounters() {
 const fakeCounters = makeFakeCounters() as any
 
 // Fake entry — minimal surface that spawnAgent/executeAgentCall need.
-// SAFETY: test fixture; the fake entry intentionally exposes a minimal surface (subset of InternalRunEntry); `as any` is the documented escape hatch because Partial<InternalRunEntry> lacks non-optional fields
 function makeEntry(overrides: Partial<InternalRunEntry> = {}): InternalRunEntry {
-  return {
+  // SAFETY: test fixture; the fake entry intentionally exposes a minimal surface (subset of InternalRunEntry); `as any` is the documented escape hatch because Partial<InternalRunEntry> lacks non-optional fields
+  const entry = {
     runID: "run_test",
     journalResults: new Map(),
     journalPass: 0,
@@ -40,6 +40,7 @@ function makeEntry(overrides: Partial<InternalRunEntry> = {}): InternalRunEntry 
     ...overrides,
   // @ts-expect-error - fake entry intentionally omits non-optional fields required by the test surface
   } as InternalRunEntry
+  return entry
 }
 
 // Fake deps — capture calls so the assertions can inspect side-effects.
@@ -53,7 +54,8 @@ function makeDeps(overrides: Partial<ConstructorParameters<typeof AgentPrimitive
   let llmResult: any = { content: [{ type: "text", text: "ok" }], finalText: "ok" }
   let llmShouldThrow = false
 
-  return {
+  // SAFETY: test fixture; `as ConstructorParameters<typeof AgentPrimitive>[0]` is the documented escape hatch — overrides is a Partial that may omit non-optional AgentPrimitive deps fields
+  const result = {
     deps: {
       // SAFETY: test fixture; the globalSem stub satisfies the minimal surface used by AgentPrimitive (run<T> only)
       globalSem: { run: async <T,>(fn: () => Promise<T>): Promise<T> => fn() },
@@ -75,6 +77,7 @@ function makeDeps(overrides: Partial<ConstructorParameters<typeof AgentPrimitive
     setLLMResult: (r: any) => { llmResult = r },
     setLLMShouldThrow: (v: boolean) => { llmShouldThrow = v },
   }
+  return result
 }
 
 describe("AgentPrimitive", () => {

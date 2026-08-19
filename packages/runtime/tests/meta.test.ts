@@ -15,9 +15,6 @@ import { parseMeta } from "../src/meta.ts"
  *  parse-result discriminator types without `typeof` runtime checks. */
 const BooleanSchema = v.boolean()
 
-const OK = (script: string) =>
-  parseMeta(`export const meta = { name: "x", description: "y"${script.slice("export const meta = ".length)}`)
-
 const PARSE = (script: string) => parseMeta(script)
 
 // ─── 1. Happy path ─────────────────────────────────────────────────────

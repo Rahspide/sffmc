@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/runtime — see ../../LICENSE
 
-import { describe, test, expect, beforeEach, afterEach, mock } from "bun:test"
+import { describe, test, expect, beforeEach, afterEach } from "bun:test"
 import * as v from "valibot"
 import { mkdtempSync, writeFileSync, mkdirSync, existsSync } from "node:fs"
 import { rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { clearAll, off } from "@sffmc/utilities"
+import { clearAll } from "@sffmc/utilities"
 import { __setWorkflowConfig } from "./_test-helpers/config-cache.ts"
 import { startWorkflowWatcher } from "../src/workflow-watcher.ts"
 

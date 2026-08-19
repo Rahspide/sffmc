@@ -13,7 +13,6 @@ import {
   type QuickJSHandle,
 } from "quickjs-emscripten"
 import * as v from "valibot"
-import { evalAndReturn } from "./sandbox-eval.ts"
 import { toErrorMessage } from "./errors.ts"
 
 /** An injected host function: receives already-marshaled JS args,
