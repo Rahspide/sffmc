@@ -50,7 +50,7 @@ export function makeV2Header(
   fileCrc32: number,
   createdAt: number,
   updatedAt: number,
-): Record<string, unknown> {
+) {
   return {
     __type: "header",
     sessionID,
@@ -89,11 +89,7 @@ export function buildV2BodyLine(tc: ToolCall): string {
  *  joined by "\n", trailing "\n" included); `bodyBytes` is the UTF-8
  *  encoding used to compute the file-level CRC32; `bodyLineBytes` is
  *  the per-line byte length consumed by the offset-iteration loop. */
-export function buildV2Body(calls: ToolCall[]): {
-  bodyConcat: string;
-  bodyBytes: Uint8Array;
-  bodyLineBytes: number[];
-} {
+export function buildV2Body(calls: ToolCall[]) {
   const lines: string[] = [];
   const lineBytes: number[] = [];
   for (const tc of calls) {
@@ -259,7 +255,7 @@ export function readHeader(
     return null;
   }
   // SAFETY: narrowed by typeof check on line 255
-  return parsed as unknown as CheckpointHeaderV2;
+  return parsed as CheckpointHeaderV2;
 }
 
 // ---------------------------------------------------------------------------
@@ -283,7 +279,7 @@ function migrateV1ToV2InPlace(
   sessionID: string,
   dir?: string,
   fs: FsOps = defaultFsOps,
-): { ok: boolean; lines: number; error?: string } {
+) {
   const d = dir ?? getCheckpointDir();
   const fp = filePath(sessionID, dir);
 
@@ -399,7 +395,7 @@ function readV1BodyLines(raw: string): ToolCall[] {
         typeof obj.callID === "string"
       ) {
         // SAFETY: narrowed by typeof check on line 393
-        calls.push(obj as unknown as ToolCall);
+        calls.push(obj as ToolCall);
       }
     } catch (e) {
       log.debug({ err: e, lineIndex: i }, "checkpoint-header: skipping malformed line");

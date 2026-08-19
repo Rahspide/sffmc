@@ -23,9 +23,7 @@ import {
 
 const log = createLogger("extra-judge");
 
-export function createJudgeTool(
-  config: JudgeConfig,
-): { tool: JudgeTool; hooks: JudgeHooks } {
+export function createJudgeTool(config: JudgeConfig) {
   const rubric = config.rubric || DEFAULT_RUBRIC;
   const maxCandidates = clampMaxCandidates(config.maxCandidates);
 

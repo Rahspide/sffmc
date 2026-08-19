@@ -277,14 +277,14 @@ function recurseInto(
  * Sourced from `man sudo`/`man env`. Other wrappers (`exec`, `nohup`,
  * `setsid`, `time`) have no flag-with-arg combos that affect this scan.
  */
-const SHORT_FLAGS_WITH_ARG: Record<string, Set<string>> = {
-  sudo: new Set([
+const SHORT_FLAGS_WITH_ARG: Record<string, Set<string>> = Object.fromEntries([
+  ["sudo", new Set([
     "u", "g", "h", "p", "C", "D", "r", "t", "U",
-  ]),
-  env: new Set([
+  ])],
+  ["env", new Set([
     "u", "C", // env -u NAME, env -C DIR
-  ]),
-};
+  ])],
+]);
 
 const LONG_FLAGS_WITH_ARG: Set<string> = new Set([
   "user", "group", "host", "prompt", "chdir", "close-from",

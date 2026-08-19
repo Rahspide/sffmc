@@ -45,7 +45,7 @@ export async function nameClusterViaLLM(
 function buildNameClusterPrompt(
   cluster: MemoryRow[],
   snippetLength: number,
-): { system: string; user: string } {
+) {
   const entries = cluster.map(
     (e) => `[${e.source_path}] ${e.content.substring(0, snippetLength)}`,
   );
@@ -92,7 +92,7 @@ export async function summarizeViaLLM(
 function buildSummarizeClusterPrompt(
   cluster: MemoryRow[],
   llmSnippetLength: number,
-): { system: string; user: string } {
+) {
   const entries = cluster.map(
     (e) => `[${e.source_path}] ${e.content.substring(0, llmSnippetLength)}`,
   );

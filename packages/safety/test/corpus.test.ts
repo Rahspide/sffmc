@@ -11,7 +11,7 @@
 import { describe, test, expect } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { compileRules, parseRules, type Rules, type CompiledRule, type Action } from "../src/rules/rules";
+import { compileRules, parseRules, type Rules, type CompiledRule } from "../src/rules/rules";
 import { normalizeCommand } from "../src/rules/normalize";
 import { commandWordPositions } from "../src/rules/compileRules";
 
@@ -28,7 +28,7 @@ interface Case {
 
 const PROJECT_ROOT = "/tmp/sffmc-corpus-test";
 
-function parseCorpus(text: string): { cases: Case[]; section: string } {
+function parseCorpus(text: string) {
   const cases: Case[] = [];
   let section = "uncategorized";
   let pendingInput: string | null = null;
@@ -636,7 +636,7 @@ function anchoredEvaluate(
   rules: CompiledRule[],
   toolName: string,
   args: Record<string, unknown>,
-): { action: Action; reason: string } {
+) {
   const raw = typeof args?.command === "string" ? args.command : "";
   const interpreted = interpretEscapes(raw);
   const normalized = normalizeCommand(interpreted);

@@ -240,10 +240,7 @@ export async function runDream(
 // Factory + sub-helpers
 // ---------------------------------------------------------------------------
 
-export function createDreamTool(config: DreamConfig): {
-  tool: DreamTool;
-  hooks: DreamHooks;
-} {
+export function createDreamTool(config: DreamConfig) {
   const resolved = resolveDreamConfig(config);
   const { dbPath, dedupThreshold, clusterThreshold, maxEntries, archivePath, snippetLength, llmSnippetLength } = resolved;
   let db: Database | null = null;
@@ -318,15 +315,7 @@ export function createDreamTool(config: DreamConfig): {
 /** Resolve the factory-level config defaults so the resolved values are
  *  stable across the lifetime of the factory instance. The threshold /
  *  cap / archive-path / snippet-length fields are all defaulted here. */
-function resolveDreamConfig(config: DreamConfig): {
-  dbPath: string;
-  dedupThreshold: number;
-  clusterThreshold: number;
-  maxEntries: number;
-  archivePath: string;
-  snippetLength: number;
-  llmSnippetLength: number;
-} {
+function resolveDreamConfig(config: DreamConfig) {
   const dbPath = config.storagePath ?? DEFAULT_STORAGE_PATH;
   // thresholds/cap up front so they are stable across the lifetime of
   // this factory instance. Defaults preserve prior behavior.

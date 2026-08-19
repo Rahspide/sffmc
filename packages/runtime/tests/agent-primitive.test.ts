@@ -27,7 +27,7 @@ function makeFakeCounters() {
 const fakeCounters = makeFakeCounters() as any
 
 // Fake entry — minimal surface that spawnAgent/executeAgentCall need.
-// SAFETY: test fixture; the fake entry intentionally exposes a minimal surface (subset of InternalRunEntry); double cast via unknown is required because Partial<InternalRunEntry> lacks non-optional fields
+// SAFETY: test fixture; the fake entry intentionally exposes a minimal surface (subset of InternalRunEntry); `as any` is the documented escape hatch because Partial<InternalRunEntry> lacks non-optional fields
 function makeEntry(overrides: Partial<InternalRunEntry> = {}): InternalRunEntry {
   return {
     runID: "run_test",
@@ -38,7 +38,8 @@ function makeEntry(overrides: Partial<InternalRunEntry> = {}): InternalRunEntry 
     cfg: { maxSteps: 100, maxTokens: 10000, maxWallClockMs: 60000, perStepTimeoutMs: 1000, gracePeriodMs: 5000, maxDepth: 3, maxLifecycleAgents: 10 },
     counters: fakeCounters,
     ...overrides,
-  } as unknown as InternalRunEntry
+  // @ts-expect-error - fake entry intentionally omits non-optional fields required by the test surface
+  } as InternalRunEntry
 }
 
 // Fake deps — capture calls so the assertions can inspect side-effects.

@@ -122,10 +122,8 @@ describe("Token cap run settlement", () => {
     await runtime.wait({ runID, timeoutMs: 5_000 })
 
     // Reflection: settled entries MUST NOT remain in this.runs.
-    // SAFETY: test uses reflection to inspect the private `runs` map; the inline shape declares the documented private surface for assertion
-    const internalRuns = (
-      runtime as unknown as { runs: Map<string, unknown> }
-    ).runs
+    // SAFETY: test uses reflection to inspect the private `runs` map; `as any` is the documented escape hatch for accessing private surfaces
+    const internalRuns = (runtime as any).runs as Map<string, unknown>
     expect(internalRuns.has(runID)).toBe(false)
   })
 

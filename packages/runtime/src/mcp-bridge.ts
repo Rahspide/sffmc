@@ -122,12 +122,7 @@ export class McpBridge {
 export function makeMcpPrimitives(
   bridge: McpBridge,
   dispatch: (name: string, args: unknown) => Promise<unknown>,
-): {
-  list: () => Promise<string[]>
-  call: (name: string, args: unknown) => Promise<unknown>
-  bind: (name: string) => (args: unknown) => Promise<unknown>
-  bindAll: () => Promise<Record<string, (args: unknown) => Promise<unknown>>>
-} {
+) {
   return {
     /** Return the parent's MCP tool list (read-only). Resolved at call-time
      *  from the parent context — the guest sees a fresh view each call. */
@@ -188,5 +183,10 @@ export function makeMcpPrimitives(
       }
       return out
     },
+  } satisfies {
+    list: () => Promise<string[]>
+    call: (name: string, args: unknown) => Promise<unknown>
+    bind: (name: string) => (args: unknown) => Promise<unknown>
+    bindAll: () => Promise<Record<string, (args: unknown) => Promise<unknown>>>
   }
 }

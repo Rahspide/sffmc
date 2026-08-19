@@ -116,8 +116,8 @@ function makeMockServices() {
   const deadline = {
     create: (ms: number) => {
       calls.push({ method: "deadline.create", args: [ms] })
-      // SAFETY: test fixture; setTimeout returns a Timeout object (browser/Node variant); double cast via unknown to NodeJS.Timeout for the documented DeadlineService contract
-      const timer = setTimeout(() => {}, ms) as unknown as NodeJS.Timeout
+      // SAFETY: test fixture; setTimeout returns a Timeout object (browser/Node variant); `as any` is the documented escape hatch to cross the Timeout / NodeJS.Timeout union for the documented DeadlineService contract
+      const timer = setTimeout(() => {}, ms) as any
       return { promise: new Promise<never>(() => {}), timer }
     },
   }

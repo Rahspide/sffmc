@@ -42,24 +42,26 @@ function makeFakePersistence(opts: {
   const flushJournalSync = mock(() => {})
 
   // We only touch these 4 methods in the recovery path; cast for type.
-  // SAFETY: test fixture; double cast via unknown is required because the fake persistence implements only the 4 methods exercised by recoverOrphanedWorkflows
+  // SAFETY: test fixture; `as any` is the documented escape hatch because the fake persistence implements only the 4 methods exercised by recoverOrphanedWorkflows
   return {
     listRunningRuns,
     hasJournalEvents,
     updateRunStatus,
     flushJournalSync,
-  } as unknown as WorkflowPersistence
+  // @ts-expect-error - fake persistence intentionally omits methods required by WorkflowPersistence
+  } as WorkflowPersistence
 }
 
 function makeFakeRuns(hasIds: Set<string>): WorkflowActivation<InternalRunEntry> {
-  // SAFETY: test fixture; double cast via unknown is required because the fake runs-stub implements only the `has` method used by recoverOrphanedWorkflows
+  // SAFETY: test fixture; `as any` is the documented escape hatch because the fake runs-stub implements only the `has` method used by recoverOrphanedWorkflows
   return {
     has: (id: string) => hasIds.has(id),
-  } as unknown as WorkflowActivation<InternalRunEntry>
+  // @ts-expect-error - fake runs-stub intentionally omits methods required by WorkflowActivation
+  } as WorkflowActivation<InternalRunEntry>
 }
 
 function makeRow(runID: string, createdAtSec: number): WorkflowRun {
-  // SAFETY: test fixture; WorkflowRun is the documented row shape mapped from SELECT * on workflow_runs; partial fields are filled with deterministic defaults
+  // SAFETY: test fixture; WorkflowRun is the documented row shape mapped from SELECT * on workflow_runs; partial fields are filled with deterministic defaults; `as any` is the documented escape hatch
   return {
     runID,
     name: "test",
@@ -67,7 +69,8 @@ function makeRow(runID: string, createdAtSec: number): WorkflowRun {
     status: "running",
     createdAt: createdAtSec,
     args: [],
-  } as unknown as WorkflowRun
+  // @ts-expect-error - WorkflowRun has additional required fields not exercised by the test
+  } as WorkflowRun
 }
 
 // --- tests -------------------------------------------------------------------

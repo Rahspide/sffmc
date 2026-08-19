@@ -254,7 +254,7 @@ describe("checkpoint v2", () => {
 
       // header round-trip
       // SAFETY: invariant — see caller justification
-      const header = readHeaderFromDisk(sessionID, dir) as unknown as V2HeaderForm;
+      const header = readHeaderFromDisk(sessionID, dir) as V2HeaderForm;
       expect(header).not.toBeNull();
       expect(header.version).toBe(2);
       expect(header.sessionID).toBe(sessionID);
@@ -314,7 +314,7 @@ describe("checkpoint v2", () => {
       cp.flushSession(sessionID);
 
       // SAFETY: invariant — see caller justification
-      const header = readHeaderFromDisk(sessionID, dir) as unknown as V2HeaderForm;
+      const header = readHeaderFromDisk(sessionID, dir) as V2HeaderForm;
       expect(header).not.toBeNull();
       expect(header.version).toBe(2);
 
@@ -358,7 +358,7 @@ describe("checkpoint v2", () => {
 
       const fileBuf = readFileSync(filePath(sessionID, dir));
       // SAFETY: invariant — see caller justification
-      const header = readHeaderFromDisk(sessionID, dir) as unknown as V2HeaderForm;
+      const header = readHeaderFromDisk(sessionID, dir) as V2HeaderForm;
       expect(header).not.toBeNull();
 
       // Body bytes = everything after the header line (including the
@@ -430,7 +430,7 @@ describe("checkpoint v2", () => {
 
       // The v2 file is now at <sessionID>.jsonl with a v2 header.
       // SAFETY: JSON.parse validated shape on line 421
-      const header = readHeaderFromDisk(sessionID, dir) as unknown as V2HeaderForm;
+      const header = readHeaderFromDisk(sessionID, dir) as V2HeaderForm;
       expect(header).not.toBeNull();
       expect(header.version).toBe(2);
       expect(Array.isArray(header.lineOffsets)).toBe(true);
@@ -494,7 +494,7 @@ describe("checkpoint v2", () => {
       // The file-level CRC matches crc32() over the body bytes
       // (everything after the header line).
       // SAFETY: narrowed by typeof check on line 481
-      const header = readHeaderFromDisk(sessionID, dir) as unknown as V2HeaderForm;
+      const header = readHeaderFromDisk(sessionID, dir) as V2HeaderForm;
       const headerEnd = v2Buf.indexOf(0x0a) + 1;
       const bodyBytes = v2Buf.subarray(headerEnd);
       expect(header.fileCrc32).toBe(crc32(bodyBytes));
@@ -527,7 +527,7 @@ describe("checkpoint v2", () => {
 
       // Sanity: file is on v2.
       // SAFETY: invariant — see caller justification
-      const beforeHeader = readHeaderFromDisk(sessionID, dir) as unknown as V2HeaderForm;
+      const beforeHeader = readHeaderFromDisk(sessionID, dir) as V2HeaderForm;
       expect(beforeHeader.version).toBe(2);
 
       // Read against an already-v2 file: no-op.
@@ -539,7 +539,7 @@ describe("checkpoint v2", () => {
 
       // File content is unchanged (version, offsets, CRC preserved).
       // SAFETY: invariant — see caller justification
-      const afterHeader = readHeaderFromDisk(sessionID, dir) as unknown as V2HeaderForm;
+      const afterHeader = readHeaderFromDisk(sessionID, dir) as V2HeaderForm;
       expect(afterHeader.version).toBe(2);
       expect(afterHeader.fileCrc32).toBe(beforeHeader.fileCrc32);
       expect(afterHeader.lineOffsets).toEqual(beforeHeader.lineOffsets);
@@ -575,7 +575,7 @@ describe("checkpoint v2", () => {
 
       const fileBuf = readFileSync(filePath(sessionID, dir));
       // SAFETY: invariant — see caller justification
-      const header = readHeaderFromDisk(sessionID, dir) as unknown as V2HeaderForm;
+      const header = readHeaderFromDisk(sessionID, dir) as V2HeaderForm;
       expect(header).not.toBeNull();
       expect(header.version).toBe(2);
 

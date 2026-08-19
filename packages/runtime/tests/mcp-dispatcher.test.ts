@@ -42,11 +42,11 @@ function makeFakeBridge() {
 }
 
 function makeEntry(bridge: ReturnType<typeof makeFakeBridge>): InternalRunEntry {
-  // SAFETY: test fixture; double cast via unknown is required because the fake entry exposes only the `runID` + `mcpBridge` fields used by McpDispatcher
+  // SAFETY: test fixture; the fake entry exposes only the `runID` + `mcpBridge` fields used by McpDispatcher; remaining fields are populated by McpDispatcher's internal defaults
   return {
     runID: "run_test",
     mcpBridge: bridge,
-  } as unknown as InternalRunEntry
+  } as InternalRunEntry
 }
 
 function makeCtxWithTool(toolCall: (n: string, a: unknown) => Promise<unknown>) {

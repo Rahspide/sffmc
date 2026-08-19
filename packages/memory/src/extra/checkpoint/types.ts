@@ -84,6 +84,19 @@ export interface MigrationResult {
   error?: string;
 }
 
+/** Discriminated union returned by the restore action. Error variants
+ *  carry `error: string`; the success variant carries the reconstructed
+ *  tool-call messages. */
+export type RestoreActionResult =
+  | { ok: false; error: string }
+  | {
+      ok: true;
+      sessionID: string;
+      version: number;
+      toolCallCount: number;
+      messages: Array<{ role: "assistant"; content: string }>;
+    };
+
 // ---------------------------------------------------------------------------
 // Internal types (used across buffer.ts / hooks.ts / factory.ts)
 // ---------------------------------------------------------------------------

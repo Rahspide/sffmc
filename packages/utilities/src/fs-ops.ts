@@ -83,7 +83,7 @@ export interface MockFsOpsState {
  *  semantics so call sites that already catch can stay unchanged. */
 export function createMockFsOps(
   state?: Partial<MockFsOpsState>,
-): { fs: FsOps; files: Map<string, string>; dirs: Set<string> } {
+) {
   const files = state?.files ?? new Map<string, string>()
   const dirs = state?.dirs ?? new Set<string>()
 

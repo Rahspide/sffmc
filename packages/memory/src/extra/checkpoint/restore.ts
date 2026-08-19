@@ -10,7 +10,7 @@ import { CURRENT_VERSION } from "./constants";
 import { readHeader } from "./header";
 import { readToolCallsShim } from "./reader";
 import { CheckpointTooLargeError } from "./types";
-import type { ToolCall } from "./types";
+import type { RestoreActionResult, ToolCall } from "./types";
 
 /** Marker embedded in a user message to trigger auto-restore.
  *  Format: `<!-- EXTRA_RESTORE: <sessionID> -->` (whitespace tolerant). */
@@ -34,7 +34,7 @@ export function executeRestoreAction(
   sessionID: string | undefined,
   dir: string,
   maxFileSize: number,
-): unknown {
+): RestoreActionResult {
   if (!sessionID) {
     return { ok: false, error: "sessionID is required for restore" };
   }
@@ -87,7 +87,7 @@ export function executeRestoreAction(
  *  plain objects are walked element-by-element. Used by the redaction rule
  *  for checkpoint writes so secrets embedded in tool output are replaced
  *  with `[REDACTED:<category>]` markers BEFORE the JSONL line is written. */
-export function sanitizeValue(value: unknown): unknown {
+export function sanitizeValue(value: unknown) {
   if (typeof value === "string") {
     return redactSecrets(value).redacted
   }

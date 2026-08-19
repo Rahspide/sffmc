@@ -28,7 +28,7 @@ export function startWatcher(
   /** Optional watcher tuning; defaults to { stabilityMs: 300, pollIntervalMs: 100 }
    *  which preserves the prior hardcoded behaviour. */
   watchCfg: WatcherConfig = DEFAULT_WATCHER_CONFIG,
-): { stop: () => void } {
+) {
   // Pre-load redaction rules (user YAML + builtins) so the watcher's hot
   // path can stay sync. Fire-and-forget — `isSensitiveFilename` falls back
   // to BUILTIN_RULES if the cache isn't ready yet.

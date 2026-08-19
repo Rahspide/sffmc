@@ -55,7 +55,7 @@ export function iterateBodyLines(
         typeof obj.callID === "string"
       ) {
         // SAFETY: narrowed by typeof check on line 54
-        calls.push(obj as unknown as ToolCall);
+        calls.push(obj as ToolCall);
       }
     } catch (e) {
       log.debug({ err: e, lineIndex: i }, "checkpoint-lines: skipping malformed line")

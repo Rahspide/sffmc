@@ -10,7 +10,7 @@ import { BudgetExceededError, WorkflowStatus } from "../src/types.ts"
 // capturing calls so the assertions can inspect side-effects.
 
 function makeFakePersistence() {
-  // SAFETY: test fixture; double cast via unknown is required because the fake persistence implements only the 2 methods exercised by RunCompleter
+  // SAFETY: test fixture; `as any` is the documented escape hatch because the fake persistence implements only the 2 methods exercised by RunCompleter
   return {
     updateRunStatus: (runID: string, status: string, error?: string) => {
       fakePersistence.updates.push({ runID, status, error })
@@ -18,39 +18,43 @@ function makeFakePersistence() {
     flushJournalSync: () => {
       fakePersistence.flushes++
     },
-  } as unknown as ConstructorParameters<typeof RunCompleter>[0]["persistence"]
+  // @ts-expect-error - fake persistence intentionally omits methods required by RunCompleter's deps bag
+  } as ConstructorParameters<typeof RunCompleter>[0]["persistence"]
 }
 
 const fakePersistence = { updates: [] as Array<{ runID: string; status: string; error?: string }>, flushes: 0 }
 
 function makeFakeEvents() {
   const emitted: Array<{ name: string; payload: unknown }> = []
-  // SAFETY: test fixture; double cast via unknown is required because the fake events object exposes an extra `_emitted` field for assertion introspection
+  // SAFETY: test fixture; `as any` is the documented escape hatch because the fake events object exposes an extra `_emitted` field for assertion introspection
   return {
     emit: (name: string, payload: unknown) => {
       emitted.push({ name, payload })
     },
     _emitted: emitted,
-  } as unknown as ConstructorParameters<typeof RunCompleter>[0]["events"] & { _emitted: typeof emitted }
+  // @ts-expect-error - fake events intentionally omits methods required by RunCompleter's deps bag and adds extra `_emitted` field
+  } as ConstructorParameters<typeof RunCompleter>[0]["events"] & { _emitted: typeof emitted }
 }
 
 function makeFakeOutcomes() {
-  // SAFETY: test fixture; double cast via unknown is required because the fake outcomes-stub implements only the `put` method used by RunCompleter
+  // SAFETY: test fixture; `as any` is the documented escape hatch because the fake outcomes-stub implements only the `put` method used by RunCompleter
   return {
     put: (runID: string, outcome: unknown) => {
       fakeOutcomes.puts.push({ runID, outcome })
     },
-  } as unknown as ConstructorParameters<typeof RunCompleter>[0]["outcomes"]
+  // @ts-expect-error - fake outcomes intentionally omits methods required by RunCompleter's deps bag
+  } as ConstructorParameters<typeof RunCompleter>[0]["outcomes"]
 }
 const fakeOutcomes = { puts: [] as Array<{ runID: string; outcome: unknown }> }
 
 function makeFakeRuns() {
-  // SAFETY: test fixture; double cast via unknown is required because the fake runs-stub implements only the `release` method used by RunCompleter
+  // SAFETY: test fixture; `as any` is the documented escape hatch because the fake runs-stub implements only the `release` method used by RunCompleter
   return {
     release: (runID: string) => {
       fakeRuns.released.push(runID)
     },
-  } as unknown as ConstructorParameters<typeof RunCompleter>[0]["runs"]
+  // @ts-expect-error - fake runs intentionally omits methods required by RunCompleter's deps bag
+  } as ConstructorParameters<typeof RunCompleter>[0]["runs"]
 }
 const fakeRuns = { released: [] as string[] }
 

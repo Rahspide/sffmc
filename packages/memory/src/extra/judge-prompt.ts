@@ -2,7 +2,7 @@
 // @sffmc/extra — Judge prompt builder
 // Pure prompt construction extracted from judge.ts (M-3 Wave 3). No LLM call.
 
-export function buildJudgePrompt(candidates: string[], rubric: string): { system: string; user: string } {
+export function buildJudgePrompt(candidates: string[], rubric: string) {
   const system = `You are an expert judge evaluating candidate outputs. Use the following rubric:\n\n${rubric}`;
 
   const user = [

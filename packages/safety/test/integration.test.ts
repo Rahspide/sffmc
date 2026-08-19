@@ -235,10 +235,10 @@ describe("C. fail-closed wiring", () => {
     // compileRules' `for (const rule of rawRules.rules)` throws
     // TypeError because `null` is not iterable. The catch in
     // evaluate() converts it to deny.
-    const malformedRules = {
-      version: 1,
-      rules: null,
-    } as unknown as Rules;
+    // SAFETY: testing malformed input — JSON.parse returns any, single cast feeds evaluate()'s Rules parameter
+    const malformedRules = JSON.parse(
+      '{"version":1,"rules":null}',
+    ) as Rules;
 
     const result = evaluate(
       malformedRules,
@@ -473,10 +473,11 @@ describe("E. API contract", () => {
     // Defensive: if args.command is a non-string (number, object),
     // gate.ts must NOT crash. The current implementation only
     // normalizes when it's a string.
+    // SAFETY: testing non-string command — gate guards via typeof check, cast is intentional
     const result = evaluate(
       COMPILED,
       "bash",
-      { command: 12345 as unknown as string },
+      { command: 12345 as string },
       PROJECT_ROOT,
     );
     expect(["allow", "deny", "ask"]).toContain(result.action);

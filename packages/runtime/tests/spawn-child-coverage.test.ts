@@ -87,7 +87,7 @@ describe("spawnChildWorkflow journal replay", () => {
       const sha = computeScriptSha("journal-replay-parent")
       const fakeRunID = p.createRun("parent.ts", "jr-parent", sha)
 
-      // SAFETY: test fixture; fake entry is intentionally partial — it only mirrors the subset of InternalRunEntry fields used by the journal-replay parent path; double cast via unknown is required for the structural mismatch
+      // SAFETY: test fixture; fake entry is intentionally partial — it only mirrors the subset of InternalRunEntry fields used by the journal-replay parent path; `as any` is the documented escape hatch for the structural mismatch
       const fakeEntry = {
         runID: fakeRunID,
         // Fix-10: include a CounterManager on the fake entry so
@@ -113,19 +113,16 @@ describe("spawnChildWorkflow journal replay", () => {
           maxDepth: 8,
           maxLifecycleAgents: 1000,
         },
-      } as unknown as Parameters<typeof runtime["spawnChildWorkflow"]>[0]
+      // @ts-expect-error - fake entry intentionally omits non-optional fields required by the test surface
+      } as Parameters<typeof runtime["spawnChildWorkflow"]>[0]
 
-      // SAFETY: test uses reflection to access the private `spawnChildWorkflow` method; the inline shape declares the documented private surface (called via .bind to preserve `this`)
-      const spawnChildWorkflow = (
-        runtime as unknown as {
-          spawnChildWorkflow: (
-            entry: unknown,
-            nameOrScript: string,
-            childArgs: unknown,
-            workflowOcc: Map<string, number>,
-          ) => Promise<unknown>
-        }
-      ).spawnChildWorkflow.bind(runtime)
+      // SAFETY: test uses reflection to access the private `spawnChildWorkflow` method; `as any` is the documented escape hatch (called via .bind to preserve `this`)
+      const spawnChildWorkflow = (runtime as any).spawnChildWorkflow.bind(runtime) as (
+        entry: unknown,
+        nameOrScript: string,
+        childArgs: unknown,
+        workflowOcc: Map<string, number>,
+      ) => Promise<unknown>
 
       const occ = new Map<string, number>()
       const r1 = await spawnChildWorkflow(fakeEntry, spec, childArgs, occ)

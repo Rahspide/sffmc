@@ -143,7 +143,7 @@ describe("runSandboxed — PRELUDE globals", () => {
         callCalled++
         return { name, args }
       },
-    } as unknown as SandboxPrimitives
+    } as any
     // SAFETY: runSandboxed returns unknown; the script returns JSON.stringify({names, r}) (a string)
     const result = (await runSandboxed(
       `const names = await mcp.list(); const r = await mcp.call('tool-a', { x: 1 }); return JSON.stringify({ names, r });`,
@@ -159,12 +159,12 @@ describe("runSandboxed — PRELUDE globals", () => {
 
 describe("runSandboxed — never-throw contract", () => {
   test("primitive that throws → null (no exception escapes)", async () => {
-    // SAFETY: test fixture; partial SandboxPrimitives with only `log` to drive the throwing-primitive path; cast via unknown because other fields are not exercised by this test
+    // SAFETY: test fixture; partial SandboxPrimitives with only `log` to drive the throwing-primitive path; `as any` is the documented escape hatch because other fields are not exercised by this test
     const prims: SandboxPrimitives = {
       log: () => {
         throw new Error("primitive boom")
       },
-    } as unknown as SandboxPrimitives
+    } as any
     const result = await runSandboxed(
       `log('x'); return 'unreached';`,
       prims,
@@ -217,10 +217,10 @@ describe("runSandboxed — deadline", () => {
 
 describe("runSandboxed — primitive marshaling", () => {
   test("sync primitive return: string crosses host→guest unchanged", async () => {
-    // SAFETY: test fixture; partial SandboxPrimitives with only `greet` to drive the sync-string return path; cast via unknown because other fields are not exercised by this test
+    // SAFETY: test fixture; partial SandboxPrimitives with only `greet` to drive the sync-string return path; `as any` is the documented escape hatch because other fields are not exercised by this test
     const prims: SandboxPrimitives = {
       greet: () => "hello from host",
-    } as unknown as SandboxPrimitives
+    } as any
     const result = await runSandboxed(
       `return greet();`,
       prims,
@@ -229,10 +229,10 @@ describe("runSandboxed — primitive marshaling", () => {
   })
 
   test("sync primitive return: object is JSON-marshaled into guest", async () => {
-    // SAFETY: test fixture; partial SandboxPrimitives with only `payload` to drive the sync-object return path; cast via unknown because other fields are not exercised by this test
+    // SAFETY: test fixture; partial SandboxPrimitives with only `payload` to drive the sync-object return path; `as any` is the documented escape hatch because other fields are not exercised by this test
     const prims: SandboxPrimitives = {
       payload: () => ({ count: 42, tags: ["a", "b"] }),
-    } as unknown as SandboxPrimitives
+    } as any
     // SAFETY: runSandboxed returns unknown; the script returns JSON.stringify({count, tags}) (a string)
     const result = (await runSandboxed(
       `const p = payload(); return JSON.stringify(p);`,
@@ -242,13 +242,13 @@ describe("runSandboxed — primitive marshaling", () => {
   })
 
   test("async primitive return: host promise resolves before guest reads", async () => {
-    // SAFETY: test fixture; partial SandboxPrimitives with only `fetch` to drive the async-return path; cast via unknown because other fields are not exercised by this test
+    // SAFETY: test fixture; partial SandboxPrimitives with only `fetch` to drive the async-return path; `as any` is the documented escape hatch because other fields are not exercised by this test
     const prims: SandboxPrimitives = {
       fetch: async () => {
         await new Promise((r) => setTimeout(r, 5))
         return { ok: true }
       },
-    } as unknown as SandboxPrimitives
+    } as any
     // SAFETY: runSandboxed returns unknown; the script returns JSON.stringify({ok: true}) (a string)
     const result = (await runSandboxed(
       `const r = await fetch(); return JSON.stringify(r);`,
@@ -258,10 +258,10 @@ describe("runSandboxed — primitive marshaling", () => {
   })
 
   test("args injection: primitives.args visible as globalThis.args (JSON-marshaled)", async () => {
-    // SAFETY: test fixture; partial SandboxPrimitives with only `args` to drive the args-injection path; cast via unknown because other fields are not exercised by this test
+    // SAFETY: test fixture; partial SandboxPrimitives with only `args` to drive the args-injection path; `as any` is the documented escape hatch because other fields are not exercised by this test
     const prims: SandboxPrimitives = {
       args: { user: "alice", age: 30 },
-    } as unknown as SandboxPrimitives
+    } as any
     // SAFETY: runSandboxed returns unknown; the script returns JSON.stringify(globalThis.args) (a string)
     const result = (await runSandboxed(
       `return JSON.stringify(globalThis.args);`,
@@ -281,7 +281,7 @@ describe("runSandboxed — PRELUDE key filtering", () => {
     // SAFETY: test fixture; partial SandboxPrimitives with only `parallel` to drive the PRELUDE-key filtering test; cast via unknown because other fields are not exercised
     const prims: SandboxPrimitives = {
       parallel: () => "host-shim-should-not-be-used",
-    } as unknown as SandboxPrimitives
+    } as any
     // SAFETY: runSandboxed returns unknown; the script returns JSON.stringify(["p"]) (a string)
     const result = (await runSandboxed(
       `const r = await globalThis.parallel([() => Promise.resolve('p')]); return JSON.stringify(r);`,

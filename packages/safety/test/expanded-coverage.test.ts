@@ -417,24 +417,20 @@ describe("Empty and weird command input", () => {
 
 describe("evaluate() — fail-closed", () => {
   test("deny when a custom CompiledRule has a regex.exec that throws", () => {
-    // Build a rule whose regex throws on exec via a Proxy. evaluate()
-    // wraps in try/catch and returns deny. This is the § 3 acceptance
-    // criterion: detection error ⇒ deny, never silently allow.
+    // Build a rule whose regex throws on exec by overriding the
+    // method on a real RegExp instance. evaluate() wraps in try/catch
+    // and returns deny. This is the § 3 acceptance criterion:
+    // detection error ⇒ deny, never silently allow.
+    const trapRegex = /./;
+    trapRegex.exec = () => {
+      throw new Error("simulated catastrophic failure");
+    };
     const trap: CompiledRule = {
       match: { tool: "bash", command_match: "never-used" },
       action: "allow",
       commandMatch: {
         source: "trap",
-        regex: new Proxy(/./, {
-          get(target, prop) {
-            if (prop === "exec") {
-              return () => {
-                throw new Error("simulated catastrophic failure");
-              };
-            }
-            return Reflect.get(target, prop);
-          },
-        }) as unknown as RegExp,
+        regex: trapRegex,
       },
     };
 
@@ -464,7 +460,13 @@ describe("evaluate() — fail-closed", () => {
       version: 1,
       rules: [{ match: { tool: "bash" }, action: "allow" }],
     };
-    const result = evaluate(rules, "bash", "string-args" as unknown as Record<string, unknown>, PROJECT_ROOT);
+    // SAFETY: testing non-object args — JSON.parse returns any, single cast feeds evaluate()'s parameter
+    const result = evaluate(
+      rules,
+      "bash",
+      JSON.parse('"string-args"') as Record<string, unknown>,
+      PROJECT_ROOT,
+    );
     expect(result.action).toBe("allow");
   });
 
@@ -483,7 +485,7 @@ describe("evaluate() — fail-closed", () => {
     const result = evaluate(
       rules,
       "bash",
-      { command: 42 as unknown as string },
+      { command: 42 as string },
       PROJECT_ROOT,
     );
     expect(result.action).toBe("allow");
@@ -619,7 +621,7 @@ describe("evaluate() — path_outside edge cases", () => {
       evaluate(
         rules,
         "write",
-        { paths: [42 as unknown as string, "/project/a.ts"] },
+        { paths: [42 as string, "/project/a.ts"] },
         "/project",
       ).action,
     ).toBe("allow");

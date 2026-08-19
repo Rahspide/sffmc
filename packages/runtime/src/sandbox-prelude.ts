@@ -67,7 +67,7 @@ const PRELUDE_KEYS = new Set<string>(["parallel", "pipeline", "args"])
  *  of those keys is silently dropped (a warning would be nice but the
  *  current behavior is silent-by-design to keep the prelude stable
  *  across primitive-set changes). */
-export function buildHostHooks(primitives: Partial<SandboxPrimitives>): Record<string, unknown> {
+export function buildHostHooks(primitives: Partial<SandboxPrimitives>) {
   const hooks: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(primitives)) {
     if (PRELUDE_KEYS.has(key)) continue

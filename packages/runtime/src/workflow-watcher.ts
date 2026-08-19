@@ -33,7 +33,7 @@ const WORKFLOW_FILE_GLOB = /\.(ts|js|mjs|cjs)$/i
  *
  *  The returned handle's `stop()` closes all watchers. Safe to call
  *  multiple times. */
-export function startWorkflowWatcher(workspace: string): { stop: () => void } {
+export function startWorkflowWatcher(workspace: string) {
   const subdirs = getWorkflowSearchDirs()
   // Walk up the directory tree to find every existing workflow subdir.
   // The runtime mounts the watcher once per workspace; chokidar-style
@@ -96,5 +96,5 @@ export function startWorkflowWatcher(workspace: string): { stop: () => void } {
         }
       }
     },
-  }
+  } satisfies { stop: () => void }
 }

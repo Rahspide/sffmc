@@ -1,5 +1,5 @@
 import { resolve as resolvePath } from "node:path";
-import { compileRules, type CompiledRule, type Rules, type Action } from "./rules";
+import { compileRules, type CompiledRule, type Rules } from "./rules";
 import { normalizeCommand } from "./normalize";
 import { anchoredTest } from "./compileRules";
 
@@ -34,7 +34,7 @@ export function evaluate(
   toolName: string,
   args: Record<string, unknown> | undefined,
   projectRoot: string,
-): { action: Action; reason: string } {
+) {
   try {
     // Two-phase matching (v0.15.2 § 1):
     //

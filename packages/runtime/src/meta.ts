@@ -56,6 +56,6 @@ export function parseMeta(script: string): ParseResult {
   const endIndex = close + 1 + (script[close + 1] === ";" ? 1 : 0)
   const matched = script.slice(start.index, endIndex)
   const body = script.slice(0, start.index) + matched.replace(/[^\n]/g, " ") + script.slice(endIndex)
-  // SAFETY: double cast via unknown is required to cross Record<string, unknown> → Meta (structural mismatch); fields are validated individually on lines 49-54
-  return { ok: true, meta: m as unknown as Meta, body }
+  // SAFETY: fields are validated individually on lines 50-54 (name/description strings) and the structural mismatch (Record<string, unknown> vs Meta) is closed by manual field validation
+  return { ok: true, meta: m as Meta, body }
 }

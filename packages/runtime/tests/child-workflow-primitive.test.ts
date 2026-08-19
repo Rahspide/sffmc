@@ -6,7 +6,7 @@ import { ChildWorkflowPrimitive } from "../src/child-workflow-primitive.ts"
 import type { InternalRunEntry } from "../src/internal-run-entry.ts"
 
 // Fake persistence — captures createRun/writeScript/appendJournal calls.
-// SAFETY: test fixture; double cast via unknown is required because the fake persistence implements only the subset of methods used by ChildWorkflowPrimitive
+// SAFETY: test fixture; `as any` is the documented escape hatch because the fake persistence implements only the subset of methods used by ChildWorkflowPrimitive
 function makeFakePersistence() {
   return {
     createRun: (name: string, _name2: string, sha: string, _x: unknown, ws: string, args: unknown) => {
@@ -22,7 +22,8 @@ function makeFakePersistence() {
     appendJournalSync: (runID: string, e: unknown) => {
       fakePersistence.journaled.push({ runID, event: e })
     },
-  } as unknown as ConstructorParameters<typeof ChildWorkflowPrimitive>[0]["persistence"]
+  // @ts-expect-error - fake persistence intentionally omits methods required by ChildWorkflowPrimitive's deps bag
+  } as ConstructorParameters<typeof ChildWorkflowPrimitive>[0]["persistence"]
 }
 // SAFETY: test fixture; `as any[]` and `as string[]` are documented escape hatches for the captured-call arrays where the element shape is heterogeneous
 const fakePersistence = { created: [] as any[], written: [] as string[], journaled: [] as any[] }
@@ -48,7 +49,7 @@ function makeFakeRuns() {
 const fakeRuns = { registered: [] as string[] }
 
 function makeEntry(overrides: Partial<InternalRunEntry> = {}): InternalRunEntry {
-  // SAFETY: test fixture; double cast via unknown is required because the fake entry exposes only the subset of InternalRunEntry fields under test
+  // SAFETY: test fixture; `as any` is the documented escape hatch because the fake entry exposes only the subset of InternalRunEntry fields under test
   return {
     runID: "run_parent",
     journalResults: new Map(),
@@ -57,11 +58,12 @@ function makeEntry(overrides: Partial<InternalRunEntry> = {}): InternalRunEntry 
     workspace: "/tmp/test",
     cfg: { maxSteps: 100, maxTokens: 10000, maxWallClockMs: 60000, perStepTimeoutMs: 1000, gracePeriodMs: 5000, maxDepth: 3, maxLifecycleAgents: 10 },
     ...overrides,
-  } as unknown as InternalRunEntry
+  // @ts-expect-error - fake entry intentionally omits non-optional fields required by InternalRunEntry
+  } as InternalRunEntry
 }
 
 describe("ChildWorkflowPrimitive", () => {
-  let f: { deps: ConstructorParameters<typeof ChildWorkflowPrimitive>[0]; settleCalls: any[]; startCalls: any[]; flushes: any[]; events: any; persistence: any }
+  let f: { deps: ConstructorParameters<typeof ChildWorkflowPrimitive>[0]; settleCalls: any[]; startCalls: any[]; flushes: any[]; events: any; persistence: any } | null = null
   let primitive: ChildWorkflowPrimitive
 
   beforeEach(() => {

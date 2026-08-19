@@ -55,7 +55,7 @@ describe("createSandboxRuntime — stack size contract (regression)", () => {
       deadlineMs: 60_000,
     })
     const ctx = rt.newContext()
-    let preludeError: unknown = null
+    let preludeError: unknown | null = null
     try {
       hardenDeterminism(ctx, DEFAULT_PRNG_SEED)
       evalAndDiscard(ctx, PRELUDE, "prelude")
@@ -85,7 +85,7 @@ describe("createSandboxRuntime — stack size contract (regression)", () => {
       deadlineMs: 60_000,
     })
     const ctx = rt.newContext()
-    let preludeError: unknown = null
+    let preludeError: unknown | null = null
     try {
       hardenDeterminism(ctx, DEFAULT_PRNG_SEED)
       evalAndDiscard(ctx, PRELUDE, "prelude")
@@ -114,7 +114,7 @@ describe("createSandboxRuntime — stack size contract (regression)", () => {
       deadlineMs: 60_000,
     })
     const ctx = rt.newContext()
-    let preludeError: unknown = null
+    let preludeError: unknown | null = null
     try {
       hardenDeterminism(ctx, DEFAULT_PRNG_SEED)
       evalAndDiscard(ctx, PRELUDE, "prelude")

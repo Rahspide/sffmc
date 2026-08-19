@@ -68,8 +68,8 @@ describe("FlushManager", () => {
     const { mgr, p } = makeMgr()
     const runID = p.createRun("undefined.ts", "undefined", "deadbeef")
     // Bare-minimum entry — no `counters` field.
-    // SAFETY: test fixture; double cast via unknown is required because the test only provides `{ runID }` to verify flushNow's missing-counters coercion contract
-    mgr.flushNow({ runID } as unknown as Parameters<typeof mgr.flushNow>[0])
+    // SAFETY: test fixture; the test only provides `{ runID }` to verify flushNow's missing-counters coercion contract; `as any` is the documented escape hatch because the literal lacks required `counters` field
+    mgr.flushNow({ runID } as any)
     const row = p.loadRun(runID)
     expect(row).not.toBeNull()
     expect(row!.running).toBe(0)

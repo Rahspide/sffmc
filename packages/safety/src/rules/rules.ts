@@ -72,10 +72,7 @@ export interface CompiledRule {
  * subset plus the list of skipped entries so callers can surface them in
  * logs / health checks.
  */
-export function compileRules(rawRules: Rules): {
-  rules: CompiledRule[];
-  errors: string[];
-} {
+export function compileRules(rawRules: Rules) {
   const rules: CompiledRule[] = [];
   const errors: string[] = [];
   for (const rule of rawRules.rules) {
@@ -133,7 +130,7 @@ export function loadRules(path: string): Rules {
 export function watchRules(
   path: string,
   onChange: (rules: Rules) => void,
-): { stop: () => void } {
+) {
   let lastMtime = existsSync(path) ? statSync(path).mtimeMs : 0;
 
   const interval = setInterval(() => {
@@ -178,7 +175,7 @@ export function parseRules(yaml: string): Rules {
 
     panicMode = false;
     // SAFETY: validated by rule loop on lines 166-177 — each rule has match.tool and valid action
-    return parsed as unknown as Rules;
+    return parsed as Rules;
   } catch (err) {
     panicMode = true;
     throw err;

@@ -173,7 +173,7 @@ describe("v1 migration: file format anomalies", () => {
 
       // On-disk file is now v2 with an empty lineOffsets array.
       // SAFETY: invariant — see caller justification
-      const onDisk = readHeaderFromDisk(sessionID, dir) as unknown as V2HeaderForm;
+      const onDisk = readHeaderFromDisk(sessionID, dir) as V2HeaderForm;
       expect(onDisk).not.toBeNull();
       expect(onDisk.version).toBe(2);
       expect(onDisk.sessionID).toBe(sessionID);
@@ -216,7 +216,7 @@ describe("v1 migration: file format anomalies", () => {
 
       // On-disk state: v2 with 1 line offset.
       // SAFETY: invariant — see caller justification
-      const header = readHeaderFromDisk(sessionID, dir) as unknown as V2HeaderForm;
+      const header = readHeaderFromDisk(sessionID, dir) as V2HeaderForm;
       expect(header).not.toBeNull();
       expect(header.version).toBe(2);
       expect(header.lineOffsets.length).toBe(1);

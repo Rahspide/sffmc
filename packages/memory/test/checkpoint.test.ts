@@ -525,7 +525,7 @@ describe("checkpoint", () => {
       const cp = makeFactory({ enabled: true });
 
       // SAFETY: invariant — see caller justification
-      const result = (await cp.tool.execute({} as { action: string })) as {
+      const result = (await cp.tool.execute()) as {
         ok: boolean;
         error: string;
       };
@@ -1031,7 +1031,7 @@ describe("checkpoint", () => {
         expect(hook).toBeDefined();
         if (!hook) return;
 
-        const data: { messages: Array<{ role: string; content: string }> } = {
+        const data = {
           messages: [
             {
               role: "user",

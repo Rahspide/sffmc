@@ -147,7 +147,7 @@ function iterateBodyLinesFromString(content: string, lineOffsets: number[]): Too
         typeof obj.callID === "string"
       ) {
         // SAFETY: narrowed by typeof check on line 143
-        calls.push(obj as unknown as ToolCall);
+        calls.push(obj as ToolCall);
       }
     } catch (e) {
       log.debug({ err: e, lineIndex: i }, "checkpoint-reader: skipping malformed line");

@@ -83,7 +83,7 @@ describe("dumpHostFnArgs — handle lifecycle", () => {
       },
     }
 
-    let caught: unknown = null
+    let caught: unknown | null = null
     try {
       // SAFETY: test fixture; `as any` is the documented escape hatch for the throwing FakeCtx stub
       dumpHostFnArgs(ctx as any, [h1, h2, h3])
@@ -220,7 +220,7 @@ function makeMarshalCtx(opts: {
         throw new Error("evalCode boom")
       }
       // SAFETY: test fixture; makeMarshalHandle returns a fake handle; cast to EvalResultFake is the documented pattern for the marshalIn mock context
-      return makeMarshalHandle() as unknown as EvalResultFake
+      return makeMarshalHandle() as EvalResultFake
     },
     unwrapResult(_res: EvalResultFake) {
       // unwrapResult is called twice in marshalIn: once for the eval result
@@ -247,7 +247,7 @@ function makeMarshalCtx(opts: {
         throw new Error("callFunction boom")
       }
       // SAFETY: test fixture; makeMarshalHandle returns a fake handle; cast to EvalResultFake is the documented pattern for the marshalIn mock context
-      return makeMarshalHandle() as unknown as EvalResultFake
+      return makeMarshalHandle() as EvalResultFake
     },
   } satisfies MarshalCtxFake
 }
@@ -258,25 +258,24 @@ describe("marshalIn — handle lifecycle (gen-2 #8)", () => {
     // paths must short-circuit without touching them.
     let roundTripInvoked = false
     // SAFETY: test fixture; double cast via unknown is required because makeMarshalCtx returns a stub MarshalCtxFake (subset of marshalIn's QuickJS context parameter)
-    const ctx = makeMarshalCtx() as unknown as Parameters<typeof marshalIn>[0]
+    const ctx = makeMarshalCtx() as Parameters<typeof marshalIn>[0]
     // SAFETY: test uses reflection to override the evalCode stub; inline shape declares the documented marshalIn surface
-    ;(ctx as unknown as { evalCode: (c: string) => EvalResultFake }).evalCode = (
-      _c: string,
-    ) => {
+    // SAFETY: test uses reflection to override the evalCode stub; `as any` is the documented escape hatch for accessing private surfaces
+    const evalCodeImpl = function (_c: string): EvalResultFake {
       roundTripInvoked = true
       // SAFETY: test fixture; makeMarshalHandle returns a fake handle; cast to EvalResultFake mirrors the marshalIn return contract
-      return makeMarshalHandle() as unknown as EvalResultFake
+      return makeMarshalHandle() as EvalResultFake
     }
-    // SAFETY: test uses reflection to override the callFunction stub; inline shape declares the documented marshalIn surface
-    ;(ctx as unknown as { callFunction: (...args: unknown[]) => EvalResultFake }).callFunction = (
-      ..._args: unknown[]
-    ) => {
+    ;(ctx as any).evalCode = evalCodeImpl
+    // SAFETY: test uses reflection to override the callFunction stub; `as any` is the documented escape hatch for accessing private surfaces
+    const callFunctionImpl2 = function (..._args: unknown[]): EvalResultFake {
       roundTripInvoked = true
       // SAFETY: test fixture; makeMarshalHandle returns a fake handle; cast to EvalResultFake mirrors the marshalIn return contract
-      return makeMarshalHandle() as unknown as EvalResultFake
+      return makeMarshalHandle() as EvalResultFake
     }
+    ;(ctx as any).callFunction = callFunctionImpl2
 
-    let out: unknown = null
+    let out: unknown | null = null
     try {
       out = marshalIn(ctx, "hello")
     } catch (_e) {
@@ -291,24 +290,25 @@ describe("marshalIn — handle lifecycle (gen-2 #8)", () => {
     // All must be disposed when marshalIn returns successfully. (The
     // returned handle from unwrapResult(callRes) is the caller's
     // responsibility — we don't track it here.)
-    const refs: {
+    const refs = {
+      json: undefined as MarshalHandleFake | undefined,
+      parseFn: undefined as MarshalHandleFake | undefined,
+      callRes: undefined as { alive: boolean; dispose(): void } | undefined,
+    } satisfies {
       json?: MarshalHandleFake
       parseFn?: MarshalHandleFake
       callRes?: { alive: boolean; dispose(): void }
-    } = {}
+    }
     // SAFETY: test fixture; double cast via unknown is required because makeMarshalCtx returns a stub MarshalCtxFake (subset of marshalIn's QuickJS context parameter)
-    const ctx = makeMarshalCtx() as unknown as Parameters<typeof marshalIn>[0]
-    // SAFETY: test uses reflection to override the newString stub; inline shape declares the documented marshalIn surface
-    ;(ctx as unknown as { newString: (s: string) => MarshalHandleFake }).newString = (
-      _s: string,
-    ) => {
+    const ctx = makeMarshalCtx() as Parameters<typeof marshalIn>[0]
+    // SAFETY: test uses reflection to override the newString stub; `as any` is the documented escape hatch for accessing private surfaces
+    const newStringImpl = (_s: string): MarshalHandleFake => {
       refs.json = makeMarshalHandle()
       return refs.json
     }
-    // SAFETY: test uses reflection to override the unwrapResult stub; inline shape declares the documented marshalIn surface
-    ;(ctx as unknown as {
-      unwrapResult: (r: EvalResultFake) => MarshalHandleFake
-    }).unwrapResult = (r) => {
+    ;(ctx as any).newString = newStringImpl
+    // SAFETY: test uses reflection to override the unwrapResult stub; `as any` is the documented escape hatch for accessing private surfaces
+    const unwrapResultImpl = function (r: EvalResultFake): MarshalHandleFake {
       // First call is on the eval result (returns parseFn). Second call
       // is on callRes — the real ctx.unwrapResult disposes the result it
       // was given, so the mock must do the same.
@@ -326,17 +326,16 @@ describe("marshalIn — handle lifecycle (gen-2 #8)", () => {
       }
       return makeMarshalHandle()
     }
-    // SAFETY: test uses reflection to override the callFunction stub; inline shape declares the documented marshalIn surface
-    ;(ctx as unknown as { callFunction: (...args: unknown[]) => EvalResultFake }).callFunction = (
-      ..._args: unknown[]
-    ) => {
+    ;(ctx as any).unwrapResult = unwrapResultImpl
+    // SAFETY: test uses reflection to override the callFunction stub; `as any` is the documented escape hatch for accessing private surfaces
+    const callFunctionImpl = function (..._args: unknown[]): EvalResultFake {
       // SAFETY: test fixture; callFunction in marshalIn returns EvalResultFake (QuickJS handle); the local cast to { alive, dispose } records the dispose call for the assertion
       refs.callRes = makeMarshalHandle() as { alive: boolean; dispose(): void }
-      // SAFETY: refs.callRes is the callFunction return value; cast back to EvalResultFake satisfies the marshalIn contract
-      return refs.callRes as unknown as EvalResultFake
+      return refs.callRes as EvalResultFake
     }
+    ;(ctx as any).callFunction = callFunctionImpl
 
-    let threw: unknown = null
+    let threw: unknown | null = null
     try {
       marshalIn(ctx, { a: 1 })
     } catch (e) {
@@ -357,28 +356,26 @@ describe("marshalIn — handle lifecycle (gen-2 #8)", () => {
   // REGRESSION: when ctx.callFunction throws, BOTH json AND parseFn must be
   // disposed. Previously only the happy path disposed them — both leaked.
   test("REGRESSION: disposes json + parseFn when ctx.callFunction throws", () => {
-    const refs: { json?: MarshalHandleFake; parseFn?: MarshalHandleFake } = {}
+    const refs = { json: undefined as MarshalHandleFake | undefined, parseFn: undefined as MarshalHandleFake | undefined } satisfies { json?: MarshalHandleFake; parseFn?: MarshalHandleFake }
     // SAFETY: test fixture; double cast via unknown is required because makeMarshalCtx returns a stub MarshalCtxFake (subset of marshalIn's QuickJS context parameter)
-    const ctx = makeMarshalCtx({ callFunctionThrows: true }) as unknown as Parameters<typeof marshalIn>[0]
-    // SAFETY: test uses reflection to override the newString stub; inline shape declares the documented marshalIn surface
-    ;(ctx as unknown as { newString: (s: string) => MarshalHandleFake }).newString = (
-      _s: string,
-    ) => {
+    const ctx = makeMarshalCtx({ callFunctionThrows: true }) as Parameters<typeof marshalIn>[0]
+    // SAFETY: test uses reflection to override the newString stub; `as any` is the documented escape hatch for accessing private surfaces
+    const newStringImpl = (_s: string): MarshalHandleFake => {
       refs.json = makeMarshalHandle()
       return refs.json
     }
+    ;(ctx as any).newString = newStringImpl
     let observedParseFn: MarshalHandleFake | null = null
-    // SAFETY: test uses reflection to override the unwrapResult stub; inline shape declares the documented marshalIn surface
-    ;(ctx as unknown as {
-      unwrapResult: (r: EvalResultFake) => MarshalHandleFake
-    }).unwrapResult = (_r) => {
+    // SAFETY: test uses reflection to override the unwrapResult stub; `as any` is the documented escape hatch for accessing private surfaces
+    const unwrapResultImpl2 = function (_r: EvalResultFake): MarshalHandleFake {
       const h = makeMarshalHandle()
       refs.parseFn = h
       observedParseFn = h
       return h
     }
+    ;(ctx as any).unwrapResult = unwrapResultImpl2
 
-    let caught: unknown = null
+    let caught: unknown | null = null
     try {
       marshalIn(ctx, { a: 1 })
     } catch (e) {
@@ -401,20 +398,19 @@ describe("marshalIn — handle lifecycle (gen-2 #8)", () => {
   // the previously-allocated `json` handle must still be disposed. Previously
   // parseFn was never assigned; json leaked.
   test("REGRESSION: disposes json when ctx.unwrapResult throws on parse", () => {
-    const refs: { json?: MarshalHandleFake } = {}
+    const refs = { json: undefined as MarshalHandleFake | undefined } satisfies { json?: MarshalHandleFake }
     // SAFETY: test fixture; double cast via unknown is required because makeMarshalCtx returns a stub MarshalCtxFake (subset of marshalIn's QuickJS context parameter)
     const ctx = makeMarshalCtx({
       unwrapEvalThrows: true,
-    }) as unknown as Parameters<typeof marshalIn>[0]
-    // SAFETY: test uses reflection to override the newString stub; inline shape declares the documented marshalIn surface
-    ;(ctx as unknown as { newString: (s: string) => MarshalHandleFake }).newString = (
-      _s: string,
-    ) => {
+    }) as Parameters<typeof marshalIn>[0]
+    // SAFETY: test uses reflection to override the newString stub; `as any` is the documented escape hatch for accessing private surfaces
+    const newStringImpl = (_s: string): MarshalHandleFake => {
       refs.json = makeMarshalHandle()
       return refs.json
     }
+    ;(ctx as any).newString = newStringImpl
 
-    let caught: unknown = null
+    let caught: unknown | null = null
     try {
       marshalIn(ctx, { a: 1 })
     } catch (e) {
@@ -431,20 +427,17 @@ describe("marshalIn — handle lifecycle (gen-2 #8)", () => {
   // Edge case: when ctx.evalCode itself throws (no result produced), the json
   // handle must still be disposed.
   test("REGRESSION: disposes json when ctx.evalCode throws", () => {
-    const refs: { json?: MarshalHandleFake } = {}
+    const refs = { json: undefined as MarshalHandleFake | undefined } satisfies { json?: MarshalHandleFake }
     // SAFETY: test fixture; double cast via unknown is required because makeMarshalCtx returns a stub MarshalCtxFake (subset of marshalIn's QuickJS context parameter)
-    const ctx = makeMarshalCtx({ evalCodeThrows: true }) as unknown as Parameters<
-      typeof marshalIn
-    >[0]
-    // SAFETY: test uses reflection to override the newString stub; inline shape declares the documented marshalIn surface
-    ;(ctx as unknown as { newString: (s: string) => MarshalHandleFake }).newString = (
-      _s: string,
-    ) => {
+    const ctx = makeMarshalCtx({ evalCodeThrows: true }) as Parameters<typeof marshalIn>[0]
+    // SAFETY: test uses reflection to override the newString stub; `as any` is the documented escape hatch for accessing private surfaces
+    const newStringImpl = (_s: string): MarshalHandleFake => {
       refs.json = makeMarshalHandle()
       return refs.json
     }
+    ;(ctx as any).newString = newStringImpl
 
-    let caught: unknown = null
+    let caught: unknown | null = null
     try {
       marshalIn(ctx, { a: 1 })
     } catch (e) {

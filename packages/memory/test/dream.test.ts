@@ -1942,7 +1942,7 @@ describe("Dream", () => {
       // after createDreamTool returns is null because intervalHours=0
       // short-circuits the setup before any setInterval runs.
       // SAFETY: invariant — see caller justification
-      const before = (createDreamTool as unknown as { _activeDreamState?: { cronTimer: ReturnType<typeof setInterval> | null } })._activeDreamState;
+      const before = (createDreamTool as { _activeDreamState?: { cronTimer: ReturnType<typeof setInterval> | null } })._activeDreamState;
       expect(before?.cronTimer ?? null).toBeNull();
       createDreamTool({
         enabled: true,

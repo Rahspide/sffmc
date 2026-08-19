@@ -18,7 +18,7 @@ import { WorkflowEventEmitter } from "../src/event-emitter.ts"
 describe("WorkflowEventEmitter — on()/emit() roundtrip", () => {
   test("on() registers a listener that fires on emit() with the payload", () => {
     const bus = new WorkflowEventEmitter()
-    let received: unknown = null
+    let received: unknown | null = null
     bus.on("workflow:started", (e) => {
       received = e
     })
@@ -191,7 +191,7 @@ describe("WorkflowEventEmitter — listener error isolation", () => {
 describe("WorkflowEventEmitter — payload shape (real workflow event names)", () => {
   test("delivers workflow:agent_failed payload with reason field", () => {
     const bus = new WorkflowEventEmitter()
-    let received: unknown = null
+    let received: unknown | null = null
     bus.on("workflow:agent_failed", (e) => {
       received = e
     })
@@ -205,7 +205,7 @@ describe("WorkflowEventEmitter — payload shape (real workflow event names)", (
 
   test("delivers workflow:step_checkpoint payload with stepIndex + costTokens", () => {
     const bus = new WorkflowEventEmitter()
-    let received: unknown = null
+    let received: unknown | null = null
     bus.on("workflow:step_checkpoint", (e) => {
       received = e
     })

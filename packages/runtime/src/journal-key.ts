@@ -17,7 +17,7 @@
 
 import { createHash } from "node:crypto"
 
-function canonical(value: unknown): unknown {
+function canonical(value: unknown) {
   if (value === null || typeof value !== "object") return value
   if (Array.isArray(value)) return value.map(canonical)
   // SAFETY: typeof === "object" + not Array narrowed by lines 21-22; remaining cases are object literals

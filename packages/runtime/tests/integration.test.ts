@@ -162,7 +162,7 @@ function makeSlowMockCtx(delayMs = 50): PluginContext {
   }
 }
 
-function makeCountingMockCtx(): { ctx: PluginContext; counts: { count: number } } {
+function makeCountingMockCtx() {
   const counts = { count: 0 }
   const ctx: PluginContext = {
     config: {},

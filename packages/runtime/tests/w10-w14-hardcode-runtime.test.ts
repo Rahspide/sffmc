@@ -77,9 +77,7 @@ describe(" resolveConfig uses SFFMC config maxLifecycleAgents", () => {
     __setWorkflowConfig(DEFAULT_WORKFLOW_EXTENDED_CONFIG)
     const runtime = new WorkflowRuntime(baseCtx, { persistence })
     // SAFETY: test uses reflection to access the private `resolveConfig` method; inline shape declares the documented return type
-    const cfg = (runtime as unknown as {
-      resolveConfig: () => { maxLifecycleAgents: number }
-    }).resolveConfig()
+    const cfg = (runtime as any).resolveConfig() as { maxLifecycleAgents: number }
     expect(cfg.maxLifecycleAgents).toBe(1000)
   })
 
@@ -90,9 +88,7 @@ describe(" resolveConfig uses SFFMC config maxLifecycleAgents", () => {
     })
     const runtime = new WorkflowRuntime(baseCtx, { persistence })
     // SAFETY: reflection pattern matches the previous resolveConfig test above
-    const cfg = (runtime as unknown as {
-      resolveConfig: () => { maxLifecycleAgents: number }
-    }).resolveConfig()
+    const cfg = (runtime as any).resolveConfig() as { maxLifecycleAgents: number }
     expect(cfg.maxLifecycleAgents).toBe(42)
   })
 
@@ -103,17 +99,13 @@ describe(" resolveConfig uses SFFMC config maxLifecycleAgents", () => {
     })
     let runtime = new WorkflowRuntime(baseCtx, { persistence })
     // SAFETY: reflection pattern matches the previous resolveConfig tests above
-    let cfg = (runtime as unknown as {
-      resolveConfig: () => { maxLifecycleAgents: number }
-    }).resolveConfig()
+    let cfg = (runtime as any).resolveConfig() as { maxLifecycleAgents: number }
     expect(cfg.maxLifecycleAgents).toBe(99)
 
     __setWorkflowConfig(null)
     runtime = new WorkflowRuntime(baseCtx, { persistence })
     // SAFETY: reflection pattern matches the previous resolveConfig tests above
-    cfg = (runtime as unknown as {
-      resolveConfig: () => { maxLifecycleAgents: number }
-    }).resolveConfig()
+    cfg = (runtime as any).resolveConfig() as { maxLifecycleAgents: number }
     expect(cfg.maxLifecycleAgents).toBe(1000) // DEFAULT
   })
 })
@@ -127,9 +119,7 @@ describe(" DEFAULT_MAX_CONCURRENT reads from SFFMC config", () => {
     __setWorkflowConfig(DEFAULT_WORKFLOW_EXTENDED_CONFIG)
     const runtime = new WorkflowRuntime(baseCtx, { persistence })
     // SAFETY: test uses reflection to access the private `globalSem` field; inline shape declares the documented { max } semaphore surface
-    const sem = (runtime as unknown as {
-      globalSem: { max: number }
-    }).globalSem
+    const sem = (runtime as any).globalSem as { max: number }
     // The default is 16, not the CPU-derived `min(16, 2*cpus)`. This
     // matches the pre-fix hardcoded value on 8+ core systems.
     expect(sem.max).toBe(16)
@@ -142,9 +132,7 @@ describe(" DEFAULT_MAX_CONCURRENT reads from SFFMC config", () => {
     })
     const runtime = new WorkflowRuntime(baseCtx, { persistence })
     // SAFETY: reflection pattern matches the default-maxConcurrentAgents test above
-    const sem = (runtime as unknown as {
-      globalSem: { max: number }
-    }).globalSem
+    const sem = (runtime as any).globalSem as { max: number }
     expect(sem.max).toBe(4)
   })
 
@@ -159,9 +147,7 @@ describe(" DEFAULT_MAX_CONCURRENT reads from SFFMC config", () => {
     })
     const runtime = new WorkflowRuntime(baseCtx, { persistence })
     // SAFETY: reflection pattern matches the default-maxConcurrentAgents test above
-    const sem = (runtime as unknown as {
-      globalSem: { max: number }
-    }).globalSem
+    const sem = (runtime as any).globalSem as { max: number }
     expect(sem.max).toBe(0)
   })
 })
@@ -175,9 +161,7 @@ describe(" resolveConfig uses SFFMC config maxDepth", () => {
     __setWorkflowConfig(DEFAULT_WORKFLOW_EXTENDED_CONFIG)
     const runtime = new WorkflowRuntime(baseCtx, { persistence })
     // SAFETY: reflection pattern matches the maxLifecycleAgents tests above; resolveConfig returns the documented shape with maxDepth
-    const cfg = (runtime as unknown as {
-      resolveConfig: () => { maxDepth: number }
-    }).resolveConfig()
+    const cfg = (runtime as any).resolveConfig() as { maxDepth: number }
     expect(cfg.maxDepth).toBe(8)
   })
 
@@ -188,9 +172,7 @@ describe(" resolveConfig uses SFFMC config maxDepth", () => {
     })
     const runtime = new WorkflowRuntime(baseCtx, { persistence })
     // SAFETY: reflection pattern matches the previous maxDepth test above
-    const cfg = (runtime as unknown as {
-      resolveConfig: () => { maxDepth: number }
-    }).resolveConfig()
+    const cfg = (runtime as any).resolveConfig() as { maxDepth: number }
     expect(cfg.maxDepth).toBe(3)
   })
 
@@ -273,7 +255,7 @@ describe(" launchScript memoryMB reads from SFFMC config", () => {
     // getter) at the runSandboxed call site, not a hardcoded value.
     // Use a multiline-aware regex (the runSandboxed call spans ~8 lines).
     // SAFETY: RegExp.match returns unknown (RegExpMatchArray | null); inline shape narrows to the captured group tuple
-    const launchScriptMatch = src.match(/runSandboxed\([\s\S]*?memoryMB:\s*([^\s,}\n]+)/) as unknown as [string, string] | null
+    const launchScriptMatch = src.match(/runSandboxed\([\s\S]*?memoryMB:\s*([^\s,}\n]+)/) as [string, string] | null
     expect(launchScriptMatch).not.toBeNull()
     if (launchScriptMatch) {
       expect(launchScriptMatch[1].trim()).toBe("getSandboxMemoryMB()")
@@ -296,9 +278,7 @@ describe(" resolveConfig uses SFFMC config, ctx.config is fallback only", () => 
     const runtime = new WorkflowRuntime(baseCtx, { persistence })
     runtime.setConfig({ maxSteps: 50, maxTokens: 2_000_000, maxWallClockMs: 3_600_000, perStepTimeoutMs: 120_000 })
     // SAFETY: reflection pattern matches the previous resolveConfig tests above; resolveConfig returns the documented shape with maxSteps + maxTokens
-    const cfg = (runtime as unknown as {
-      resolveConfig: () => { maxSteps: number; maxTokens: number }
-    }).resolveConfig()
+    const cfg = (runtime as any).resolveConfig() as { maxSteps: number; maxTokens: number }
     expect(cfg.maxSteps).toBe(50)
   })
 
@@ -312,9 +292,7 @@ describe(" resolveConfig uses SFFMC config, ctx.config is fallback only", () => 
     const runtime = new WorkflowRuntime(ctx, { persistence })
     runtime.setConfig({ maxSteps: 11, maxTokens: 22, maxWallClockMs: 33, perStepTimeoutMs: 44 })
     // SAFETY: reflection pattern matches the previous resolveConfig tests above; resolveConfig returns the documented shape with all four max-* fields
-    const cfg = (runtime as unknown as {
-      resolveConfig: () => { maxSteps: number; maxTokens: number; maxWallClockMs: number; perStepTimeoutMs: number }
-    }).resolveConfig()
+    const cfg = (runtime as any).resolveConfig() as { maxSteps: number; maxTokens: number; maxWallClockMs: number; perStepTimeoutMs: number }
     expect(cfg.maxSteps).toBe(11)
     expect(cfg.maxTokens).toBe(22)
     expect(cfg.maxWallClockMs).toBe(33)
@@ -366,20 +344,16 @@ describe(" resolveConfig uses SFFMC config, ctx.config is fallback only", () => 
     const runtime1 = new WorkflowRuntime(baseCtx, { persistence })
     runtime1.setConfig({ maxSteps: 33, maxTokens: 2_000_000, maxWallClockMs: 3_600_000, perStepTimeoutMs: 120_000 })
     // SAFETY: reflection pattern matches the previous resolveConfig tests above
-    const cfg1 = (runtime1 as unknown as {
-      resolveConfig: () => { maxSteps: number }
-    }).resolveConfig()
+    const cfg1 = (runtime1 as any).resolveConfig() as { maxSteps: number }
     expect(cfg1.maxSteps).toBe(33)
 
     // Now clear via setConfig(null) and verify a fresh runtime does NOT
     // carry the override.
     const runtime2 = new WorkflowRuntime(baseCtx, { persistence })
     // SAFETY: test uses reflection to call the private `setConfig(null)` to clear the override; inline shape declares the documented private surface
-    ;(runtime2 as unknown as { setConfig: (c: unknown) => void }).setConfig(null)
+    ;(runtime2 as any).setConfig(null)
     // SAFETY: reflection pattern matches the previous resolveConfig tests above
-    const cfg2 = (runtime2 as unknown as {
-      resolveConfig: () => { maxSteps: number }
-    }).resolveConfig()
+    const cfg2 = (runtime2 as any).resolveConfig() as { maxSteps: number }
     // After clearing, the next resolveConfig still reads from cache
     // (which is null) → ctx.config (empty {}) → DEFAULT.
     expect(cfg2.maxSteps).toBe(DEFAULT_WORKFLOW_CONFIG.maxSteps)
@@ -418,17 +392,13 @@ describe(" resolveConfig uses SFFMC config, ctx.config is fallback only", () => 
     expect(loadConfigCount).toBe(1)
 
     // And the cached promise field is non-null after both calls.
-    // SAFETY: test uses reflection to inspect the private `loadWorkflowConfigPromise` field; inline shape declares the documented private surface
-    const cached = (runtime as unknown as {
-      loadWorkflowConfigPromise: Promise<void> | null
-    }).loadWorkflowConfigPromise
+    // SAFETY: test uses reflection to inspect the private `loadWorkflowConfigPromise` field; `as any` is the documented escape hatch for accessing private surfaces
+    const cached = (runtime as any).loadWorkflowConfigPromise as Promise<void> | null
     expect(cached).not.toBeNull()
 
     // workflowConfig is populated.
     // SAFETY: reflection pattern matches the previous resolveConfig tests above
-    const cfg = (runtime as unknown as {
-      resolveConfig: () => { maxSteps: number }
-    }).resolveConfig()
+    const cfg = (runtime as any).resolveConfig() as { maxSteps: number }
     expect(cfg.maxSteps).toBeGreaterThan(0)
   })
 
@@ -439,16 +409,14 @@ describe(" resolveConfig uses SFFMC config, ctx.config is fallback only", () => 
     // fields: the spread auto-populates them.
     const runtime = new WorkflowRuntime(baseCtx, { persistence })
     runtime.setConfig({ maxSteps: 100 })
-    // SAFETY: reflection pattern matches the previous resolveConfig tests above; the inline shape declares the Required<...> return type for the exhaustive-defaults assertion
-    const resolved = (runtime as unknown as {
-      resolveConfig: () => Required<{
-        maxSteps: number
-        maxTokens: number
-        maxWallClockMs: number
-        perStepTimeoutMs: number
-        gracePeriodMs: number
-      }>
-    }).resolveConfig()
+    // SAFETY: reflection pattern matches the previous resolveConfig tests above; `as any` is the documented escape hatch; the inline shape declares the Required<...> return type for the exhaustive-defaults assertion
+    const resolved = (runtime as any).resolveConfig() as Required<{
+      maxSteps: number
+      maxTokens: number
+      maxWallClockMs: number
+      perStepTimeoutMs: number
+      gracePeriodMs: number
+    }>
     expect(resolved.maxSteps).toBe(100) // the override
     // Non-overridden fields fall through to DEFAULT_WORKFLOW_CONFIG.
     expect(resolved.maxTokens).toBe(DEFAULT_WORKFLOW_CONFIG.maxTokens)

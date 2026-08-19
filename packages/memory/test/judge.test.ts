@@ -816,7 +816,7 @@ describe("createJudgeTool auto-judge hook (judge_auto: true)", () => {
     expect(transform).toBeTypeOf("function");
     if (!transform) throw new Error("expected transform");
 
-    const data: { messages: Array<{ role: string; content: string }> } = {
+    const data = {
       messages: [
         { role: "user", content: "do something" },
         {
@@ -855,7 +855,7 @@ describe("createJudgeTool auto-judge hook (judge_auto: true)", () => {
     });
     const transform = hooks["experimental.chat.messages.transform"];
     if (!transform) throw new Error("expected transform");
-    const data: { messages: Array<{ role: string; content: string }> } = {
+    const data = {
       messages: [
         { role: "user", content: "just a question, no marker here" },
         { role: "assistant", content: "and no marker in the assistant message either" },
@@ -887,7 +887,7 @@ describe("createJudgeTool auto-judge hook (judge_auto: true)", () => {
     });
     const transform = hooks["experimental.chat.messages.transform"];
     if (!transform) throw new Error("expected transform");
-    const data: { messages: Array<{ role: string; content: string }> } = {
+    const data = {
       messages: [
         {
           role: "assistant",

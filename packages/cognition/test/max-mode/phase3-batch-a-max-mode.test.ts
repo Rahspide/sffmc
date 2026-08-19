@@ -150,8 +150,7 @@ describe("max-mode dream integration — judgeCandidates uses configured fallbac
     const verdict = await judgeCandidates(
       candidates,
       "test-model",
-      // SAFETY: test mock — empty ctx triggers fallback; cast to Parameters<typeof judgeCandidates>[2] for signature compat
-      {} as unknown as Parameters<typeof judgeCandidates>[2],
+      {} satisfies Parameters<typeof judgeCandidates>[2],
       8000,    // judgeDraftMaxChars (max-mode chokidar migration)
       0.5,     // fallbackConfidence (max-mode dream integration)
     );
@@ -163,10 +162,10 @@ describe("max-mode dream integration — judgeCandidates uses configured fallbac
     const mockMessage = async () => {
       throw new Error("network error");
     };
-    // SAFETY: test mock — ctx cast to Parameters<typeof judgeCandidates>[2] for signature compat
+    // SAFETY: test mock — ctx shape narrowed via satisfies; no annotation, single inference
     const ctx = {
       client: { session: { message: mockMessage } },
-    } as unknown as Parameters<typeof judgeCandidates>[2];
+    } satisfies Parameters<typeof judgeCandidates>[2];
 
     const verdict = await judgeCandidates(
       candidates,
@@ -183,10 +182,10 @@ describe("max-mode dream integration — judgeCandidates uses configured fallbac
       content: [{ type: "text" as const, text: "I pick number 2!" }],
       usage: { totalTokens: 50 },
     });
-    // SAFETY: test mock — ctx cast to Parameters<typeof judgeCandidates>[2] for signature compat
+    // SAFETY: test mock — ctx shape narrowed via satisfies; no annotation, single inference
     const ctx = {
       client: { session: { message: mockMessage } },
-    } as unknown as Parameters<typeof judgeCandidates>[2];
+    } satisfies Parameters<typeof judgeCandidates>[2];
 
     const verdict = await judgeCandidates(
       candidates,
@@ -210,10 +209,10 @@ describe("max-mode dream integration — judgeCandidates uses configured fallbac
       ],
       usage: { totalTokens: 50 },
     });
-    // SAFETY: test mock — ctx cast to Parameters<typeof judgeCandidates>[2] for signature compat
+    // SAFETY: test mock — ctx shape narrowed via satisfies; no annotation, single inference
     const ctx = {
       client: { session: { message: mockMessage } },
-    } as unknown as Parameters<typeof judgeCandidates>[2];
+    } satisfies Parameters<typeof judgeCandidates>[2];
 
     const verdict = await judgeCandidates(
       candidates,
@@ -239,8 +238,8 @@ describe("max-mode dream integration — judgeCandidates default fallbackConfide
     const verdict = await judgeCandidates(
       candidates,
       "test-model",
-      // SAFETY: test mock — empty ctx triggers fallback; cast to Parameters<typeof judgeCandidates>[2] for signature compat
-      {} as unknown as Parameters<typeof judgeCandidates>[2],
+      // SAFETY: test mock — empty ctx triggers fallback; satisfies validates signature compat
+      {} satisfies Parameters<typeof judgeCandidates>[2],
     );
     expect(verdict.winner).toBe(1);
     expect(verdict.confidence).toBe(0.3);
@@ -250,8 +249,8 @@ describe("max-mode dream integration — judgeCandidates default fallbackConfide
     const verdict = await judgeCandidates(
       candidates,
       "test-model",
-      // SAFETY: test mock — empty ctx triggers fallback; cast to Parameters<typeof judgeCandidates>[2] for signature compat
-      {} as unknown as Parameters<typeof judgeCandidates>[2],
+      // SAFETY: test mock — empty ctx triggers fallback; satisfies validates signature compat
+      {} satisfies Parameters<typeof judgeCandidates>[2],
       4000,    // judgeDraftMaxChars
       // fallbackConfidence omitted → 0.3
     );
