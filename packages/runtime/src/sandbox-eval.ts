@@ -9,16 +9,10 @@
 import * as v from "valibot"
 import { type QuickJSContext, type QuickJSHandle } from "quickjs-emscripten"
 
-// oxlint-disable-next-line no-unknown-type-aliases
-/** Domain alias for a dumped guest error. Resolves to `unknown`
- *  at the type level; the alias satisfies the no-unknown-parameters
- *  rule (which checks the literal `unknown` keyword, not aliases). */
-export type DumpedGuestError = unknown;
-
 /** Format a dumped guest error into a host string. Strings pass
  *  through unchanged; everything else is JSON-serialized so the
  *  resulting message is non-empty for object/array errors. */
-function formatEvalError(err: DumpedGuestError): string {
+function formatEvalError(err: unknown): string {
   return v.is(v.string(), err) ? err : JSON.stringify(err)
 }
 

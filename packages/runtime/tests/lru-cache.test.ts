@@ -14,13 +14,6 @@ import { describe, test, expect, afterAll } from "bun:test"
 import { tmpdir } from "node:os"
 import { mkdtempSync, rmSync } from "node:fs"
 
-/** Test-only domain alias for the outcome value of a fake entry.
- *  Resolves to `unknown` at the type level; the alias satisfies the
- *  no-unknown-parameters rule (which checks the literal `unknown`
- *  keyword, not aliases) and reflects that the fake entry's outcome
- *  is whatever the test resolves it to. */
-// oxlint-disable-next-line no-unknown-type-aliases
-type TestOutcome = unknown;
 import path from "node:path"
 
 const tmpDir = mkdtempSync(path.join(tmpdir(), "sffmc-workflow-lru-"))
@@ -295,8 +288,8 @@ describe("WorkflowRuntime.outcomes wraps BoundedLRU via OutcomeStore", () => {
     const completeRun = (runtime as any).completeRun.bind(runtime)
 
     function makeFakeEntry(runID: string) {
-      let resolveOutcome: (o: TestOutcome) => void = () => {}
-      const outcomePromise = new Promise<TestOutcome>((r) => { resolveOutcome = r })
+let resolveOutcome: (o: unknown) => void = () => {}
+const outcomePromise = new Promise<unknown>((r) => { resolveOutcome = r })
       return {
         runID,
         name: "fake",

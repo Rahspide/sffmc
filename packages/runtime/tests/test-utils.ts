@@ -19,8 +19,7 @@ type LlmArgValue =
   | LlmArgPrimitive[]
   | { [key: string]: LlmArgValue }
   | undefined;
-// oxlint-disable-next-line no-shape-in-symbol-names
-type LLMCallArgsShape = { [key: string]: LlmArgValue };
+type LLMCallArgsForm = { [key: string]: LlmArgValue };
 
 /** Mock PluginContext with NO LLM client. Used by callLLM fallback tests
  *  (runtime.ts:803-804 — returns the "no LLM client available" message). */
@@ -44,9 +43,8 @@ export function makeToolsSpyCtx(): PluginContext & {
     config: {},
     calls,
     client: {
-      // oxlint-disable-next-line no-shape-in-symbol-names
       session: {
-        message: async (args: LLMCallArgsShape) => {
+        message: async (args: LLMCallArgsForm) => {
           calls.push({
             messages: args.messages,
             // SAFETY: args.model is unknown; string | undefined is the documented LLM SDK call.model parameter type

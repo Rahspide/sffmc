@@ -8,17 +8,6 @@ import path from "node:path"
 
 import { makeNoClientCtx, makeToolsSpyCtx } from "./test-utils.ts"
 
-/** Test-only domain aliases — resolve to `unknown` at the type level
- *  but provide a domain-named anchor that satisfies the
- *  no-unknown-parameters rule (which checks the literal `unknown`
- *  keyword, not aliases). */
-// oxlint-disable-next-line no-unknown-type-aliases
-type TestEntry = unknown;
-// oxlint-disable-next-line no-unknown-type-aliases
-type TestResolveOutcomeArg = unknown;
-// oxlint-disable-next-line no-unknown-type-aliases
-type TestFlushNowArg = unknown;
-
 // ── Setup ──────────────────────────────────────────────────────────────────
 // One shared tmpDir + persistence for the whole file. Each test gets a fresh
 // runID and a fresh WorkflowRuntime instance. Runtimes are NOT closed (would
@@ -190,11 +179,11 @@ describe("failRun() budget_exceeded pattern matching", () => {
   test("failRun sets status to budget_exceeded when error matches budget/deadline pattern", () => {
     const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
     // SAFETY: test uses reflection to access the private `failRun` method; `as any` is the documented escape hatch (called via .bind to preserve `this`)
-    const failRun = (runtime as any).failRun.bind(runtime) as (entry: TestEntry, error: string | Error) => void
+    const failRun = (runtime as any).failRun.bind(runtime) as (entry: unknown, error: string | Error) => void
 
     function makeFakeEntry(runID: string) {
-      let resolveOutcome: (o: TestResolveOutcomeArg) => void = () => {}
-      const outcomePromise = new Promise<TestResolveOutcomeArg>((r) => { resolveOutcome = r })
+let resolveOutcome: (o: unknown) => void = () => {}
+const outcomePromise = new Promise<unknown>((r) => { resolveOutcome = r })
       return {
         runID,
         name: "fake",
@@ -310,7 +299,7 @@ describe("scheduleFlush / flushNow DB counter flush", () => {
     // test reads it via a narrow type cast to keep the test-side
     // dependency minimal (no need to import FlushManager).
     // SAFETY: test uses reflection to access the public `flushManager` field's `flushNow` method; `as any` is the documented escape hatch (called via .bind to preserve `this`)
-    const flushNow = (runtime.flushManager as any).flushNow.bind(runtime.flushManager) as (e: TestFlushNowArg) => void
+    const flushNow = (runtime.flushManager as any).flushNow.bind(runtime.flushManager) as (e: unknown) => void
 
     // Use a real runID (the one we just created) so the UPDATE matches
     // a row. Build a minimal entry with undefined counters.

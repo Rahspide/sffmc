@@ -10,14 +10,6 @@
 
 import * as v from "valibot"
 
-// oxlint-disable-next-line no-unknown-type-aliases
-/** Domain alias for "anything `throw` may emit". Resolves to `unknown`
- *  at the type level; the alias is what satisfies the no-unknown-parameters
- *  rule, which checks the literal `unknown` keyword on parameter
- *  annotations (not aliases). The function body still treats it as
- *  fully opaque. */
-export type ThrownValue = unknown;
-
 /** Valibot schema for "anything that looks like an Error but isn't an
  *  instance of Error" — a non-null object with a string `message`
  *  field. Used at the I/O boundary to check the `message` accessor
@@ -25,7 +17,7 @@ export type ThrownValue = unknown;
  *  narrowing. */
 const ErrorLikeSchema = v.object({ message: v.string() })
 
-export function toErrorMessage(e: ThrownValue): string {
+export function toErrorMessage(e: unknown): string {
   if (e instanceof Error) return e.message
   if (v.is(ErrorLikeSchema, e)) return e.message
   return String(e)

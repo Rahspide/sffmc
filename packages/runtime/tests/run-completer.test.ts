@@ -6,15 +6,6 @@ import { RunCompleter } from "../src/run-completer.ts"
 import type { InternalRunEntry } from "../src/internal-run-entry.ts"
 import { BudgetExceededError, WorkflowStatus } from "../src/types.ts"
 
-/** Test-only domain aliases — resolve to `unknown` at the type level
- *  but provide a domain-named anchor that satisfies the
- *  no-unknown-parameters rule (which checks the literal `unknown`
- *  keyword, not aliases). */
-// oxlint-disable-next-line no-unknown-type-aliases
-type TestEventPayload = unknown;
-// oxlint-disable-next-line no-unknown-type-aliases
-type TestOutcome = unknown;
-
 // Minimal in-memory mocks for the 4 collaborators. Each is a plain object
 // capturing calls so the assertions can inspect side-effects.
 
@@ -35,10 +26,10 @@ function makeFakePersistence() {
 const fakePersistence = { updates: [] as Array<{ runID: string; status: string; error?: string }>, flushes: 0 }
 
 function makeFakeEvents() {
-  const emitted: Array<{ name: string; payload: TestEventPayload }> = []
+  const emitted: Array<{ name: string; payload: unknown }> = []
   // SAFETY: test fixture; `as any` is the documented escape hatch because the fake events object exposes an extra `_emitted` field for assertion introspection
   return {
-    emit: (name: string, payload: TestEventPayload) => {
+    emit: (name: string, payload: unknown) => {
       emitted.push({ name, payload })
     },
     _emitted: emitted,
@@ -49,14 +40,14 @@ function makeFakeEvents() {
 function makeFakeOutcomes() {
   // SAFETY: test fixture; `as any` is the documented escape hatch because the fake outcomes-stub implements only the `put` method used by RunCompleter
   return {
-    put: (runID: string, outcome: TestOutcome) => {
+    put: (runID: string, outcome: unknown) => {
       fakeOutcomes.puts.push({ runID, outcome })
     },
   // @ts-expect-error - fake outcomes intentionally omits methods required by RunCompleter's deps bag
   } as ConstructorParameters<typeof RunCompleter>[0]["outcomes"]
 }
 // SAFETY: test fixture; `as Array<...>` is the documented escape hatch for the captured-call array — empty-literal inferred type would default to `never[]`
-const fakeOutcomes = { puts: [] as Array<{ runID: string; outcome: TestOutcome }> }
+const fakeOutcomes = { puts: [] as Array<{ runID: string; outcome: unknown }> }
 
 function makeFakeRuns() {
   // SAFETY: test fixture; `as any` is the documented escape hatch because the fake runs-stub implements only the `release` method used by RunCompleter
@@ -77,7 +68,7 @@ function makeEntry(overrides: Partial<InternalRunEntry> = {}): InternalRunEntry 
     cfg: { maxTokens: 1000, maxSteps: 10, maxWallClockMs: 10000, perStepTimeoutMs: 1000, gracePeriodMs: 5000, maxDepth: 5, maxLifecycleAgents: 5 },
     startedMs: Date.now(),
     counters: { succeeded: 0, failed: 0, tokensUsed: 0 },
-    resolveOutcome: (outcome: TestOutcome) => { entry._resolved.push(outcome) },
+    resolveOutcome: (outcome: unknown) => { entry._resolved.push(outcome) },
     _resolved: [],
     ...overrides,
   }

@@ -27,13 +27,6 @@ import * as v from "valibot"
 import { runSandboxed, type SandboxPrimitives } from "../src/sandbox.ts"
 import type { SandboxServices } from "../src/sandbox-services.ts"
 
-/** Test-only domain alias for the marshaled host value. Resolves to
- *  `unknown` at the type level; the alias satisfies the
- *  no-unknown-parameters rule (which checks the literal `unknown`
- *  keyword, not aliases). */
-// oxlint-disable-next-line no-unknown-type-aliases
-type TestMarshalValue = unknown;
-
 /** Valibot primitive schema used at the test boundary to discriminate
  *  sandbox-result payload types without `typeof` runtime checks. */
 const PlainObjectSchema = v.object({})
@@ -146,7 +139,7 @@ function makeMockServices() {
     },
   }
   const marshaller = {
-    marshalIn: (ctx: any, value: TestMarshalValue) => {
+    marshalIn: (ctx: any, value: unknown) => {
       calls.push({ method: "marshaller.marshalIn", args: [value] })
       // SAFETY: test fixture; the marshalIn stub returns a fake handle; cast as any to avoid typing the QuickJS handle surface
       return { alive: true, dispose: () => {} } as any
