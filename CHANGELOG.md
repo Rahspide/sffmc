@@ -37,6 +37,13 @@ All notable changes to SFFMC are documented here. Dates use `YYYY-MM-DD`.
 - **Version bump**. All 5 packages at `0.16.4`; root at `0.16.4`. Workspace pins
   and `bun.lock` regenerated.
 
+- **README redesign (English + Russian)** -- new front page with centered logo,
+  TL;DR install block, comparison table, package table with per-package npm
+  badges, three install options (npm / one-liner / from source), CLI reference,
+  architecture diagram, safety-gate demo gif, quality gates table, contribution
+  quickstart. New brand assets under `docs/assets/`: `logo.svg`, `logo-mark.svg`,
+  `architecture.svg`, `demo-safety-rm-rf.gif`.
+
 ### Fixed
 
 - **SQLite UPDATE parameter count bug in `runs.ts:106`**: the query had 4
@@ -51,7 +58,7 @@ All notable changes to SFFMC are documented here. Dates use `YYYY-MM-DD`.
 ### Stats
 
 - 178 files changed, +2965 / -1267 vs `main`.
-- Test count: 1964 tests across 88 files.
+- Test count: 1946 tests across 109 files (per-file runner).
 - Pre-commit 7-gate chain green across all commits.
 
 ## v0.16.3 (2026-08-15)
