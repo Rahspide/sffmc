@@ -17,25 +17,25 @@ import { launchScript, SCRIPT_SUFFIX } from "../src/script-launcher.ts"
 import { WorkspaceJail } from "../src/workspace.ts"
 import { makeEntry } from "../src/internal-run-entry.ts"
 import { DEFAULT_WORKFLOW_CONFIG } from "../src/types.ts"
+import type { JsonValue } from "../src/runs.ts"
+import type { SandboxPrimitives } from "../src/sandbox.ts"
 
 interface CapturedCall {
   source: string
-  primitives: Record<string, unknown>
+  primitives: SandboxPrimitives
   options: { memoryMB: number; deadlineMs: number; seed: number }
 }
 
 let captured: CapturedCall | null = null
 const fakeRunSandboxed = mock(async (
   source: string,
-  primitives: unknown,
-  options: unknown,
-): Promise<unknown> => {
+  primitives: SandboxPrimitives,
+  options: { memoryMB: number; deadlineMs: number; seed: number },
+): Promise<JsonValue> => {
   captured = {
     source,
-    // SAFETY: launchScript mock signature declares primitives as unknown; Record<string, unknown> is the documented shape for the captured primitives bag
-    primitives: primitives as Record<string, unknown>,
-    // SAFETY: options is unknown; CapturedCall["options"] is the documented options shape captured for the test assertion
-    options: options as CapturedCall["options"],
+    primitives,
+    options,
   }
   return "sentinel-result"
 })
@@ -169,11 +169,11 @@ describe("script-launcher.launchScript", () => {
     await launchScript(deps, entry, script, "x", [], jail)
     // Call each primitive and verify it routes to the injected dep.
     const { primitives } = captured!
-    // SAFETY: primitives.agent is the documented (task) => Promise<unknown> primitive signature from the launchScript mock
-    await (primitives.agent as (t: string) => Promise<unknown>)("task")
+    // SAFETY: primitives.agent is the documented (task) => Promise<JsonValue> primitive signature from the launchScript mock
+    await (primitives.agent as (t: string) => Promise<JsonValue>)("task")
     expect(deps.spawnAgent).toHaveBeenCalledTimes(1)
-    // SAFETY: primitives.parallel is the documented <T>(thunks) => Promise<unknown> primitive signature from the launchScript mock
-    await (primitives.parallel as <T>(t: Array<() => Promise<T>>) => Promise<unknown>)([])
+    // SAFETY: primitives.parallel is the documented <T>(thunks) => Promise<JsonValue> primitive signature from the launchScript mock
+    await (primitives.parallel as <T>(t: Array<() => Promise<T>>) => Promise<JsonValue>)([])
     expect(deps.runParallel).toHaveBeenCalledTimes(1)
     // `phase` is the guest-side name; it routes to the injected setPhase.
     // SAFETY: primitives.phase is the documented (title) => void primitive signature from the launchScript mock

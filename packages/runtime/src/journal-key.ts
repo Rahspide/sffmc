@@ -16,23 +16,31 @@
 // objects and reduces GC pressure by 1 allocation per object level.
 
 import { createHash } from "node:crypto"
+import type { JsonValue } from "./runs.ts"
 
-function canonical(value: unknown) {
+/** Recursively canonicalize a JSON value for stable hashing. Returns
+ *  the input unchanged for primitives/arrays (objects get a sorted-
+ *  key re-emission so key order does not perturb the hash). */
+function canonical(value: JsonValue) {
   if (value === null || typeof value !== "object") return value
   if (Array.isArray(value)) return value.map(canonical)
   // SAFETY: typeof === "object" + not Array narrowed by lines 21-22; remaining cases are object literals
-  const rec = value as Record<string, unknown>
+  const rec = value as { [k: string]: JsonValue }
   const sortedKeys = Object.keys(rec).sort()
-  const result: Record<string, unknown> = {}
+  const result: { [k: string]: JsonValue } = {}
   for (const k of sortedKeys) {
     result[k] = canonical(rec[k])
   }
   return result
 }
 
+/** Build the stable hash of `(prompt, opts)` for journal dedup. The
+ *  opts are accepted as `Record<string, JsonValue>` — caller-side
+ *  casts narrow `AgentOptions` fields into the JSON-compatible shape
+ *  the hashing path expects. */
 export function journalKeyBase(
   prompt: string,
-  opts: { agentType?: string; model?: unknown; schema?: unknown; phase?: string; [k: string]: unknown },
+  opts: { agentType?: string; model?: JsonValue; schema?: JsonValue; phase?: string; [k: string]: JsonValue },
 ): string {
   const material = canonical({
     prompt,
@@ -46,7 +54,7 @@ export function journalKeyBase(
 
 export function journalKey(
   prompt: string,
-  opts: { agentType?: string; model?: unknown; schema?: unknown; phase?: string; [k: string]: unknown },
+  opts: { agentType?: string; model?: JsonValue; schema?: JsonValue; phase?: string; [k: string]: JsonValue },
   occ: number,
 ): string {
   return journalKeyBase(prompt, opts) + ":" + occ

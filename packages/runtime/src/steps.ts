@@ -10,6 +10,7 @@
 import { safeRunID, unixNow } from "@sffmc/utilities"
 import type { WorkflowStep } from "./types.ts"
 import type { Database } from "bun:sqlite"
+import type { SqliteRow } from "./runs.ts"
 
 export class StepsRepository {
   constructor(private readonly db: Database) {}
@@ -58,10 +59,8 @@ export class StepsRepository {
   loadCompletedSteps(runID: string): WorkflowStep[] {
     safeRunID(runID)
     const rows = this.db
-      // SAFETY: bun:sqlite query() returns unknown; Record<string, unknown>[] is the schema for SELECT * result rows
       .query("SELECT * FROM workflow_steps WHERE run_id = ? ORDER BY step_index")
-      // SAFETY: bun:sqlite .all() returns unknown; Record<string, unknown>[] re-states the SELECT * row shape for the typed assignment
-      .all(runID) as Record<string, unknown>[]
+      .all(runID) as SqliteRow[]
     return rows.map((row) => ({
       // SAFETY: row comes from SELECT * on workflow_steps (typed schema); `run_id` column is TEXT NOT NULL
       runID: row.run_id as string,

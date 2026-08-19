@@ -106,7 +106,7 @@ function __setHealthConfig(cfg: HealthConfig | null): void {
 
 const __SET_HEALTH_CONFIG_SYMBOL = Symbol.for("@sffmc/cognition.__setHealthConfig")
 // SAFETY: invariant — globalThis cast required for Symbol-keyed plugin registry
-;(globalThis as Record<symbol, unknown>)[__SET_HEALTH_CONFIG_SYMBOL] = __setHealthConfig
+;(globalThis as Record<symbol, typeof __setHealthConfig>)[__SET_HEALTH_CONFIG_SYMBOL] = __setHealthConfig
 
 /** Sync accessor — returns the cached config or the defaults if the YAML
  *  hasn't been loaded yet. Use this in hot paths where awaiting is not

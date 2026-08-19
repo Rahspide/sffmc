@@ -11,8 +11,31 @@
 // token) is extended with a per-run MCP-call cap so a runaway guest cannot
 // exhaust the parent's MCP quota.
 
+import * as v from "valibot"
 import { toErrorMessage } from "./errors.ts"
 import { DEFAULT_MAX_MCP_CALLS, type McpCallRecord } from "./mcp-types.ts"
+import type { JsonValue } from "./runs.ts"
+
+/** Valibot schema for the `args` payload passed to an MCP tool call.
+ *  Recursive JSON-value shape (string/number/boolean/null/array/object)
+ *  matching the sandbox-side representation. The schema is the I/O
+ *  boundary contract: callers that produce `args` parse through this
+ *  before the bridge methods receive it. */
+export const McpArgsSchema: v.GenericSchema<unknown, JsonValue> = v.lazy(() =>
+  v.union([
+    v.string(),
+    v.number(),
+    v.boolean(),
+    v.null(),
+    v.array(McpArgsSchema),
+    v.record(v.string(), McpArgsSchema),
+  ]),
+)
+
+/** Structured shape of the `args` payload passed to an MCP tool call.
+ *  Concrete alternative to `unknown` at the I/O boundary so callers can
+ *  pass arbitrary JSON-serializable data without an `unknown` escape. */
+type McpArgs = v.InferOutput<typeof McpArgsSchema>
 
 /** Sentinel for the recursive-guard. A `WeakSet<runID>` of runs that are
  *  CURRENTLY inside an MCP call dispatched from inside a workflow agent — when
@@ -59,7 +82,7 @@ export class McpBridge {
   }
 
   /** Record a successful MCP call. */
-  recordCall(name: string, args: unknown): void {
+  recordCall(name: string, args: McpArgs): void {
     this.callCount++
     this.pushRecord({ name, args, startedMs: 0, status: "ok" })
   }
@@ -67,14 +90,14 @@ export class McpBridge {
   /** Record a failed MCP call (still increments callCount — the call DID happen,
    *  it just errored). Use `recordRejected` when the call was BLOCKED before
    *  being dispatched. */
-  recordError(name: string, args: unknown, error: string): void {
+  recordError(name: string, args: McpArgs, error: string): void {
     this.callCount++
     this.pushRecord({ name, args, startedMs: 0, status: "error", error })
   }
 
   /** Record a call that was BLOCKED (recursion or budget) — does NOT increment
    *  callCount, increments rejectedCount instead. */
-  recordRejected(name: string, args: unknown, reason: string): void {
+  recordRejected(name: string, args: McpArgs, reason: string): void {
     this.rejectedCount++
     this.pushRecord({ name, args, startedMs: 0, status: "rejected", error: reason })
   }
@@ -113,7 +136,7 @@ export class McpBridge {
  *  Returned shape:
  *    - `list()` — read-only metadata (not budget-tracked)
  *    - `call(name, args)` — single-shot dispatch with budget + recursion
- *    - `bind(name)` — returns a `(args) => Promise<unknown>` callable that
+ *    - `bind(name)` — returns a `(args) => Promise<McpArgs>` callable that
  *      forwards to `call()`. Lets scripts grab a typed handle once and
  *      invoke it directly, without re-passing the tool name.
  *    - `bindAll()` — `bind()` for every tool in the parent's registry,
@@ -121,7 +144,7 @@ export class McpBridge {
  *      `const { github_search } = await mcp.bindAll()` style destructuring. */
 export function makeMcpPrimitives(
   bridge: McpBridge,
-  dispatch: (name: string, args: unknown) => Promise<unknown>,
+  dispatch: (name: string, args: McpArgs) => Promise<McpArgs>,
 ) {
   return {
     /** Return the parent's MCP tool list (read-only). Resolved at call-time
@@ -135,7 +158,7 @@ export function makeMcpPrimitives(
 
     /** Dispatch a single MCP call. Recursion-safe: enterDispatch() guards
      *  against an MCP tool that synchronously triggers another MCP call. */
-    async call(name: string, args: unknown): Promise<unknown> {
+    async call(name: string, args: McpArgs): Promise<McpArgs> {
       const rejection = bridge.checkBudget()
       if (rejection !== null) {
         bridge.recordRejected(name, args, rejection)
@@ -168,16 +191,16 @@ export function makeMcpPrimitives(
      *  underlying `dispatch()` returns a meaningful error for unknown
      *  tools, so we let that propagate rather than introducing a parallel
      *  validation step that could drift. */
-    bind(name: string): (args: unknown) => Promise<unknown> {
-      return (args: unknown) => this.call(name, args)
+    bind(name: string): (args: McpArgs) => Promise<McpArgs> {
+      return (args: McpArgs) => this.call(name, args)
     },
 
     /** Bind every tool in the parent's registry. Re-fetches the list on
      *  every call so the result reflects the parent's current tool set
      *  (tools can be added/removed at runtime via the SDK). */
-    async bindAll(): Promise<Record<string, (args: unknown) => Promise<unknown>>> {
+    async bindAll(): Promise<Record<string, (args: McpArgs) => Promise<McpArgs>>> {
       const names = await this.list()
-      const out: Record<string, (args: unknown) => Promise<unknown>> = {}
+      const out: Record<string, (args: McpArgs) => Promise<McpArgs>> = {}
       for (const name of names) {
         out[name] = this.bind(name)
       }
@@ -185,8 +208,8 @@ export function makeMcpPrimitives(
     },
   } satisfies {
     list: () => Promise<string[]>
-    call: (name: string, args: unknown) => Promise<unknown>
-    bind: (name: string) => (args: unknown) => Promise<unknown>
-    bindAll: () => Promise<Record<string, (args: unknown) => Promise<unknown>>>
+    call: (name: string, args: McpArgs) => Promise<McpArgs>
+    bind: (name: string) => (args: McpArgs) => Promise<McpArgs>
+    bindAll: () => Promise<Record<string, (args: McpArgs) => Promise<McpArgs>>>
   }
 }

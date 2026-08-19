@@ -9,6 +9,7 @@
 // live in `./meta-parser.ts`. This file keeps the public `parseMeta`
 // surface unchanged.
 
+import * as v from "valibot"
 import { findBalancedClose, parseDataLiteral } from "./meta-parser.ts"
 
 export interface Meta {
@@ -22,6 +23,33 @@ export interface Meta {
 export type ParseResult =
   | { ok: true; meta: Meta; body: string }
   | { ok: false; error: string }
+
+/** Concrete shape of the parsed meta object before field-level validation:
+ *  every field is a known name with a known value type. Used in place of
+ *  `Record<string, unknown>` so the I/O boundary carries typed evidence. */
+export interface MetaMap {
+  name: string
+  description: string
+  whenToUse?: string
+  phases?: Array<{ title: string; detail?: string }>
+  model?: string
+  [key: string]: string | string[] | { title: string; detail?: string } | { title: string; detail?: string }[] | undefined
+}
+
+/** Valibot schema for the parsed meta object. Used as the contract for
+ *  `parseDataLiteral`'s output once it has been narrowed to an object
+ *  literal (see `parseMeta` below). The schema accepts any extra keys so
+ *  future workflow metadata can be added without breaking older scripts. */
+export const MetaMapSchema = v.object({
+  name: v.string(),
+  description: v.string(),
+  whenToUse: v.optional(v.string()),
+  phases: v.optional(v.array(v.object({
+    title: v.string(),
+    detail: v.optional(v.string()),
+  }))),
+  model: v.optional(v.string()),
+}) satisfies v.GenericSchema<MetaMap>
 
 const META_START_RE = /export\s+const\s+meta\s*=\s*/
 
@@ -45,8 +73,8 @@ export function parseMeta(script: string): ParseResult {
   if (typeof meta !== "object" || meta === null || Array.isArray(meta)) {
     return { ok: false, error: "meta must be an object" }
   }
-  // SAFETY: typeof === "object" && !== null && !isArray narrowed by lines 45-46 guard
-  const m = meta as Record<string, unknown>
+  // SAFETY: typeof === "object" && !== null && !isArray narrowed by lines 45-46 guard; cast is the documented boundary between `parseDataLiteral`'s `unknown` return and `Meta`'s typed shape
+  const m = meta as MetaMap
   if (typeof m.name !== "string" || !m.name) {
     return { ok: false, error: "meta.name (non-empty string) is required" }
   }
@@ -56,6 +84,6 @@ export function parseMeta(script: string): ParseResult {
   const endIndex = close + 1 + (script[close + 1] === ";" ? 1 : 0)
   const matched = script.slice(start.index, endIndex)
   const body = script.slice(0, start.index) + matched.replace(/[^\n]/g, " ") + script.slice(endIndex)
-  // SAFETY: fields are validated individually on lines 50-54 (name/description strings) and the structural mismatch (Record<string, unknown> vs Meta) is closed by manual field validation
+  // SAFETY: fields are validated individually on lines 50-54 (name/description strings) and the structural mismatch (MetaMap vs Meta) is closed by manual field validation
   return { ok: true, meta: m as Meta, body }
 }

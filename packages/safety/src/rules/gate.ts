@@ -3,6 +3,20 @@ import { compileRules, type CompiledRule, type Rules } from "./rules";
 import { normalizeCommand } from "./normalize";
 import { anchoredTest } from "./compileRules";
 
+/** Tool-call arguments relevant to the safety gate. Only the keys the
+ *  gate actually inspects (command for `bash`, file paths for
+ *  `path_outside` checks) are typed; other tool-specific fields are
+ *  not part of the gate's contract. */
+export interface ToolArgs {
+  command?: string;
+  filePath?: string;
+  path?: string;
+  paths?: string[] | string;
+  from?: string;
+  to?: string;
+  workdir?: string;
+}
+
 /**
  * Evaluate a tool call against the rule list. Accepts either:
  *   - a pre-compiled list (`CompiledRule[]`) — the hot path, produced by
@@ -32,7 +46,7 @@ import { anchoredTest } from "./compileRules";
 export function evaluate(
   rulesInput: CompiledRule[] | Rules,
   toolName: string,
-  args: Record<string, unknown> | undefined,
+  args: ToolArgs | undefined,
   projectRoot: string,
 ) {
   try {
@@ -132,11 +146,11 @@ function isRules(input: CompiledRule[] | Rules): input is Rules {
   return !Array.isArray(input) && typeof input === "object" && "rules" in input;
 }
 
-function extractPaths(args: Record<string, unknown> | undefined): string[] {
+function extractPaths(args: ToolArgs | undefined): string[] {
   const paths: string[] = [];
   if (!args || typeof args !== "object") return paths;
 
-  const pathKeys = ["filePath", "path", "paths", "from", "to", "workdir"];
+  const pathKeys: (keyof ToolArgs)[] = ["filePath", "path", "paths", "from", "to", "workdir"];
   for (const pathKey of pathKeys) {
     const argValue = args[pathKey];
     if (typeof argValue === "string") paths.push(argValue);

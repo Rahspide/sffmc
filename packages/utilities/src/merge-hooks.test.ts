@@ -10,6 +10,9 @@ import {
 } from "./merge-hooks.ts"
 import type { PluginServer } from "./merge-hooks.ts"
 
+/** Generic chat-message entry used by transform-hook test mocks. */
+type ChatMessage = { role: string; content?: string };
+
 describe("mergeHooks", () => {
   test("empty servers returns default id", () => {
     const result = mergeHooks([])
@@ -22,24 +25,42 @@ describe("mergeHooks", () => {
     // 3 handlers for messages.transform: [0] appends A, [1] appends B, [2] appends C
     const s0: PluginServer = {
       id: "s0",
-      "experimental.chat.messages.transform": async (_ctx: unknown, msgs: unknown[]) => [...msgs, "A"],
+      "experimental.chat.messages.transform": async (
+        _ctx: { sessionID?: string },
+        msgs: ChatMessage[],
+      ) => [...msgs, { role: "assistant", content: "A" }],
     }
     const s1: PluginServer = {
       id: "s1",
-      "experimental.chat.messages.transform": async (_ctx: unknown, msgs: unknown[]) => [...msgs, "B"],
+      "experimental.chat.messages.transform": async (
+        _ctx: { sessionID?: string },
+        msgs: ChatMessage[],
+      ) => [...msgs, { role: "assistant", content: "B" }],
     }
     const s2: PluginServer = {
       id: "s2",
-      "experimental.chat.messages.transform": async (_ctx: unknown, msgs: unknown[]) => [...msgs, "C"],
+      "experimental.chat.messages.transform": async (
+        _ctx: { sessionID?: string },
+        msgs: ChatMessage[],
+      ) => [...msgs, { role: "assistant", content: "C" }],
     }
 
     const merged = mergeHooks([s0, s1, s2])
     // SAFETY: invariant — merged hook cast to fn signature for direct invocation in test
-    const transform = merged["experimental.chat.messages.transform"] as (...args: unknown[]) => Promise<unknown>
+    type MessagesTransform = (
+      _ctx: { sessionID?: string },
+      msgs: ChatMessage[],
+    ) => Promise<ChatMessage[]>;
+    const transform = merged["experimental.chat.messages.transform"] as MessagesTransform
     const result = await transform({ role: "user" }, [{ role: "system" }])
 
     // s0 output feeds s1 input feeds s2 input → final is [system, A, B, C]
-    expect(result).toEqual([{ role: "system" }, "A", "B", "C"])
+    expect(result).toEqual([
+      { role: "system" },
+      { role: "assistant", content: "A" },
+      { role: "assistant", content: "B" },
+      { role: "assistant", content: "C" },
+    ])
   })
 
   test("gate returns first truthy", async () => {
@@ -59,7 +80,11 @@ describe("mergeHooks", () => {
 
     const merged = mergeHooks([s0, s1, s2])
     // SAFETY: invariant — merged hook cast to fn signature for direct invocation in test
-    const gate = merged["tool.execute.before"] as (...args: unknown[]) => Promise<unknown>
+    type ToolBefore = (
+      tool: string,
+      args: { path?: string },
+    ) => Promise<string | undefined>;
+    const gate = merged["tool.execute.before"] as ToolBefore
     const result = await gate("read", { path: "/x" })
 
     expect(result).toBe("BLOCK: rate limit")
@@ -67,9 +92,9 @@ describe("mergeHooks", () => {
   })
 
   test("side effect calls all with same args", async () => {
-    const spy0 = mock((_cfg: unknown) => {})
-    const spy1 = mock((_cfg: unknown) => {})
-    const spy2 = mock((_cfg: unknown) => {})
+    const spy0 = mock((_cfg: { foo?: number }) => {})
+    const spy1 = mock((_cfg: { foo?: number }) => {})
+    const spy2 = mock((_cfg: { foo?: number }) => {})
 
     const servers: PluginServer[] = [
       { id: "s0", config: spy0 },
@@ -79,7 +104,8 @@ describe("mergeHooks", () => {
 
     const merged = mergeHooks(servers)
     // SAFETY: invariant — merged hook cast to fn signature for direct invocation in test
-    const configHook = merged.config as (...args: unknown[]) => Promise<unknown>
+    type ConfigHook = (cfg: { foo?: number }) => Promise<void>;
+    const configHook = merged.config as ConfigHook
     const cfg = { foo: 1 }
     await configHook(cfg)
 
@@ -107,8 +133,9 @@ describe("mergeHooks", () => {
       }
 
       const merged = mergeHooks([s0, s1])
-      // SAFETY: invariant — merged.tool cast to Record for indexer access; "X" key verified by test
-      const toolX = (merged.tool as Record<string, unknown>)["X"] as Record<string, unknown>
+      // SAFETY: invariant — merged.tool cast to structural shape for indexer access; "X" key verified by test
+      type ToolDef = { description: string; execute: string };
+      const toolX = (merged.tool as { X?: ToolDef })["X"] as ToolDef
 
       // later (s1) wins
       expect(toolX.description).toBe("from s1")
@@ -122,8 +149,8 @@ describe("mergeHooks", () => {
   })
 
   test("missing handler in some servers is skipped", async () => {
-    const spy0 = mock((_cfg: unknown) => {})
-    const spy2 = mock((_cfg: unknown) => {})
+    const spy0 = mock((_cfg: { bar?: number }) => {})
+    const spy2 = mock((_cfg: { bar?: number }) => {})
 
     const servers: PluginServer[] = [
       { id: "s0", config: spy0 },
@@ -133,7 +160,8 @@ describe("mergeHooks", () => {
 
     const merged = mergeHooks(servers)
     // SAFETY: invariant — merged hook cast to fn signature for direct invocation in test
-    const configHook = merged.config as (...args: unknown[]) => Promise<unknown>
+    type ConfigHook = (cfg: { bar?: number }) => Promise<void>;
+    const configHook = merged.config as ConfigHook
     await configHook({ bar: 2 })
 
     expect(spy0).toHaveBeenCalledTimes(1)

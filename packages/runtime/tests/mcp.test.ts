@@ -33,6 +33,7 @@ import {
   type ToolWhitelist,
   type ResolvedTools,
 } from "../src/mcp"
+import type { JsonValue } from "../src/runs.ts"
 import { WorkflowPersistence } from "../src/persistence"
 import { makeToolsSpyCtx } from "./test-utils"
 import { callLLM } from "../src/llm-call"
@@ -228,8 +229,8 @@ describe("mcp.ts: makeMcpPrimitives dispatch", () => {
     const bridge = new McpBridge(10)
     let dispatched = 0
     let lastName = ""
-    let lastArgs: unknown | null = null
-    const dispatch = async (name: string, args: unknown) => {
+    let lastArgs: JsonValue | null = null
+    const dispatch = async (name: string, args: JsonValue) => {
       dispatched++
       lastName = name
       lastArgs = args
@@ -332,7 +333,7 @@ describe("mcp.ts: makeMcpPrimitives dispatch", () => {
 
   test("mcp.bind(name) returns a callable that routes through call()", async () => {
     const bridge = new McpBridge(10)
-    const dispatch = async (name: string, args: unknown) => ({ echo: name, args })
+    const dispatch = async (name: string, args: JsonValue) => ({ echo: name, args })
     const prim = makeMcpPrimitives(bridge, dispatch)
     const search = prim.bind("github_search")
     const out = await search({ q: "sffmc" })
@@ -482,7 +483,7 @@ describe("sandbox guest can call mcp.list() and mcp.call()", () => {
         },
         tool: {
           list: async () => ["mcp__echo"],
-          call: async (name: string, args: unknown) => {
+          call: async (name: string, args: JsonValue) => {
             toolCalls.push({ name, args })
             return { echoed: args, viaSDK: true }
           },
@@ -572,7 +573,7 @@ describe("sandbox guest can call mcp.list() and mcp.call()", () => {
           }),
         },
         tool: {
-          call: async (_name: string, args: unknown) => ({ ok: args }),
+          call: async (_name: string, args: JsonValue) => ({ ok: args }),
         },
       },
     // SAFETY: test fixture; partial ctx for the budget happy-path sandbox test; cast is needed because PluginContext has many optional fields (only the supplied subset is exercised)

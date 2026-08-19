@@ -19,12 +19,32 @@
 // runtime wires them in the constructor; tests pass fakes.
 
 import { createHash } from "node:crypto"
+import * as v from "valibot"
 import { parseMeta } from "./meta.ts"
 import { runSandboxed, type SandboxPrimitives } from "./sandbox"
 import { getSandboxMemoryMB } from "./constants.ts"
 import type { AgentOptions, AgentResult } from "./types.ts"
 import type { InternalRunEntry } from "./internal-run-entry.ts"
 import type { WorkspaceJail } from "./workspace.ts"
+import type { JsonValue } from "./runs.ts"
+
+/** Valibot schema for the `args` / `childArgs` payload accepted by guest
+ *  primitives (`agent`, `workflow`, `mcp.call`). Recursive JSON-value
+ *  shape — the documented on-the-wire representation across the sandbox
+ *  boundary. Callers that produce these values parse through this
+ *  schema before the launcher receives them. */
+const JsonArgsSchema: v.GenericSchema<unknown, JsonValue> = v.lazy(() =>
+  v.union([
+    v.string(),
+    v.number(),
+    v.boolean(),
+    v.null(),
+    v.array(JsonArgsSchema),
+    v.record(v.string(), JsonArgsSchema),
+  ]),
+)
+/** Typed alternative to `unknown` for I/O-boundary args payloads. */
+type JsonArgs = v.InferOutput<typeof JsonArgsSchema>
 
 /** Suffix appended to every guest script body to auto-invoke `main()`.
  *  Mirrors the pre-SOLID `new Function` pattern. Hoisted to module
@@ -50,15 +70,15 @@ export interface LaunchDeps {
   /** Run a pipeline of stages over a list of items. */
   runPipeline: <T>(
     items: T[],
-    stages: Array<(acc: unknown, item: T, i: number) => Promise<unknown>>,
-  ) => Promise<Array<unknown>>
+    stages: Array<(acc: JsonArgs, item: T, i: number) => Promise<JsonArgs>>,
+  ) => Promise<Array<JsonArgs>>
   /** Spawn a child workflow. */
   spawnChildWorkflow: (
     entry: InternalRunEntry,
     nameOrScript: string,
-    childArgs: unknown,
+    childArgs: JsonArgs,
     occ: Map<string, number>,
-  ) => Promise<unknown>
+  ) => Promise<JsonArgs>
   /** Set the current phase (for the journal). */
   setPhase: (entry: InternalRunEntry, title: string) => void
   /** Append a log line to the journal. */
@@ -69,8 +89,8 @@ export interface LaunchDeps {
   dispatchMcpCall: (
     entry: InternalRunEntry,
     name: string,
-    args: unknown,
-  ) => Promise<unknown>
+    args: JsonArgs,
+  ) => Promise<JsonArgs>
   /** The sandbox runner. Injected so tests can supply a fake without
    *  mocking the `sandbox` module globally (which would leak to other
    *  test files in the same `bun test` run). */
@@ -99,9 +119,9 @@ export async function launchScript(
   entry: InternalRunEntry,
   script: string,
   _name: string,
-  args: unknown,
+  args: JsonArgs,
   jail: WorkspaceJail,
-): Promise<unknown> {
+): Promise<JsonArgs> {
   const parsed = parseMeta(script)
   const body = parsed.ok ? parsed.body : script
 
@@ -112,15 +132,15 @@ export async function launchScript(
   // Build primitives — each closure captures `entry`, the per-run
   // occurrence counters, and the jail.
   const primitives: SandboxPrimitives = {
-    // SAFETY: sandbox primitives API uses Record<string, unknown> as the guest-side agent options bag; AgentOptions is the documented host-side shape with the same fields
-    agent: (task: string, agentOpts?: Record<string, unknown>) =>
+    // SAFETY: sandbox primitives API takes JsonValue as the guest-side agent options bag; AgentOptions is the documented host-side shape with the same fields
+    agent: (task: string, agentOpts?: JsonArgs) =>
       deps.spawnAgent(entry, task, agentOpts as AgentOptions | undefined, occ),
     parallel: <T>(thunks: Array<() => Promise<T>>) => deps.runParallel<T>(thunks),
     pipeline: <T>(
       items: T[],
-      ...stages: Array<(acc: unknown, item: T, i: number) => Promise<unknown>>
+      ...stages: Array<(acc: JsonArgs, item: T, i: number) => Promise<JsonArgs>>
     ) => deps.runPipeline<T>(items, stages),
-    workflow: (nameOrScript: string, childArgs?: unknown) =>
+    workflow: (nameOrScript: string, childArgs?: JsonArgs) =>
       deps.spawnChildWorkflow(entry, nameOrScript, childArgs, workflowOcc),
     phase: (title: string) => deps.setPhase(entry, title),
     log: (msg: string) => deps.appendLog(entry, msg),
@@ -133,7 +153,7 @@ export async function launchScript(
     // the per-run McpBridge which enforces the budget + recursion
     // guard (mcp.ts).
     mcpList: () => deps.dispatchMcpList(entry),
-    mcpCall: (name: string, args: unknown) =>
+    mcpCall: (name: string, args: JsonArgs) =>
       deps.dispatchMcpCall(entry, name, args),
     args,
   }
@@ -153,6 +173,7 @@ export async function launchScript(
     seed,
   })
 
-  // runSandboxed never throws per contract — null means sandbox error
-  return result
+  // runSandboxed never throws per contract — null means sandbox error.
+  // SAFETY: runSandboxed returns null on error, otherwise whatever the guest returned; guest values flow through JSON marshal/unmarshal in the sandbox bridge so they are JSON-compatible by construction
+  return result as JsonArgs
 }

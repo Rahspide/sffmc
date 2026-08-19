@@ -186,7 +186,7 @@ function __setComposeConfig(cfg: ComposeConfig | null): void {
 
 const __SET_COMPOSE_CONFIG_SYMBOL = Symbol.for("@sffmc/cognition.__setComposeConfig")
 // SAFETY: invariant — globalThis cast required for Symbol-keyed plugin registry
-;(globalThis as Record<symbol, unknown>)[__SET_COMPOSE_CONFIG_SYMBOL] = __setComposeConfig
+;(globalThis as Record<symbol, typeof __setComposeConfig>)[__SET_COMPOSE_CONFIG_SYMBOL] = __setComposeConfig
 
 // ---------------------------------------------------------------------------
 // Plugin entry point.

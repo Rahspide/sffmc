@@ -205,7 +205,7 @@ describe("max-mode checkpoint integration — maxMode.maxCandidates", () => {
     // The prior `export const MAX_CANDIDATES = 10` constant must be gone.
     const mod = await import("../../src/max-mode/src/candidates");
     // SAFETY: invariant — module cast for indexer access; verifies MAX_CANDIDATES export is undefined
-    expect((mod as Record<string, unknown>).MAX_CANDIDATES).toBeUndefined();
+    expect((mod as { MAX_CANDIDATES?: unknown }).MAX_CANDIDATES).toBeUndefined();
   });
 });
 

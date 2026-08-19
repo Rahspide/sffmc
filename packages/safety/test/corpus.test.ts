@@ -635,7 +635,7 @@ function interpretEscapes(s: string): string {
 function anchoredEvaluate(
   rules: CompiledRule[],
   toolName: string,
-  args: Record<string, unknown>,
+  args: { command?: string },
 ) {
   const raw = typeof args?.command === "string" ? args.command : "";
   const interpreted = interpretEscapes(raw);

@@ -4,10 +4,16 @@
 import { describe, it, expect, beforeEach } from "bun:test"
 import { McpDispatcher } from "../src/mcp-dispatcher.ts"
 import type { InternalRunEntry } from "../src/internal-run-entry.ts"
+import type { JsonValue } from "../src/runs.ts"
+
+/** Typed JSON value alias for fixture args — matches the JsonValue the
+ *  McpDispatcher/McpBridge contract uses so the fake bridge signatures
+ *  mirror the production ones. */
+type Args = JsonValue
 
 // Fake bridge that captures bookkeeping calls.
 function makeFakeBridge() {
-  const calls: Array<{ method: string; name?: string; args?: unknown; reason?: string }> = []
+  const calls: Array<{ method: string; name?: string; args?: Args; reason?: string }> = []
   const bridge = {
     checkBudget: (): string | null => {
       if (bridge._budgetReject !== null) {
@@ -15,13 +21,13 @@ function makeFakeBridge() {
       }
       return null
     },
-    recordRejected: (name: string, args: unknown, reason: string) => {
+    recordRejected: (name: string, args: Args, reason: string) => {
       calls.push({ method: "recordRejected", name, args, reason })
     },
-    recordError: (name: string, args: unknown, reason: string) => {
+    recordError: (name: string, args: Args, reason: string) => {
       calls.push({ method: "recordError", name, args, reason })
     },
-    recordCall: (name: string, args: unknown) => {
+    recordCall: (name: string, args: Args) => {
       calls.push({ method: "recordCall", name, args })
     },
     enterDispatch: (): boolean => {
@@ -49,7 +55,7 @@ function makeEntry(bridge: ReturnType<typeof makeFakeBridge>): InternalRunEntry 
   } as InternalRunEntry
 }
 
-function makeCtxWithTool(toolCall: (n: string, a: unknown) => Promise<unknown>) {
+function makeCtxWithTool<R>(toolCall: (n: string, a: Args) => Promise<R>) {
   // SAFETY: test fixture; the conditional type extracts McpDispatcher's expected getCtx() return type; cast is required because the inline shape only provides the `client.tool.call` surface used by the dispatcher
   return {
     client: {
@@ -83,7 +89,7 @@ describe("McpDispatcher", () => {
     it("rejects when budget is exhausted and does not call the SDK", async () => {
       bridge._budgetReject = "MCP budget exceeded: 100 calls"
       // SAFETY: test fixture; the throwing stub is cast to the toolCall signature to deliberately exercise the budget-reject path (call should never happen)
-      const toolCall = (() => { throw new Error("should not be called") }) as (n: string, a: unknown) => Promise<unknown>
+      const toolCall = (() => { throw new Error("should not be called") }) as (n: string, a: Args) => Promise<never>
       const ctx2 = makeCtxWithTool(toolCall)
       const d2 = new McpDispatcher({ getCtx: () => ctx2 })
       await expect(d2.call(entry, "myTool", { foo: 1 })).rejects.toThrow(/budget exceeded/)
@@ -94,7 +100,7 @@ describe("McpDispatcher", () => {
     it("rejects on recursion depth and does not call the SDK", async () => {
       bridge._rejectEnter = true
       // SAFETY: test fixture; the throwing stub is cast to the toolCall signature to deliberately exercise the recursion-reject path (call should never happen)
-      const toolCall = (() => { throw new Error("should not be called") }) as (n: string, a: unknown) => Promise<unknown>
+      const toolCall = (() => { throw new Error("should not be called") }) as (n: string, a: Args) => Promise<never>
       const ctx2 = makeCtxWithTool(toolCall)
       const d2 = new McpDispatcher({ getCtx: () => ctx2 })
       await expect(d2.call(entry, "myTool", { foo: 1 })).rejects.toThrow(/recursion depth limit exceeded/)

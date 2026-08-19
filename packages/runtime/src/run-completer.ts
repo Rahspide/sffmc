@@ -22,6 +22,8 @@ import type { OutcomeStore, WorkflowOutcome } from "./outcome-store.ts"
 import type { WorkflowActivation } from "./activation.ts"
 import { BudgetExceededError, WorkflowStatus } from "./types.ts"
 import { toErrorMessage } from "./errors.ts"
+import type { WorkspaceJail } from "./workspace.ts"
+import type { JsonValue } from "./runs.ts"
 
 export interface RunCompleterDeps {
   persistence: WorkflowPersistence
@@ -36,9 +38,9 @@ export interface RunCompleterDeps {
     entry: InternalRunEntry,
     script: string,
     name: string,
-    args: unknown,
-    jail: unknown,
-  ) => Promise<unknown>
+    args: JsonValue,
+    jail: WorkspaceJail,
+  ) => Promise<JsonValue>
 }
 
 export class RunCompleter implements IRunCompleter {
@@ -48,7 +50,7 @@ export class RunCompleter implements IRunCompleter {
    *  already settled the entry, do not overwrite. Without this guard,
    *  a still-pending sandbox `.then()` races a `cancel()` call and
    *  overwrites `entry.status` / DB row from "cancelled" → "completed". */
-  completeRun(entry: InternalRunEntry, result?: unknown): void {
+  completeRun(entry: InternalRunEntry, result?: JsonValue): void {
     if (entry.status !== "running") return
     entry.status = "completed"
     const outcome = outcomeFor(entry, "completed", { result })
@@ -95,8 +97,8 @@ export class RunCompleter implements IRunCompleter {
     entry: InternalRunEntry,
     script: string,
     name: string,
-    args: unknown,
-    jail: unknown,
+    args: JsonValue,
+    jail: WorkspaceJail,
   ): Promise<void> {
     try {
       const result = await this.deps.launchScript(entry, script, name, args, jail)

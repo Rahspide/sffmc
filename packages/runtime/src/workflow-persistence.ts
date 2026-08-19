@@ -20,6 +20,7 @@ import { FSyncCoalescer } from "./fsync-coalescer.ts"
 import { JournalRepository } from "./journal.ts"
 import { ScriptsRepository } from "./scripts.ts"
 import type { WorkflowRun, WorkflowStep, JournalEvent, WorkflowStatus } from "./types.ts"
+import type { JsonValue } from "./runs.ts"
 
 const log = createLogger("workflow:persistence")
 
@@ -131,7 +132,7 @@ export class WorkflowPersistence {
     scriptSha: string,
     parentId?: string,
     workspace?: string,
-    args?: unknown,
+    args?: JsonValue,
   ): string {
     return this.runsRepo.createRun(file, label, scriptSha, parentId, workspace, args)
   }

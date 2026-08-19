@@ -81,7 +81,7 @@ export const server = async (ctx: PluginContext) => {
   }
 
   return {
-    event: async (payload: { event: string; [key: string]: unknown }) => {
+    event: async (payload: { event: string; sessionID?: string }) => {
       if (payload.event === SESSION_CREATED) {
         const sid = String(payload.sessionID || "");
         state.counter.resetSession(sid);
@@ -98,7 +98,7 @@ export const server = async (ctx: PluginContext) => {
       const output = result.output ?? result.metadata ?? "";
 
       // SAFETY: invariant — metadata cast to record for hasMetadataError indexing
-      const meta = result.metadata as Record<string, unknown> | undefined;
+      const meta = result.metadata as { error?: unknown } | undefined;
       const isError = isToolError(output);
       const hasErrorFlag = hasMetadataError(meta);
 

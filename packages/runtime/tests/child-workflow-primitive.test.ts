@@ -4,22 +4,28 @@
 import { describe, it, expect, beforeEach } from "bun:test"
 import { ChildWorkflowPrimitive } from "../src/child-workflow-primitive.ts"
 import type { InternalRunEntry } from "../src/internal-run-entry.ts"
+import type { JsonValue } from "../src/runs.ts"
+
+/** Typed JSON value alias for fixture args — matches the JsonValue the
+ *  ChildWorkflowPrimitive dep signatures use so the fake signatures mirror
+ *  the production ones. */
+type Args = JsonValue
 
 // Fake persistence — captures createRun/writeScript/appendJournal calls.
 // SAFETY: test fixture; `as any` is the documented escape hatch because the fake persistence implements only the subset of methods used by ChildWorkflowPrimitive
 function makeFakePersistence() {
   return {
-    createRun: (name: string, _name2: string, sha: string, _x: unknown, ws: string, args: unknown) => {
+    createRun: (name: string, _name2: string, sha: string, _x: Args, ws: string, args: Args) => {
       fakePersistence.created.push({ name, sha, workspace: ws, args })
       return `run_${fakePersistence.created.length}`
     },
     writeScript: async (runID: string, _script: string) => {
       fakePersistence.written.push(runID)
     },
-    appendJournal: (runID: string, e: unknown) => {
+    appendJournal: (runID: string, e: Args) => {
       fakePersistence.journaled.push({ runID, event: e })
     },
-    appendJournalSync: (runID: string, e: unknown) => {
+    appendJournalSync: (runID: string, e: Args) => {
       fakePersistence.journaled.push({ runID, event: e })
     },
   // @ts-expect-error - fake persistence intentionally omits methods required by ChildWorkflowPrimitive's deps bag
@@ -32,7 +38,7 @@ function makeFakeEvents() {
   const emitted: any[] = []
   // SAFETY: test fixture; `as any` is the documented escape hatch for the fake event-bus stub
   return {
-    emit: (name: string, payload: unknown) => emitted.push({ name, payload }),
+    emit: (name: string, payload: Args) => emitted.push({ name, payload }),
     _emitted: emitted,
   } as any
 }
@@ -82,7 +88,7 @@ describe("ChildWorkflowPrimitive", () => {
       // SAFETY: test fixture; `as any` is the documented escape hatch for the fake runs stub injected into the deps bag
       runs: makeFakeRuns() as any,
       scheduleFlush: (entry: any) => flushes.push(entry),
-      startChildWorkflow: (parent: any, script: string, name: string, args: unknown, childRunID: string) => {
+      startChildWorkflow: (parent: any, script: string, name: string, args: Args, childRunID: string) => {
         startCalls.push({ parent, script, name, args, childRunID })
         // Return a fake child entry with an outcomePromise
         return Promise.resolve({
@@ -90,10 +96,10 @@ describe("ChildWorkflowPrimitive", () => {
           outcomePromise: Promise.resolve({ status: "completed", result: "child-result" }),
         })
       },
-      appendJournal: (runID: string, e: unknown) => {
+      appendJournal: (runID: string, e: Args) => {
         fakePersistence.journaled.push({ runID, event: e })
       },
-      settleEntry: (entry: any, _script: string, _name: string, _args: unknown, _jail: any) => {
+      settleEntry: (entry: any, _script: string, _name: string, _args: Args, _jail: any) => {
         settleCalls.push(entry)
         return Promise.resolve()
       },

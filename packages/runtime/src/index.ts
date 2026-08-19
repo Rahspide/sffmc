@@ -72,7 +72,7 @@ export const server = async (ctx: PluginContext) => {
   })
 
   return {
-    config: async (_cfg: unknown) => {
+    config: async (_cfg: Record<string, string | number | boolean | null>) => {
       // Recover orphaned workflows on startup
       await runtime.recoverOrphanedWorkflows()
     },

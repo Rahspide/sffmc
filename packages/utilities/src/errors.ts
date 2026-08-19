@@ -1,13 +1,20 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/utilities — see ../../LICENSE
 
+/** Tool-output shapes the error helpers can classify. The narrow union
+ *  is the contract callers must satisfy — anything that does not fit is
+ *  treated as "UNKNOWN" by `extractErrorType` and as "not an error" by
+ *  `isToolError`. This keeps the helpers boundary-safe without forcing
+ *  every call site to pre-shape the input. */
+export type ToolErrorInput = string | { code?: unknown; name?: unknown };
+
 /**
  * Extract an error class/type from a tool output (string, object, or unknown).
  * Replaces duplicated `extractErrorType()` in auto-max (index.ts:34-47) and watchdog (index.ts:29-41).
  * Patterns: ENOENT|EACCES|EPERM|EAGAIN|ECONNREFUSED|ETIMEDOUT|ERR_*|Error:|error:
  * Falls back to `o.code` or `o.name`, then "UNKNOWN".
  */
-export function extractErrorType(output: unknown): string {
+export function extractErrorType(output: ToolErrorInput): string {
   if (typeof output === "string") {
     const errMatch = output.match(
       /(ENOENT|EACCES|EPERM|EAGAIN|ECONNREFUSED|ETIMEDOUT|ERR_|Error:|error:)/i,
@@ -15,10 +22,8 @@ export function extractErrorType(output: unknown): string {
     if (errMatch) return errMatch[1].toUpperCase()
   }
   if (output && typeof output === "object") {
-    // SAFETY: narrowed by typeof check on line 17 — output is non-null object
-    const o = output as Record<string, unknown>
-    if (typeof o.code === "string") return o.code
-    if (typeof o.name === "string") return o.name
+    if (typeof output.code === "string") return output.code
+    if (typeof output.name === "string") return output.name
   }
   return "UNKNOWN"
 }
@@ -34,7 +39,7 @@ export const LONG_OUTPUT_THRESHOLD = 4096
  * which produced false positives on "errorless" or "failsafe" substrings).
  * Replaces divergent regexes in auto-max (index.ts:100-102) and watchdog (index.ts:91-94).
  */
-export function isToolError(output: unknown): boolean {
+export function isToolError(output: ToolErrorInput | null | undefined): boolean {
   if (output == null) return false
   if (typeof output !== "string") return false
   if (output.length > LONG_OUTPUT_THRESHOLD) return true // long outputs are likely error dumps

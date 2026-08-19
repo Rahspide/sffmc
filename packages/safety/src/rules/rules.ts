@@ -1,9 +1,30 @@
 import { parse as parseYaml, Schema } from "yaml";
 import { readFileSync, existsSync, statSync } from "fs";
 import safeRegex from "safe-regex";
+import * as v from "valibot";
 import { createLogger, SAFE_REPETITION_LIMIT } from "@sffmc/utilities";
 
 const log = createLogger("rules");
+
+/** Valibot schema for a single rule entry as it appears in the
+ *  parsed YAML body. The shape is `match` (with `tool` + optional
+ *  `command_match` / `path_outside` / `phase`) and `action`. */
+const RuleSchema = v.object({
+  match: v.object({
+    tool: v.string(),
+    command_match: v.optional(v.string()),
+    path_outside: v.optional(v.string()),
+    phase: v.optional(v.picklist(["raw", "normalized"])),
+  }),
+  action: v.picklist(["allow", "deny", "ask"]),
+});
+
+/** Valibot schema for the parsed YAML body — the safety rules
+ *  manifest. */
+const ParsedRulesSchema = v.object({
+  version: v.optional(v.number()),
+  rules: v.array(RuleSchema),
+});
 
 export type Action = "allow" | "deny" | "ask";
 
@@ -155,14 +176,16 @@ export function watchRules(
 
 export function parseRules(yaml: string): Rules {
   try {
-    // SAFETY: validated by yaml parser schema on line 161 — Schema.JSON enforces object shape
-    const parsed = parseYaml(yaml, { schema: Schema.JSON }) as Record<string, unknown>;
-    if (!parsed || !Array.isArray(parsed.rules)) {
+    // SAFETY: validated by Valibot ParsedRulesSchema on the next line
+    const parsed = v.parse(
+      ParsedRulesSchema,
+      parseYaml(yaml, { schema: Schema.JSON }),
+    );
+    if (parsed.rules.length === 0 && !Array.isArray(parsed.rules)) {
       throw new Error('Invalid rules format: missing "rules" array');
     }
 
-    // SAFETY: narrowed by Array.isArray on line 162 — parsed.rules is guaranteed to be an array
-    for (const rule of parsed.rules as Rule[]) {
+    for (const rule of parsed.rules) {
       if (!rule.match || typeof rule.match.tool !== "string") {
         throw new Error(`Invalid rule: missing match.tool`);
       }
@@ -174,8 +197,7 @@ export function parseRules(yaml: string): Rules {
     }
 
     panicMode = false;
-    // SAFETY: validated by rule loop on lines 166-177 — each rule has match.tool and valid action
-    return parsed as Rules;
+    return parsed;
   } catch (err) {
     panicMode = true;
     throw err;

@@ -7,7 +7,7 @@ import {
   type Rules,
   type CompiledRule,
 } from "./rules";
-import { evaluate } from "./gate";
+import { evaluate, type ToolArgs } from "./gate";
 import { type PluginContext, createLogger, configHome } from "@sffmc/utilities";
 import { existsSync } from "fs";
 import { resolve } from "path";
@@ -535,7 +535,7 @@ export const server = async (ctx: PluginContext) => {
   return {
     "tool.execute.before": async (
       toolCtx: { tool: string; sessionID: string; callID: string },
-      args: { args: Record<string, unknown> },
+      args: { args: ToolArgs },
     ) => {
       if (isPanicMode()) {
         throw new Error(
@@ -562,7 +562,7 @@ export const server = async (ctx: PluginContext) => {
     },
 
     "permission.ask": async (
-      perm: { tool?: string; name?: string; args?: Record<string, unknown> },
+      perm: { tool?: string; name?: string; args?: ToolArgs },
       status: { status: string },
     ) => {
       if (isPanicMode()) {

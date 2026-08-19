@@ -14,12 +14,24 @@ import type { Database } from "bun:sqlite"
 
 const log = createLogger("workflow:runs")
 
+/** SQLite stores columns as one of three value types: TEXT, INTEGER/REAL
+ *  (both surface as JS `number`), or NULL. Use this concrete row shape
+ *  instead of `Record<string, unknown>` so callers can safely index by
+ *  column name without `unknown` escaping at the I/O boundary. */
+export type SqliteRow = Record<string, string | number | null>
+
+/** Anything JSON.stringify can serialize: structured objects, arrays, or
+ *  primitive scalars. `null` is permitted (used to clear the args column
+ *  via the legacy "no args" sentinel). Undefined is NOT — callers should
+ *  treat `undefined` as "no args" and skip the column. */
+export type JsonValue = string | number | boolean | null | { [k: string]: JsonValue } | JsonValue[]
+
 /** Map a workflow_runs row to the typed WorkflowRun shape.
  *  Args round-trip through JSON.parse (with try/catch fallback to
  *  undefined for malformed entries — the row was written by us, but
  *  a corrupted row should not throw on read). */
-// SAFETY: parameter typed as Record<string, unknown> to accept raw SQLite rows; return cast to WorkflowRun because every field below is asserted individually from the typed row
-export function rowToRun(row: Record<string, unknown>): WorkflowRun {
+// SAFETY: row comes from SELECT * on workflow_runs (typed schema); each cast below narrows the typed SQLite value to its column type
+export function rowToRun(row: SqliteRow): WorkflowRun {
   // SAFETY: row comes from SELECT * on workflow_runs (typed schema); `id` column is TEXT NOT NULL
   return {
     runID: row.id as string,
@@ -63,7 +75,7 @@ export class RunsRepository {
     scriptSha: string,
     parentId?: string,
     workspace?: string,
-    args?: unknown,
+    args?: JsonValue,
   ): string {
     const runID = generateRunID()
     const now = unixNow()
@@ -82,8 +94,7 @@ export class RunsRepository {
 
   loadRun(runID: string): WorkflowRun | null {
     safeRunID(runID)
-    // SAFETY: bun:sqlite query() returns unknown; Record<string, unknown> | undefined is the schema for SELECT * WHERE id=? result rows
-    const row = this.db.query("SELECT * FROM workflow_runs WHERE id = ?").get(runID) as Record<string, unknown> | undefined
+    const row = this.db.query("SELECT * FROM workflow_runs WHERE id = ?").get(runID) as SqliteRow | undefined
     return row ? rowToRun(row) : null
   }
 
@@ -98,8 +109,7 @@ export class RunsRepository {
 
   // SAFETY: listRuns returns WorkflowRun[]; the type annotation reflects the mapped rows from SELECT * on workflow_runs
   listRuns(): WorkflowRun[] {
-    // SAFETY: bun:sqlite query() returns unknown; Record<string, unknown>[] is the schema for SELECT * result rows
-    const rows = this.db.query("SELECT * FROM workflow_runs ORDER BY time_created DESC").all() as Record<string, unknown>[]
+    const rows = this.db.query("SELECT * FROM workflow_runs ORDER BY time_created DESC").all() as SqliteRow[]
     return rows.map(rowToRun)
   }
 
@@ -109,9 +119,8 @@ export class RunsRepository {
   // SAFETY: listRunningRuns returns WorkflowRun[]; the type annotation reflects the filtered rows from SELECT * WHERE status='running'
   listRunningRuns(): WorkflowRun[] {
     const rows = this.db
-      // SAFETY: bun:sqlite query() returns unknown; Record<string, unknown>[] is the schema for SELECT * result rows
       .query("SELECT * FROM workflow_runs WHERE status = 'running' ORDER BY time_created DESC")
-      .all() as Record<string, unknown>[]
+      .all() as SqliteRow[]
     return rows.map(rowToRun)
   }
 }

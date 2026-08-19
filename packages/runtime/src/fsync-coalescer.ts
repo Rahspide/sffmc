@@ -25,7 +25,7 @@ export class FSyncCoalescer {
 
   constructor(
     private readonly coalesceMs: () => number,
-    private readonly onError?: (e: unknown) => void,
+    private readonly onError?: (e: string | number | bigint | boolean | symbol | object | null | undefined) => void,
   ) {}
 
   /** Arm a coalesced fsync if one isn't already pending. Idempotent —

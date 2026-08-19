@@ -13,6 +13,7 @@ import { WorkflowEventEmitter } from "./event-emitter.ts"
 import { WorkflowActivation } from "./activation.ts"
 import { makeSemaphore, Concurrency } from "./concurrency.ts"
 import { makeEntry, outcomeFor, type InternalRunEntry } from "./internal-run-entry.ts"
+import type { JsonValue } from "./runs.ts"
 import { resolveWorkflowScript } from "./script-resolver.ts"
 import { FlushManager } from "./flush-manager.ts"
 import { RuntimeConfig } from "./runtime-config.ts"
@@ -181,10 +182,10 @@ export class WorkflowRuntime {
     this.agentPrimitive = new AgentPrimitive({
       globalSem: this.globalSem,
       scheduleFlush: (entry) => this.flushManager.scheduleFlush(entry),
-      emitEvent: (name: string, payload: unknown) => this.events.emit(name, payload),
+      emitEvent: (name, payload) => this.events.emit(name, payload),
       // SAFETY: this.ctx typed as unknown at SDK boundary; Parameters<typeof callLLMModule>[0] restates the documented callLLM signature
       callLLM: (entry, prompt, opts) => callLLMModule(this.ctx as Parameters<typeof callLLMModule>[0], entry, prompt, opts),
-      appendJournal: (runID: string, e: unknown) => this.persistence.appendJournalSync(runID, e),
+      appendJournal: (runID, e) => this.persistence.appendJournalSync(runID, e),
       failRun: (entry, error) => this.runCompleter.failRun(entry, error),
     })
     this.childWorkflowPrimitive = new ChildWorkflowPrimitive({
@@ -194,7 +195,7 @@ export class WorkflowRuntime {
       scheduleFlush: (entry) => this.flushManager.scheduleFlush(entry),
       startChildWorkflow: (parent, script, name, args, childRunID) =>
         this.services.childWorkflowPrimitive.start(parent, script, name, args, childRunID),
-      appendJournal: (runID: string, e: unknown) => this.persistence.appendJournal(runID, e),
+      appendJournal: (runID, e) => this.persistence.appendJournal(runID, e),
       settleEntry: (entry, script, name, args, jail) =>
         this.runCompleter.settleEntry(entry, script, name, args, jail),
     })
@@ -543,7 +544,7 @@ export class WorkflowRuntime {
         this.services.agentPrimitive.runParallel<T>(thunks),
       runPipeline: <T>(
         items: T[],
-        stages: Array<(acc: unknown, item: T, i: number) => Promise<unknown>>,
+        stages: Array<(acc: T, item: T, i: number) => Promise<T>>,
       ) => this.services.agentPrimitive.runPipeline<T>(items, stages),
       spawnChildWorkflow: (entry, nameOrScript, childArgs, occ) =>
         this.services.childWorkflowPrimitive.spawn(entry, nameOrScript, childArgs, occ),
@@ -554,9 +555,8 @@ export class WorkflowRuntime {
       runSandboxed,
       deadlineMs: SCRIPT_DEADLINE_MS,
     }
-    return (entry, script, name, args, jail: unknown) =>
-      // SAFETY: jail parameter declared unknown at the factory boundary; WorkspaceJail is the documented jail shape for the script launcher
-      launchScript(launchDeps, entry, script, name, args, jail as WorkspaceJail)
+    return (entry, script, name, args, jail: WorkspaceJail) =>
+      launchScript(launchDeps, entry, script, name, args, jail)
   }
 
   // ── Private: completion (kept as a thin public surface for
@@ -566,7 +566,7 @@ export class WorkflowRuntime {
   /** v0.16.0 refactor (Phase 3): delegates to `RunCompleter.completeRun()`.
    *  The status guard, outcome creation, persistence flush, event emit,
    *  and outcome-cache+runs-release are all in `src/run-completer.ts`. */
-  completeRun(entry: InternalRunEntry, result?: unknown): void {
+  completeRun(entry: InternalRunEntry, result?: JsonValue): void {
     this.runCompleter.completeRun(entry, result)
   }
 
@@ -588,9 +588,9 @@ export class WorkflowRuntime {
   async spawnChildWorkflow(
     entry: InternalRunEntry,
     nameOrScript: string,
-    childArgs: unknown,
+    childArgs: JsonValue,
     workflowOcc: Map<string, number>,
-  ): Promise<unknown> {
+  ): Promise<JsonValue> {
     return this.childWorkflowPrimitive.spawn(entry, nameOrScript, childArgs, workflowOcc)
   }
 
@@ -610,7 +610,7 @@ export class WorkflowRuntime {
    *  callback at construction time. Kept as a method (not inlined at
    *  the two call sites in `start()` / `resume()`) so `RunCompleter`'s
    *  contract is reachable by name from the public surface. */
-  async settleEntry(entry: InternalRunEntry, script: string, name: string, args: unknown, jail: WorkspaceJail): Promise<void> {
+  async settleEntry(entry: InternalRunEntry, script: string, name: string, args: JsonValue, jail: WorkspaceJail): Promise<void> {
     return this.runCompleter.settleEntry(entry, script, name, args, jail)
   }
 }

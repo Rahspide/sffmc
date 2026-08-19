@@ -51,7 +51,7 @@ import { type RichPluginContext } from "@sffmc/utilities";
 
 export interface ToolCall {
   name: string;
-  args: Record<string, unknown>;
+  args: unknown;
   id: string;
 }
 
