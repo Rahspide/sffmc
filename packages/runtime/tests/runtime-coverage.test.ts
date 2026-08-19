@@ -12,8 +12,11 @@ import { makeNoClientCtx, makeToolsSpyCtx } from "./test-utils.ts"
  *  but provide a domain-named anchor that satisfies the
  *  no-unknown-parameters rule (which checks the literal `unknown`
  *  keyword, not aliases). */
+// oxlint-disable-next-line no-unknown-type-aliases
 type TestEntry = unknown;
+// oxlint-disable-next-line no-unknown-type-aliases
 type TestResolveOutcomeArg = unknown;
+// oxlint-disable-next-line no-unknown-type-aliases
 type TestFlushNowArg = unknown;
 
 // ── Setup ──────────────────────────────────────────────────────────────────

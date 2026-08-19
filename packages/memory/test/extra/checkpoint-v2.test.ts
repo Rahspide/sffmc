@@ -28,13 +28,11 @@ import {
   readToolCalls,
   createCheckpointTool,
 } from "../../src/extra/checkpoint";
-import * as v from "valibot";
 import {
   CheckpointHeaderRawSchema,
   ToolCallSchema,
   ToolCallV2BodyLineSchema,
   type CheckpointHeaderRaw,
-  type ToolCall,
 } from "../../src/extra/checkpoint/types.ts";
 
 // ---------------------------------------------------------------------------

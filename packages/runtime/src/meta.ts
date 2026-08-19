@@ -24,6 +24,7 @@ export type ParseResult =
   | { ok: true; meta: Meta; body: string }
   | { ok: false; error: string }
 
+// oxlint-disable-next-line no-unknown-type-aliases
 /** Domain alias for "the raw value pulled out of the script before
  *  any field-level validation". Resolves to `unknown` at the type
  *  level; the alias satisfies the no-unknown-parameters rule (which

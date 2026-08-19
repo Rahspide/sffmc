@@ -19,7 +19,6 @@ import * as v from "valibot";
 import { basename } from "node:path"
 import { loadConfig, validateSafeRegex } from "./config.ts"
 import { createLogger } from "./logger.ts"
-import * as v from "valibot"
 
 const log = createLogger("sffmc/shared")
 
@@ -121,7 +120,7 @@ const BUILTIN_RULES_STATIC: ReadonlyArray<RedactionRule> = [
   // the whole match with a single `[REDACTED:private-key-pem]` marker.
   { id: "private-key-pem", pattern: /-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP |ENCRYPTED )?PRIVATE KEY-----[\s\S]*?-----END (?:RSA |EC |DSA |OPENSSH |PGP |ENCRYPTED )?PRIVATE KEY-----/g, description: "PEM-armored private key blocks (header + body + footer)" },
   // basic-auth-header uses its own 8-char minimum (shorter base64 blobs are common).
-  { id: "basic-auth-header", pattern: /(?:authorization|auth):\s*basic\s+([A-Za-z0-9+\/=]{8,})/gi, description: "Authorization: Basic <base64>" },
+  { id: "basic-auth-header", pattern: /(?:authorization|auth):\s*basic\s+([A-Za-z0-9+/=]{8,})/gi, description: "Authorization: Basic <base64>" },
   // E — provider-specific credential patterns (v0.15.3 expansion).
   // Each alternative is anchored to the token's known prefix / shape so
   // false-positive rate stays near zero. The `ghp_` form (legacy GitHub PAT)
@@ -142,7 +141,7 @@ const BUILTIN_RULES_STATIC: ReadonlyArray<RedactionRule> = [
   // O(n) and the alternation overall O(n * |alternatives|).
   // JWT segments in practice: header ≤ ~64 chars, payload can be long
   // (up to 8 KiB+), signature ≤ ~512 chars. 200/64/512 are generous.
-  { id: "cloud-credential", pattern: /(AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_\-]{35}|gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{82}|glpat-[A-Za-z0-9_\-]{20}|[A-Za-z0-9_\-]{24,200}\.[A-Za-z0-9_\-]{6,64}\.[A-Za-z0-9_\-]{20,512}|sk-[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]+|sk_live_[A-Za-z0-9]{24,}|rk_live_[A-Za-z0-9]{24,})/g, description: "AWS/GCP/GitHub (incl. fine-grained PAT)/OpenAI/Slack/Discord/Stripe/GitLab/JWT tokens" },
+  { id: "cloud-credential", pattern: /(AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{35}|gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{82}|glpat-[A-Za-z0-9_-]{20}|[A-Za-z0-9_-]{24,200}\.[A-Za-z0-9_-]{6,64}\.[A-Za-z0-9_-]{20,512}|sk-[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]+|sk_live_[A-Za-z0-9]{24,}|rk_live_[A-Za-z0-9]{24,})/g, description: "AWS/GCP/GitHub (incl. fine-grained PAT)/OpenAI/Slack/Discord/Stripe/GitLab/JWT tokens" },
 ]
 
 /** Build the DYNAMIC portion of the built-in rules. These patterns depend on

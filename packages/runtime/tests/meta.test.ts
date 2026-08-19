@@ -28,6 +28,7 @@ type MetaValue =
   | MetaPrimitive[]
   | { [key: string]: MetaValue }
   | undefined;
+// oxlint-disable-next-line no-shape-in-symbol-names
 type TestMetaShape = { [key: string]: MetaValue };
 
 // ─── 1. Happy path ─────────────────────────────────────────────────────
@@ -287,6 +288,7 @@ describe("parseMeta: edge cases", () => {
     const r = PARSE('export const meta = { name: "x", description: "y", tag: "trueish" }')
     expect(r.ok).toBe(true)
     if (r.ok) {
+      // oxlint-disable-next-line no-shape-in-symbol-names
       // SAFETY: r.ok narrowed by the line above; r.meta is the documented successful-parse payload (validated by the meta parser schema)
       expect((r.meta as TestMetaShape).tag).toBe("trueish")
     }

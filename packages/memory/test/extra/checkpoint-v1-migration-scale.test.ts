@@ -91,12 +91,7 @@ function readHeaderFromDisk(
     const RawObjectSchema = v.record(v.string(), v.unknown());
     const parsed = v.parse(RawObjectSchema, JSON.parse(firstLine));
     if (!parsed || typeof parsed !== "object" || (parsed as { __type?: unknown }).__type !== "header") return null;
-    return parsed as unknown as CheckpointHeaderRaw;
-  } catch {
-    return null;
-  }
-}
-    return parsed;
+    return parsed as CheckpointHeaderRaw;
   } catch {
     return null;
   }

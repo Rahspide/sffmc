@@ -19,6 +19,7 @@ type LlmArgValue =
   | LlmArgPrimitive[]
   | { [key: string]: LlmArgValue }
   | undefined;
+// oxlint-disable-next-line no-shape-in-symbol-names
 type LLMCallArgsShape = { [key: string]: LlmArgValue };
 
 /** Mock PluginContext with NO LLM client. Used by callLLM fallback tests
@@ -43,6 +44,7 @@ export function makeToolsSpyCtx(): PluginContext & {
     config: {},
     calls,
     client: {
+      // oxlint-disable-next-line no-shape-in-symbol-names
       session: {
         message: async (args: LLMCallArgsShape) => {
           calls.push({

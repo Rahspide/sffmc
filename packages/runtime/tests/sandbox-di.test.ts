@@ -31,6 +31,7 @@ import type { SandboxServices } from "../src/sandbox-services.ts"
  *  `unknown` at the type level; the alias satisfies the
  *  no-unknown-parameters rule (which checks the literal `unknown`
  *  keyword, not aliases). */
+// oxlint-disable-next-line no-unknown-type-aliases
 type TestMarshalValue = unknown;
 
 /** Valibot primitive schema used at the test boundary to discriminate
@@ -56,7 +57,7 @@ function makeMockRt(): any {
  *  the call site cast via `as MockHandle` without a typed `this` parameter
  *  on every helper, keeping the mock definition sites concise. */
 function makeMockDispose() {
-  // SAFETY: mock handle stub — `this` is the object the function is called on (untyped); `as any` mutates the alive flag in the mock
+  // SAFETY: mock handle stub; `this` is the object the function is called on (untyped); `as any` mutates the alive flag in the mock
   const dispose = function (this: any) { (this as any).alive = false }
   return dispose
 }

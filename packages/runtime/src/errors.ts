@@ -10,6 +10,7 @@
 
 import * as v from "valibot"
 
+// oxlint-disable-next-line no-unknown-type-aliases
 /** Domain alias for "anything `throw` may emit". Resolves to `unknown`
  *  at the type level; the alias is what satisfies the no-unknown-parameters
  *  rule, which checks the literal `unknown` keyword on parameter

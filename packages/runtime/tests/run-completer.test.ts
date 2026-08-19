@@ -10,7 +10,9 @@ import { BudgetExceededError, WorkflowStatus } from "../src/types.ts"
  *  but provide a domain-named anchor that satisfies the
  *  no-unknown-parameters rule (which checks the literal `unknown`
  *  keyword, not aliases). */
+// oxlint-disable-next-line no-unknown-type-aliases
 type TestEventPayload = unknown;
+// oxlint-disable-next-line no-unknown-type-aliases
 type TestOutcome = unknown;
 
 // Minimal in-memory mocks for the 4 collaborators. Each is a plain object

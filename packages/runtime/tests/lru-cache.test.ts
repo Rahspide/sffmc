@@ -19,6 +19,7 @@ import { mkdtempSync, rmSync } from "node:fs"
  *  no-unknown-parameters rule (which checks the literal `unknown`
  *  keyword, not aliases) and reflects that the fake entry's outcome
  *  is whatever the test resolves it to. */
+// oxlint-disable-next-line no-unknown-type-aliases
 type TestOutcome = unknown;
 import path from "node:path"
 
@@ -292,9 +293,6 @@ describe("WorkflowRuntime.outcomes wraps BoundedLRU via OutcomeStore", () => {
     // Populate via reflection on completeRun (private method).
     // SAFETY: test uses reflection to access the private `completeRun` method; `as any` is the documented escape hatch (called via .bind to preserve `this`)
     const completeRun = (runtime as any).completeRun.bind(runtime)
-
-    // SAFETY: test uses reflection to access the private `persistence` field with custom loadRun signature; `as any` is the documented escape hatch
-    const persistence = (runtime as any).persistence as { loadRun: (id: string) => { runID: string } | null }
 
     function makeFakeEntry(runID: string) {
       let resolveOutcome: (o: TestOutcome) => void = () => {}

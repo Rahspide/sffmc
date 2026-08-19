@@ -9,6 +9,7 @@ import { WORKFLOW_SEARCH_DIRS } from "./constants.ts"
 // Discriminated union type for compile-time validation
 // ---------------------------------------------------------------------------
 
+// oxlint-disable-next-line no-unknown-type-aliases
 /** Domain alias for the optional tool-call context. Resolves to
  *  `unknown` at the type level; the alias satisfies the
  *  no-unknown-parameters rule (which checks the literal `unknown`

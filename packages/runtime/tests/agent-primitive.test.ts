@@ -13,8 +13,11 @@ import { BudgetExceededError } from "../src/types.ts"
  *  no-unknown-parameters rule (which checks the literal `unknown`
  *  keyword, not aliases). The underlying values are still typed
  *  `unknown` at call sites that need the true breadth. */
+// oxlint-disable-next-line no-unknown-type-aliases
 type TestEventPayload = unknown;
+// oxlint-disable-next-line no-unknown-type-aliases
 type TestJournalEntry = unknown;
+// oxlint-disable-next-line no-unknown-type-aliases
 type TestPipelineAcc = unknown;
 
 // Fake counter state — the real CounterManager has many methods; we mock
@@ -184,9 +187,11 @@ describe("AgentPrimitive", () => {
       expect(r).toBeNull()
       expect(f.failedRuns).toHaveLength(1)
       // gen-11 F-2.1: error is now a typed BudgetExceededError, not a magic string.
-      expect(f.failedRuns[0]?.error).toBeInstanceOf(BudgetExceededError)
+      const failedRun = f.failedRuns[0]
+      const error = failedRun?.error
+      expect(error).toBeInstanceOf(BudgetExceededError)
       // SAFETY: previous .toBeInstanceOf narrowed error to BudgetExceededError; cast re-asserts the type for the .message access
-      expect((f.failedRuns[0]?.error as BudgetExceededError).message).toMatch(/budget/i)
+      expect((error as BudgetExceededError).message).toMatch(/budget/i)
     })
 
     it("returns null when deliverable is null (NoDeliverable)", async () => {

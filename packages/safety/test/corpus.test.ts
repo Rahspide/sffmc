@@ -451,14 +451,12 @@ rules:
   # rm -rf with quoted home variable forms.
   - match:
       tool: bash
-      command_match: |-
-        ^rm\s+-r[f]?\s+"\${?HOME}?"$
+      command_match: '^rm\s+-r[f]?\s+"\${?HOME}?"$'
     action: deny
   # rm -rf with quoted root slash forms.
   - match:
       tool: bash
-      command_match: |-
-        ^rm\s+-r[f]?\s+"/"$|^rm\s+-r[f]?\s+"//"$
+      command_match: '^rm\s+-r[f]?\s+"/"$|^rm\s+-r[f]?\s+"//"$'
     action: deny
   # chmod -R 777 on /etc / /home / /root etc.
   - match:

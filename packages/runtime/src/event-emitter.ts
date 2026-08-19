@@ -136,7 +136,9 @@ export class WorkflowEventEmitter {
   emit(name: EventName, payload: WorkflowEventPayload): void {
     const list = this.listeners.get(name)
     if (!list) return
-    for (const { fn, key } of [...list]) {
+    // SAFETY: snapshot before iteration — listeners may call off() during emit which mutates the array
+    const snapshot = [...list]
+    for (const { fn, key } of snapshot) {
       try {
         fn(payload)
       } catch (e) {
