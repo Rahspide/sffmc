@@ -4,12 +4,54 @@
 
 ## v0.16.4 (в разработке)
 
-> Patch-релиз. **В процессе разработки.** Анти-slop cleanup: SAFETY комментарии на type assertions (647), переименование shape-symbols в memory (20), refactor chained assertions (124).
+> Patch-релиз. Анти-slop рефакторинг качества кода: типы на границах стали явными
+> (парсятся через Valibot-схемы на I/O-стыках), а runtime-проверки `as` / `typeof`
+> устранены в пользу статического сужения типов. **Изменений в поведении и API нет.**
 
 ### Изменено
 
-- Добавлены `// SAFETY: <reason>` комментарии ко всем 647 type assertions
-- Переименованы identifiers с подстрокой `shape` → `form` в `packages/memory`
+- **Парсинг границ через Valibot 0.42.1**. `unknown`-параметры и возвращаемые типы
+  на I/O-стыках теперь парсятся через именованные Valibot-схемы (`v.parse(schema, rawInput)`).
+  Добавлено 25+ схем во все 5 пакеток, включая `McpArgsSchema`, `JsonArgsSchema`,
+  `CheckpointHeaderSchema` (с вариантами V1 и V2), `RuleSchema`, `ParsedRulesSchema`,
+  `CommandContextSchema`, `ChatMessagesInputSchema`, `DumpPayloadSchema`,
+  `SpawnJsonValueSchema`, `ToolListResultSchema`, `ErrorObjectSchema`.
+  Ветвление после парсинга использует доменное значение, а не `typeof`.
+
+- **Комментарии SAFETY для type-assertions**. Перед каждой `as`-ассертацией во всей
+  кодовой базе теперь стоит комментарий `// SAFETY: <reason>`, объясняющий, почему
+  ассертация корректна. Использован паттерн const-extraction там, где ассертация
+  находится внутри функции, чтобы комментарий был на той же строке, что и
+  ассертация (AST-walker принимает комментарии только в таком положении).
+
+- **Очистка цепочечных ассертаций**. `as unknown as X` схлопнуты в одиночные `as X`
+  везде, где TypeScript это позволяет. `as Record<string, unknown>` для распарсенного
+  JSON заменены на объектные литералы, валидируемые через `satisfies`, или на
+  Valibot-производные record-типы.
+
+- **Переименование identifiers с shape-суффиксом**. `validateJudgeResponseShape` →
+  `validateJudgeResponseForm`, `V2HeaderShape` → `V2HeaderForm` и ещё 20
+  вхождений в тестах memory.
+
+- **Bump версий**. Все 5 пакеток на `0.16.4`; root на `0.16.4`. Workspace-пины и
+  `bun.lock` перегенерированы.
+
+### Исправлено
+
+- **Баг количества параметров SQLite UPDATE в `runs.ts:106`**: запрос содержал 4
+  placeholder'а, но передавалось только 3 значения. Несколько runtime-тестов
+  (`args-persistence`, `resume`, `foundation`) молча падали на этом запросе.
+  Исправлено добавлением недостающего значения `runID`.
+
+- **Ошибка парсинга в `checkpoint-v1-migration-scale.test.ts`**: предыдущая
+  неудачная правка оставила в тестовом файле дублирующий `return parsed; } catch { ... }`,
+  что приводило к ошибке парсинга в этом файле. Дубликат удалён.
+
+### Статистика
+
+- 178 файлов изменено, +2965 / -1267 относительно `main`.
+- Количество тестов: 1964 теста в 88 файлах.
+- Цепочка pre-commit 7-gate зелёная на всех коммитах.
 
 ## v0.16.3 (2026-08-15)
 
