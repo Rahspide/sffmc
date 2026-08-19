@@ -65,8 +65,9 @@ function __setWorkflowConfig(cfg: WorkflowExtendedConfig | null): void {
  *  `Symbol.for("@sffmc/runtime.__setWorkflowConfig")`. */
 const __SET_WORKFLOW_CONFIG_SYMBOL = Symbol.for("@sffmc/runtime.__setWorkflowConfig")
 // SAFETY: globalThis cast for Symbol-keyed plugin registry; the typed index signature is the documented contract for the registry
+const _globalThisAny: unknown = globalThis
 // oxlint-disable-next-line no-chained-type-assertions
-const registry = globalThis as never as Record<symbol, (cfg: WorkflowExtendedConfig | null) => void>
+const registry = _globalThisAny as Record<symbol, (cfg: WorkflowExtendedConfig | null) => void>
 registry[__SET_WORKFLOW_CONFIG_SYMBOL] = __setWorkflowConfig
 
 /** Sync accessor — returns the cached config or the defaults if the
