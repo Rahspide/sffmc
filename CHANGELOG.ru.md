@@ -13,7 +13,7 @@
 - **Парсинг границ через Valibot 0.42.1**. `unknown`-параметры и возвращаемые типы
   на I/O-стыках теперь парсятся через именованные Valibot-схемы (`v.parse(schema, rawInput)`).
   Добавлено 25+ схем во все 5 пакеток, включая `McpArgsSchema`, `JsonArgsSchema`,
-  `CheckpointHeaderSchema` (с вариантами V1 и V2), `RuleSchema`, `ParsedRulesSchema`,
+  `CheckpointHeaderSchema` (с вариантами версий 1 и 2), `RuleSchema`, `ParsedRulesSchema`,
   `CommandContextSchema`, `ChatMessagesInputSchema`, `DumpPayloadSchema`,
   `SpawnJsonValueSchema`, `ToolListResultSchema`, `ErrorObjectSchema`.
   Ветвление после парсинга использует доменное значение, а не `typeof`.
