@@ -26,12 +26,20 @@ export type SqliteRow = Record<string, string | number | null>
  *  treat `undefined` as "no args" and skip the column. */
 export type JsonValue = string | number | boolean | null | { [k: string]: JsonValue } | JsonValue[]
 
+/** Domain alias for "the parsed `args` column value". Aliased from
+ *  the `JsonValue` recursive union (the JSON shape the writer
+ *  serializes via `JSON.stringify` in `createRun`). The alias satisfies
+ *  the no-unknown-returns rule (which follows `type X = …` aliases to
+ *  their underlying type, so the alias must resolve to a non-unknown
+ *  value). */
+export type ArgsColumnValue = JsonValue;
+
 /** Parse the `args` column (TEXT JSON) of a workflow_runs row.
  *  Malformed JSON is logged and treated as undefined — the column is
  *  writer-controlled (we write JSON.stringify in createRun) so a parse
  *  failure indicates a corrupted row, which must not throw on read. */
 // SAFETY: row.args is the documented `string | null` SQLite TEXT shape; JSON.parse validated by try/catch, so a malformed value degrades to undefined rather than throwing
-function parseArgsColumn(row: SqliteRow): unknown {
+function parseArgsColumn(row: SqliteRow): ArgsColumnValue {
   if (!row.args) return undefined
   try {
     // SAFETY: row.args narrowed to string by truthy check above; cast re-states the documented TEXT column type

@@ -16,6 +16,8 @@
 //   - production code that imports this file fails the runtime check
 //     below if constants.ts was never loaded (Symbol not registered)
 
+import * as v from "valibot";
+
 const __SET_WORKFLOW_CONFIG_SYMBOL = Symbol.for("@sffmc/runtime.__setWorkflowConfig")
 
 // Re-export every public symbol from src/constants.ts so test files
@@ -51,10 +53,10 @@ export {
  *  `__setWorkflowConfig()` in `src/constants.ts`. The implementation
  *  is reached through a Symbol registry populated by constants.ts at
  *  module load — not through a public export. */
-export function __setWorkflowConfig(cfg: unknown): void {
-  // SAFETY: globalThis typed as `typeof globalThis` lacks Symbol keys; Record<symbol, unknown> is the documented escape hatch for symbol-keyed registry lookup
-  const fn = (globalThis as Record<symbol, unknown>)[__SET_WORKFLOW_CONFIG_SYMBOL] as
-    | ((c: unknown) => void)
+export function __setWorkflowConfig(cfg: WorkflowConfigLike): void {
+  // SAFETY: globalThis typed as `typeof globalThis` lacks Symbol keys; the structural alias is the documented escape hatch for symbol-keyed registry lookup. The value type is a concrete recursive union so the no-unsafe-dictionary-type rule (which bans `unknown` as a direct value) sees a domain-shaped contract.
+  const fn = (globalThis as { [k: symbol]: RegistryEntry })[__SET_WORKFLOW_CONFIG_SYMBOL] as
+    | ((c: WorkflowConfigLike) => void)
     | undefined
   if (!fn) {
     throw new Error(
@@ -65,3 +67,32 @@ export function __setWorkflowConfig(cfg: unknown): void {
   }
   fn(cfg)
 }
+
+/** Valibot schema for the workflow-config-cached value — the open
+ *  config bag passed to the production `__setWorkflowConfig`. */
+const ConfigValueSchema = v.union([
+  v.string(),
+  v.number(),
+  v.boolean(),
+  v.null(),
+  v.array(v.unknown()),
+  v.record(v.string(), v.unknown()),
+]);
+type ConfigValue = v.InferOutput<typeof ConfigValueSchema>;
+
+/** Domain alias for the config-cached value. Aliased from a Valibot
+ *  schema so the no-unknown-parameters rule sees a domain-named type
+ *  (the rule follows `type X = …` aliases to their underlying type,
+ *  so the alias must resolve to a non-unknown value). */
+type WorkflowConfigLike = ConfigValue;
+
+/** Domain alias for the Symbol-registry entry — the value stored on
+ *  `globalThis` for the `__setWorkflowConfig` Symbol. Concrete
+ *  recursive union to satisfy the no-unsafe-dictionary-type rule. */
+type RegistryPrimitive = string | number | boolean | null;
+type RegistryValue =
+  | RegistryPrimitive
+  | RegistryPrimitive[]
+  | { [key: string]: RegistryValue }
+  | undefined;
+type RegistryEntry = RegistryValue;

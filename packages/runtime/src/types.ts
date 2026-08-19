@@ -4,6 +4,20 @@
 import { DEFAULT_GRACE_PERIOD_MS, WORKFLOW_LIMITS } from "./constants.ts"
 import type { OutcomeStore } from "./outcome-store.ts"
 
+/** JSON Schema object (loose form) — the shape of the optional `schema`
+ *  field passed to `agent()`. Aliased for the no-unsafe-dictionary-type
+ *  rule: the value contract is the open JSON-Schema draft-07 object
+ *  (string keys, schema-typed values), and the alias gives the field
+ *  a precise dictionary value type. The nested records use a recursive
+ *  alias to keep the value contract concrete. */
+type JsonSchemaPrimitive = string | number | boolean | null;
+type JsonSchemaValue =
+  | JsonSchemaPrimitive
+  | JsonSchemaPrimitive[]
+  | { [key: string]: JsonSchemaValue }
+  | undefined;
+export type JsonSchemaObject = { [key: string]: JsonSchemaValue };
+
 /** Status of a workflow run. Const-object pattern (mirrors
  *  `AgentFailureReason` at types.ts:135-143) so producers and consumers
  *  reference the same identifier. Renaming a member here is a compile
@@ -165,7 +179,7 @@ export interface AgentOptions {
    *  When the literal string `"INHERIT"`, the runtime resolves the parent's
    *  MCP tools via `mcp.resolveInheritedTools()` before forwarding. */
   tools?: ToolWhitelist
-  schema?: Record<string, unknown>
+  schema?: JsonSchemaObject
   isolation?: "worktree"
   label?: string
   phase?: string

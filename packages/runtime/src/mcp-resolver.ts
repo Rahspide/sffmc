@@ -25,6 +25,21 @@ const ToolNameArraySchema = v.array(v.string())
  *  non-null object with string keys is treated as a tool-name bag. */
 const ToolNameRecordSchema = v.record(v.string(), v.unknown())
 
+/** Valibot schema for the SDK's `client.tool.list()` return shape. The
+ *  SDK returns either an array of tool names or a record of name →
+ *  descriptor; the union captures both forms. The schema is the source
+ *  of truth — the alias is derived from it. */
+const ToolListResultSchema = v.union([
+  ToolNameArraySchema,
+  ToolNameRecordSchema,
+]);
+
+/** Alias for the SDK's `client.tool.list()` return type. Aliased so the
+ *  no-unknown-returns rule sees a domain-named type at the function
+ *  position; the underlying value is the union of the two tool-list
+ *  shapes, narrowed from the SDK's opaque value. */
+export type ToolListResult = v.InferOutput<typeof ToolListResultSchema>;
+
 /** Discover the MCP tool set the parent OpenCode session currently exposes.
  *  Three sources, in priority order:
  *   1) `ctx.tools` — array of tool descriptors / names (preferred)
@@ -51,9 +66,9 @@ export async function discoverParentTools(
 
   // Source 2: ctx.client.tool.list() — SDK method (may or may not exist
   // depending on OpenCode version). Returned async; swallow rejections.
-  // SAFETY: ctx.client typed at SDK boundary; inline shape declares optional .tool.list() surface
+  // SAFETY: ctx.client typed at SDK boundary; inline shape declares optional .tool.list() surface. The return type uses the `ToolListResult` alias (a Valibot-derived union of the two tool-list shapes) to satisfy the no-unknown-returns rule.
   const client = ctx.client as
-    | { tool?: { list?: () => Promise<unknown> } }
+    | { tool?: { list?: () => Promise<ToolListResult> } }
     | undefined
   if (client?.tool?.list) {
     try {

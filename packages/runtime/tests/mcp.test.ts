@@ -561,7 +561,8 @@ describe("sandbox guest can call mcp.list() and mcp.call()", () => {
     // without exposing config. For this test we use the runtime's bridge
     // directly: spawn a workflow that calls mcp.call 3 times, then pre-fill
     // the bridge budget to its limit via reflection.
-    const ctx = {
+    // SAFETY: test fixture; partial ctx for the budget happy-path sandbox test; cast is needed because PluginContext has many optional fields (only the supplied subset is exercised)
+    const ctx: PluginContext = {
       config: {},
       tools: ["mcp__echo"],
       client: {
@@ -576,7 +577,6 @@ describe("sandbox guest can call mcp.list() and mcp.call()", () => {
           call: async (_name: string, args: JsonValue) => ({ ok: args }),
         },
       },
-    // SAFETY: test fixture; partial ctx for the budget happy-path sandbox test; cast is needed because PluginContext has many optional fields (only the supplied subset is exercised)
     } as PluginContext
 
     const runtime = new WorkflowRuntime(ctx, {

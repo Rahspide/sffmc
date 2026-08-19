@@ -8,6 +8,19 @@
 
 import type { PluginContext } from "../src/runtime.ts"
 
+/** Test-only domain alias for the LLM call args shape (used by
+ *  `session.message` spies). The value type is the recursive
+ *  `LlmArgValue` union — concrete enough to satisfy the
+ *  no-unsafe-dictionary-type rule (which bans `unknown` as a direct
+ *  value type). */
+type LlmArgPrimitive = string | number | boolean | null;
+type LlmArgValue =
+  | LlmArgPrimitive
+  | LlmArgPrimitive[]
+  | { [key: string]: LlmArgValue }
+  | undefined;
+type LLMCallArgsShape = { [key: string]: LlmArgValue };
+
 /** Mock PluginContext with NO LLM client. Used by callLLM fallback tests
  *  (runtime.ts:803-804 — returns the "no LLM client available" message). */
 export function makeNoClientCtx(): PluginContext {
@@ -31,7 +44,7 @@ export function makeToolsSpyCtx(): PluginContext & {
     calls,
     client: {
       session: {
-        message: async (args: Record<string, unknown>) => {
+        message: async (args: LLMCallArgsShape) => {
           calls.push({
             messages: args.messages,
             // SAFETY: args.model is unknown; string | undefined is the documented LLM SDK call.model parameter type

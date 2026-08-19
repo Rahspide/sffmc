@@ -13,6 +13,17 @@ export interface CallLLMResult {
   finalText?: string
 }
 
+/** Args shape for the OpenCode `client.session.message()` call — the
+ *  `messages`/`model`/`tools` triple that the SDK accepts. Aliased so
+ *  the no-unknown-parameters rule (which checks the literal `unknown`
+ *  keyword, not aliases) sees a domain-named type at the function-type
+ *  position. */
+export type LLMCallArgs = {
+  messages: Array<{ role: string; content: string }>
+  model: string
+  tools: string[] | "INHERIT" | undefined
+}
+
 /** Dispatch a single LLM call from a workflow step. The result is passed
  *  back to the runtime to update counters / events. No LLM client → a
  *  deterministic placeholder result is returned so the workflow can proceed
@@ -49,9 +60,9 @@ export async function callLLM(
   // Use ctx.client.session.message() — bypasses Max Mode + tool.execute hooks
   // SAFETY: ctx is typed as unknown at SDK boundary; the inline shape narrows the optional message method
   if ((ctx as { client?: { session?: { message?: Function } } }).client?.session?.message) {
-    // SAFETY: ctx.client.session.message signature verified by the existence check above; the inline cast re-states the shape for the call site
+    // SAFETY: ctx.client.session.message signature verified by the existence check above; the inline cast re-states the shape for the call site. The args shape mirrors the `messages`/`model`/`tools` fields passed below — typed as `LLMCallArgs` to satisfy the no-unknown-parameters rule (which checks the literal `unknown` keyword, not aliases).
     return (ctx as {
-      client: { session: { message: (args: unknown) => Promise<CallLLMResult> } }
+      client: { session: { message: (args: LLMCallArgs) => Promise<CallLLMResult> } }
     }).client.session.message({
       messages,
       model: opts.model,

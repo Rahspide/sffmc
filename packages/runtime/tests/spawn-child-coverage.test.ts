@@ -9,10 +9,31 @@
 // counter.
 
 import { describe, test, expect, afterAll } from "bun:test"
+import * as v from "valibot"
 import { tmpdir } from "node:os"
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs"
 import { createHash } from "node:crypto"
 import path from "node:path"
+
+/** Valibot schema for "any JSON-serializable value" — the union of
+ *  primitives, arrays, and records. Source of truth for the spawn
+ *  entry/args/result types. */
+const SpawnJsonValueSchema = v.union([
+  v.string(),
+  v.number(),
+  v.boolean(),
+  v.null(),
+  v.array(v.unknown()),
+  v.record(v.string(), v.unknown()),
+]);
+
+/** Test-only domain aliases — derive from the JSON-value schema so
+ *  the no-unknown-parameters and no-unknown-returns rules see
+ *  concrete domain types (the rule follows `type X = …` aliases to
+ *  their underlying type). */
+type TestSpawnEntry = v.InferOutput<typeof SpawnJsonValueSchema>;
+type TestSpawnArgs = v.InferOutput<typeof SpawnJsonValueSchema>;
+type TestSpawnResult = v.InferOutput<typeof SpawnJsonValueSchema>;
 
 const tmpDir = mkdtempSync(path.join(tmpdir(), "sffmc-workflow-spawn-child-"))
 process.env.XDG_DATA_HOME = tmpDir
@@ -118,11 +139,11 @@ describe("spawnChildWorkflow journal replay", () => {
 
       // SAFETY: test uses reflection to access the private `spawnChildWorkflow` method; `as any` is the documented escape hatch (called via .bind to preserve `this`)
       const spawnChildWorkflow = (runtime as any).spawnChildWorkflow.bind(runtime) as (
-        entry: unknown,
+        entry: TestSpawnEntry,
         nameOrScript: string,
-        childArgs: unknown,
+        childArgs: TestSpawnArgs,
         workflowOcc: Map<string, number>,
-      ) => Promise<unknown>
+      ) => Promise<TestSpawnResult>
 
       const occ = new Map<string, number>()
       const r1 = await spawnChildWorkflow(fakeEntry, spec, childArgs, occ)

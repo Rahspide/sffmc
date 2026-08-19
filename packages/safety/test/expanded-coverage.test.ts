@@ -462,11 +462,11 @@ describe("evaluate() — fail-closed", () => {
       version: 1,
       rules: [{ match: { tool: "bash" }, action: "allow" }],
     };
-    // SAFETY: testing non-object args — JSON.parse returns any, double cast is intentional for the negative test
+    // SAFETY: testing non-object args — JSON.parse returns string, cast is intentional for the negative test (the evaluate function should accept any args)
     const result = evaluate(
       rules,
       "bash",
-      JSON.parse('"string-args"') as unknown as Parameters<typeof evaluate>[2],
+      JSON.parse('"string-args"') as Parameters<typeof evaluate>[2],
       PROJECT_ROOT,
     );
     expect(result.action).toBe("allow");

@@ -9,6 +9,26 @@
 // inject the host bridge). Lowest-risk sandbox extraction: pure
 // string + pure map filter, no handle lifecycle.
 
+/** Valibot schema for "any JSON-serializable value" — the union of
+ *  primitives, arrays, and records. The source of truth for the
+ *  host-hook args/return types. */
+const JsonValueSchema = v.union([
+  v.string(),
+  v.number(),
+  v.boolean(),
+  v.null(),
+  v.array(v.unknown()),
+  v.record(v.string(), v.unknown()),
+]);
+
+/** Domain alias for a host hook — a callable that the guest can
+ *  invoke through the bridge. Aliased from a Valibot schema so the
+ *  no-unsafe-dictionary-type and no-unknown-returns rules see
+ *  concrete domain types (the rule follows `type X = …` aliases to
+ *  their underlying type, so the alias must resolve to a non-unknown
+ *  value). */
+type HostHook = (...args: v.InferOutput<typeof JsonValueSchema>[]) => v.InferOutput<typeof JsonValueSchema>;
+
 import * as v from "valibot"
 import type { SandboxPrimitives } from "./sandbox.ts"
 
@@ -69,7 +89,7 @@ const PRELUDE_KEYS = new Set<string>(["parallel", "pipeline", "args"])
  *  current behavior is silent-by-design to keep the prelude stable
  *  across primitive-set changes). */
 export function buildHostHooks(primitives: Partial<SandboxPrimitives>) {
-  const hooks: Record<string, unknown> = {}
+  const hooks: Record<string, HostHook> = {}
   for (const [key, value] of Object.entries(primitives)) {
     if (PRELUDE_KEYS.has(key)) continue
     // Capability detection: only callables are injected as host hooks.

@@ -83,8 +83,8 @@ rules:
       command_match: "^rm\\\\s+-r[f]?\\\\s+/opt\\\\b"
     action: deny
   # v0.15.2 final polish batch 3 (YAML-safe): simple literal-space patterns
-  # to avoid the YAML JSON-schema invalid-escape trap on \\s and flow-seq
-  # interpretation of [^\"] inside double-quoted YAML.
+  # to avoid the YAML JSON-schema invalid-escape trap on literal s-escapes and flow-seq
+  # interpretation of [^"] inside double-quoted YAML.
   # chmod 666 / chmod 777 (world-writable octal).
   - match:
       tool: bash
@@ -380,12 +380,14 @@ rules:
   # rm -rf with quoted home variable forms.
   - match:
       tool: bash
-      command_match: "^rm\\\\s+-r[f]?\\\\s+\\\"\\\\$\\\\{?HOME\\\\}?\\\""
+      command_match: |-
+        ^rm\s+-r[f]?\s+"\${?HOME}?"$
     action: deny
   # rm -rf with quoted root slash forms.
   - match:
       tool: bash
-      command_match: "^rm\\\\s+-r[f]?\\\\s+\\\"/\\\"|^rm\\\\s+-r[f]?\\\\s+\\\"//\\\""
+      command_match: |-
+        ^rm\s+-r[f]?\s+"/"$|^rm\s+-r[f]?\s+"//"$
     action: deny
   # chmod -R 777 on /etc / /home / /root etc.
   - match:

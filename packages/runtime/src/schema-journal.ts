@@ -39,13 +39,25 @@ const PlainObjectSchema = v.record(v.string(), v.unknown())
 /** Discriminator values accepted on the `t` field of a journal line. */
 export type JournalEventType = "agent" | "log" | "phase"
 
+/** Agent-event `args` payload — a string-keyed bag of JSON-serializable
+ *  values. The value type is the recursive `JournalArgValue` union —
+ *  concrete enough to satisfy the no-unsafe-dictionary-type rule
+ *  (which bans `unknown` as a direct value type). */
+type JournalArgPrimitive = string | number | boolean | null;
+type JournalArgValue =
+  | JournalArgPrimitive
+  | JournalArgPrimitive[]
+  | { [key: string]: JournalArgValue }
+  | undefined;
+export type JournalAgentArgs = { [key: string]: JournalArgValue };
+
 /** An agent event: a completed agent() call result. */
 export interface JournalEventAgent {
   t: "agent"
   /** Stable key used to dedupe agent() calls (e.g. the task string). */
   key: string
   /** Argument bag passed to the agent (opaque to the validator). */
-  args: Record<string, unknown>
+  args: JournalAgentArgs
   /** Agent result — may be any JSON-serializable value. */
   result: unknown
   /** Pass number within the run lifecycle (1-indexed). */
@@ -184,12 +196,12 @@ export function validateJournalEvent(
     const event: JournalEventAgent = {
       t: "agent",
       key: obj.key,
-      // SAFETY: obj.args is unknown; Record<string, unknown> | undefined is the documented schema for the agent event args payload
-      args: (obj.args as Record<string, unknown> | undefined) ?? {},
+      // SAFETY: obj.args is unknown; JournalAgentArgs | undefined is the documented schema for the agent event args payload
+      args: (obj.args as JournalAgentArgs | undefined) ?? {},
       result: obj.result,
       pass: obj.pass,
       // SAFETY: obj.tokens is unknown; number is the documented scalar type for the optional tokens field
-      ...(obj.tokens !== undefined ? { tokens: obj.tokens as number } : {}),
+      ...(obj.tokens !== undefined && { tokens: obj.tokens as number }),
     }
     return { ok: true, event }
   }

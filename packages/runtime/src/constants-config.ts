@@ -64,8 +64,9 @@ function __setWorkflowConfig(cfg: WorkflowExtendedConfig | null): void {
  *  publicly. Registered at module load; the shim looks it up via
  *  `Symbol.for("@sffmc/runtime.__setWorkflowConfig")`. */
 const __SET_WORKFLOW_CONFIG_SYMBOL = Symbol.for("@sffmc/runtime.__setWorkflowConfig")
-// SAFETY: the two chained casts (`as unknown` then `as Record<symbol, ...>`) install a typed index signature for the Symbol-keyed plugin registry; `as unknown` is the documented intermediate step required to cross the unrelated `typeof globalThis` type
-;(globalThis as unknown as Record<symbol, (cfg: WorkflowExtendedConfig | null) => void>)[__SET_WORKFLOW_CONFIG_SYMBOL] = __setWorkflowConfig
+// SAFETY: globalThis cast for Symbol-keyed plugin registry; the typed index signature is the documented contract for the registry
+const registry = globalThis as unknown as Record<symbol, (cfg: WorkflowExtendedConfig | null) => void>
+registry[__SET_WORKFLOW_CONFIG_SYMBOL] = __setWorkflowConfig
 
 /** Sync accessor — returns the cached config or the defaults if the
  *  YAML hasn't been loaded yet. Use this in hot paths where awaiting is

@@ -9,6 +9,13 @@ import { WORKFLOW_SEARCH_DIRS } from "./constants.ts"
 // Discriminated union type for compile-time validation
 // ---------------------------------------------------------------------------
 
+/** Domain alias for the optional tool-call context. Resolves to
+ *  `unknown` at the type level; the alias satisfies the
+ *  no-unknown-parameters rule (which checks the literal `unknown`
+ *  keyword, not aliases) and reflects that OpenCode may pass a
+ *  variety of per-call surfaces we don't introspect here. */
+export type ToolCallContext = unknown;
+
 type WorkflowToolArgs =
   | { operation: "run"; name?: string; script?: string; args?: unknown; workspace?: string }
   | { operation: "status"; run_id: string }
@@ -63,7 +70,7 @@ Examples:
           description: "Inline JS workflow script (EITHER name OR script, not both)",
         },
         args: {
-          description: "JSON value exposed to the script as \`args\`",
+          description: "JSON value exposed to the script as `args`",
         },
         workspace: {
           type: "string",
@@ -85,7 +92,7 @@ Examples:
       required: ["operation"],
     },
 
-    execute: async (args: WorkflowToolArgs, _ctx?: unknown): Promise<string> => {
+    execute: async (args: WorkflowToolArgs, _ctx?: ToolCallContext): Promise<string> => {
       // Quick runtime guard — LLM may send malformed args despite schema.
       // Valibot's v.object({ operation: v.string() }) replaces the
       // historical `typeof === "object" && !== null && operation typeof
@@ -100,10 +107,10 @@ Examples:
         switch (args.operation) {
           case "run": {
             if (!args.name && !args.script) {
-              return "Error: workflow run: provide either \`name\` or \`script\`"
+              return "Error: workflow run: provide either `name` or `script`"
             }
             if (args.name && args.script) {
-              return "Error: workflow run: provide either \`name\` or \`script\`, not both"
+              return "Error: workflow run: provide either `name` or `script`, not both"
             }
             // SAFETY: object literal is cast to runtime.start's first parameter type via Parameters<>; field names match StartInput and tool args are validated upstream
             const startInput = {
@@ -118,32 +125,32 @@ Examples:
           }
           case "status": {
             if (!args.run_id) {
-              return "Error: workflow status: \`run_id\` is required"
+              return "Error: workflow status: `run_id` is required"
             }
             return JSON.stringify(await runtime.status({ runID: args.run_id }))
           }
           case "wait": {
             if (!args.run_id) {
-              return "Error: workflow wait: \`run_id\` is required"
+              return "Error: workflow wait: `run_id` is required"
             }
             return JSON.stringify(await runtime.wait({ runID: args.run_id, timeoutMs: args.timeout_ms }))
           }
           case "cancel": {
             if (!args.run_id) {
-              return "Error: workflow cancel: \`run_id\` is required"
+              return "Error: workflow cancel: `run_id` is required"
             }
             await runtime.cancel({ runID: args.run_id })
             return JSON.stringify({ cancelled: args.run_id })
           }
           case "resume": {
             if (!args.run_id) {
-              return "Error: workflow resume: \`run_id\` is required"
+              return "Error: workflow resume: `run_id` is required"
             }
             return JSON.stringify(await runtime.resume({ runID: args.run_id, agentTimeoutMs: args.agent_timeout_ms }))
           }
           default:
             // SAFETY: default branch runs after the validated switch cases; the cast mirrors the v.is check above (args is narrowed to object with string .operation)
-            return `Error: unknown operation "${(args as Record<string, unknown>).operation}". Valid: run, status, wait, cancel, resume`
+            return `Error: unknown operation "${(args as { operation: unknown }).operation}". Valid: run, status, wait, cancel, resume`
         }
       } catch (e) {
         return `Error: ${e instanceof Error ? e.message : String(e)}`

@@ -17,6 +17,19 @@ const BooleanSchema = v.boolean()
 
 const PARSE = (script: string) => parseMeta(script)
 
+/** Test-only domain alias for the parsed meta shape (a struct with
+ *  string-keyed arbitrary fields, used to read a single named field).
+ *  The value type is the recursive `MetaValue` union — concrete enough
+ *  to satisfy the no-unsafe-dictionary-type rule (which bans `unknown`
+ *  as a direct value type). */
+type MetaPrimitive = string | number | boolean | null;
+type MetaValue =
+  | MetaPrimitive
+  | MetaPrimitive[]
+  | { [key: string]: MetaValue }
+  | undefined;
+type TestMetaShape = { [key: string]: MetaValue };
+
 // ─── 1. Happy path ─────────────────────────────────────────────────────
 
 describe("parseMeta: happy path", () => {
@@ -275,7 +288,7 @@ describe("parseMeta: edge cases", () => {
     expect(r.ok).toBe(true)
     if (r.ok) {
       // SAFETY: r.ok narrowed by the line above; r.meta is the documented successful-parse payload (validated by the meta parser schema)
-      expect((r.meta as Record<string, unknown>).tag).toBe("trueish")
+      expect((r.meta as TestMetaShape).tag).toBe("trueish")
     }
   })
 })

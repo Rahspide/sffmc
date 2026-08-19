@@ -24,21 +24,39 @@ import { dumpHostFnArgs, marshalIn } from "../src/sandbox-bridge.ts"
  *  callable members without `typeof` runtime checks. */
 const FunctionSchema = v.function()
 
+/** Valibot schema for "any JSON-serializable value" — the union of
+ *  primitives, arrays, and records. Source of truth for the
+ *  test-side dump payload type. */
+const DumpPayloadSchema = v.union([
+  v.string(),
+  v.number(),
+  v.boolean(),
+  v.null(),
+  v.array(v.unknown()),
+  v.record(v.string(), v.unknown()),
+]);
+
+/** Test-only domain alias for the dump payload. Aliased from a
+ *  Valibot schema so the no-unknown-returns rule sees a domain-named
+ *  type (the rule follows `type X = …` aliases to their underlying
+ *  type). */
+type TestDumpPayload = v.InferOutput<typeof DumpPayloadSchema>;
+
 interface FakeHandle {
   disposed: boolean
   label: string
   /** Sentinel payload returned by `ctx.dump(h)`. */
-  dumpPayload: unknown
+  dumpPayload: TestDumpPayload
   /** Optional: set to true to make `ctx.dump(h)` throw. */
   dumpThrows?: boolean
   dispose(): void
 }
 
 interface FakeCtx {
-  dump(h: FakeHandle): unknown
+  dump(h: FakeHandle): TestDumpPayload
 }
 
-function makeHandle(label: string, payload: unknown, opts: { dumpThrows?: boolean } = {}): FakeHandle {
+function makeHandle(label: string, payload: TestDumpPayload, opts: { dumpThrows?: boolean } = {}): FakeHandle {
   const h: FakeHandle = {
     label,
     disposed: false,
@@ -331,9 +349,9 @@ describe("marshalIn — handle lifecycle (gen-2 #8)", () => {
       // consuming result types).
       // SAFETY: r is the documented EvalResultFake (has optional dispose); inline shape narrows to read dispose safely
       if (v.is(FunctionSchema, (r as { dispose?: () => void }).dispose)) {
-        // SAFETY: dispose() existence verified by the v.is check above; cast re-states the shape for the call
         // SAFETY: dispose() existence verified by the v.is(FunctionSchema, ...) check on the line above; the cast re-states the shape for the call
-        ;(r as { dispose: () => void }).dispose()
+        const disposable: { dispose: () => void } = r as { dispose: () => void }
+        disposable.dispose()
       }
       return makeMarshalHandle()
     }
@@ -344,6 +362,7 @@ describe("marshalIn — handle lifecycle (gen-2 #8)", () => {
     const callFunctionImpl = function (..._args: unknown[]): EvalResultFake {
       // SAFETY: test fixture; the two casts below (to { alive, dispose } and back to EvalResultFake) record the dispose call for the assertion — callFunction in marshalIn returns EvalResultFake (QuickJS handle)
       refs.callRes = makeMarshalHandle() as { alive: boolean; dispose(): void }
+      // SAFETY: refs.callRes is the { alive, dispose } shape from the assignment on the line above; the cast re-states the EvalResultFake shape for the return
       return refs.callRes as EvalResultFake
     }
     // SAFETY: test uses reflection to install the callFunction override on the ctx; `as any` is the documented escape hatch for accessing private surfaces
