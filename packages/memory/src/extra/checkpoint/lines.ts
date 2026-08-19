@@ -13,6 +13,8 @@
 
 import type { ToolCall } from "./types";
 import { createLogger } from "@sffmc/utilities";
+import * as v from "valibot";
+import { ToolCallSchema } from "./types";
 
 const log = createLogger("extra-checkpoint");
 
@@ -46,17 +48,10 @@ export function iterateBodyLines(
     if (lineEnd < 0) lineEnd = fileBuf.length;
     const lineBytes = fileBuf.subarray(start, lineEnd);
     try {
-      // SAFETY: JSON.parse validated shape on line 49
-      const obj = JSON.parse(lineBytes.toString("utf-8")) as Record<string, unknown>;
-      if (obj.__type === "header") continue;
-      if (
-        typeof obj.tool === "string" &&
-        typeof obj.timestamp === "number" &&
-        typeof obj.callID === "string"
-      ) {
-        // SAFETY: narrowed by typeof check on line 54
-        calls.push(obj as ToolCall);
-      }
+      const parsed = JSON.parse(lineBytes.toString("utf-8"));
+      if (parsed && typeof parsed === "object" && (parsed as { __type?: unknown }).__type === "header") continue;
+      const obj = v.parse(ToolCallSchema, parsed);
+      calls.push(obj);
     } catch (e) {
       log.debug({ err: e, lineIndex: i }, "checkpoint-lines: skipping malformed line")
       // Skip malformed lines

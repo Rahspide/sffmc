@@ -5,16 +5,47 @@
 
 import type { JudgeResponse, JudgeScore } from "./judge-types.ts";
 import { createLogger } from "@sffmc/utilities";
+import * as v from "valibot";
 
 const log = createLogger("extra-judge");
+
+// Valibot schemas for the judge response. Scores are validated as
+// exactly N entries (one per candidate) with each entry's three fields
+// bounded in [0,10]. `v.pipe(v.number(), v.minValue(0), v.maxValue(10))`
+// encodes the 0..10 cap directly; out-of-range values fail the parse and
+// `parseJudgeResponse` returns null (preserving the prior behavior
+// pinned by judge.test.ts "rejects response with out-of-range scores").
+const BoundedScoreSchema = v.pipe(
+  v.number(),
+  v.minValue(0),
+  v.maxValue(10),
+);
+const ScoreTripletSchema = v.object({
+  correctness: BoundedScoreSchema,
+  completeness: BoundedScoreSchema,
+  conciseness: BoundedScoreSchema,
+});
+
+function judgeResponseSchema(candidateCount: number) {
+  return v.object({
+    scores: v.pipe(v.array(ScoreTripletSchema), v.length(candidateCount)),
+    winner: v.number(),
+    reasoning: v.string(),
+  });
+}
 
 export function parseJudgeResponse(raw: string, candidateCount: number): JudgeResponse | null {
   try {
     const json = extractJudgeJsonObject(raw);
     if (json === null) return null;
-    // SAFETY: JSON.parse validated shape on line 15
-    const parsed = JSON.parse(json) as JudgeResponse;
-    return validateJudgeResponseForm(parsed, candidateCount);
+    const parsed = v.parse(judgeResponseSchema(candidateCount), JSON.parse(json));
+    if (!isValidWinnerIndex(parsed.winner, candidateCount)) return null;
+    if (!hasNonEmptyReason(parsed.reasoning)) return null;
+    return {
+      scores: parsed.scores as JudgeScore[],
+      winner: parsed.winner,
+      reasoning: parsed.reasoning.trim(),
+    };
   } catch (e) {
     log.debug({ err: e }, "judge-parse: parseJudgeResponse failed (returning null)")
     return null;
@@ -31,62 +62,16 @@ function extractJudgeJsonObject(raw: string): string | null {
   return jsonMatch ? jsonMatch[0] : null;
 }
 
-/** Validate the parsed JudgeResponse form (scores / winner / reasoning).
- *  Returns the normalized response (with reasoning trimmed) on success,
- *  or `null` on any structural failure. The caller is responsible for the
- *  outer try/catch around `JSON.parse`. */
-function validateJudgeResponseForm(
-  parsed: JudgeResponse,
-  candidateCount: number,
-): JudgeResponse | null {
-  if (!hasValidJudgeScores(parsed.scores, candidateCount)) return null;
-  if (!isValidWinnerIndex(parsed.winner, candidateCount)) return null;
-  if (!hasNonEmptyReason(parsed.reasoning)) return null;
-  return {
-    scores: parsed.scores,
-    winner: parsed.winner,
-    reasoning: parsed.reasoning.trim(),
-  };
+/** `winner` must be an integer in `[0, candidateCount)`. After parsing
+ *  the JSON shape the value is already typed as `number` — the
+ *  function only enforces the domain range. */
+function isValidWinnerIndex(winner: number, candidateCount: number): boolean {
+  return winner >= 0 && winner < candidateCount;
 }
 
-/** `winner` must be an integer in `[0, candidateCount)`. Used as the second gate
- *  in validateJudgeResponseForm after the scores array check. */
-function isValidWinnerIndex(winner: unknown, candidateCount: number): winner is number {
-  return typeof winner === "number" && winner >= 0 && winner < candidateCount;
-}
-
-/** `reasoning` must be a non-empty string after trimming. Used as the
- *  third gate in validateJudgeResponseForm. */
-function hasNonEmptyReason(reasoning: unknown): reasoning is string {
-  return typeof reasoning === "string" && reasoning.trim().length > 0;
-}
-
-/** Validate the `scores` array: must be an Array of length `candidateCount`, each
- *  entry's correctness/completeness/conciseness must be a number in [0,10]. */
-function hasValidJudgeScores(scores: unknown, candidateCount: number): scores is JudgeScore[] {
-  if (!Array.isArray(scores) || scores.length !== candidateCount) return false;
-  for (const s of scores) {
-    if (!isValidScoreTriplet(s)) return false;
-  }
-  return true;
-}
-
-/** Per-entry score validator: correctness, completeness, conciseness
- *  must each be a number in [0,10]. Pinned by judge.test.ts existing
- *  "scores 0-10 cap" test (line 710-729) on the fallback heuristic. */
-function isValidScoreTriplet(s: unknown): s is JudgeScore {
-  if (typeof s !== "object" || s === null) return false;
-  // SAFETY: narrowed by typeof check on line 77
-  const e = s as Partial<JudgeScore>;
-  return (
-    typeof e.correctness === "number" &&
-    e.correctness >= 0 &&
-    e.correctness <= 10 &&
-    typeof e.completeness === "number" &&
-    e.completeness >= 0 &&
-    e.completeness <= 10 &&
-    typeof e.conciseness === "number" &&
-    e.conciseness >= 0 &&
-    e.conciseness <= 10
-  );
+/** `reasoning` must be a non-empty string after trimming. After parsing
+ *  the JSON shape the value is already typed as `string` — the function
+ *  only enforces the non-empty domain rule. */
+function hasNonEmptyReason(reasoning: string): boolean {
+  return reasoning.trim().length > 0;
 }

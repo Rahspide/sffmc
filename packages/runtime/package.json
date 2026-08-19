@@ -11,6 +11,7 @@
   "dependencies": {
     "@sffmc/utilities": "workspace:*",
     "quickjs-emscripten": "0.32.0",
+    "valibot": "^0.42.1",
     "yaml": "^2.5.0"
   },
   "devDependencies": {

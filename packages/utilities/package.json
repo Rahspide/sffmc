@@ -11,6 +11,7 @@
     "typecheck": "bun build --target=bun --no-bundle src/index.ts"
   },
   "dependencies": {
+    "valibot": "^0.42.1",
     "yaml": "^2.0.0"
   },
   "license": "MIT",

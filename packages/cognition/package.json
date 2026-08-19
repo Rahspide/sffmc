@@ -9,7 +9,8 @@
     "typecheck": "bun build --target=bun --no-bundle src/index.ts"
   },
   "dependencies": {
-    "@sffmc/utilities": "workspace:*"
+    "@sffmc/utilities": "workspace:*",
+    "valibot": "^0.42.1"
   },
   "devDependencies": {
     "typescript": "^7.0.2",

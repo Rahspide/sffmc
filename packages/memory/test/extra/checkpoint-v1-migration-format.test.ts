@@ -33,6 +33,8 @@ import {
   filePath,
   readToolCalls,
 } from "../../src/extra/checkpoint";
+import * as v from "valibot";
+import type { CheckpointHeaderRaw } from "../../src/extra/checkpoint/types.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -86,17 +88,20 @@ interface V2HeaderForm {
 function readHeaderFromDisk(
   sessionID: string,
   dir: string,
-): Record<string, unknown> | null {
+): CheckpointHeaderRaw | null {
   const fp = filePath(sessionID, dir);
   if (!existsSync(fp)) return null;
   const buf = readFileSync(fp, "utf-8");
   const firstLine = buf.split("\n")[0]?.trim();
   if (!firstLine) return null;
   try {
-    // SAFETY: JSON.parse validated shape on line 96
-    const parsed = JSON.parse(firstLine) as Record<string, unknown>;
-    if (parsed.__type !== "header") return null;
-    return parsed;
+    // Permissive parse — format-anomaly tests probe malformed bodies
+    // so the parse must accept any JSON object. The on-disk
+    // `__type === "header"` discriminator is checked explicitly.
+    const RawObjectSchema = v.record(v.string(), v.unknown());
+    const parsed = v.parse(RawObjectSchema, JSON.parse(firstLine));
+    if (!parsed || typeof parsed !== "object" || (parsed as { __type?: unknown }).__type !== "header") return null;
+    return parsed as unknown as CheckpointHeaderRaw;
   } catch {
     return null;
   }
@@ -345,11 +350,16 @@ describe("v1 migration: file format anomalies", () => {
       const v2Buf = readFileSync(filePath(sessionID, dir));
       const v2Lines = v2Buf.toString("utf-8").trim().split("\n");
       expect(v2Lines.length).toBe(4); // header + 3 body lines
-      // SAFETY: JSON.parse validated shape on line 345
-      const v2Header = JSON.parse(v2Lines[0]!) as Record<string, unknown>;
+      // Permissive parse — the v2-specific fields (version, lineOffsets)
+      // are untyped at this layer; the assertions below narrow them via
+      // typeof / Array.isArray.
+      const RawObjectSchema = v.record(v.string(), v.unknown());
+      const v2Header = v.parse(RawObjectSchema, JSON.parse(v2Lines[0]!)) as {
+        version?: unknown;
+        lineOffsets?: unknown;
+      };
       expect(v2Header.version).toBe(2);
       expect(Array.isArray(v2Header.lineOffsets)).toBe(true);
-      // SAFETY: narrowed by Array.isArray on line 347
       expect((v2Header.lineOffsets as unknown[]).length).toBe(3);
     }, 5000);
   });

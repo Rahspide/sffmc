@@ -27,6 +27,14 @@ import {
   readToolCalls,
   createCheckpointTool,
 } from "../../src/extra/checkpoint";
+import * as v from "valibot";
+import {
+  CheckpointHeaderRawSchema,
+  ToolCallSchema,
+  ToolCallV2BodyLineSchema,
+  type CheckpointHeaderRaw,
+  type ToolCall,
+} from "../../src/extra/checkpoint/types.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -81,17 +89,14 @@ interface V2HeaderForm {
  *  fileCrc32) that are not surfaced through the public restore action.
  *  Mirrors the implementation's `readHeader` semantics for the test
  *  paths that need to assert on the on-disk shape. */
-function readHeaderFromDisk(sessionID: string, dir: string): Record<string, unknown> | null {
+function readHeaderFromDisk(sessionID: string, dir: string): CheckpointHeaderRaw | null {
   const fp = filePath(sessionID, dir);
   if (!existsSync(fp)) return null;
   const buf = readFileSync(fp, "utf-8");
   const firstLine = buf.split("\n")[0]?.trim();
   if (!firstLine) return null;
   try {
-    // SAFETY: JSON.parse validated shape on line 91
-    const parsed = JSON.parse(firstLine) as Record<string, unknown>;
-    if (parsed.__type !== "header") return null;
-    return parsed;
+    return v.parse(CheckpointHeaderRawSchema, JSON.parse(firstLine));
   } catch {
     return null;
   }
@@ -279,8 +284,7 @@ describe("checkpoint v2", () => {
       const bodyLines = lines.slice(1);
       expect(bodyLines.length).toBe(3);
       for (const line of bodyLines) {
-        // SAFETY: JSON.parse validated shape on line 280
-        const obj = JSON.parse(line) as Record<string, unknown>;
+        const obj = v.parse(ToolCallV2BodyLineSchema, JSON.parse(line));
         expect(typeof obj.__crc).toBe("number");
       }
 
@@ -420,16 +424,16 @@ describe("checkpoint v2", () => {
       const backupBuf = readFileSync(backupPath, "utf-8");
       expect(backupBuf).toContain('"version":1');
       // v1 body lines had no __crc; ensure the backup did not get
-      // mutated by the migration.
+      // mutated by the migration. Backup lines still have to parse as
+      // a header (line 0) or a ToolCall body line (lines 1+).
       const backupLines = backupBuf.trim().split("\n");
       for (let i = 1; i < backupLines.length; i++) {
-        // SAFETY: JSON.parse validated shape on line 421
-        const obj = JSON.parse(backupLines[i]) as Record<string, unknown>;
-        expect(obj.__crc).toBeUndefined();
+        const obj = v.parse(ToolCallSchema, JSON.parse(backupLines[i]!));
+        expect((obj as { __crc?: number }).__crc).toBeUndefined();
       }
 
       // The v2 file is now at <sessionID>.jsonl with a v2 header.
-      // SAFETY: JSON.parse validated shape on line 421
+      // SAFETY: invariant — see caller justification
       const header = readHeaderFromDisk(sessionID, dir) as V2HeaderForm;
       expect(header).not.toBeNull();
       expect(header.version).toBe(2);
@@ -441,8 +445,7 @@ describe("checkpoint v2", () => {
       const v2Lines = v2Buf.toString("utf-8").trim().split("\n");
       expect(v2Lines.length).toBe(3); // 1 header + 2 calls
       for (let i = 1; i < v2Lines.length; i++) {
-        // SAFETY: JSON.parse validated shape on line 437
-        const obj = JSON.parse(v2Lines[i]) as Record<string, unknown>;
+        const obj = v.parse(ToolCallV2BodyLineSchema, JSON.parse(v2Lines[i]!));
         expect(typeof obj.__crc).toBe("number");
       }
     });
@@ -484,8 +487,7 @@ describe("checkpoint v2", () => {
       const v2Lines = v2Buf.toString("utf-8").trim().split("\n");
       expect(v2Lines.length).toBe(1 + N);
       for (let i = 1; i < v2Lines.length; i++) {
-        // SAFETY: JSON.parse validated shape on line 479
-        const obj = JSON.parse(v2Lines[i]) as Record<string, unknown>;
+        const obj = v.parse(ToolCallV2BodyLineSchema, JSON.parse(v2Lines[i]!));
         expect(typeof obj.__crc).toBe("number");
         expect(typeof obj.callID).toBe("string");
         expect(obj.callID).toBe(`crc-${String(i - 1).padStart(3, "0")}`);

@@ -6,6 +6,7 @@ import { mkdtempSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type PluginContext } from "@sffmc/utilities";
+import { type CheckpointToolResult } from "../src/extra/checkpoint/types.ts";
 
 /**
  * loadServer sets HOME to a temp dir for the duration of the test so that
@@ -29,7 +30,7 @@ afterAll(() => {
 });
 
 const loadServer = async (
-  config: Record<string, unknown> = {},
+  config: Record<string, import("../src/extra/checkpoint/types.ts").JSONValue> = {},
 ): Promise<Awaited<ReturnType<(typeof import("../src/index.ts"))["default"]["server"]>>> => {
   const mod = await import("../src/index.ts");
   const ctx: PluginContext = {
@@ -56,7 +57,7 @@ describe("@sffmc/memory plugin (extra features)", () => {
 
     // Regression guard (fix-17): no `name` field on tool defs
     // SAFETY: invariant — see caller justification
-    const cp = hooks.tool.extra_checkpoint as Record<string, unknown>;
+    const cp = hooks.tool.extra_checkpoint as Record<string, import("../src/extra/checkpoint/types.ts").JSONValue>;
     expect(cp.description).toBeTypeOf("string");
     expect(cp.parameters).toEqual({
       type: "object",
@@ -71,10 +72,10 @@ describe("@sffmc/memory plugin (extra features)", () => {
 
     for (const toolName of ["extra_judge", "extra_dream"]) {
       // SAFETY: invariant — see caller justification
-      const def = hooks.tool[toolName] as Record<string, unknown>;
+      const def = hooks.tool[toolName] as Record<string, import("../src/extra/checkpoint/types.ts").JSONValue>;
       expect(def.description).toBeTypeOf("string");
       // SAFETY: invariant — see caller justification
-      expect((def.parameters as Record<string, unknown>).type).toBe("object");
+      expect((def.parameters as Record<string, import("../src/extra/checkpoint/types.ts").JSONValue>).type).toBe("object");
       expect(def.execute).toBeFunction();
       expect(def.name).toBeUndefined();
     }
@@ -84,7 +85,7 @@ describe("@sffmc/memory plugin (extra features)", () => {
     const hooks = await loadServer();
     for (const toolName of ["extra_checkpoint", "extra_judge", "extra_dream"]) {
       // SAFETY: invariant — see caller justification
-      const result = (await (hooks.tool[toolName] as { execute: () => Promise<unknown> }).execute()) as Record<string, unknown>;
+      const result = (await (hooks.tool[toolName] as { execute: () => Promise<CheckpointToolResult> }).execute()) as Record<string, import("../src/extra/checkpoint/types.ts").JSONValue>;
       // Just verify the tool returns an object (any of these valid shapes):
       //   - { ok: true, skipped: true, reason: "feature disabled" } (default disabled)
       //   - { ok: true, status: "stub" } (config enabled, impl still stub)

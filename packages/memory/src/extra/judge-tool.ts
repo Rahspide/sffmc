@@ -20,6 +20,7 @@ import {
   type JudgeExecuteResult,
   type JudgeResult,
 } from "./judge-types.ts";
+import type { ChatMessage, JSONValue } from "./checkpoint/types.ts";
 
 const log = createLogger("extra-judge");
 
@@ -110,8 +111,8 @@ Set stream: true to receive partial results as they become available (useful for
 
   if (config.judge_auto && config.ctx?.client?.session?.message) {
     hooks["experimental.chat.messages.transform"] = async (
-      _input: unknown,
-      data: { messages: Array<{ role: string; content: string }> },
+      _input: JSONValue,
+      data: { messages: ChatMessage[] },
     ): Promise<void> => {
       try {
         const candidates = extractCandidatesFromMessages(data.messages);

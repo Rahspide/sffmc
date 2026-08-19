@@ -36,6 +36,8 @@ import {
   filePath,
   readToolCalls,
 } from "../../src/extra/checkpoint";
+import * as v from "valibot";
+import type { CheckpointHeaderRaw, JSONValue } from "../../src/extra/checkpoint/types.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -64,7 +66,7 @@ function makeV1BodyLine(tool: string, callID: string, ts = 1700000000000): strin
  *  optional list of body lines. Returns the file path. */
 function writeCustomHeaderV1(
   sessionID: string,
-  headerObj: Record<string, unknown>,
+  headerObj: Record<string, JSONValue>,
   bodyLines: string[] = [],
   dir: string,
 ): string {
@@ -78,19 +80,29 @@ function writeCustomHeaderV1(
 /** Read the first line of a checkpoint file and parse it as a header.
  *  Mirrors the helper used in checkpoint-v2.test.ts — used here to
  *  verify the on-disk file is UNCHANGED after a failed migration
- *  attempt. */
+ *  attempt. Intentionally permissive: returns the parsed object even
+ *  when `__type` is missing or the body is malformed, so the tests can
+ *  probe the exact on-disk shape (and assert that migration did NOT
+ *  silently rewrite a malformed file into a valid one). */
 function readFirstLineHeader(
   sessionID: string,
   dir: string,
-): Record<string, unknown> | null {
+): CheckpointHeaderRaw | null {
   const fp = filePath(sessionID, dir);
   if (!existsSync(fp)) return null;
   const buf = readFileSync(fp, "utf-8");
   const firstLine = buf.split("\n")[0]?.trim();
   if (!firstLine) return null;
+  // Parse any JSON object — read errors + version anomalies tests
+  // deliberately probe malformed headers (missing `__type`, version 0,
+  // etc.) so the parse must accept every shape and let the test code
+  // assert on the untyped fields. The `__type === "header"` filter is
+  // intentionally NOT applied here (callers can still narrow).
+  const RawObjectSchema = v.record(v.string(), v.unknown());
   try {
-    // SAFETY: JSON.parse validated shape on line 92
-    return JSON.parse(firstLine) as Record<string, unknown>;
+    const parsed = v.parse(RawObjectSchema, JSON.parse(firstLine));
+    if (!parsed || typeof parsed !== "object") return null;
+    return parsed as unknown as CheckpointHeaderRaw;
   } catch {
     return null;
   }

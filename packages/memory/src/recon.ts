@@ -1,8 +1,21 @@
 import type { MemoryEntry } from "./memory";
 import { isSensitiveSourcePath } from "@sffmc/utilities";
 import { RECON_AGENTS_BUDGET, RECON_TASKTREE_BUDGET } from "./constants.ts";
+import type { JSONValue } from "./extra/checkpoint/types.ts";
 
 export { RECON_AGENTS_BUDGET, RECON_TASKTREE_BUDGET };
+
+/** One chat message seen by the tail extractor. The open `[key: string]:
+ *  JSONValue` indexer gives the field bag a concrete value contract —
+ *  callers can still read any extra OpenCode field, but each is a parsed
+ *  JSONValue, not raw `unknown`. `content`/`role` are typed as required
+ *  so the extractor only walks messages that already have a string body
+ *  to render. */
+export interface TailMessage {
+  content: string;
+  role: string;
+  [key: string]: JSONValue;
+}
 
 // the v0.14.x hardcode audit (file not in git; see CHANGELOG.md v0.14.5).
 //
@@ -70,16 +83,16 @@ function truncate(text: string, maxChars: number): string {
 }
 
 export function tailFromMessages(
-  messages: Array<{ content?: string; role?: string; [key: string]: unknown }>,
+  messages: TailMessage[],
   maxChars: number,
 ): string {
   const lines: string[] = [];
   let chars = 0;
   for (let i = messages.length - 1; i >= 0 && chars < maxChars; i--) {
-    const content = messages[i]?.content;
-    if (typeof content !== "string" || !content) continue;
-    lines.unshift(content);
-    chars += content.length;
+    const msg = messages[i];
+    if (!msg || !msg.content) continue;
+    lines.unshift(msg.content);
+    chars += msg.content.length;
   }
   return truncate(lines.join("\n"), maxChars);
 }

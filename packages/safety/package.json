@@ -6,6 +6,7 @@
   "main": "src/index.ts",
   "dependencies": {
     "@sffmc/utilities": "workspace:*",
+    "valibot": "^0.42.1",
     "yaml": "^2.5.0"
   },
   "scripts": {

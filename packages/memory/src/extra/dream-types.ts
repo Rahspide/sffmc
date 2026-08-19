@@ -12,6 +12,7 @@ import {
   SECONDS_PER_DAY,
   type RichPluginContext,
 } from "@sffmc/utilities";
+import type { JSONValue } from "./checkpoint/types.ts";
 
 export type { RichPluginContext };
 
@@ -144,7 +145,10 @@ export interface DreamTool {
 }
 
 export interface DreamHooks {
-  [HOOK_TOOL_EXECUTE_AFTER]?: (toolCtx: unknown, result: unknown) => Promise<void>;
+  [HOOK_TOOL_EXECUTE_AFTER]?: (
+    toolCtx: JSONValue,
+    result: JSONValue,
+  ) => Promise<void>;
 }
 
 // ---------------------------------------------------------------------------

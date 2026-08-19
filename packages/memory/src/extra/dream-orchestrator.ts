@@ -33,6 +33,7 @@ import {
   type DreamResult,
   type DreamTool,
 } from "./dream-types.ts";
+import type { JSONValue } from "./checkpoint/types.ts";
 
 const log = createLogger("extra-dream");
 
@@ -404,7 +405,7 @@ function buildDreamHooks(
   executeDream: (dryRun?: boolean) => Promise<DreamResult>,
 ): DreamHooks {
   return {
-    [HOOK_TOOL_EXECUTE_AFTER]: async (_toolCtx: unknown, _result: unknown) => {
+    [HOOK_TOOL_EXECUTE_AFTER]: async (_toolCtx: JSONValue, _result: JSONValue) => {
       if (!config.enabled) return;
       try {
         const count = countMemoryRows(getDB);

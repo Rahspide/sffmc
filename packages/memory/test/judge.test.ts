@@ -478,7 +478,7 @@ describe("createJudgeTool shape", () => {
   it("tool has no 'name' field (fix-17 regression)", () => {
     const { tool } = createJudgeTool({ enabled: false, model: "m", rubric: "r" });
     // SAFETY: invariant — see caller justification
-    expect((tool as Record<string, unknown>).name).toBeUndefined();
+    expect((tool as Record<string, import("../src/extra/checkpoint/types.ts").JSONValue>).name).toBeUndefined();
   });
 
   it("tool has description, parameters, execute", () => {

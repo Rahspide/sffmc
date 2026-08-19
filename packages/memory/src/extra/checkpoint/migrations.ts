@@ -11,12 +11,18 @@
 // MigrationResult (e.g. telemetry) and for the regression test suite.
 
 import { defaultFsOps, type FsOps, createLogger } from "@sffmc/utilities";
+import * as v from "valibot";
 
 import { DEFAULT_MAX_CHECKPOINT_FILE_SIZE } from "./constants";
 import { readHeader } from "./header";
 import { filePath } from "./paths";
 import { readToolCallsShim } from "./reader";
-import type { MigrationResult, ToolCall } from "./types";
+import {
+  CheckpointHeaderSchema,
+  type CheckpointHeader,
+  type MigrationResult,
+  type ToolCall,
+} from "./types";
 
 const log = createLogger("extra-checkpoint");
 
@@ -63,8 +69,7 @@ export function migrateV1ToV2(
     const raw = fs.readFile(fp);
     const firstLine = raw.split("\n")[0]?.trim();
     if (firstLine) {
-      // SAFETY: JSON.parse validated shape on line 66
-      const parsed = JSON.parse(firstLine) as Record<string, unknown>;
+      const parsed: CheckpointHeader = v.parse(CheckpointHeaderSchema, JSON.parse(firstLine));
       if (parsed.version === 2) originalVersion = 2;
     }
   } catch (e) {

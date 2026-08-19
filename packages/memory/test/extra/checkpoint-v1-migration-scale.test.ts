@@ -43,6 +43,11 @@ import {
   readToolCalls,
   __setCheckpointDir,
 } from "../../src/extra/checkpoint";
+import * as v from "valibot";
+import {
+  ToolCallV2BodyLineSchema,
+  type CheckpointHeaderRaw,
+} from "../../src/extra/checkpoint/types.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -73,16 +78,24 @@ interface V2HeaderForm {
 function readHeaderFromDisk(
   sessionID: string,
   dir: string,
-): Record<string, unknown> | null {
+): CheckpointHeaderRaw | null {
   const fp = filePath(sessionID, dir);
   if (!existsSync(fp)) return null;
   const buf = readFileSync(fp, "utf-8");
   const firstLine = buf.split("\n")[0]?.trim();
   if (!firstLine) return null;
   try {
-    // SAFETY: JSON.parse validated shape on line 83
-    const parsed = JSON.parse(firstLine) as Record<string, unknown>;
-    if (parsed.__type !== "header") return null;
+    // Permissive parse — probes for the on-disk `__type` discriminator
+    // after Valibot validates it as a string-keyed record. The caller
+    // narrows further fields via casts.
+    const RawObjectSchema = v.record(v.string(), v.unknown());
+    const parsed = v.parse(RawObjectSchema, JSON.parse(firstLine));
+    if (!parsed || typeof parsed !== "object" || (parsed as { __type?: unknown }).__type !== "header") return null;
+    return parsed as unknown as CheckpointHeaderRaw;
+  } catch {
+    return null;
+  }
+}
     return parsed;
   } catch {
     return null;
@@ -209,8 +222,7 @@ describe("v1 auto-migration: scale + filesystem edge cases", () => {
       const v2Lines = v2Text.trim().split("\n");
       expect(v2Lines.length).toBe(N + 1); // 1 header + N calls
       for (let i = 1; i < v2Lines.length; i++) {
-        // SAFETY: JSON.parse validated shape on line 210
-        const obj = JSON.parse(v2Lines[i]) as Record<string, unknown>;
+        const obj = v.parse(ToolCallV2BodyLineSchema, JSON.parse(v2Lines[i]!));
         expect(typeof obj.__crc).toBe("number");
 
         // Reconstruct the line without __crc (in the stable key order

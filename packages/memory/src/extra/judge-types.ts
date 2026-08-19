@@ -4,6 +4,7 @@
 // No runtime logic, no LLM, no orchestration — just shapes + bounds.
 
 import type { RichPluginContext } from "@sffmc/utilities";
+import type { ChatMessage, JSONValue } from "./checkpoint/types.ts";
 
 // ---------------------------------------------------------------------------
 // Public input/result types
@@ -75,8 +76,8 @@ export interface JudgeTool {
 
 export interface JudgeHooks {
   "experimental.chat.messages.transform"?: (
-    input: unknown,
-    data: { messages: Array<{ role: string; content: string }> },
+    input: JSONValue,
+    data: { messages: ChatMessage[] },
   ) => Promise<void>;
 }
 

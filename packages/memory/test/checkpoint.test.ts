@@ -17,6 +17,8 @@ import {
   CheckpointTooLargeError,
 } from "../src/extra/checkpoint.ts";
 import type { SessionBufferEntry } from "../src/extra/checkpoint.ts";
+import * as v from "valibot";
+import { CheckpointHeaderV2Schema } from "../src/extra/checkpoint/types.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -133,8 +135,10 @@ describe("checkpoint", () => {
 
       const raw = readFileSync(filePath("test-session-1"), "utf-8");
       const lines = raw.trim().split("\n");
-      // SAFETY: JSON.parse validated shape on line 136
-      const header = JSON.parse(lines[0]) as Record<string, unknown>;
+      // Parse via the strict version-2 schema so the header fields are typed
+      // (v2-only test, v1 path covered separately in
+      // checkpoint-v1-migration-* suites).
+      const header = v.parse(CheckpointHeaderV2Schema, JSON.parse(lines[0]!));
       expect(header.__type).toBe("header");
       expect(header.sessionID).toBe("test-session-1");
       expect(header.version).toBe(2);
@@ -155,8 +159,8 @@ describe("checkpoint", () => {
       expect(lines.length).toBe(3); // 1 header + 2 tool calls
       const headers = lines.filter((l) => {
         try {
-          // SAFETY: JSON.parse validated shape on line 159
-          return (JSON.parse(l) as Record<string, unknown>).__type === "header";
+          const parsed = v.parse(CheckpointHeaderV2Schema, JSON.parse(l));
+          return parsed.__type === "header";
         } catch {
           return false;
         }
@@ -718,13 +722,13 @@ describe("checkpoint", () => {
       // SAFETY: invariant — see caller justification
       expect((result.tool as { parameters: { type: string } }).parameters.type).toBe("object");
       // SAFETY: invariant — see caller justification
-      expect((result.tool.parameters as { properties: Record<string, unknown> }).properties.action).toBeDefined();
+      expect((result.tool.parameters as { properties: Record<string, import("../src/extra/checkpoint/types.ts").JSONValue> }).properties.action).toBeDefined();
       // SAFETY: invariant — see caller justification
-      expect((result.tool.parameters as { properties: Record<string, unknown> }).properties.sessionID).toBeDefined();
+      expect((result.tool.parameters as { properties: Record<string, import("../src/extra/checkpoint/types.ts").JSONValue> }).properties.sessionID).toBeDefined();
       expect(result.tool.parameters.required).toEqual(["action"]);
       // Regression: no `name` field
       // SAFETY: invariant — see caller justification
-      expect((result.tool as Record<string, unknown>).name).toBeUndefined();
+      expect((result.tool as Record<string, import("../src/extra/checkpoint/types.ts").JSONValue>).name).toBeUndefined();
     });
   });
 

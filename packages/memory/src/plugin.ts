@@ -22,6 +22,7 @@ import {
 import { readFileSync, existsSync, mkdirSync, statSync } from "fs"
 import { resolve, dirname } from "path"
 import { AGENTS_FILE } from "./constants.ts";
+import type { ChatMessage, JSONValue } from "./extra/checkpoint/types.ts";
 
 export interface MemoryConfig {
   storagePath: string
@@ -146,12 +147,12 @@ export const server = async (ctx: PluginContext) => {
   }
 
   return {
-    config: async (_cfg: Record<string, unknown>) => {
+    config: async (_cfg: Record<string, JSONValue>) => {
       await ensureDB()
       await ensureWatcher()
     },
 
-    event: async (payload: { event: string; [key: string]: unknown }) => {
+    event: async (payload: { event: string; [key: string]: JSONValue }) => {
       if (payload.event === SESSION_CREATED) {
         state.reconNeededThisSession = true
         state.reconInjectedThisSession = false
@@ -159,13 +160,9 @@ export const server = async (ctx: PluginContext) => {
     },
 
     [HOOK_CHAT_MESSAGES_TRANSFORM]: async (
-      _input: unknown,
+      _input: JSONValue,
       data: {
-        messages: Array<{
-          role: string
-          content: string
-          [key: string]: unknown
-        }>
+        messages: ChatMessage[]
       },
     ) => {
       if (!state.reconNeededThisSession || state.reconInjectedThisSession)

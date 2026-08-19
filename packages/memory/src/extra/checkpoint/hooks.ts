@@ -5,18 +5,20 @@
 // Extracted from checkpoint.ts (M-1 god-object refactor, Task 1.7).
 
 import { createLogger } from "@sffmc/utilities";
+import * as v from "valibot";
 
 import { CURRENT_VERSION } from "./constants";
 import { getOrCreateBuffer, flushSession } from "./buffer";
 import { readHeader } from "./header";
 import { readToolCallsShim } from "./reader";
 import { RESTORE_MARKER, reconstructMessages, sanitizeValue } from "./restore";
-import type {
-  CheckpointBufferState,
-  CheckpointHooks,
-  ToolCall,
+import {
+  CheckpointTooLargeError,
+  JSONValueSchema,
+  type CheckpointBufferState,
+  type CheckpointHooks,
+  type ToolCall,
 } from "./types";
-import { CheckpointTooLargeError } from "./types";
 
 const log = createLogger("extra-checkpoint");
 
@@ -29,9 +31,10 @@ export function createToolExecuteAfterHook(
   return async (toolCtx, result) => {
     const call: ToolCall = {
       tool: toolCtx.tool,
-      // SAFETY: invariant — see caller justification
-      args: (result.metadata as Record<string, unknown>)?.args ?? {},
-      result: sanitizeValue(result.output),
+      // Parse metadata as JSONValue before reading `args` so the inner
+      // field is a known contract, not an `unknown` indexer hop.
+      args: result.metadata ? (v.parse(JSONValueSchema, result.metadata) as { args?: unknown } | null)?.args ?? {} : {},
+      result: sanitizeValue(result.output ?? null),
       timestamp: Date.now(),
       callID: toolCtx.callID,
     };
