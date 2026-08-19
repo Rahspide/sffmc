@@ -58,7 +58,8 @@ function makeMockRt(): any {
  *  on every helper, keeping the mock definition sites concise. */
 function makeMockDispose() {
   // SAFETY: mock handle stub; `this` is the object the function is called on (untyped); `as any` mutates the alive flag in the mock
-  const dispose = function (this: any) { (this as any).alive = false }
+  const self: any = null as any
+  const dispose = function (this: any) { const ctx = this as any; ctx.alive = false }
   return dispose
 }
 

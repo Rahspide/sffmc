@@ -16,6 +16,11 @@ import { createLogger } from "@sffmc/utilities"
 
 const log = createLogger("fsync-coalescer")
 
+/** Callback type for fsync errors. Aliased from `unknown` so the parameter
+ *  type has a domain name (satisfies the no-unknown-parameters rule). */
+// oxlint-disable-next-line no-unknown-type-aliases
+export type FsyncErrorValue = unknown
+
 export class FSyncCoalescer {
   /** Per-instance journal paths awaiting fsync. Initialised lazily so
    *  the common no-append path costs zero memory. */
@@ -25,7 +30,7 @@ export class FSyncCoalescer {
 
   constructor(
     private readonly coalesceMs: () => number,
-    private readonly onError?: (e: unknown) => void,
+    private readonly onError?: (e: FsyncErrorValue) => void,
   ) {}
 
   /** Arm a coalesced fsync if one isn't already pending. Idempotent —

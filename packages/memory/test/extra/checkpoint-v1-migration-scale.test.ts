@@ -90,7 +90,9 @@ function readHeaderFromDisk(
     // narrows further fields via casts.
     const RawObjectSchema = v.record(v.string(), v.unknown());
     const parsed = v.parse(RawObjectSchema, JSON.parse(firstLine));
-    if (!parsed || typeof parsed !== "object" || (parsed as { __type?: unknown }).__type !== "header") return null;
+    // SAFETY: narrowed by typeof parsed === "object" check on the same line; the cast re-states the documented __type field shape for the header-skip branch
+    const isHeader: boolean = !parsed || typeof parsed !== "object" || (parsed as { __type?: unknown }).__type !== "header"
+    if (isHeader) return null;
     return parsed as CheckpointHeaderRaw;
   } catch {
     return null;

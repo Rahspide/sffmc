@@ -428,7 +428,9 @@ describe("checkpoint v2", () => {
       const backupLines = backupBuf.trim().split("\n");
       for (let i = 1; i < backupLines.length; i++) {
         const obj = v.parse(ToolCallSchema, JSON.parse(backupLines[i]!));
-        expect((obj as { __crc?: number }).__crc).toBeUndefined();
+        // SAFETY: v.parse validates the object against ToolCallSchema; the cast re-states the optional __crc field for the .toBeUndefined assertion
+        const crcField: number | undefined = (obj as { __crc?: number }).__crc
+        expect(crcField).toBeUndefined();
       }
 
       // The v2 file is now at <sessionID>.jsonl with a v2 header.
