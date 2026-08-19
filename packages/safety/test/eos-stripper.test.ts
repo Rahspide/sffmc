@@ -1,4 +1,5 @@
 import { describe, it, expect } from "bun:test";
+import * as v from "valibot";
 import { stripEos, looksLikeEosOnly, DEFAULT_EOS_PATTERNS } from "../src/eos-stripper/patterns.ts";
 
 describe("stripEos", () => {
@@ -119,7 +120,7 @@ describe("Plugin entry", () => {
     const mod = await import("../src/eos-stripper/index");
     expect(mod.default).toBeDefined();
     expect(mod.default.id).toBe("@sffmc/safety");
-    expect(typeof mod.default.server).toBe("function");
+    expect(v.is(v.function_(), mod.default.server)).toBe(true);
   });
 
   it("server returns expected hooks", async () => {
@@ -128,7 +129,7 @@ describe("Plugin entry", () => {
       projectRoot: "/tmp/test-project",
       config: {},
     });
-    expect(typeof hooks["experimental.text.complete"]).toBe("function");
+    expect(v.is(v.function_(), hooks["experimental.text.complete"])).toBe(true)
   });
 
   it("text.complete strips EOS from end", async () => {

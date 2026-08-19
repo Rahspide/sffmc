@@ -10,6 +10,7 @@
 // files in the same `bun test` run).
 
 import { describe, test, expect, mock, beforeEach, afterEach } from "bun:test"
+import * as v from "valibot"
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -18,6 +19,10 @@ import { WorkspaceJail } from "../src/workspace.ts"
 import { makeEntry } from "../src/internal-run-entry.ts"
 import { DEFAULT_WORKFLOW_CONFIG } from "../src/types.ts"
 import type { JsonValue } from "../src/runs.ts"
+
+/** Valibot primitive schema used at the test boundary to discriminate
+ *  sandbox-options field types without `typeof` runtime checks. */
+const NumberSchema = v.number()
 import type { SandboxPrimitives } from "../src/sandbox.ts"
 
 interface CapturedCall {
@@ -106,7 +111,7 @@ describe("script-launcher.launchScript", () => {
     await launchScript(deps, entry, script, "x", [], jail)
     expect(captured).not.toBeNull()
     const { memoryMB, deadlineMs, seed } = captured!.options
-    expect(typeof memoryMB).toBe("number")
+    expect(v.is(NumberSchema, memoryMB)).toBe(true)
     expect(memoryMB).toBeGreaterThan(0)
     expect(deadlineMs).toBe(12 * 60 * 60 * 1000)
     // Seed is a UInt32 derived from a SHA-1 of the runID.

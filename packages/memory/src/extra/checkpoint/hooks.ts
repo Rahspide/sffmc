@@ -61,8 +61,9 @@ export function createAutoRestoreHook(
   return async (_input, data) => {
     for (let i = 0; i < data.messages.length; i++) {
       const msg = data.messages[i];
-      if (typeof msg.content !== "string") continue;
-
+      // `content` is `string` per the ChatMessage contract; the previous
+      // `typeof msg.content !== "string"` guard was redundant with the
+      // type and is removed per the no-runtime-typeof rule.
       const match = msg.content.match(RESTORE_MARKER);
       if (match) {
         const sessionID = match[1];

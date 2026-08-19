@@ -8,7 +8,12 @@
 // confusion) so the security-sensitive boundary is tested.
 
 import { describe, test, expect } from "bun:test"
+import * as v from "valibot"
 import { parseMeta } from "../src/meta.ts"
+
+/** Valibot primitive schema used at the test boundary to discriminate
+ *  parse-result discriminator types without `typeof` runtime checks. */
+const BooleanSchema = v.boolean()
 
 const OK = (script: string) =>
   parseMeta(`export const meta = { name: "x", description: "y"${script.slice("export const meta = ".length)}`)
@@ -154,7 +159,7 @@ describe("parseMeta: identifier validation", () => {
     const r = PARSE('export const meta = { "nаme": "x", description: "y" }')
     // "nаme" is a string key (quoted) — not a key identifier, so no check.
     // Outcome depends on parser policy: we just assert no crash.
-    expect(typeof r.ok).toBe("boolean")
+    expect(v.is(BooleanSchema, r.ok)).toBe(true)
   })
 })
 

@@ -2,6 +2,7 @@
 // @sffmc/memory (extra features) — see ../../LICENSE
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from "bun:test";
+import * as v from "valibot";
 import { mkdtempSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -45,7 +46,7 @@ describe("@sffmc/memory plugin (extra features)", () => {
     const mod = await import("../src/index.ts");
     expect(mod.default).toBeDefined();
     expect(mod.default.id).toBe("@sffmc/memory");
-    expect(typeof mod.default.server).toBe("function");
+    expect(v.is(v.function_(), mod.default.server)).toBe(true);
   });
 
   it("server returns 3 tools (extra_checkpoint, extra_judge, extra_dream) with no 'name' field", async () => {
@@ -90,7 +91,7 @@ describe("@sffmc/memory plugin (extra features)", () => {
       //   - { ok: true, skipped: true, reason: "feature disabled" } (default disabled)
       //   - { ok: true, status: "stub" } (config enabled, impl still stub)
       //   - real result (config enabled, full impl)
-      expect(typeof result).toBe("object");
+      expect(v.is(v.object({}), result)).toBe(true);
       expect(result).not.toBeNull();
     }
   });

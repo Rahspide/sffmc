@@ -1,4 +1,5 @@
 import { resolve as resolvePath } from "node:path";
+import * as v from "valibot";
 import { compileRules, type CompiledRule, type Rules } from "./rules";
 import { normalizeCommand } from "./normalize";
 import { anchoredTest } from "./compileRules";
@@ -66,7 +67,7 @@ export function evaluate(
     //
     // Mutating fresh locals (not the caller's object) keeps the API
     // total without side effects on the caller's args.
-    const isBash = toolName === "bash" && typeof args?.command === "string";
+    const isBash = toolName === "bash" && v.is(v.string(), args?.command);
     const rawCommand = isBash ? (args!.command as string) : null;
     const normalizedArgs = isBash
       ? { ...args, command: normalizeCommand(rawCommand!) }
@@ -143,20 +144,20 @@ export function evaluate(
 function isRules(input: CompiledRule[] | Rules): input is Rules {
   // `Rules` is `{ version, rules: Rule[] }`; `CompiledRule[]` is a bare
   // array. The discriminator is the presence of the `rules` property.
-  return !Array.isArray(input) && typeof input === "object" && "rules" in input;
+  return !Array.isArray(input) && v.is(v.object({}), input) && "rules" in input;
 }
 
 function extractPaths(args: ToolArgs | undefined): string[] {
   const paths: string[] = [];
-  if (!args || typeof args !== "object") return paths;
+  if (!args || !v.is(v.object({}), args)) return paths;
 
   const pathKeys: (keyof ToolArgs)[] = ["filePath", "path", "paths", "from", "to", "workdir"];
   for (const pathKey of pathKeys) {
     const argValue = args[pathKey];
-    if (typeof argValue === "string") paths.push(argValue);
+    if (v.is(v.string(), argValue)) paths.push(argValue);
     if (Array.isArray(argValue)) {
       for (const pathItem of argValue) {
-        if (typeof pathItem === "string") paths.push(pathItem);
+        if (v.is(v.string(), pathItem)) paths.push(pathItem);
       }
     }
   }

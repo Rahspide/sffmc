@@ -17,7 +17,12 @@
 // isolation — they assert "did dispose run?" not "did QuickJS behave?".
 
 import { describe, test, expect } from "bun:test"
+import * as v from "valibot"
 import { dumpHostFnArgs, marshalIn } from "../src/sandbox-bridge.ts"
+
+/** Valibot primitive schema used at the test boundary to discriminate
+ *  callable members without `typeof` runtime checks. */
+const FunctionSchema = v.function()
 
 interface FakeHandle {
   disposed: boolean
@@ -320,8 +325,8 @@ describe("marshalIn — handle lifecycle (gen-2 #8)", () => {
       // Dispose the callRes passed in (simulates real ctx.unwrapResult
       // consuming result types).
       // SAFETY: r is the documented EvalResultFake (has optional dispose); inline shape narrows to read dispose safely
-      if (typeof (r as { dispose?: () => void }).dispose === "function") {
-        // SAFETY: dispose() existence verified by the typeof check above; cast re-states the shape for the call
+      if (v.is(FunctionSchema, (r as { dispose?: () => void }).dispose)) {
+        // SAFETY: dispose() existence verified by the v.is check above; cast re-states the shape for the call
         ;(r as { dispose: () => void }).dispose()
       }
       return makeMarshalHandle()

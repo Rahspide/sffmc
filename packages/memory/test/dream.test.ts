@@ -2,6 +2,7 @@
 // @sffmc/utilities — Dream tests
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "bun:test";
+import * as v from "valibot";
 import { Database } from "bun:sqlite";
 import {
   createDreamTool,
@@ -808,18 +809,18 @@ describe("Dream", () => {
     const record = JSON.parse(lines[0]);
 
     // 7 original MemoryRow fields preserved verbatim.
-    expect(typeof record.id).toBe("number");
+    expect(v.is(v.number(), record.id)).toBe(true);
     expect(record.source_path).toBe("test/utf8.md");
     expect(record.section).toBe("セクション");
     expect(record.content).toBe(utf8Content);
     expect(record.importance_score).toBe(0.7);
-    expect(typeof record.last_accessed).toBe("number");
-    expect(typeof record.created_at).toBe("number");
+    expect(v.is(v.number(), record.last_accessed)).toBe(true);
+    expect(v.is(v.number(), record.created_at)).toBe(true);
 
     // 2 audit metadata fields added by archiveEntry.
-    expect(typeof record.archived_at_ms).toBe("number");
+    expect(v.is(v.number(), record.archived_at_ms)).toBe(true);
     expect(record.archived_at_ms).toBeGreaterThan(0);
-    expect(typeof record.archived_at_iso).toBe("string");
+    expect(v.is(v.string(), record.archived_at_iso)).toBe(true);
     // ISO-8601 sanity: matches YYYY-MM-DDTHH:MM:SS.mmmZ
     expect(record.archived_at_iso).toMatch(
       /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,

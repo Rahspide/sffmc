@@ -23,6 +23,11 @@
 // v0.14.2 baseline and PASS after D-1 ships.
 
 import { describe, test, expect } from "bun:test"
+import * as v from "valibot"
+
+/** Valibot primitive schema used at the test boundary to discriminate
+ *  callable members without `typeof` runtime checks. */
+const FunctionSchema = v.function()
 import { existsSync } from "node:fs"
 import path from "node:path"
 
@@ -38,7 +43,7 @@ describe("v0.14.3 D-1: __setWorkflowConfig test escape hatch migration", () => {
     // Dynamic import: succeeds only if the file exists AND exports the function.
     // SAFETY: dynamic import returns unknown; Record<string, unknown> is the documented namespace shape for the test helper module
     const mod = await import(helperPath) as Record<string, unknown>
-    expect(typeof mod.__setWorkflowConfig).toBe("function")
+    expect(v.is(FunctionSchema, mod.__setWorkflowConfig)).toBe(true)
   })
 
   test("__setWorkflowConfig is no longer exported from @sffmc/runtime/src/constants.ts", async () => {
@@ -60,7 +65,7 @@ describe("v0.14.3 D-1: __setWorkflowConfig test escape hatch migration", () => {
     // Either: the symbol is absent entirely (preferred — function removed
     // from constants.ts), OR: it's present but is not callable (would mean
     // someone added a stub without removing the export).
-    expect(typeof mod.__setWorkflowConfig).not.toBe("function")
+    expect(v.is(FunctionSchema, mod.__setWorkflowConfig)).toBe(false)
   })
 
   test("the 2 known call-site test files have been migrated to the new helper path", async () => {

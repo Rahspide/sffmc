@@ -2,6 +2,7 @@
 // @sffmc/runtime — see ../../LICENSE
 
 import { describe, test, expect, afterAll } from "bun:test"
+import * as v from "valibot"
 import { tmpdir } from "node:os"
 import { mkdtempSync, rmSync, writeFileSync, readFileSync } from "node:fs"
 import path from "node:path"
@@ -14,6 +15,11 @@ import path from "node:path"
 
 const tmpDir = mkdtempSync(path.join(tmpdir(), "sffmc-workflow-resume-"))
 process.env.XDG_DATA_HOME = tmpDir
+
+/** Valibot primitive schemas used at the test boundary to discriminate
+ *  field types without `typeof` runtime checks. */
+const NumberSchema = v.number()
+const StringSchema = v.string()
 
 import { WorkflowRuntime } from "../src/runtime"
 import type { PluginContext } from "../src/runtime"
@@ -142,7 +148,7 @@ describe("persistence.appendJournalSync v1 header", () => {
     const headerCount = lines.filter((l) => {
       try {
         const j = JSON.parse(l)
-        return typeof j.v === "number" && !("t" in j)
+        return v.is(NumberSchema, j.v) && !("t" in j)
       } catch {
         return false
       }
@@ -425,7 +431,7 @@ describe("v0.13.0 workspace persistence", () => {
       // Capture the workflow logger's console.log output.
       captured = []
       console.log = (...args: unknown[]) => {
-        captured.push(args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" "))
+        captured.push(args.map((a) => (v.is(StringSchema, a) ? a : JSON.stringify(a))).join(" "))
       }
       const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
       const result = await runtime.resume({ runID })

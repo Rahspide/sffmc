@@ -2,6 +2,7 @@
 // @sffmc/utilities — Judge tests
 
 import { describe, it, expect } from "bun:test";
+import * as v from "valibot";
 import {
   createJudgeTool,
   buildJudgePrompt,
@@ -281,7 +282,7 @@ describe("execute with mocked LLM", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("expected ok");
     expect(result.latencyMs).toBeGreaterThanOrEqual(0);
-    expect(typeof result.latencyMs).toBe("number");
+    expect(v.is(v.number(), result.latencyMs)).toBe(true);
   });
 });
 
@@ -483,13 +484,13 @@ describe("createJudgeTool shape", () => {
 
   it("tool has description, parameters, execute", () => {
     const { tool } = createJudgeTool({ enabled: false, model: "m", rubric: "r" });
-    expect(typeof tool.description).toBe("string");
+    expect(v.is(v.string(), tool.description)).toBe(true);
     expect(tool.parameters.type).toBe("object");
     expect(tool.parameters.properties).toBeDefined();
     expect(tool.parameters.properties.candidates).toBeDefined();
     expect(tool.parameters.properties.candidates.type).toBe("array");
     expect(tool.parameters.required).toContain("candidates");
-    expect(typeof tool.execute).toBe("function");
+    expect(v.is(v.function_(), tool.execute)).toBe(true);
   });
 
   it("hooks are empty when judge_auto is not set", () => {

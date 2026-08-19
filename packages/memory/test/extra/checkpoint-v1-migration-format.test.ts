@@ -100,7 +100,7 @@ function readHeaderFromDisk(
     // `__type === "header"` discriminator is checked explicitly.
     const RawObjectSchema = v.record(v.string(), v.unknown());
     const parsed = v.parse(RawObjectSchema, JSON.parse(firstLine));
-    if (!parsed || typeof parsed !== "object" || (parsed as { __type?: unknown }).__type !== "header") return null;
+    if (!parsed || !v.is(v.object({}), parsed) || (parsed as { __type?: unknown }).__type !== "header") return null;
     return parsed as unknown as CheckpointHeaderRaw;
   } catch {
     return null;
@@ -184,7 +184,7 @@ describe("v1 migration: file format anomalies", () => {
       expect(onDisk.sessionID).toBe(sessionID);
       expect(Array.isArray(onDisk.lineOffsets)).toBe(true);
       expect(onDisk.lineOffsets.length).toBe(0);
-      expect(typeof onDisk.fileCrc32).toBe("number");
+      expect(v.is(v.number(), onDisk.fileCrc32)).toBe(true);
     }, 5000);
   });
 

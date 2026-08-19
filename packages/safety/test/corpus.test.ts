@@ -11,6 +11,7 @@
 import { describe, test, expect } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import * as v from "valibot";
 import { compileRules, parseRules, type Rules, type CompiledRule } from "../src/rules/rules";
 import { normalizeCommand } from "../src/rules/normalize";
 import { commandWordPositions } from "../src/rules/compileRules";
@@ -637,7 +638,7 @@ function anchoredEvaluate(
   toolName: string,
   args: { command?: string },
 ) {
-  const raw = typeof args?.command === "string" ? args.command : "";
+  const raw = v.is(v.string(), args?.command) ? args.command : "";
   const interpreted = interpretEscapes(raw);
   const normalized = normalizeCommand(interpreted);
 

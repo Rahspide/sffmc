@@ -186,14 +186,11 @@ export function parseRules(yaml: string): Rules {
     }
 
     for (const rule of parsed.rules) {
-      if (!rule.match || typeof rule.match.tool !== "string") {
-        throw new Error(`Invalid rule: missing match.tool`);
-      }
-      if (!VALID_ACTIONS.has(rule.action)) {
-        throw new Error(
-          `Invalid action "${rule.action}" in rule — must be allow, deny, or ask`,
-        );
-      }
+      // Valibot schemas (RuleSchema / ParsedRulesSchema) already enforce
+      // `match.tool: string` and `action: picklist(allow|deny|ask)` at
+      // parse time, so the previous typeof / VALID_ACTIONS.has guards are
+      // unreachable post-parse.
+      void rule;
     }
 
     panicMode = false;

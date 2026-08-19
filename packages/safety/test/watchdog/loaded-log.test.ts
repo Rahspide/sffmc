@@ -11,6 +11,7 @@
 // never empty.
 
 import { describe, it, expect, jest, beforeAll, afterAll } from "bun:test";
+import * as v from "valibot";
 import { mkdirSync, writeFileSync, unlinkSync, existsSync } from "fs";
 import { homedir } from "os";
 import { resolve } from "path";
@@ -36,7 +37,7 @@ describe("Bug 1 fix — watchdog 'loaded' log shows configured model", () => {
     mkdirSync(testConfigDir, { recursive: true });
     if (existsSync(testConfigPath)) unlinkSync(testConfigPath);
     warnSpy = jest.spyOn(console, "warn").mockImplementation((...args: unknown[]) => {
-      collectedWarnings.push(args.map(a => typeof a === "string" ? a : "").join(" "));
+      collectedWarnings.push(args.map(a => v.is(v.string(), a) ? a : "").join(" "));
     });
   });
 

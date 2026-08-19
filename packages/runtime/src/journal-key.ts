@@ -16,15 +16,27 @@
 // objects and reduces GC pressure by 1 allocation per object level.
 
 import { createHash } from "node:crypto"
+import * as v from "valibot"
 import type { JsonValue } from "./runs.ts"
+
+/** Recursive Valibot schema for any JSON primitive: string/number/
+ *  boolean/null. Used by `canonical` to discriminate primitive JSON
+ *  values from object/array containers without a `typeof` runtime
+ *  check — the schema's `v.is()` narrows at the I/O boundary. */
+const JsonPrimitiveSchema = v.union([
+  v.string(),
+  v.number(),
+  v.boolean(),
+  v.null(),
+])
 
 /** Recursively canonicalize a JSON value for stable hashing. Returns
  *  the input unchanged for primitives/arrays (objects get a sorted-
  *  key re-emission so key order does not perturb the hash). */
 function canonical(value: JsonValue) {
-  if (value === null || typeof value !== "object") return value
+  if (v.is(JsonPrimitiveSchema, value)) return value
   if (Array.isArray(value)) return value.map(canonical)
-  // SAFETY: typeof === "object" + not Array narrowed by lines 21-22; remaining cases are object literals
+  // SAFETY: not a primitive (JsonPrimitiveSchema) and not an array (Array.isArray) narrowed above; remaining cases are plain object literals
   const rec = value as { [k: string]: JsonValue }
   const sortedKeys = Object.keys(rec).sort()
   const result: { [k: string]: JsonValue } = {}

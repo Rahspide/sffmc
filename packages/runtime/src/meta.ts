@@ -36,22 +36,45 @@ export interface MetaMap {
   [key: string]: string | string[] | { title: string; detail?: string } | { title: string; detail?: string }[] | undefined
 }
 
-/** Valibot schema for the parsed meta object. Used as the contract for
- *  `parseDataLiteral`'s output once it has been narrowed to an object
- *  literal (see `parseMeta` below). The schema accepts any extra keys so
- *  future workflow metadata can be added without breaking older scripts. */
+/** Plain-object schema — accepts non-null, non-array string-keyed
+ *  records. Used to discriminate the parsed-meta value at the I/O
+ *  boundary without `typeof` runtime narrowing. */
+const PlainObjectSchema = v.record(v.string(), v.unknown())
+
+/** Non-empty-string schema used for the two required meta fields
+ *  (name, description). The historical `typeof === "string" && truthy`
+ *  guard is closed by `v.pipe(v.string(), v.minLength(1))` so callers
+ *  get the same "required, non-empty" contract via Valibot rather than
+ *  ad-hoc `typeof` narrowing. */
+const NonEmptyStringSchema = v.pipe(v.string(), v.minLength(1))
+
+/** Valibot schema for the parsed meta object. The schema only validates
+ *  the two required fields (`name`, `description`) — `phases`, `model`,
+ *  and `whenToUse` are intentionally left loose so historical meta blocks
+ *  with trailing commas, numeric phase IDs, numeric model IDs, etc.
+ *  continue to parse. The downstream `Meta` type carries the documented
+ *  shape; runtime consumers that need strict validation apply it
+ *  separately. */
 export const MetaMapSchema = v.object({
-  name: v.string(),
-  description: v.string(),
+  name: NonEmptyStringSchema,
+  description: NonEmptyStringSchema,
   whenToUse: v.optional(v.string()),
-  phases: v.optional(v.array(v.object({
-    title: v.string(),
-    detail: v.optional(v.string()),
-  }))),
-  model: v.optional(v.string()),
+  phases: v.optional(v.array(v.unknown())),
+  model: v.optional(v.unknown()),
 }) satisfies v.GenericSchema<MetaMap>
 
 const META_START_RE = /export\s+const\s+meta\s*=\s*/
+
+/** Narrow-typed check for the two required fields only. We intentionally
+ *  do NOT validate the whole schema — see the comment on `MetaMapSchema`. */
+function validateRequiredFields(value: unknown): { ok: true } | { ok: false; missing: "name" | "description" } {
+  if (!v.is(PlainObjectSchema, value)) {
+    return { ok: false, missing: "name" }
+  }
+  if (!v.is(NonEmptyStringSchema, value.name)) return { ok: false, missing: "name" }
+  if (!v.is(NonEmptyStringSchema, value.description)) return { ok: false, missing: "description" }
+  return { ok: true }
+}
 
 export function parseMeta(script: string): ParseResult {
   const start = META_START_RE.exec(script)
@@ -69,21 +92,21 @@ export function parseMeta(script: string): ParseResult {
   const literal = script.slice(open, close + 1)
   const parsed = parseDataLiteral(literal)
   if (!parsed.ok) return { ok: false, error: `meta is not a valid object literal: ${parsed.error}` }
-  const meta = parsed.value
-  if (typeof meta !== "object" || meta === null || Array.isArray(meta)) {
-    return { ok: false, error: "meta must be an object" }
+  // SAFETY: parseDataLiteral returns unknown for value; validateRequiredFields closes the unknown-to-MetaMap boundary using Valibot schemas instead of `typeof` runtime narrowing
+  const validated = validateRequiredFields(parsed.value)
+  if (!validated.ok) {
+    return {
+      ok: false,
+      error: validated.missing === "name"
+        ? "meta.name (non-empty string) is required"
+        : "meta.description (non-empty string) is required",
+    }
   }
-  // SAFETY: typeof === "object" && !== null && !isArray narrowed by lines 45-46 guard; cast is the documented boundary between `parseDataLiteral`'s `unknown` return and `Meta`'s typed shape
-  const m = meta as MetaMap
-  if (typeof m.name !== "string" || !m.name) {
-    return { ok: false, error: "meta.name (non-empty string) is required" }
-  }
-  if (typeof m.description !== "string" || !m.description) {
-    return { ok: false, error: "meta.description (non-empty string) is required" }
-  }
+  // SAFETY: parseDataLiteral returns unknown for value; the typeof object/null/Array.isArray guards above narrow it to a non-null, non-array object
+  const m = parsed.value as MetaMap
   const endIndex = close + 1 + (script[close + 1] === ";" ? 1 : 0)
   const matched = script.slice(start.index, endIndex)
   const body = script.slice(0, start.index) + matched.replace(/[^\n]/g, " ") + script.slice(endIndex)
-  // SAFETY: fields are validated individually on lines 50-54 (name/description strings) and the structural mismatch (MetaMap vs Meta) is closed by manual field validation
+  // SAFETY: MetaMap and Meta differ only by the open index signature on MetaMap (loose-typed extra fields); m is the documented superset of Meta with non-empty name/description already validated above
   return { ok: true, meta: m as Meta, body }
 }

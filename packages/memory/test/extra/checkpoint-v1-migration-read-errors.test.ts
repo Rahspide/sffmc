@@ -101,7 +101,7 @@ function readFirstLineHeader(
   const RawObjectSchema = v.record(v.string(), v.unknown());
   try {
     const parsed = v.parse(RawObjectSchema, JSON.parse(firstLine));
-    if (!parsed || typeof parsed !== "object") return null;
+    if (!parsed || !v.is(v.object({}), parsed)) return null;
     return parsed as unknown as CheckpointHeaderRaw;
   } catch {
     return null;

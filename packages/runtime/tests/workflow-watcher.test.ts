@@ -2,6 +2,7 @@
 // @sffmc/runtime — see ../../LICENSE
 
 import { describe, test, expect, beforeEach, afterEach, mock } from "bun:test"
+import * as v from "valibot"
 import { mkdtempSync, writeFileSync, mkdirSync, existsSync } from "node:fs"
 import { rmSync } from "node:fs"
 import { tmpdir } from "node:os"
@@ -9,6 +10,10 @@ import { join } from "node:path"
 import { clearAll, off } from "@sffmc/utilities"
 import { __setWorkflowConfig } from "./_test-helpers/config-cache.ts"
 import { startWorkflowWatcher } from "../src/workflow-watcher.ts"
+
+/** Valibot primitive schema used at the test boundary to discriminate
+ *  watcher-handle field types without `typeof` runtime checks. */
+const FunctionSchema = v.function()
 
 let tmpDir: string
 
@@ -28,7 +33,7 @@ afterEach(() => {
 describe("startWorkflowWatcher", () => {
   test("returns handle with stop()", () => {
     const handle = startWorkflowWatcher(tmpDir)
-    expect(typeof handle.stop).toBe("function")
+    expect(v.is(FunctionSchema, handle.stop)).toBe(true)
     handle.stop()
   })
 

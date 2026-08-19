@@ -9,6 +9,7 @@
 // inject the host bridge). Lowest-risk sandbox extraction: pure
 // string + pure map filter, no handle lifecycle.
 
+import * as v from "valibot"
 import type { SandboxPrimitives } from "./sandbox.ts"
 
 const PRELUDE = `
@@ -71,7 +72,12 @@ export function buildHostHooks(primitives: Partial<SandboxPrimitives>) {
   const hooks: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(primitives)) {
     if (PRELUDE_KEYS.has(key)) continue
-    if (typeof value !== "function") continue
+    // Capability detection: only callables are injected as host hooks.
+    // `v.is(v.function(), …)` is the schema-form equivalent of the
+    // historical `typeof value === "function"` guard — Valibot can't
+    // actually validate function bodies, but the schema carries the
+    // same contract at the I/O boundary.
+    if (!v.is(v.function(), value)) continue
     hooks[key] = value
   }
   return hooks

@@ -251,7 +251,7 @@ export function readHeader(
     const v2Header = parsed;
     if (
       !Array.isArray(v2Header.lineOffsets) ||
-      typeof v2Header.fileCrc32 !== "number"
+      !v.is(v.number(), v2Header.fileCrc32)
     ) {
       return null;
     }
@@ -326,7 +326,7 @@ function migrateV1ToV2InPlace(
   // Loose schema: createdAt may be missing on disk. The original
   // behavior was `typeof parsedHeader.createdAt === "number" ? ... : Date.now()`.
   const createdAt =
-    typeof v1.createdAt === "number" ? v1.createdAt : Date.now();
+    v.is(v.number(), v1.createdAt) ? v1.createdAt : Date.now();
 
   // Read v1 body via full-scan.
   const calls = readV1BodyLines(raw);
@@ -387,7 +387,7 @@ function readV1BodyLines(raw: string): ToolCall[] {
     if (!trimmed) continue;
     try {
       const parsed = JSON.parse(trimmed);
-      if (parsed && typeof parsed === "object" && (parsed as { __type?: unknown }).__type === "header") continue;
+      if (parsed && v.is(v.object({}), parsed) && (parsed as { __type?: unknown }).__type === "header") continue;
       const obj = v.parse(ToolCallSchema, parsed);
       calls.push(obj);
     } catch (e) {

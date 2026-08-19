@@ -42,14 +42,14 @@ export function iterateBodyLines(
   const calls: ToolCall[] = [];
   for (let i = 0; i < lineOffsets.length; i++) {
     const start = lineOffsets[i];
-    if (typeof start !== "number" || start < 0 || start >= fileBuf.length) continue;
+    if (!v.is(v.number(), start) || start < 0 || start >= fileBuf.length) continue;
     // Locate the line terminator (LF) starting at `start`.
     let lineEnd = fileBuf.indexOf(0x0a, start);
     if (lineEnd < 0) lineEnd = fileBuf.length;
     const lineBytes = fileBuf.subarray(start, lineEnd);
     try {
       const parsed = JSON.parse(lineBytes.toString("utf-8"));
-      if (parsed && typeof parsed === "object" && (parsed as { __type?: unknown }).__type === "header") continue;
+      if (parsed && v.is(v.object({}), parsed) && (parsed as { __type?: unknown }).__type === "header") continue;
       const obj = v.parse(ToolCallSchema, parsed);
       calls.push(obj);
     } catch (e) {

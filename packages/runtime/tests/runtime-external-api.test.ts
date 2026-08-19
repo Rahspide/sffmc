@@ -46,12 +46,19 @@
 // alive after the test body ends.
 
 import { describe, test, expect, afterAll } from "bun:test"
+import * as v from "valibot"
 import { tmpdir } from "node:os"
 import { mkdtempSync, rmSync } from "node:fs"
 import path from "node:path"
 
 const tmpDir = mkdtempSync(path.join(tmpdir(), "sffmc-workflow-runtime-ext-api-"))
 process.env.XDG_DATA_HOME = tmpDir
+
+/** Valibot primitive schemas used at the test boundary to discriminate
+ *  field types without `typeof` runtime checks. */
+const StringSchema = v.string()
+const NumberSchema = v.number()
+const FunctionSchema = v.function()
 
 import { WorkflowRuntime } from "../src/runtime"
 import type { PluginContext } from "../src/runtime"
@@ -141,10 +148,10 @@ describe("WorkflowRuntime constructor", () => {
     // observability listeners (see `src/index.ts` `server()`). Asserting
     // its presence + the `on/off/emit/clearAll` shape pins the contract
     // the MCP/index wiring depends on.
-    expect(typeof runtime.events.on).toBe("function")
-    expect(typeof runtime.events.off).toBe("function")
-    expect(typeof runtime.events.emit).toBe("function")
-    expect(typeof runtime.events.clearAll).toBe("function")
+    expect(v.is(FunctionSchema, runtime.events.on)).toBe(true)
+    expect(v.is(FunctionSchema, runtime.events.off)).toBe(true)
+    expect(v.is(FunctionSchema, runtime.events.emit)).toBe(true)
+    expect(v.is(FunctionSchema, runtime.events.clearAll)).toBe(true)
   })
 })
 
@@ -301,7 +308,7 @@ describe("WorkflowRuntime.status", () => {
     const s = await runtime.status({ runID })
     expect(s.runID).toBe(runID)
     expect(s.status).toBe("running")
-    expect(typeof s.stepsTotal).toBe("number")
+    expect(v.is(NumberSchema, s.stepsTotal)).toBe(true)
     expect(s.stepsTotal).toBeGreaterThanOrEqual(0)
   })
 
@@ -333,7 +340,7 @@ describe("WorkflowRuntime.wait", () => {
     expect(outcome.runID).toBe(runID)
     expect(outcome.status).toBe("completed")
     expect(outcome.result).toBe("ok")
-    expect(typeof outcome.stepsTotal).toBe("number")
+    expect(v.is(NumberSchema, outcome.stepsTotal)).toBe(true)
     expect(outcome.stepsTotal).toBeGreaterThanOrEqual(0)
   })
 
@@ -459,7 +466,7 @@ describe("WorkflowRuntime.list", () => {
     // Shape contract: every entry has exactly these three keys.
     for (const r of result) {
       expect(r.runID).toMatch(/^wf_/)
-      expect(typeof r.name).toBe("string")
+      expect(v.is(StringSchema, r.name)).toBe(true)
       const allowed: WorkflowStatus[] = [
         "running",
         "completed",

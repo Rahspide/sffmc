@@ -9,6 +9,7 @@
 
 import { Database } from "bun:sqlite";
 import { createLogger, defaultFsOps, HOOK_TOOL_EXECUTE_AFTER, unixNow, type FsOps } from "@sffmc/utilities";
+import * as v from "valibot";
 import { archiveEntry, openDB } from "./dream-db.ts";
 import {
   dedupRows,
@@ -456,7 +457,7 @@ function setupDreamCron(
     () => cronTickBody(config.intervalHours, executeDream),
     intervalMs,
   );
-  if (typeof state.cronTimer.unref === "function") {
+  if (v.is(v.function_(), state.cronTimer.unref)) {
     state.cronTimer.unref();
   }
 }

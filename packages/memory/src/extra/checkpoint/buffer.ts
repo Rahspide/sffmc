@@ -11,6 +11,7 @@
 // plugins.
 
 import { defaultFsOps, type FsOps, createLogger } from "@sffmc/utilities";
+import * as v from "valibot";
 
 import { crc32 } from "./crc";
 import { buildV2Body, computeV2HeaderStr, readHeader } from "./header";
@@ -115,7 +116,7 @@ export function flushAll(state: CheckpointBufferState, fs: FsOps = defaultFsOps)
 export function startFlushTimer(state: CheckpointBufferState): void {
   if (state.flushTimer) return;
   state.flushTimer = setInterval(() => flushAll(state), state.flushIntervalMs);
-  if (state.flushTimer && typeof state.flushTimer === "object" && "unref" in state.flushTimer) {
+  if (state.flushTimer && v.is(v.object({}), state.flushTimer) && "unref" in state.flushTimer) {
     state.flushTimer.unref();
   }
 }

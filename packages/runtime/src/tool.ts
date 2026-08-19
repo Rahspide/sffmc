@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/runtime — see ../../LICENSE
 
+import * as v from "valibot"
 import type { WorkflowRuntime } from "./runtime.ts"
 import { WORKFLOW_SEARCH_DIRS } from "./constants.ts"
 
@@ -18,6 +19,10 @@ type WorkflowToolArgs =
 // ---------------------------------------------------------------------------
 // Tool factory — creates a tool object closed over the runtime instance
 // ---------------------------------------------------------------------------
+
+/** Valibot primitive schemas used at the I/O boundary to discriminate
+ *  workflow-tool args without `typeof` runtime checks. */
+const ToolInputObjectSchema = v.object({ operation: v.string() })
 
 export function createWorkflowTool(runtime: WorkflowRuntime) {
   return {
@@ -81,9 +86,13 @@ Examples:
     },
 
     execute: async (args: WorkflowToolArgs, _ctx?: unknown): Promise<string> => {
-      // Quick runtime guard — LLM may send malformed args despite schema
-      // SAFETY: typeof !== "object" + null narrowed by the leading checks; Record<string, unknown> allows property access on the validated object
-      if (typeof args !== "object" || args === null || typeof (args as Record<string, unknown>).operation !== "string") {
+      // Quick runtime guard — LLM may send malformed args despite schema.
+      // Valibot's v.object({ operation: v.string() }) replaces the
+      // historical `typeof === "object" && !== null && operation typeof
+      // === "string"` ladder: the schema's v.is rejects null, arrays,
+      // and primitives in one call, and the nested v.string() schema
+      // narrows operation to a string at the boundary.
+      if (!v.is(ToolInputObjectSchema, args)) {
         return "Error: workflow tool requires 'operation' field (run|status|wait|cancel|resume)"
       }
 
@@ -133,7 +142,7 @@ Examples:
             return JSON.stringify(await runtime.resume({ runID: args.run_id, agentTimeoutMs: args.agent_timeout_ms }))
           }
           default:
-            // SAFETY: default branch runs after the validated switch cases; the cast mirrors the typeof check on line 86 (args is narrowed to object with .operation)
+            // SAFETY: default branch runs after the validated switch cases; the cast mirrors the v.is check above (args is narrowed to object with string .operation)
             return `Error: unknown operation "${(args as Record<string, unknown>).operation}". Valid: run, status, wait, cancel, resume`
         }
       } catch (e) {

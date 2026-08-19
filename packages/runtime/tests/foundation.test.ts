@@ -2,6 +2,7 @@
 // @sffmc/runtime — see ../../LICENSE
 
 import { describe, test, expect, beforeAll, afterAll } from "bun:test"
+import * as v from "valibot"
 import { tmpdir } from "node:os"
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs"
 import path from "node:path"
@@ -9,6 +10,11 @@ import path from "node:path"
 // Set XDG_DATA_HOME to temp dir so persistence doesn't write to real ~/.local/share
 const tmpDir = mkdtempSync(path.join(tmpdir(), "sffmc-workflow-test-"))
 process.env.XDG_DATA_HOME = tmpDir
+
+/** Valibot primitive schemas used at the test boundary to discriminate
+ *  builtin-entry field types without `typeof` runtime checks. */
+const StringSchema = v.string()
+const FunctionSchema = v.function()
 
 import {
   WorkflowError,
@@ -804,11 +810,11 @@ describe("builtin-registry: makeLoader refactor", () => {
     for (const name of ORIGINAL_BUILTINS) {
       const loader = getBuiltin(name)
       expect(loader).toBeDefined()
-      expect(typeof loader).toBe("function")
+      expect(v.is(FunctionSchema, loader)).toBe(true)
       const raw = await loader!()
       expect(raw).toHaveProperty("source")
       expect(raw).toHaveProperty("meta")
-      expect(typeof raw.source).toBe("string")
+      expect(v.is(StringSchema, raw.source)).toBe(true)
       expect(raw.source.length).toBeGreaterThan(100)
       expect(raw.source).toContain("export const meta")
       expect(raw.meta.name).toBe(name)
@@ -829,12 +835,12 @@ describe("builtin-registry: makeLoader refactor", () => {
       const entry = await loadBuiltin(name)
       expect(entry.name).toBe(name)
       expect(entry.description).toBeTruthy()
-      expect(typeof entry.description).toBe("string")
+      expect(v.is(StringSchema, entry.description)).toBe(true)
       expect(entry.whenToUse).toBeTruthy()
-      expect(typeof entry.whenToUse).toBe("string")
+      expect(v.is(StringSchema, entry.whenToUse)).toBe(true)
       expect(Array.isArray(entry.phases)).toBe(true)
       expect(entry.phases!.length).toBeGreaterThan(0)
-      expect(typeof entry.script).toBe("string")
+      expect(v.is(StringSchema, entry.script)).toBe(true)
       expect(entry.script).toContain("agent(")  // all builtins use agent()
     }
   })
@@ -867,7 +873,7 @@ describe("builtin: new builtins export shape", () => {
     const mod = await import("../src/builtin/security-audit.ts")
     expect(mod.meta).toBeDefined()
     expect(mod.source).toBeDefined()
-    expect(typeof mod.source).toBe("string")
+    expect(v.is(StringSchema, mod.source)).toBe(true)
     expect(mod.source.length).toBeGreaterThan(500)
   })
 
@@ -875,7 +881,7 @@ describe("builtin: new builtins export shape", () => {
     const mod = await import("../src/builtin/doc-gen.ts")
     expect(mod.meta).toBeDefined()
     expect(mod.source).toBeDefined()
-    expect(typeof mod.source).toBe("string")
+    expect(v.is(StringSchema, mod.source)).toBe(true)
     expect(mod.source.length).toBeGreaterThan(500)
   })
 
@@ -883,7 +889,7 @@ describe("builtin: new builtins export shape", () => {
     const mod = await import("../src/builtin/lib-migrate.ts")
     expect(mod.meta).toBeDefined()
     expect(mod.source).toBeDefined()
-    expect(typeof mod.source).toBe("string")
+    expect(v.is(StringSchema, mod.source)).toBe(true)
     expect(mod.source.length).toBeGreaterThan(500)
   })
 

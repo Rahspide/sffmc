@@ -12,9 +12,18 @@
 // the `RichPluginContext` shape exposed by `@sffmc/utilities`.
 
 import { createLogger, type RichPluginContext } from "@sffmc/utilities"
+import * as v from "valibot"
 import type { ResolvedTools, ToolWhitelist } from "./mcp-types.ts"
 
 const log = createLogger("workflow")
+
+/** Valibot schema for an array of tool-name strings — the canonical
+ *  Source 1/2 array form that the parent SDK returns. */
+const ToolNameArraySchema = v.array(v.string())
+
+/** Valibot schema for the object form (Map of name→descriptor) — any
+ *  non-null object with string keys is treated as a tool-name bag. */
+const ToolNameRecordSchema = v.record(v.string(), v.unknown())
 
 /** Discover the MCP tool set the parent OpenCode session currently exposes.
  *  Three sources, in priority order:
@@ -32,13 +41,11 @@ export async function discoverParentTools(
   // Source 1: ctx.tools — pre-resolved list (preferred path).
   // SAFETY: ctx typed at SDK boundary; inline shape declares optional .tools field
   const ctxTools = (ctx as { tools?: unknown }).tools
-  if (Array.isArray(ctxTools)) {
-    return ctxTools.filter((t): t is string => typeof t === "string")
+  if (v.is(ToolNameArraySchema, ctxTools)) {
+    return [...ctxTools]
   }
-  // Object form (Map of name→descriptor) — extract names.
-  if (ctxTools && typeof ctxTools === "object") {
-    // SAFETY: typeof === "object" + truthy narrowed by line 38 guard; Object.keys treats unknown object as Record
-    const names = Object.keys(ctxTools as Record<string, unknown>)
+  if (v.is(ToolNameRecordSchema, ctxTools)) {
+    const names = Object.keys(ctxTools)
     if (names.length > 0) return names
   }
 
@@ -51,12 +58,11 @@ export async function discoverParentTools(
   if (client?.tool?.list) {
     try {
       const raw = await client.tool.list()
-      if (Array.isArray(raw)) {
-        return raw.filter((t): t is string => typeof t === "string")
+      if (v.is(ToolNameArraySchema, raw)) {
+        return [...raw]
       }
-      if (raw && typeof raw === "object") {
-        // SAFETY: typeof === "object" + truthy narrowed by guard; Object.keys treats unknown object as Record
-        return Object.keys(raw as Record<string, unknown>)
+      if (v.is(ToolNameRecordSchema, raw)) {
+        return Object.keys(raw)
       }
     } catch (e) {
       log.debug("ctx.client.tool.list() failed; falling back:", e)

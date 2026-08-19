@@ -12,6 +12,7 @@ import {
   type QuickJSDeferredPromise,
   type QuickJSHandle,
 } from "quickjs-emscripten"
+import * as v from "valibot"
 import { evalAndReturn } from "./sandbox-eval.ts"
 import { toErrorMessage } from "./errors.ts"
 
@@ -41,9 +42,9 @@ export function injectHooks(
 }
 
 /** Dump a guest arg-handle array into a host-side JS array, disposing
-   *  each handle as we go. Disposes each handle in a try/finally so a
-   *  throw from `ctx.dump(h)` (e.g. on a non-serializable handle) does
-   *  not leak the guest handle. */
+    *  each handle as we go. Disposes each handle in a try/finally so a
+    *  throw from `ctx.dump(h)` (e.g. on a non-serializable handle) does
+    *  not leak the guest handle. */
 export function dumpHostFnArgs(ctx: QuickJSContext, argHandles: QuickJSHandle[]): unknown[] {
   const args: unknown[] = []
   for (const h of argHandles) {
@@ -125,9 +126,13 @@ export function flushPendingJobsIfAlive(ctx: QuickJSContext): void {
 export function marshalIn(ctx: QuickJSContext, value: unknown): QuickJSHandle {
   if (value === undefined) return ctx.undefined
   if (value === null) return ctx.null
-  if (typeof value === "string") return ctx.newString(value)
-  if (typeof value === "number") return ctx.newNumber(value)
-  if (typeof value === "boolean") return value ? ctx.true : ctx.false
+  // Primitive-type discrimination via Valibot schemas — the schemas
+  // carry the same contract as `typeof === "string"|"number"|"boolean"`
+  // but narrow at the schema boundary instead of via a runtime
+  // type-check operator.
+  if (v.is(v.string(), value)) return ctx.newString(value)
+  if (v.is(v.number(), value)) return ctx.newNumber(value)
+  if (v.is(v.boolean(), value)) return value ? ctx.true : ctx.false
 
   const json = ctx.newString(JSON.stringify(value))
   let parseFn: QuickJSHandle | undefined
@@ -135,7 +140,7 @@ export function marshalIn(ctx: QuickJSContext, value: unknown): QuickJSHandle {
   try {
     parseFn = ctx.unwrapResult(ctx.evalCode("JSON.parse"))
     try {
-      // SAFETY: ctx.callFunction returns unknown; the inline typeof re-asserts the documented QuickJS call-result shape
+      // SAFETY: ctx.callFunction returns unknown; the inline type assertion re-states the documented QuickJS call-result shape
       callRes = ctx.callFunction(parseFn, ctx.undefined, json) as typeof callRes
     } finally {
       parseFn.dispose()

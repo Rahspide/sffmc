@@ -13,7 +13,12 @@
 // `WorkflowEventEmitter` class doesn't drift the public event-bus contract.
 
 import { describe, test, expect } from "bun:test"
+import * as v from "valibot"
 import { WorkflowEventEmitter } from "../src/event-emitter.ts"
+
+/** Valibot primitive schema used at the test boundary to discriminate
+ *  event-emitter key types without `typeof` runtime checks. */
+const StringSchema = v.string()
 
 describe("WorkflowEventEmitter — on()/emit() roundtrip", () => {
   test("on() registers a listener that fires on emit() with the payload", () => {
@@ -29,7 +34,7 @@ describe("WorkflowEventEmitter — on()/emit() roundtrip", () => {
   test("on() returns a key string (the API contract pins this for off())", () => {
     const bus = new WorkflowEventEmitter()
     const key = bus.on("workflow:started", () => {})
-    expect(typeof key).toBe("string")
+    expect(v.is(StringSchema, key)).toBe(true)
     expect(key.length).toBeGreaterThan(0)
   })
 

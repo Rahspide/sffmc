@@ -9,6 +9,7 @@
 // `__migrateV1ToV2InPlace` on first read of a v1 file).
 
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
+import * as v from "valibot";
 import {
   mkdtempSync,
   rmSync,
@@ -285,7 +286,7 @@ describe("checkpoint v2", () => {
       expect(bodyLines.length).toBe(3);
       for (const line of bodyLines) {
         const obj = v.parse(ToolCallV2BodyLineSchema, JSON.parse(line));
-        expect(typeof obj.__crc).toBe("number");
+        expect(v.is(v.number(), obj.__crc)).toBe(true);
       }
 
       cp.cleanup();
@@ -438,7 +439,7 @@ describe("checkpoint v2", () => {
       expect(header).not.toBeNull();
       expect(header.version).toBe(2);
       expect(Array.isArray(header.lineOffsets)).toBe(true);
-      expect(typeof header.fileCrc32).toBe("number");
+      expect(v.is(v.number(), header.fileCrc32)).toBe(true);
 
       // v2 body lines should each carry an `__crc` field.
       const v2Buf = readFileSync(filePath(sessionID, dir));
@@ -446,7 +447,7 @@ describe("checkpoint v2", () => {
       expect(v2Lines.length).toBe(3); // 1 header + 2 calls
       for (let i = 1; i < v2Lines.length; i++) {
         const obj = v.parse(ToolCallV2BodyLineSchema, JSON.parse(v2Lines[i]!));
-        expect(typeof obj.__crc).toBe("number");
+        expect(v.is(v.number(), obj.__crc)).toBe(true);
       }
     });
 
@@ -488,8 +489,8 @@ describe("checkpoint v2", () => {
       expect(v2Lines.length).toBe(1 + N);
       for (let i = 1; i < v2Lines.length; i++) {
         const obj = v.parse(ToolCallV2BodyLineSchema, JSON.parse(v2Lines[i]!));
-        expect(typeof obj.__crc).toBe("number");
-        expect(typeof obj.callID).toBe("string");
+        expect(v.is(v.number(), obj.__crc)).toBe(true);
+        expect(v.is(v.string(), obj.callID)).toBe(true);
         expect(obj.callID).toBe(`crc-${String(i - 1).padStart(3, "0")}`);
       }
 

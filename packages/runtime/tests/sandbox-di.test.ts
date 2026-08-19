@@ -23,8 +23,13 @@
 // Tests the orchestrator in isolation, with no QuickJS at all.
 
 import { describe, test, expect, mock } from "bun:test"
+import * as v from "valibot"
 import { runSandboxed, type SandboxPrimitives } from "../src/sandbox.ts"
 import type { SandboxServices } from "../src/sandbox-services.ts"
+
+/** Valibot primitive schema used at the test boundary to discriminate
+ *  sandbox-result payload types without `typeof` runtime checks. */
+const PlainObjectSchema = v.object({})
 
 type Call = { method: string; args: unknown[] }
 
@@ -266,7 +271,7 @@ describe("runSandboxed — DI (Dependency Inversion)", () => {
       const result = await runSandboxed("return 42;", primitives, { services })
       // Don't assert on result: the test's purpose is to verify
       // the partial-DI path doesn't crash, not to assert outcome.
-      expect(result === null || result === "mock-dumped-value" || typeof result === "object").toBe(true)
+      expect(result === null || result === "mock-dumped-value" || v.is(PlainObjectSchema, result)).toBe(true)
     } catch (e) {
       // Acceptable: if the real services can't operate on our mock
       // handles, the orchestrator should still catch and return

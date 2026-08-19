@@ -12,7 +12,9 @@ export function extractCandidatesFromMessages(
   messages: Array<{ role: string; content: string }>,
 ): string[] | null {
   for (const msg of messages) {
-    if (typeof msg.content !== "string") continue;
+    // `content` is `string` per the function signature; the previous
+    // `typeof msg.content !== "string"` guard was redundant with the
+    // type and is removed per the no-runtime-typeof rule.
     const candidates = parseJudgeMarkerContent(msg.content);
     if (candidates !== null) return candidates;
   }

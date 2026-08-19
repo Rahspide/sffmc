@@ -5,6 +5,7 @@
 // Extracted from checkpoint.ts (M-1 god-object refactor, Task 1.7).
 
 import { redactSecrets } from "@sffmc/utilities";
+import * as v from "valibot";
 
 import { CURRENT_VERSION } from "./constants";
 import { readHeader } from "./header";
@@ -99,13 +100,13 @@ export function executeRestoreAction(
  *  parse it through `JSONValueSchema` first. This keeps the walker
  *  honest about its domain. */
 export function sanitizeValue(value: JSONValue): JSONValue {
-  if (typeof value === "string") {
+  if (v.is(v.string(), value)) {
     return redactSecrets(value).redacted
   }
   if (Array.isArray(value)) {
     return value.map((v) => sanitizeValue(v))
   }
-  if (value && typeof value === "object") {
+  if (value && v.is(v.object({}), value)) {
     const out: Record<string, JSONValue> = {}
     for (const [k, v] of Object.entries(value)) {
       out[k] = sanitizeValue(v)

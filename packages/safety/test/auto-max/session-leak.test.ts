@@ -17,6 +17,7 @@ import { describe, it, expect, jest, beforeAll, afterAll } from "bun:test";
 import { mkdirSync, writeFileSync, unlinkSync, existsSync } from "fs";
 import { homedir } from "os";
 import { resolve } from "path";
+import * as v from "valibot";
 
 const testConfigDir = resolve(homedir(), ".config/SFFMC");
 const testConfigPath = resolve(testConfigDir, "auto-max.yaml");
@@ -90,7 +91,7 @@ describe("Bug 3b fix — state.sessions Map stays bounded across SESSION_CREATED
 
     const triggerMessages: string[] = [];
     warnSpy.mockImplementation((...args: unknown[]) => {
-      const msg = args.map(a => typeof a === "string" ? a : "").join(" ");
+      const msg = args.map(a => v.is(v.string(), a) ? a : "").join(" ");
       if (msg.includes("[auto-max] TRIGGERED:")) triggerMessages.push(msg);
     });
 
@@ -138,7 +139,7 @@ describe("Bug 3b fix — state.sessions Map stays bounded across SESSION_CREATED
 
     const triggerMessages: string[] = [];
     warnSpy.mockImplementation((...args: unknown[]) => {
-      const msg = args.map(a => typeof a === "string" ? a : "").join(" ");
+      const msg = args.map(a => v.is(v.string(), a) ? a : "").join(" ");
       if (msg.includes("[auto-max] TRIGGERED:")) triggerMessages.push(msg);
     });
 

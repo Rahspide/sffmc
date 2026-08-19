@@ -1,5 +1,6 @@
 import type { Candidate } from "./candidates";
 import { createLogger, type RichPluginContext } from "@sffmc/utilities";
+import * as v from "valibot";
 
 const log = createLogger("max-mode:judge");
 
@@ -8,6 +9,15 @@ export interface Verdict {
   reasoning: string;
   confidence: number;
 }
+
+/** Valibot schema for the parsed LLM verdict JSON. Field validation
+ *  (range, length) is encoded in the schema so `parseVerdict` can
+ *  dispatch on the parse result instead of `typeof` checks. */
+const VerdictSchema = v.object({
+  winner: v.pipe(v.number(), v.minValue(0)),
+  reasoning: v.pipe(v.string(), v.minLength(1)),
+  confidence: v.pipe(v.number(), v.minValue(0), v.maxValue(1)),
+});
 
 /**
  * Build the judge prompt from a list of candidates.
@@ -51,16 +61,11 @@ export function parseVerdict(raw: string, candidateCount: number): Verdict | nul
     const jsonMatch = trimmed.match(/\{[\s\S]*\}/);
     if (!jsonMatch) return null;
 
-    const parsed: { winner: number; reasoning: string; confidence: number } =
-      JSON.parse(jsonMatch[0]);
+    const parsed = v.parse(VerdictSchema, JSON.parse(jsonMatch[0]));
 
-    if (typeof parsed.winner !== "number" || parsed.winner < 0 || parsed.winner >= candidateCount) {
-      return null;
-    }
-    if (typeof parsed.confidence !== "number" || parsed.confidence < 0 || parsed.confidence > 1) {
-      return null;
-    }
-    if (typeof parsed.reasoning !== "string" || parsed.reasoning.length === 0) {
+    // candidateCount is a runtime bound the schema cannot express
+    // (the field is a number but the upper limit is data-driven).
+    if (parsed.winner >= candidateCount) {
       return null;
     }
 
@@ -129,7 +134,7 @@ export async function judgeCandidates(
     });
 
     const text = response.content
-      .filter((p): p is { type: "text"; text: string } => p.type === "text" && typeof p.text === "string")
+      .filter((p): p is { type: "text"; text: string } => p.type === "text" && v.is(v.string(), p.text))
       .map((p) => p.text)
       .join("\n");
 

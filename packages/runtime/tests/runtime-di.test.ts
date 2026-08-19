@@ -18,6 +18,7 @@
 // respective test files).
 
 import { describe, test, expect } from "bun:test"
+import * as v from "valibot"
 import { WorkflowRuntime, type PluginContext } from "../src/runtime.ts"
 import type {
   RuntimeServices,
@@ -29,6 +30,10 @@ import type {
 import type { InternalRunEntry } from "../src/internal-run-entry.ts"
 import type { WorkspaceJail } from "../src/workspace.ts"
 import { makeSemaphore } from "../src/concurrency.ts"
+
+/** Valibot primitive schema used at the test boundary to discriminate
+ *  callable members without `typeof` runtime checks. */
+const FunctionSchema = v.function()
 
 function makeMockCtx(): PluginContext {
   return {
@@ -50,8 +55,8 @@ describe("WorkflowRuntime — DI (Dependency Inversion)", () => {
     const ctx = makeMockCtx()
     const runtime = new WorkflowRuntime(ctx, {})
     expect(runtime).toBeDefined()
-    expect(typeof runtime.start).toBe("function")
-    expect(typeof runtime.wait).toBe("function")
+    expect(v.is(FunctionSchema, runtime.start)).toBe(true)
+    expect(v.is(FunctionSchema, runtime.wait)).toBe(true)
   })
 
   test("accepts an empty services container", () => {
@@ -268,6 +273,6 @@ describe("WorkflowRuntime — DI (Dependency Inversion)", () => {
     expect(rt.services.runCompleter).toBe(mockRunCompleter)
     // Verify the mock is the SAME INSTANCE used by the orchestrator
     // (not a copy). Mutating the mock would propagate.
-    expect(typeof rt.services.runCompleter.completeRun).toBe("function")
+    expect(v.is(FunctionSchema, rt.services.runCompleter.completeRun)).toBe(true)
   })
 })

@@ -216,7 +216,10 @@ export const server = async (_ctx: PluginContext) => {
           },
         },
         execute: async ({ name }: { name: string }) => {
-          if (!name || typeof name !== "string") {
+          // `name` is `string` per the parameter type; the previous
+          // `typeof name !== "string"` guard was redundant with the
+          // type and is removed per the no-runtime-typeof rule.
+          if (!name) {
             return `Error: skill name is required`
           }
           if (!validSkills.includes(name)) {

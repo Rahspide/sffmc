@@ -191,7 +191,7 @@ export function createMaxModeHooks(
       },
     ) => {
       const sessionID =
-        rawInput && typeof rawInput === "object"
+        rawInput && v.is(v.object({}), rawInput)
           ? // SAFETY: narrowed by v.optional parse below
             (v.parse(v.optional(ChatMessagesInputSchema), rawInput) ?? "")
           : "";

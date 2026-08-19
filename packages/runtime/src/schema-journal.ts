@@ -11,9 +11,9 @@
 // poison downstream `journalResults.get(key)` calls.
 //
 // Design notes:
-//   - Hand-rolled validator (no Zod / no ajv / no runtime schema lib). The
-//     journal format is tiny (3 event types × ~5 fields each) and the cost
-//     of a dep outweighs the value of a generic validator here.
+//   - Primitive-type discrimination (string/number/object) is delegated to
+//     Valibot `v.is()` schemas — the runtime check no longer relies on
+//     `typeof` operators at the I/O boundary.
 //   - Forward-compatible: extra unknown fields are accepted (ignored, not
 //     rejected). A v1.x reader must admit v1.0 journals silently.
 //   - Errors are structured: `{ line, raw, error }` so callers can log
@@ -25,6 +25,16 @@
 //     on store).
 //   - No range checks on `pass`, `tokens`, etc. — journal is a replay log,
 //     not a config surface.
+
+import * as v from "valibot"
+
+/** Valibot primitive schemas used at the I/O boundary to discriminate
+ *  journal-line field types without `typeof` runtime checks. */
+const StringSchema = v.string()
+const NumberSchema = v.number()
+/** "Plain object" — non-null, non-array, open record. `v.record` requires
+ *  a string-keyed bag; v.is rejects null and arrays for us. */
+const PlainObjectSchema = v.record(v.string(), v.unknown())
 
 /** Discriminator values accepted on the `t` field of a journal line. */
 export type JournalEventType = "agent" | "log" | "phase"
@@ -98,15 +108,16 @@ export function validateJournalEvent(
     }
   }
 
-  // Reject non-object payloads (null, arrays, primitives).
-  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+  // Reject non-object payloads (null, arrays, primitives) — PlainObjectSchema
+  // accepts only non-null, non-array string-keyed records, so a single v.is
+  // call replaces the prior typeof + null + isArray ladder.
+  if (!v.is(PlainObjectSchema, parsed)) {
     return {
       ok: false,
       error: { line: lineNo, raw, error: "expected JSON object" },
     }
   }
-  // SAFETY: JSON.parse on line above produces unknown; typeof === "object" && !== null && !isArray narrowed by guard on line 102
-  const obj = parsed as Record<string, unknown>
+  const obj = parsed
 
   // ── v1 header (`{"v":1}`) — not a journal event, leave it alone. ────
   // loadJournal handles headers itself; here we report them as "not an
@@ -115,7 +126,7 @@ export function validateJournalEvent(
   // (Note: loadJournal currently short-circuits headers via its own check
   // and never calls validateJournalEvent on them — this branch is
   // defensive.)
-  if (typeof obj.v === "number" && !("t" in obj)) {
+  if (v.is(NumberSchema, obj.v) && !("t" in obj)) {
     return {
       ok: false,
       error: { line: lineNo, raw, error: "v1 header line, not an event" },
@@ -124,7 +135,7 @@ export function validateJournalEvent(
 
   // ── Event-type discriminator ────────────────────────────────────────
   const t = obj.t
-  if (typeof t !== "string") {
+  if (!v.is(StringSchema, t)) {
     return {
       ok: false,
       error: { line: lineNo, raw, error: "missing or non-string `t` field" },
@@ -140,7 +151,7 @@ export function validateJournalEvent(
 
   // ── Per-type validation ─────────────────────────────────────────────
   // Every variant requires `pass: number`. Other fields are type-specific.
-  if (typeof obj.pass !== "number") {
+  if (!v.is(NumberSchema, obj.pass)) {
     return {
       ok: false,
       error: { line: lineNo, raw, error: "missing or non-number `pass` field" },
@@ -148,7 +159,7 @@ export function validateJournalEvent(
   }
 
   if (t === "agent") {
-    if (typeof obj.key !== "string" || obj.key.length === 0) {
+    if (!v.is(StringSchema, obj.key) || obj.key.length === 0) {
       return {
         ok: false,
         error: { line: lineNo, raw, error: "agent event missing or empty `key`" },
@@ -157,15 +168,13 @@ export function validateJournalEvent(
     // `args` is optional for backward-compat with legacy v0 journals
     // written before args was a required field. When present, it must
     // be a non-null, non-array object.
-    if (obj.args !== undefined) {
-      if (typeof obj.args !== "object" || obj.args === null || Array.isArray(obj.args)) {
-        return {
-          ok: false,
-          error: { line: lineNo, raw, error: "agent event `args` must be a plain object when present" },
-        }
+    if (obj.args !== undefined && !v.is(PlainObjectSchema, obj.args)) {
+      return {
+        ok: false,
+        error: { line: lineNo, raw, error: "agent event `args` must be a plain object when present" },
       }
     }
-    if (obj.tokens !== undefined && typeof obj.tokens !== "number") {
+    if (obj.tokens !== undefined && !v.is(NumberSchema, obj.tokens)) {
       return {
         ok: false,
         error: { line: lineNo, raw, error: "agent event `tokens` must be number when present" },
@@ -186,7 +195,7 @@ export function validateJournalEvent(
   }
 
   if (t === "log") {
-    if (typeof obj.msg !== "string") {
+    if (!v.is(StringSchema, obj.msg)) {
       return {
         ok: false,
         error: { line: lineNo, raw, error: "log event missing or non-string `msg`" },
@@ -200,7 +209,7 @@ export function validateJournalEvent(
   // Field name is `title` (matches runtime.ts:942-946 setPhase() call site
   // and types.ts:57 JournalEventPhase definition). Was previously `name` here
   // in error — fixed in v0.14.x.
-  if (typeof obj.title !== "string" || obj.title.length === 0) {
+  if (!v.is(StringSchema, obj.title) || obj.title.length === 0) {
     return {
       ok: false,
       error: { line: lineNo, raw, error: "phase event missing or empty `title`" },

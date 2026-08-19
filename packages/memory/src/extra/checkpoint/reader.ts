@@ -136,13 +136,13 @@ function iterateBodyLinesFromString(content: string, lineOffsets: number[]): Too
   const calls: ToolCall[] = [];
   for (let i = 0; i < lineOffsets.length; i++) {
     const start = lineOffsets[i];
-    if (typeof start !== "number" || start < 0 || start >= content.length) continue;
+    if (!v.is(v.number(), start) || start < 0 || start >= content.length) continue;
     const lineEnd = content.indexOf("\n", start);
     const line = lineEnd >= 0 ? content.substring(start, lineEnd) : content.substring(start);
     if (!line) continue;
     try {
       const parsed = JSON.parse(line);
-      if (parsed && typeof parsed === "object" && (parsed as { __type?: unknown }).__type === "header") continue;
+      if (parsed && v.is(v.object({}), parsed) && (parsed as { __type?: unknown }).__type === "header") continue;
       const obj = v.parse(ToolCallSchema, parsed);
       calls.push(obj);
     } catch (e) {

@@ -1,4 +1,5 @@
 import { describe, it, expect, spyOn, beforeAll, afterAll } from "bun:test";
+import * as v from "valibot";
 import {
   createSessionState,
   recordFailure,
@@ -232,7 +233,7 @@ describe("Plugin entry", () => {
     const mod = await import("../src/auto-max/index");
     expect(mod.default).toBeDefined();
     expect(mod.default.id).toBe("@sffmc/safety");
-    expect(typeof mod.default.server).toBe("function");
+    expect(v.is(v.function_(), mod.default.server)).toBe(true);
   });
 
   it("server returns expected hooks", async () => {
@@ -241,10 +242,10 @@ describe("Plugin entry", () => {
       projectRoot: "/tmp/test-project",
       config: {},
     });
-    expect(typeof hooks.event).toBe("function");
-    expect(typeof hooks["tool.execute.after"]).toBe("function");
-    expect(typeof hooks["command.execute.before"]).toBe("function");
-    expect(typeof hooks["experimental.chat.system.transform"]).toBe("function");
+    expect(v.is(v.function_(), hooks.event)).toBe(true)
+    expect(v.is(v.function_(), hooks["tool.execute.after"])).toBe(true)
+    expect(v.is(v.function_(), hooks["command.execute.before"])).toBe(true)
+    expect(v.is(v.function_(), hooks["experimental.chat.system.transform"])).toBe(true)
   });
 
   it("event resets session on session.created", async () => {
@@ -583,10 +584,10 @@ describe("Plugin entry", () => {
 
       const calls = warnSpy.mock.calls.filter(
         (c: unknown[]) =>
-          // SAFETY: narrowed by typeof check on line 587
-          (typeof c[0] === "string" && (c[0] as string).includes("would trigger")) ||
-          // SAFETY: narrowed by typeof check on line 588
-          (typeof c[1] === "string" && (c[1] as string).includes("would trigger")),
+          // SAFETY: narrowed by v.is(v.string()) on the line below
+          (v.is(v.string(), c[0]) && c[0].includes("would trigger")) ||
+          // SAFETY: narrowed by v.is(v.string()) on the line below
+          (v.is(v.string(), c[1]) && c[1].includes("would trigger")),
       );
       expect(calls.length).toBeGreaterThan(0);
       warnSpy.mockRestore();

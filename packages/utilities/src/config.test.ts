@@ -2,6 +2,7 @@
 // @sffmc/utilities — see ../../LICENSE
 
 import { describe, it, expect, beforeAll, afterAll } from "bun:test"
+import * as v from "valibot"
 import { loadConfig, validateSafeRegex } from "./config.ts"
 import { mkdirSync, writeFileSync, rmSync, existsSync } from "fs"
 import { resolve } from "path"
@@ -76,7 +77,7 @@ describe("loadConfig — validate callback", () => {
         // Validator coerces and tightens the shape.
         // SAFETY: invariant — parsed is from loadConfig; cast to { limit?: unknown } for validator access
         const p = (parsed ?? {}) as { limit?: unknown }
-        return { limit: typeof p.limit === "number" ? p.limit : defaults.limit, label: "validated" }
+        return { limit: v.is(v.number(), p.limit) ? p.limit : defaults.limit, label: "validated" }
       },
     })
     expect(result).toEqual({ limit: 42, label: "validated" })

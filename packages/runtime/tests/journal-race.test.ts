@@ -9,9 +9,14 @@
 // always in a valid state for the next append.
 
 import { describe, test, expect, afterAll } from "bun:test"
+import * as v from "valibot"
 import { tmpdir } from "node:os"
 import { mkdtempSync, rmSync, readFileSync } from "node:fs"
 import path from "node:path"
+
+/** Valibot primitive schema used at the test boundary to discriminate
+ *  journal header field types without `typeof` runtime checks. */
+const NumberSchema = v.number()
 
 const tmpDir = mkdtempSync(path.join(tmpdir(), "sffmc-workflow-journal-race-"))
 process.env.XDG_DATA_HOME = tmpDir
@@ -100,7 +105,7 @@ describe("persistence.clearJournal v1-header preservation", () => {
     const headerCount = lines.filter((l) => {
       try {
         const j = JSON.parse(l)
-        return typeof j.v === "number" && !("t" in j)
+        return v.is(NumberSchema, j.v) && !("t" in j)
       } catch {
         return false
       }

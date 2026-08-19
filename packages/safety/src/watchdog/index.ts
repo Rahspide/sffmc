@@ -2,6 +2,7 @@ import { FailureCounter } from "./counter";
 import { buildPromotionFragment } from "./promote";
 import { buildRecoveryVerdict } from "./verdict";
 import { extractErrorType, isToolError, hasMetadataError, MAX_PATTERN, loadConfig, type PluginContext, createLogger, SESSION_CREATED } from "@sffmc/utilities";
+import * as v from "valibot";
 
 const log = createLogger("watchdog");
 
@@ -174,7 +175,7 @@ function handleSuccess(
   const recovery = recoveringTools.get(recoveryKey(sessionID, tool));
   if (recovery) {
     const verdict = buildRecoveryVerdict(tool, recovery.errorType, recovery.attempts);
-    if (typeof result.output === "string") {
+    if (v.is(v.string(), result.output)) {
       result.output = `${verdict}\n${result.output}`;
     }
     recoveringTools.delete(recoveryKey(sessionID, tool));

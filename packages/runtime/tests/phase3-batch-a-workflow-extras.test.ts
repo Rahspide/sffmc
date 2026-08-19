@@ -24,6 +24,7 @@
 // These tests do NOT touch runtime.ts (off-limits per v0.14.1 policy).
 
 import { describe, it, expect, beforeEach, afterEach } from "bun:test"
+import * as v from "valibot"
 import { mkdtempSync, rmSync, statSync, readFileSync, existsSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
@@ -35,6 +36,10 @@ import {
   getDbFilename,
 } from "./_test-helpers/config-cache.ts"
 import { WorkflowPersistence } from "../src/persistence.ts"
+
+/** Valibot primitive schema used at the test boundary to discriminate
+ *  workflow-config field types without `typeof` runtime checks. */
+const StringSchema = v.string()
 
 const RUN_ID = "wf_" + "a".repeat(26)
 
@@ -225,8 +230,8 @@ describe("@sffmc/runtime — third release extra checkpoint migration dbFilename
     expect(DEFAULT_WORKFLOW_EXTENDED_CONFIG.flushDebounceMs).toBe(250)
     expect(DEFAULT_WORKFLOW_EXTENDED_CONFIG.fsyncCoalesceMs).toBe(50)
     // The three new fields are present and well-typed.
-    expect(typeof DEFAULT_WORKFLOW_EXTENDED_CONFIG.dbFilename).toBe("string")
-    expect(typeof DEFAULT_WORKFLOW_EXTENDED_CONFIG.scriptExt).toBe("string")
-    expect(typeof DEFAULT_WORKFLOW_EXTENDED_CONFIG.journalExt).toBe("string")
+    expect(v.is(StringSchema, DEFAULT_WORKFLOW_EXTENDED_CONFIG.dbFilename)).toBe(true)
+    expect(v.is(StringSchema, DEFAULT_WORKFLOW_EXTENDED_CONFIG.scriptExt)).toBe(true)
+    expect(v.is(StringSchema, DEFAULT_WORKFLOW_EXTENDED_CONFIG.journalExt)).toBe(true)
   })
 })

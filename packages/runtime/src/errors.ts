@@ -8,13 +8,17 @@
  * the raw thrown value before parsing.
  */
 
-export function toErrorMessage(
-  e: string | number | bigint | boolean | symbol | object | null | undefined,
-): string {
+import * as v from "valibot"
+
+/** Valibot schema for "anything that looks like an Error but isn't an
+ *  instance of Error" — a non-null object with a string `message`
+ *  field. Used at the I/O boundary to check the `message` accessor
+ *  before reading it, replacing the historical `typeof === "object"`
+ *  narrowing. */
+const ErrorLikeSchema = v.object({ message: v.string() })
+
+export function toErrorMessage(e: unknown): string {
   if (e instanceof Error) return e.message
-  if (typeof e === "object" && e !== null && "message" in e) {
-    const msg = (e as { message: unknown }).message
-    if (typeof msg === "string") return msg
-  }
+  if (v.is(ErrorLikeSchema, e)) return e.message
   return String(e)
 }

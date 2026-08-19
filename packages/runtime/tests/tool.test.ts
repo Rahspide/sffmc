@@ -11,7 +11,12 @@
 // requiring a full WorkflowRuntime — pure dispatch via hand-rolled spy.
 
 import { describe, test, expect, beforeEach, mock } from "bun:test"
+import * as v from "valibot"
 import { createWorkflowTool } from "../src/tool.ts"
+
+/** Valibot primitive schema used at the test boundary to discriminate
+ *  tool-output field types without `typeof` runtime checks. */
+const StringSchema = v.string()
 
 type Spy = ReturnType<typeof mock>
 interface RuntimeSpy {
@@ -149,7 +154,7 @@ describe("createWorkflowTool: contract & dispatch", () => {
     expect(spy.status).toHaveBeenCalledTimes(1)
     expect(spy.status.mock.calls[0]![0]).toEqual({ runID: "wf_xxxxxxxxxxxxxxxxxxxxxxxx" })
     // Output is JSON.stringify(await runtime.status(...))
-    expect(typeof r).toBe("string")
+    expect(v.is(StringSchema, r)).toBe(true)
     expect(JSON.parse(r)).toEqual({ runID: "wf_aaaaaaaaaaaaaaaaaaaaaaaaaa", status: "running" })
   })
 
