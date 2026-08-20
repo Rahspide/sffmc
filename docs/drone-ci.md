@@ -64,8 +64,8 @@ We re-run them on the tag commit anyway as a final check, because:
 
 ## Image pinning
 
-Every step uses `oven/bun:1.3.14` (not `oven/bun:1` or `oven/bun:latest`).
-The `1.3.14` pin matches the version used by contributors locally and
+Every step uses `oven/bun:1.4.0` (not `oven/bun:1` or `oven/bun:latest`).
+The `1.4.0` pin matches the version used by contributors locally and
 ensures reproducible builds.
 
 ## Caching
