@@ -180,11 +180,13 @@ run_publish() {
 
     if $DRY_RUN; then
       info "DRY-RUN: ${pkg_name}@${pkg_version} (in ${pkg_dir#$REPO_ROOT/})"
-      # npm publish --dry-run (not bun publish): bun's publish path does not
-      # pick up the scoped _authToken from .npmrc and falls back to
-      # "missing authentication" even when npm whoami succeeds. The npm
-      # CLI reads the same .npmrc correctly.
-      if (cd "$pkg_dir" && npm publish --dry-run --registry "$NPM_CONFIG_REGISTRY"); then
+      # System npm is broken on this host (MODULE_NOT_FOUND: sigstore in
+      # /usr/lib/node_modules/npm/node_modules/libnpmpublish) and bun publish
+      # does not pick up the scoped _authToken from .npmrc. Use npx to
+      # fetch a working npm@10 on first run (cached afterwards) and pass
+      # --registry so the Chinese mirror in .npmrc does not shadow the
+      # npmjs.org token.
+      if (cd "$pkg_dir" && npx --yes npm@10 publish --dry-run --registry "$NPM_CONFIG_REGISTRY"); then
         echo -e "  ${GREEN}dry-run OK${NC}"
       else
         error "dry-run FAILED for ${pkg_name}"
@@ -192,7 +194,7 @@ run_publish() {
       fi
     else
       info "PUBLISH: ${pkg_name}@${pkg_version} (in ${pkg_dir#$REPO_ROOT/})"
-      if (cd "$pkg_dir" && npm publish --access public --registry "$NPM_CONFIG_REGISTRY"); then
+      if (cd "$pkg_dir" && npx --yes npm@10 publish --access public --registry "$NPM_CONFIG_REGISTRY"); then
       echo -e "  ${GREEN}published OK${NC}"
       # Force-dist-tag refresh: npm registry sometimes lags the package doc
       # index after publish (tarball is 200 but registry.npmjs.org/<pkg>
