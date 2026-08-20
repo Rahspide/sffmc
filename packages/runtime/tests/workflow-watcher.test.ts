@@ -57,7 +57,12 @@ describe("startWorkflowWatcher", () => {
     let captured: { event: string; path: string } | null = null
     const { on } = await import("@sffmc/utilities")
     on("workflow:file-changed", (e: { event: string; path: string }) => {
-      captured = e
+      // Bun 1.4+ fires BOTH a "rename" and a "change" event for new file
+      // creation (was just "rename" on Bun 1.3). The watcher forwards both,
+      // so the second event would overwrite our capture with "change".
+      // Lock on the first event so the assertion below checks the "add"
+      // event we actually care about.
+      if (!captured) captured = e
     })
 
     // Write a workflow file
