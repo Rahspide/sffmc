@@ -5,8 +5,6 @@
   <img src="docs/assets/logo.svg" alt="SFFMC" width="220" />
 </picture>
 
-# SFFMC
-
 ### Плагины OpenCode, портированные из Xiaomi MiMo-Code — drop in, без форка
 
 [**🚀 Быстрый старт**](#-быстрый-старт) · [**📖 Документация**](./docs/getting-started.md) · [**💬 Changelog**](./CHANGELOG.md) · [**🤝 Contributing**](./CONTRIBUTING.md)

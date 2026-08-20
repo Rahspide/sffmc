@@ -5,8 +5,6 @@
   <img src="docs/assets/logo.svg" alt="SFFMC" width="220" />
 </picture>
 
-# SFFMC
-
 ### OpenCode plugins ported from Xiaomi MiMo-Code — drop in, no fork required
 
 [**🚀 Quick start**](#-quick-start) · [**📖 Docs**](./docs/getting-started.md) · [**💬 Changelog**](./CHANGELOG.md) · [**🤝 Contributing**](./CONTRIBUTING.md)
