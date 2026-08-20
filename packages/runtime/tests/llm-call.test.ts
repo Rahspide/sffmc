@@ -1,20 +1,25 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/runtime — see ../../LICENSE
 
-import { describe, it, expect, beforeEach, mock } from "bun:test"
-import { callLLM, type CallLLMResult } from "../src/llm-call.ts"
+import { describe, it, expect, beforeEach } from "bun:test"
+import { callLLM } from "../src/llm-call.ts"
 import type { AgentOptions, InternalRunEntry, PluginContext } from "../src/types.ts"
 
 // Minimal stand-ins. We do NOT want to construct a full InternalRunEntry or
 // PluginContext — the function under test only needs them to exist (callLLM
 // does not read fields from entry in the current implementation; if that
 // changes the test fixtures will need to grow).
+// SAFETY: test fixture; fake entry intentionally exposes no fields (callLLM does not read from entry in the current implementation); `as InternalRunEntry` is the documented escape hatch for empty fixtures
 const fakeEntry: InternalRunEntry = {} as InternalRunEntry
 
-const baseOpts = (overrides: Partial<AgentOptions> = {}): AgentOptions => ({
-  task: "test",
-  ...overrides,
-} as AgentOptions)
+const baseOpts = (overrides: Partial<AgentOptions> = {}): AgentOptions => {
+  // SAFETY: object spread of `{ task: "test" }` satisfies AgentOptions structurally; cast removes the inferred literal type for return-type compatibility
+  const opts = {
+    task: "test",
+    ...overrides,
+  } as AgentOptions
+  return opts
+}
 
 describe("callLLM", () => {
   beforeEach(() => {
@@ -23,6 +28,7 @@ describe("callLLM", () => {
 
   it("uses JSON schema system prompt when opts.schema is set", async () => {
     let capturedMessages: Array<{ role: string; content: string }> = []
+    // SAFETY: test fixture; the fake ctx only implements the `client.session.message` surface used by callLLM; cast is needed because PluginContext has many other optional fields (only the supplied subset is exercised)
     const ctx: PluginContext = {
       client: {
         session: {
@@ -32,7 +38,7 @@ describe("callLLM", () => {
           },
         },
       },
-    } as unknown as PluginContext
+    } as PluginContext
     await callLLM(ctx, fakeEntry, "do the thing", baseOpts({ schema: { type: "object" } }))
     expect(capturedMessages[0]?.role).toBe("system")
     expect(capturedMessages[0]?.content).toContain("valid JSON")
@@ -40,6 +46,7 @@ describe("callLLM", () => {
 
   it("uses plain system prompt when opts.schema is absent", async () => {
     let capturedMessages: Array<{ role: string; content: string }> = []
+    // SAFETY: test fixture; fake ctx implements only the surface used by callLLM; cast is needed for PluginContext structural mismatch (only the supplied subset is exercised)
     const ctx: PluginContext = {
       client: {
         session: {
@@ -49,7 +56,7 @@ describe("callLLM", () => {
           },
         },
       },
-    } as unknown as PluginContext
+    } as PluginContext
     await callLLM(ctx, fakeEntry, "do the thing", baseOpts())
     expect(capturedMessages[0]?.content).toContain("directly")
     expect(capturedMessages[0]?.content).not.toContain("JSON")
@@ -57,6 +64,7 @@ describe("callLLM", () => {
 
   it("appends the user message after the system prompt", async () => {
     let captured: { messages: Array<{ role: string; content: string }> } | null = null
+    // SAFETY: test fixture; fake ctx implements only the surface used by callLLM; cast is needed for PluginContext structural mismatch (only the supplied subset is exercised)
     const ctx: PluginContext = {
       client: {
         session: {
@@ -66,7 +74,7 @@ describe("callLLM", () => {
           },
         },
       },
-    } as unknown as PluginContext
+    } as PluginContext
     await callLLM(ctx, fakeEntry, "the prompt", baseOpts())
     expect(captured).not.toBeNull()
     expect(captured!.messages).toHaveLength(2)
@@ -76,7 +84,8 @@ describe("callLLM", () => {
   })
 
   it("forwards opts.model to the SDK call", async () => {
-    let capturedModel: unknown = "unset"
+    let capturedModel: unknown | string = "unset"
+    // SAFETY: test fixture; fake ctx implements only the surface used by callLLM; cast is needed for PluginContext structural mismatch (only the supplied subset is exercised)
     const ctx: PluginContext = {
       client: {
         session: {
@@ -86,12 +95,13 @@ describe("callLLM", () => {
           },
         },
       },
-    } as unknown as PluginContext
+    } as PluginContext
     await callLLM(ctx, fakeEntry, "x", baseOpts({ model: "gpt-4o-mini" }))
     expect(capturedModel).toBe("gpt-4o-mini")
   })
 
   it("returns the fallback result when ctx.client.session.message is missing", async () => {
+    // SAFETY: test fixture; empty object cast as PluginContext to exercise the missing-SDK fallback path
     const ctx: PluginContext = {} as PluginContext
     const r = await callLLM(ctx, fakeEntry, "x", baseOpts())
     expect(r.content).toHaveLength(1)
@@ -99,19 +109,22 @@ describe("callLLM", () => {
   })
 
   it("returns the fallback result when ctx.client is undefined", async () => {
+    // SAFETY: test fixture; empty object cast as PluginContext to exercise the missing-client fallback path
     const ctx: PluginContext = {} as PluginContext
     const r = await callLLM(ctx, fakeEntry, "x", baseOpts())
     expect(r.content[0]?.text).toContain("no LLM client")
   })
 
   it("returns the fallback result when ctx.client.session is undefined", async () => {
-    const ctx = { client: {} } as unknown as PluginContext
+    // SAFETY: test fixture; partial PluginContext with empty client to exercise the missing-session fallback path
+    const ctx = { client: {} } as PluginContext
     const r = await callLLM(ctx, fakeEntry, "x", baseOpts())
     expect(r.content[0]?.text).toContain("no LLM client")
   })
 
   it("returns the fallback result when ctx.client.session.message is undefined", async () => {
-    const ctx = { client: { session: {} } } as unknown as PluginContext
+    // SAFETY: test fixture; partial PluginContext with empty session to exercise the missing-message fallback path
+    const ctx = { client: { session: {} } } as PluginContext
     const r = await callLLM(ctx, fakeEntry, "x", baseOpts())
     expect(r.content[0]?.text).toContain("no LLM client")
   })

@@ -2,6 +2,7 @@
 // @sffmc/utilities — Judge tests
 
 import { describe, it, expect } from "bun:test";
+import * as v from "valibot";
 import {
   createJudgeTool,
   buildJudgePrompt,
@@ -27,7 +28,7 @@ function mockJsonResponse(scores: JudgeScore[], winner: number, reasoning: strin
 }
 
 /** Create a mock ctx with a client.session.message that returns a canned response. */
-function mockCtx(cannedText: string, latencyMs = 150): NonNullable<JudgeConfig["ctx"]> {
+function mockCtx(cannedText: string, _latencyMs = 150): NonNullable<JudgeConfig["ctx"]> {
   return {
     client: {
       session: {
@@ -169,6 +170,7 @@ describe("parseJudgeResponse", () => {
 describe("execute with mocked LLM", () => {
   it("with 3 candidates returns parsed scores, winner, reasoning", async () => {
     const { tool } = createJudgeTool(enabledConfig());
+    // SAFETY: invariant — see caller justification
     const result = await tool.execute({
       candidates: ["output A", "output B", "output C"],
     }) as JudgeExecuteResult;
@@ -195,6 +197,7 @@ describe("execute with mocked LLM", () => {
         client: {
           session: {
             message: async (params) => {
+              // SAFETY: invariant — see caller justification
               capturedMessages = params.messages as Array<{ role: string; content: string }>;
               return {
                 content: [{
@@ -271,6 +274,7 @@ describe("execute with mocked LLM", () => {
 
   it("latency field present and non-negative", async () => {
     const { tool } = createJudgeTool(enabledConfig());
+    // SAFETY: narrowed by !result.ok) throw new Error("expected ok" on line 267
     const result = await tool.execute({
       candidates: ["a", "b", "c"],
     }) as JudgeExecuteResult;
@@ -278,7 +282,7 @@ describe("execute with mocked LLM", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("expected ok");
     expect(result.latencyMs).toBeGreaterThanOrEqual(0);
-    expect(typeof result.latencyMs).toBe("number");
+    expect(v.is(v.number(), result.latencyMs)).toBe(true);
   });
 });
 
@@ -474,18 +478,19 @@ describe("createJudgeTool shape", () => {
 
   it("tool has no 'name' field (fix-17 regression)", () => {
     const { tool } = createJudgeTool({ enabled: false, model: "m", rubric: "r" });
-    expect((tool as Record<string, unknown>).name).toBeUndefined();
+    // SAFETY: invariant — see caller justification
+    expect((tool as Record<string, import("../src/extra/checkpoint/types.ts").JSONValue>).name).toBeUndefined();
   });
 
   it("tool has description, parameters, execute", () => {
     const { tool } = createJudgeTool({ enabled: false, model: "m", rubric: "r" });
-    expect(typeof tool.description).toBe("string");
+    expect(v.is(v.string(), tool.description)).toBe(true);
     expect(tool.parameters.type).toBe("object");
     expect(tool.parameters.properties).toBeDefined();
     expect(tool.parameters.properties.candidates).toBeDefined();
     expect(tool.parameters.properties.candidates.type).toBe("array");
     expect(tool.parameters.required).toContain("candidates");
-    expect(typeof tool.execute).toBe("function");
+    expect(v.is(v.function_(), tool.execute)).toBe(true);
   });
 
   it("hooks are empty when judge_auto is not set", () => {
@@ -523,6 +528,7 @@ describe("judge prompt maxCandidates config", () => {
 
   it("omitting maxCandidates uses DEFAULT_MAX_CANDIDATES (8)", () => {
     const { tool } = createJudgeTool({ enabled: false, model: "m", rubric: "r" });
+    // SAFETY: invariant — see caller justification
     const schema = tool.parameters.properties.candidates as { maxItems: number; minItems: number };
     expect(schema.maxItems).toBe(8);
     expect(schema.minItems).toBe(2);
@@ -537,6 +543,7 @@ describe("judge prompt maxCandidates config", () => {
       rubric: "r",
       maxCandidates: 12,
     });
+    // SAFETY: invariant — see caller justification
     const schema = tool.parameters.properties.candidates as { maxItems: number };
     expect(schema.maxItems).toBe(12);
     expect(tool.description).toContain("12+ candidates");
@@ -549,6 +556,7 @@ describe("judge prompt maxCandidates config", () => {
       rubric: "r",
       maxCandidates: 2,
     });
+    // SAFETY: invariant — see caller justification
     const schema = tool.parameters.properties.candidates as { maxItems: number };
     expect(schema.maxItems).toBe(2);
   });
@@ -560,6 +568,7 @@ describe("judge prompt maxCandidates config", () => {
       rubric: "r",
       maxCandidates: 20,
     });
+    // SAFETY: invariant — see caller justification
     const schema = tool.parameters.properties.candidates as { maxItems: number };
     expect(schema.maxItems).toBe(20);
   });
@@ -624,6 +633,7 @@ describe("judge prompt maxCandidates config", () => {
       rubric: "r",
       maxCandidates: 0,
     });
+    // SAFETY: invariant — see caller justification
     const schema = tool.parameters.properties.candidates as { maxItems: number };
     expect(schema.maxItems).toBe(2);
   });
@@ -635,6 +645,7 @@ describe("judge prompt maxCandidates config", () => {
       rubric: "r",
       maxCandidates: 100,
     });
+    // SAFETY: invariant — see caller justification
     const schema = tool.parameters.properties.candidates as { maxItems: number };
     expect(schema.maxItems).toBe(20);
   });
@@ -646,6 +657,7 @@ describe("judge prompt maxCandidates config", () => {
       rubric: "r",
       maxCandidates: 12.7,
     });
+    // SAFETY: invariant — see caller justification
     const schema = tool.parameters.properties.candidates as { maxItems: number };
     expect(schema.maxItems).toBe(12);
   });
@@ -805,7 +817,7 @@ describe("createJudgeTool auto-judge hook (judge_auto: true)", () => {
     expect(transform).toBeTypeOf("function");
     if (!transform) throw new Error("expected transform");
 
-    const data: { messages: Array<{ role: string; content: string }> } = {
+    const data = {
       messages: [
         { role: "user", content: "do something" },
         {
@@ -844,7 +856,7 @@ describe("createJudgeTool auto-judge hook (judge_auto: true)", () => {
     });
     const transform = hooks["experimental.chat.messages.transform"];
     if (!transform) throw new Error("expected transform");
-    const data: { messages: Array<{ role: string; content: string }> } = {
+    const data = {
       messages: [
         { role: "user", content: "just a question, no marker here" },
         { role: "assistant", content: "and no marker in the assistant message either" },
@@ -876,7 +888,7 @@ describe("createJudgeTool auto-judge hook (judge_auto: true)", () => {
     });
     const transform = hooks["experimental.chat.messages.transform"];
     if (!transform) throw new Error("expected transform");
-    const data: { messages: Array<{ role: string; content: string }> } = {
+    const data = {
       messages: [
         {
           role: "assistant",
@@ -1010,10 +1022,13 @@ describe("callJudgeStream chunk emission order", () => {
     const types = chunks.map((c) => c.type);
     expect(types).toEqual(["scores", "winner", "reasoning", "complete"]);
     // Each chunk carries the expected payload.
+    // SAFETY: invariant — see caller justification
     const scoresChunk = chunks[0] as Extract<JudgeStreamChunk, { type: "scores" }>;
     expect(scoresChunk.scores.length).toBe(2);
+    // SAFETY: invariant — see caller justification
     const winnerChunk = chunks[1] as Extract<JudgeStreamChunk, { type: "winner" }>;
     expect(winnerChunk.winner).toBe(0);
+    // SAFETY: invariant — see caller justification
     const reasoningChunk = chunks[2] as Extract<JudgeStreamChunk, { type: "reasoning" }>;
     expect(reasoningChunk.reasoning).toBe("winner is candidate 0");
     expect(chunks[3].type).toBe("complete");

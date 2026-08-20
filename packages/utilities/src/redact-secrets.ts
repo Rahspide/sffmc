@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/utilities — see ../../LICENSE
 
+import * as v from "valibot";
+
 /**
  * Shared redaction helper. Three pure functions, no I/O at import time,
  * no module-level mutable state except the rules cache (reset via
@@ -118,7 +120,7 @@ const BUILTIN_RULES_STATIC: ReadonlyArray<RedactionRule> = [
   // the whole match with a single `[REDACTED:private-key-pem]` marker.
   { id: "private-key-pem", pattern: /-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP |ENCRYPTED )?PRIVATE KEY-----[\s\S]*?-----END (?:RSA |EC |DSA |OPENSSH |PGP |ENCRYPTED )?PRIVATE KEY-----/g, description: "PEM-armored private key blocks (header + body + footer)" },
   // basic-auth-header uses its own 8-char minimum (shorter base64 blobs are common).
-  { id: "basic-auth-header", pattern: /(?:authorization|auth):\s*basic\s+([A-Za-z0-9+\/=]{8,})/gi, description: "Authorization: Basic <base64>" },
+  { id: "basic-auth-header", pattern: /(?:authorization|auth):\s*basic\s+([A-Za-z0-9+/=]{8,})/gi, description: "Authorization: Basic <base64>" },
   // E — provider-specific credential patterns (v0.15.3 expansion).
   // Each alternative is anchored to the token's known prefix / shape so
   // false-positive rate stays near zero. The `ghp_` form (legacy GitHub PAT)
@@ -139,7 +141,7 @@ const BUILTIN_RULES_STATIC: ReadonlyArray<RedactionRule> = [
   // O(n) and the alternation overall O(n * |alternatives|).
   // JWT segments in practice: header ≤ ~64 chars, payload can be long
   // (up to 8 KiB+), signature ≤ ~512 chars. 200/64/512 are generous.
-  { id: "cloud-credential", pattern: /(AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_\-]{35}|gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{82}|glpat-[A-Za-z0-9_\-]{20}|[A-Za-z0-9_\-]{24,200}\.[A-Za-z0-9_\-]{6,64}\.[A-Za-z0-9_\-]{20,512}|sk-[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]+|sk_live_[A-Za-z0-9]{24,}|rk_live_[A-Za-z0-9]{24,})/g, description: "AWS/GCP/GitHub (incl. fine-grained PAT)/OpenAI/Slack/Discord/Stripe/GitLab/JWT tokens" },
+  { id: "cloud-credential", pattern: /(AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{35}|gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{82}|glpat-[A-Za-z0-9_-]{20}|[A-Za-z0-9_-]{24,200}\.[A-Za-z0-9_-]{6,64}\.[A-Za-z0-9_-]{20,512}|sk-[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]+|sk_live_[A-Za-z0-9]{24,}|rk_live_[A-Za-z0-9]{24,})/g, description: "AWS/GCP/GitHub (incl. fine-grained PAT)/OpenAI/Slack/Discord/Stripe/GitLab/JWT tokens" },
 ]
 
 /** Build the DYNAMIC portion of the built-in rules. These patterns depend on
@@ -170,18 +172,26 @@ function buildBuiltinRulesDynamic(minTokenLength: number): ReadonlyArray<Redacti
 }
 
 /** User-facing config shape. Read from `~/.config/sffmc/redact-secrets.yaml`. */
-interface RedactionConfig {
-  extraFilenameRules?: Array<{ id: string; pattern: string }>
-  extraContentRules?: Array<{ id: string; pattern: string }>
-  disabledRules?: string[]
+const RedactionRuleSchema = v.object({
+  id: v.string(),
+  pattern: v.string(),
+})
+
+const RedactionConfigSchema = v.object({
+  extraFilenameRules: v.optional(v.array(RedactionRuleSchema)),
+  extraContentRules: v.optional(v.array(RedactionRuleSchema)),
+  disabledRules: v.optional(v.array(v.string())),
   /**
    * Minimum token length for the `api-key-assignment`, `token-assignment`,
    * and `bearer-header` rules. Tokens shorter than this are not considered
    * real credentials (avoids false positives on short keys like `api=ok`).
    * Default: `MIN_TOKEN_LENGTH` (16). Must be integer in [4, 256].
    */
-  minTokenLength?: number
-}
+  minTokenLength: v.optional(v.number()),
+})
+
+type RedactionRuleInput = v.InferOutput<typeof RedactionRuleSchema>
+type RedactionConfig = v.InferOutput<typeof RedactionConfigSchema>
 
 const defaultConfig: RedactionConfig = {
   extraFilenameRules: [],
@@ -210,6 +220,7 @@ async function getRules(): Promise<ReadonlyArray<RedactionRule>> {
   if (compiledRules !== null) return compiledRules
   const redactionConfig = await loadConfig<RedactionConfig>("redact-secrets", defaultConfig, {
     configHome: _configHomeOverride,
+    schema: RedactionConfigSchema,
     validate: sanitizeRedactionConfig,
   })
   const disabled = new Set(redactionConfig.disabledRules ?? [])
@@ -246,6 +257,7 @@ function compileUserRule(
   const flags = isFilenameOnly ? "i" : "gi"
   try {
     return {
+      // SAFETY: invariant — rule.id sourced from validated YAML config; cast to RedactionCategory string union
       id: rule.id as RedactionCategory,
       pattern: new RegExp(rule.pattern, flags),
       filenameOnly: isFilenameOnly,
@@ -258,26 +270,24 @@ function compileUserRule(
 
 /**
  * Validate + sanitize a parsed redact-secrets YAML. Called by `loadConfig`
- * BEFORE the rule cache is populated. Rejects:
- *  - non-object inputs (returns defaults)
- *  - non-array rule lists (replaced with empty array)
- *  - rules missing `id`/`pattern` strings (dropped)
+ * AFTER Valibot schema decoding. Receives the schema-narrowed shape:
+ *  - rules missing `id`/`pattern` strings — dropped (defensive — schema
+ *    guarantees both fields, but the runtime shape can still be widened
+ *    if a future schema revision relaxes it)
  *  - rules with regex patterns flagged by `safe-regex` as potentially
- *    catastrophic (dropped with a warning)
+ *    catastrophic — dropped with a warning
  *
  * This is the schema-level guard against ReDoS in user-supplied regex
- * (Bug #5b). The compile-time `new RegExp()` try/catch is kept as a
- * defense-in-depth fallback for the case where safe-regex is missing or
- * throws on input that `new RegExp()` could still compile.
+ * (Bug #5b). The compile-time `new RegExp()` try/catch in `compileUserRule`
+ * is kept as a defense-in-depth fallback for the case where safe-regex is
+ * missing or throws on input that `new RegExp()` could still compile.
  */
-function sanitizeRedactionConfig(parsed: unknown): RedactionConfig {
-  if (!parsed || typeof parsed !== "object") return { ...defaultConfig }
-  const rawConfig = parsed as Record<string, unknown>
+function sanitizeRedactionConfig(parsed: RedactionConfig): RedactionConfig {
   return {
-    extraFilenameRules: sanitizeRuleList(rawConfig.extraFilenameRules, "extraFilenameRules"),
-    extraContentRules: sanitizeRuleList(rawConfig.extraContentRules, "extraContentRules"),
-    disabledRules: sanitizeDisabledRules(rawConfig.disabledRules),
-    minTokenLength: sanitizeMinTokenLength(rawConfig.minTokenLength),
+    extraFilenameRules: sanitizeRuleList(parsed.extraFilenameRules, "extraFilenameRules"),
+    extraContentRules: sanitizeRuleList(parsed.extraContentRules, "extraContentRules"),
+    disabledRules: sanitizeDisabledRules(parsed.disabledRules),
+    minTokenLength: sanitizeMinTokenLength(parsed.minTokenLength),
   }
 }
 
@@ -286,9 +296,9 @@ function sanitizeRedactionConfig(parsed: unknown): RedactionConfig {
  *  malformed YAML doesn't crash plugin startup. The actual regex-pattern
  *  build is the one that throws on invalid thresholds, giving a more
  *  diagnostic error message. */
-function sanitizeMinTokenLength(raw: unknown): number | undefined {
+function sanitizeMinTokenLength(raw: number | undefined): number | undefined {
   if (raw === undefined) return undefined
-  if (typeof raw !== "number" || !Number.isFinite(raw) || !Number.isInteger(raw)) {
+  if (!Number.isFinite(raw) || !Number.isInteger(raw)) {
     throw new Error(
       `redact-secrets: minTokenLength must be an integer (got ${JSON.stringify(raw)})`,
     )
@@ -302,27 +312,24 @@ function sanitizeMinTokenLength(raw: unknown): number | undefined {
 }
 
 function sanitizeRuleList(
-  rules: unknown,
+  rules: ReadonlyArray<RedactionRuleInput> | undefined,
   ctx: string,
-): Array<{ id: string; pattern: string }> {
-  if (!Array.isArray(rules)) return []
-  const out: Array<{ id: string; pattern: string }> = []
+): RedactionRuleInput[] {
+  if (!rules) return []
+  const out: RedactionRuleInput[] = []
   for (const rule of rules) {
-    if (!rule || typeof rule !== "object") continue
-    const r = rule as { id?: unknown; pattern?: unknown }
-    if (typeof r.id !== "string" || typeof r.pattern !== "string") continue
-    if (!validateSafeRegex(r.pattern)) {
-      log.warn(`redact-secrets: unsafe or invalid pattern in ${ctx}[${r.id}]:`, r.pattern)
+    if (!validateSafeRegex(rule.pattern)) {
+      log.warn(`redact-secrets: unsafe or invalid pattern in ${ctx}[${rule.id}]:`, rule.pattern)
       continue
     }
-    out.push({ id: r.id, pattern: r.pattern })
+    out.push({ id: rule.id, pattern: rule.pattern })
   }
   return out
 }
 
-function sanitizeDisabledRules(rules: unknown): string[] {
-  if (!Array.isArray(rules)) return []
-  return rules.filter((r): r is string => typeof r === "string")
+function sanitizeDisabledRules(rules: ReadonlyArray<string> | undefined): string[] {
+  if (!rules) return []
+  return rules.filter((r): r is string => v.is(v.string(), r))
 }
 
 /** Test escape hatch — flush the cache so the next call re-reads YAML. */

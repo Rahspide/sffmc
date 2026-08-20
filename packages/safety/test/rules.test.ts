@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach } from "bun:test";
-import { parseRules, loadRules, isPanicMode, type Rules } from "../src/rules/rules.ts";
+import * as v from "valibot";
+import { parseRules, loadRules, isPanicMode } from "../src/rules/rules.ts";
 import { evaluate } from "../src/rules/gate.ts";
 import { writeFileSync, unlinkSync } from "fs";
 
@@ -238,7 +239,7 @@ describe("Plugin entry", () => {
     const mod = await import("../src/rules/index");
     expect(mod.default).toBeDefined();
     expect(mod.default.id).toBe("@sffmc/safety");
-    expect(typeof mod.default.server).toBe("function");
+    expect(v.is(v.function_(), mod.default.server)).toBe(true);
   });
 
   it("server returns hooks with tool.execute.before and permission.ask", async () => {
@@ -247,7 +248,7 @@ describe("Plugin entry", () => {
       projectRoot: "/tmp/test-project",
       config: {},
     });
-    expect(typeof hooks["tool.execute.before"]).toBe("function");
-    expect(typeof hooks["permission.ask"]).toBe("function");
+    expect(v.is(v.function_(), hooks["tool.execute.before"])).toBe(true)
+    expect(v.is(v.function_(), hooks["permission.ask"])).toBe(true)
   });
 });

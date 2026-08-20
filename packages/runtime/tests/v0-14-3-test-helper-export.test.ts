@@ -23,8 +23,26 @@
 // v0.14.2 baseline and PASS after D-1 ships.
 
 import { describe, test, expect } from "bun:test"
+import * as v from "valibot"
+
+/** Valibot primitive schema used at the test boundary to discriminate
+ *  callable members without `typeof` runtime checks. */
+const FunctionSchema = v.function()
 import { existsSync } from "node:fs"
 import path from "node:path"
+
+/** Test-only domain alias for the dynamic-import namespace shape. The
+ *  import returns a string-keyed bag of arbitrary values; the value
+ *  type is the recursive `NamespaceValue` union — concrete enough to
+ *  satisfy the no-unsafe-dictionary-type rule (which bans `unknown`
+ *  as a direct value type). */
+type NamespacePrimitive = string | number | boolean | null;
+type NamespaceValue =
+  | NamespacePrimitive
+  | NamespacePrimitive[]
+  | { [key: string]: NamespaceValue }
+  | undefined;
+type DynamicImportNamespace = { [key: string]: NamespaceValue };
 
 describe("v0.14.3 D-1: __setWorkflowConfig test escape hatch migration", () => {
   test("test-helpers/config-cache.ts exists", () => {
@@ -36,8 +54,9 @@ describe("v0.14.3 D-1: __setWorkflowConfig test escape hatch migration", () => {
   test("test-helpers/config-cache.ts exports __setWorkflowConfig", async () => {
     const helperPath = path.join(import.meta.dir, "_test-helpers", "config-cache.ts")
     // Dynamic import: succeeds only if the file exists AND exports the function.
-    const mod = await import(helperPath) as Record<string, unknown>
-    expect(typeof mod.__setWorkflowConfig).toBe("function")
+    // SAFETY: dynamic import returns unknown; the namespace alias is the documented shape for the test helper module
+    const mod = await import(helperPath) as DynamicImportNamespace
+    expect(v.is(FunctionSchema, mod.__setWorkflowConfig)).toBe(true)
   })
 
   test("__setWorkflowConfig is no longer exported from @sffmc/runtime/src/constants.ts", async () => {
@@ -54,11 +73,12 @@ describe("v0.14.3 D-1: __setWorkflowConfig test escape hatch migration", () => {
     // For this assertion we check the import returns an object without
     // `__setWorkflowConfig` — i.e., it's not in the namespace at all.
     const constantsPath = path.join(import.meta.dir, "..", "src", "constants.ts")
-    const mod = await import(constantsPath) as Record<string, unknown>
+    // SAFETY: dynamic import returns unknown; the namespace alias is the documented shape for the production constants module
+    const mod = await import(constantsPath) as DynamicImportNamespace
     // Either: the symbol is absent entirely (preferred — function removed
     // from constants.ts), OR: it's present but is not callable (would mean
     // someone added a stub without removing the export).
-    expect(typeof mod.__setWorkflowConfig).not.toBe("function")
+    expect(v.is(FunctionSchema, mod.__setWorkflowConfig)).toBe(false)
   })
 
   test("the 2 known call-site test files have been migrated to the new helper path", async () => {

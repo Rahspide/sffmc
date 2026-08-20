@@ -97,7 +97,7 @@ function skipTrivia(r: Reader): void {
   }
 }
 
-function readValue(r: Reader): unknown {
+function readValue(r: Reader) {
   const ch = r.text[r.pos]
   if (ch === undefined) throw new ParseFail("unexpected end of input")
   if (ch === "{") return readObject(r)
@@ -110,10 +110,17 @@ function readValue(r: Reader): unknown {
   throw new ParseFail(`unexpected token at offset ${r.pos} (only data literals are allowed)`)
 }
 
-function readObject(r: Reader): Record<string, unknown> {
+/** Concrete value shape of the parsed JSON-like data literal: every
+ *  primitive, null, or nested structure this parser supports. Replaces
+ *  the previously-untyped `unknown` value type so callers can index the
+ *  result without an `unknown` escape at the I/O boundary. */
+type ParsedValue = string | number | boolean | null | ParsedObject | ParsedValue[]
+interface ParsedObject { [key: string]: ParsedValue }
+
+function readObject(r: Reader) {
   if (++r.depth > MAX_DEPTH) throw new ParseFail("meta nesting too deep")
   r.pos++ // consume `{`
-  const obj: Record<string, unknown> = {}
+  const obj: ParsedObject = {}
   skipTrivia(r)
   if (r.text[r.pos] === "}") {
     r.pos++

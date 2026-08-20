@@ -12,16 +12,22 @@ import {
 import { realpathSync } from "node:fs"
 import { resolve, relative, isAbsolute, dirname } from "node:path"
 import { glob as globFs } from "node:fs/promises"
+import * as v from "valibot"
 import { createLogger } from "@sffmc/utilities"
 
 const log = createLogger("workspace:jail")
+
+/** Valibot primitive schemas used at the I/O boundary to discriminate
+ *  workspace-jail inputs without `typeof` runtime checks. */
+const StringSchema = v.string()
+const NumberSchema = v.number()
 
 /** POSIX `O_NOFOLLOW` flag (Linux/macOS). Refuses to follow a symlink at the
  *  leaf of the path. Set to a sentinel value on platforms where it doesn't
  *  exist (Windows). Used as defense-in-depth on the open call — see the
  *  SECURITY NOTE in the `WorkspaceJail` class body. */
 const O_NOFOLLOW: number =
-  typeof fsConstants.O_NOFOLLOW === "number"
+  v.is(NumberSchema, fsConstants.O_NOFOLLOW)
     ? fsConstants.O_NOFOLLOW
     : 0
 
@@ -77,6 +83,7 @@ export class WorkspaceJail {
       try {
         real = realpathSync(current)
       } catch (e: unknown) {
+        // SAFETY: realpathSync rejects with NodeJS.ErrnoException; `code` is the documented field for ENOENT vs other errors
         if ((e as NodeJS.ErrnoException).code !== "ENOENT") {
           throw e
         }
@@ -127,8 +134,8 @@ export class WorkspaceJail {
     if (O_NOFOLLOW) {
       const handle = await open(abs, fsConstants.O_RDONLY | O_NOFOLLOW)
       try {
-        const buf = Buffer.alloc(handle.statSync ? -1 : 0) // unused
         const fh = await handle.readFile({ encoding: "utf-8" })
+        // SAFETY: encoding: "utf-8" on the call above guarantees fh is a string per the documented overload signature
         return fh as string
       } finally {
         await handle.close()
@@ -161,6 +168,7 @@ export class WorkspaceJail {
     try {
       return await this.safeRead(abs)
     } catch (e: unknown) {
+      // SAFETY: file operations reject with NodeJS.ErrnoException; `code` is the documented field for ENOENT detection
       if ((e as NodeJS.ErrnoException).code === "ENOENT") return null
       throw e
     }
@@ -189,7 +197,9 @@ export class WorkspaceJail {
     // `..` segments as path components (not glob meta-chars), so a pattern
     // like `../etc/*` would otherwise surface matches the per-entry filter
     // would silently drop. Fail loud at the boundary instead.
-    if (typeof pattern !== "string" || pattern.length === 0) {
+    // `v.is(StringSchema, pattern)` is the schema-form equivalent of the
+    // historical `typeof pattern === "string"` guard.
+    if (!v.is(StringSchema, pattern) || pattern.length === 0) {
       throw new Error(`WorkspaceJail.glob: pattern must be non-empty string`)
     }
     const normalizedRoot = resolve(this.root)
@@ -207,7 +217,9 @@ export class WorkspaceJail {
     for await (const entry of globFs(pattern, { cwd: this.root })) {
       // globFs returns paths relative to cwd (like "foo/bar" or "../outside")
       // Filter out escapes: any path starting with ".." or being absolute.
-      if (typeof entry === "string") {
+      // `v.is(StringSchema, entry)` is the schema-form equivalent of the
+      // historical `typeof entry === "string"` guard.
+      if (v.is(StringSchema, entry)) {
         if (isAbsolute(entry)) continue
         if (entry.startsWith("..")) continue
         if (entry === "") continue

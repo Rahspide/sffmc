@@ -2,6 +2,7 @@ import { FailureCounter } from "./counter";
 import { buildPromotionFragment } from "./promote";
 import { buildRecoveryVerdict } from "./verdict";
 import { extractErrorType, isToolError, hasMetadataError, MAX_PATTERN, loadConfig, type PluginContext, createLogger, SESSION_CREATED } from "@sffmc/utilities";
+import * as v from "valibot";
 
 const log = createLogger("watchdog");
 
@@ -81,7 +82,7 @@ export const server = async (ctx: PluginContext) => {
   }
 
   return {
-    event: async (payload: { event: string; [key: string]: unknown }) => {
+    event: async (payload: { event: string; sessionID?: string }) => {
       if (payload.event === SESSION_CREATED) {
         const sid = String(payload.sessionID || "");
         state.counter.resetSession(sid);
@@ -97,7 +98,8 @@ export const server = async (ctx: PluginContext) => {
       const { tool, sessionID } = toolCtx;
       const output = result.output ?? result.metadata ?? "";
 
-      const meta = result.metadata as Record<string, unknown> | undefined;
+      // SAFETY: invariant — metadata cast to record for hasMetadataError indexing
+      const meta = result.metadata as { error?: unknown } | undefined;
       const isError = isToolError(output);
       const hasErrorFlag = hasMetadataError(meta);
 
@@ -173,7 +175,7 @@ function handleSuccess(
   const recovery = recoveringTools.get(recoveryKey(sessionID, tool));
   if (recovery) {
     const verdict = buildRecoveryVerdict(tool, recovery.errorType, recovery.attempts);
-    if (typeof result.output === "string") {
+    if (v.is(v.string(), result.output)) {
       result.output = `${verdict}\n${result.output}`;
     }
     recoveringTools.delete(recoveryKey(sessionID, tool));

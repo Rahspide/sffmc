@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/runtime — see ../../LICENSE
 
-import { WorkflowRuntime, type RuntimeOpts } from "./runtime.ts"
+import { WorkflowRuntime } from "./runtime.ts"
 import { createWorkflowTool } from "./tool.ts"
 import type { PluginContext } from "./runtime.ts"
 import type { WorkflowAgentFailedEvent, WorkflowFinishedEvent } from "./events.ts"
@@ -58,11 +58,13 @@ export const server = async (ctx: PluginContext) => {
 
   // Register observability listeners on the runtime's event bus
   runtime.events.on("workflow:agent_failed", (e) => {
+    // SAFETY: event emitter is typed as `unknown`; WorkflowAgentFailedEvent is the documented payload shape for "workflow:agent_failed"
     const ev = e as WorkflowAgentFailedEvent
     log.warn(`agent ${ev.agentKey} in ${ev.runID} failed: ${ev.reason}`)
   })
 
   runtime.events.on("workflow:finished", (e) => {
+    // SAFETY: event emitter is typed as `unknown`; WorkflowFinishedEvent is the documented payload shape for "workflow:finished"
     const ev = e as WorkflowFinishedEvent
     if (ev.status !== "completed") {
       log.warn(`${ev.runID} finished: ${ev.status}${ev.error ? ` — ${ev.error}` : ""}`)
@@ -70,7 +72,7 @@ export const server = async (ctx: PluginContext) => {
   })
 
   return {
-    config: async (_cfg: unknown) => {
+    config: async (_cfg: Record<string, string | number | boolean | null>) => {
       // Recover orphaned workflows on startup
       await runtime.recoverOrphanedWorkflows()
     },

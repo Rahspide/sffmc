@@ -39,6 +39,7 @@ import type { SandboxConstraints } from "./types.ts"
 import { SCRIPT_DEADLINE_MS } from "./constants.ts"
 import { buildHostHooks, PRELUDE } from "./sandbox-prelude.ts"
 import { createLogger } from "@sffmc/utilities"
+import type { JsonValue } from "./runs.ts"
 
 const log = createLogger("sandbox")
 import { DEFAULT_PRNG_SEED } from "./sandbox-runtime.ts"
@@ -47,11 +48,6 @@ import { evalAndDiscard, evalAndReturn } from "./sandbox-eval.ts"
 import { startMicrotaskPump, createDeadlineRace } from "./sandbox-pump.ts"
 import { injectHooks, marshalIn } from "./sandbox-bridge.ts"
 import type {
-  DeadlineFactory,
-  EvalExecutor,
-  HostBridge,
-  MarshalingService,
-  MicrotaskPumpFactory,
   SandboxRuntimeFactory,
   SandboxServices,
 } from "./sandbox-services.ts"
@@ -61,15 +57,18 @@ import type {
 // ---------------------------------------------------------------------------
 
 /** An injected host function: receives already-marshaled JS args,
- *  returns a JS value or Promise. */
-export type HostFn = (...args: unknown[]) => unknown | Promise<unknown>
+ *  returns a JSON-serializable value or Promise of one. `JsonValue`
+ *  replaces the historical `unknown` so callers have a concrete value
+ *  contract — every host function operates on JSON-compatible data
+ *  (the sandbox bridge marshals through JSON). */
+export type HostFn = (...args: JsonValue[]) => JsonValue | Promise<JsonValue>
 
 /** The full set of primitives available inside the sandbox. */
 export interface SandboxPrimitives {
-  agent: (task: string, opts?: Record<string, unknown>) => Promise<unknown>
+  agent: (task: string, opts?: JsonValue) => Promise<JsonValue>
   parallel: <T>(thunks: Array<() => Promise<T>>) => Promise<Array<T | null>>
-  pipeline: <T>(items: T[], ...stages: Array<(acc: unknown, item: T, i: number) => Promise<unknown>>) => Promise<Array<unknown>>
-  workflow: (nameOrScript: string, args?: unknown) => Promise<unknown>
+  pipeline: <T>(items: T[], ...stages: Array<(acc: JsonValue, item: T, i: number) => Promise<JsonValue>>) => Promise<Array<JsonValue>>
+  workflow: (nameOrScript: string, args?: JsonValue) => Promise<JsonValue>
   phase: (title: string) => void
   log: (msg: string) => void
   readFile: (path: string) => Promise<string | null>
@@ -79,8 +78,8 @@ export interface SandboxPrimitives {
   /** Host-injected: list the parent's available MCP tool names. */
   mcpList: () => Promise<string[]>
   /** Host-injected: dispatch a single MCP tool call. */
-  mcpCall: (name: string, args: unknown) => Promise<unknown>
-  args: unknown // injected by value
+  mcpCall: (name: string, args: JsonValue) => Promise<JsonValue>
+  args: JsonValue // injected by value
 }
 
 /** Options for the orchestrator. `services` is the DI container —
@@ -103,12 +102,17 @@ export interface RunSandboxedOptions
  *  - a concurrent pump alongside resolvePromise so host-promises settle
  *  - every QuickJSHandle disposed before context dispose (else process abort)
  *  - NEVER THROWS — returns null on any error (per never-throw contract)
+ *
+ * The return type is `Promise<JsonValue | null>`: `null` is the
+ * never-throw sentinel (sandbox error / deadline / eval failure); a
+ * resolved value is whatever the guest script returned, JSON-marshaled
+ * back to the host.
  */
 export async function runSandboxed(
   source: string,
   primitives: SandboxPrimitives,
   opts?: RunSandboxedOptions,
-): Promise<unknown> {
+): Promise<JsonValue | null> {
   // Resolve DI: caller-supplied services win, defaults fill the rest.
   // The full container is required — Partial<SandboxServices> in the
   // input type guarantees this at compile time, but the merge gives
@@ -210,12 +214,13 @@ export async function runSandboxed(
       // so no type assertion needed.
       const r = resolved.r
       if (r.error) {
-        const err = ctx.dump(r.error)
         r.error.dispose()
         return null
       }
       const valueHandle = track(r.value)
-      return ctx.dump(valueHandle)
+      const dumped = ctx.dump(valueHandle)
+      // SAFETY: ctx.dump returns the JSON-compatible JS value (guest values round-trip through the marshaling layer); the cast pins the contract
+      return dumped as JsonValue | null
     } finally {
       pump.stop()
       clearTimeout(deadlineTimer)

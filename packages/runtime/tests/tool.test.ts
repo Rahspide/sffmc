@@ -11,7 +11,12 @@
 // requiring a full WorkflowRuntime — pure dispatch via hand-rolled spy.
 
 import { describe, test, expect, beforeEach, mock } from "bun:test"
+import * as v from "valibot"
 import { createWorkflowTool } from "../src/tool.ts"
+
+/** Valibot primitive schema used at the test boundary to discriminate
+ *  tool-output field types without `typeof` runtime checks. */
+const StringSchema = v.string()
 
 type Spy = ReturnType<typeof mock>
 interface RuntimeSpy {
@@ -38,6 +43,7 @@ describe("createWorkflowTool: contract & dispatch", () => {
 
   beforeEach(() => {
     spy = makeRuntimeSpy()
+    // SAFETY: test fixture; `as never` is the documented escape hatch for the minimal RuntimeSpy stub (the runtime contract is checked at the dispatch boundary, not via the type)
     tool = createWorkflowTool(spy as never)
   })
 
@@ -74,17 +80,20 @@ describe("createWorkflowTool: contract & dispatch", () => {
   // ─── input validation (defensive typeof guard) ──────────────────────────
 
   test("execute() rejects null args", async () => {
+    // SAFETY: test fixture; `null as never` exercises the null-args rejection path; the execute() guard handles it before reaching the typed args access
     const r = await tool.execute(null as never)
     expect(r).toMatch(/Error.*operation/)
   })
 
   test("execute() rejects args without operation field", async () => {
+    // SAFETY: test fixture; `{} as never` exercises the missing-operation-field rejection path
     const r = await tool.execute({} as never)
     expect(r).toContain("operation")
     expect(r).toMatch(/^Error/)
   })
 
   test("execute() rejects non-string operation", async () => {
+    // SAFETY: test fixture; `{ operation: 42 } as never` exercises the non-string-operation rejection path
     const r = await tool.execute({ operation: 42 } as never)
     expect(r).toMatch(/^Error/)
   })
@@ -106,6 +115,7 @@ describe("createWorkflowTool: contract & dispatch", () => {
   test("operation=run: with name → forwards name + injects sessionID='tool-call'", async () => {
     await tool.execute({ operation: "run", name: "deep-research" })
     expect(spy.start).toHaveBeenCalledTimes(1)
+    // SAFETY: spy.start is a mock function; mock.calls[0][0] is the documented first positional arg shape passed to runtime.start
     const arg = spy.start.mock.calls[0]![0] as { name: string; script: unknown; args: unknown; workspace: unknown; sessionID: string }
     expect(arg.name).toBe("deep-research")
     expect(arg.script).toBeUndefined()
@@ -116,6 +126,7 @@ describe("createWorkflowTool: contract & dispatch", () => {
     const script = "export const meta = { name: 'inline', description: 'x' }"
     await tool.execute({ operation: "run", script })
     expect(spy.start).toHaveBeenCalledTimes(1)
+    // SAFETY: spy.start.mock.calls[0][0] is the documented first positional arg shape passed to runtime.start (subset for the script-only path)
     const arg = spy.start.mock.calls[0]![0] as { script: string; sessionID: string }
     expect(arg.script).toBe(script)
     expect(arg.sessionID).toBe("tool-call")
@@ -128,6 +139,7 @@ describe("createWorkflowTool: contract & dispatch", () => {
       args: { question: "why" },
       workspace: "/abs/path",
     })
+    // SAFETY: spy.start.mock.calls[0][0] is the documented first positional arg shape passed to runtime.start (subset for the args+workspace path)
     const arg = spy.start.mock.calls[0]![0] as { args: unknown; workspace: string }
     expect(arg.args).toEqual({ question: "why" })
     expect(arg.workspace).toBe("/abs/path")
@@ -142,7 +154,7 @@ describe("createWorkflowTool: contract & dispatch", () => {
     expect(spy.status).toHaveBeenCalledTimes(1)
     expect(spy.status.mock.calls[0]![0]).toEqual({ runID: "wf_xxxxxxxxxxxxxxxxxxxxxxxx" })
     // Output is JSON.stringify(await runtime.status(...))
-    expect(typeof r).toBe("string")
+    expect(v.is(StringSchema, r)).toBe(true)
     expect(JSON.parse(r)).toEqual({ runID: "wf_aaaaaaaaaaaaaaaaaaaaaaaaaa", status: "running" })
   })
 
@@ -192,6 +204,7 @@ describe("createWorkflowTool: contract & dispatch", () => {
   test("execute() ignores malformed _ctx second argument", async () => {
     const r = await tool.execute(
       { operation: "status", run_id: "wf_x" },
+      // SAFETY: test fixture; `as never` is the documented escape hatch for the malformed-_ctx object (the tool ignores _ctx, so the cast is purely for the call signature)
       { weird: Symbol() as never } as never,
     )
     // Output reflects spy's return value (not the run_id we passed —

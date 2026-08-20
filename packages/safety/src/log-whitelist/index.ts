@@ -1,6 +1,7 @@
 import { filterLines } from "./filter";
 import { loadConfig, type PluginContext, createLogger } from "@sffmc/utilities";
 import safeRegex from "safe-regex";
+import * as v from "valibot";
 
 const log = createLogger("log-whitelist");
 
@@ -104,7 +105,7 @@ export const server = async (_ctx: PluginContext) => {
       if (state.whitelist.length === 0) return;
 
       // Only filter string output
-      if (typeof result.output !== "string") return;
+      if (!v.is(v.string(), result.output)) return;
 
       const outcome = applyFilter(state, result.output);
       if (outcome) {

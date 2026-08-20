@@ -16,7 +16,7 @@ import { getSandboxFastMs, getSandboxFastWindow, getSandboxSlowMs } from "./cons
 /** Start the microtask pump. Returns a `stop()` handle. The pump
  *  self-reschedules: a recursive setTimeout chain where each timer
  *  drains pending jobs and re-arms. */
-export function startMicrotaskPump(rt: QuickJSRuntime): { stop: () => void } {
+export function startMicrotaskPump(rt: QuickJSRuntime) {
   const FAST_MS = getSandboxFastMs()
   const SLOW_MS = getSandboxSlowMs()
   const FAST_WINDOW = getSandboxFastWindow()
@@ -37,7 +37,7 @@ export function startMicrotaskPump(rt: QuickJSRuntime): { stop: () => void } {
     stop: (): void => {
       if (pumpTimer) clearTimeout(pumpTimer)
     },
-  }
+  } satisfies { stop: () => void }
 }
 
 /** Drain any pending guest jobs and return the next idle-tick count:
@@ -65,9 +65,7 @@ export function computePumpDelayMs(
 /** Wall-clock deadline race: rejects after `ms` with a clear error.
  *  Returns the rejecting promise AND the underlying timer so the
  *  caller can cancel it once the guest resolves. */
-export function createDeadlineRace(
-  ms: number,
-): { promise: Promise<never>; timer: ReturnType<typeof setTimeout> } {
+export function createDeadlineRace(ms: number) {
   let timer: ReturnType<typeof setTimeout> | undefined
   const promise = new Promise<never>((_, reject) => {
     timer = setTimeout(
@@ -75,6 +73,10 @@ export function createDeadlineRace(
       ms,
     )
   })
-  return { promise, timer: timer as ReturnType<typeof setTimeout> }
+  // SAFETY: timer is assigned synchronously inside the Promise executor before .then/.catch can observe undefined; the cast removes the optional type
+  return { promise, timer: timer as ReturnType<typeof setTimeout> } satisfies {
+    promise: Promise<never>
+    timer: ReturnType<typeof setTimeout>
+  }
 }
 

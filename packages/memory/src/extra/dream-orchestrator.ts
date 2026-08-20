@@ -9,6 +9,7 @@
 
 import { Database } from "bun:sqlite";
 import { createLogger, defaultFsOps, HOOK_TOOL_EXECUTE_AFTER, unixNow, type FsOps } from "@sffmc/utilities";
+import * as v from "valibot";
 import { archiveEntry, openDB } from "./dream-db.ts";
 import {
   dedupRows,
@@ -33,6 +34,7 @@ import {
   type DreamResult,
   type DreamTool,
 } from "./dream-types.ts";
+import type { JSONValue } from "./checkpoint/types.ts";
 
 const log = createLogger("extra-dream");
 
@@ -240,10 +242,7 @@ export async function runDream(
 // Factory + sub-helpers
 // ---------------------------------------------------------------------------
 
-export function createDreamTool(config: DreamConfig): {
-  tool: DreamTool;
-  hooks: DreamHooks;
-} {
+export function createDreamTool(config: DreamConfig) {
   const resolved = resolveDreamConfig(config);
   const { dbPath, dedupThreshold, clusterThreshold, maxEntries, archivePath, snippetLength, llmSnippetLength } = resolved;
   let db: Database | null = null;
@@ -318,15 +317,7 @@ export function createDreamTool(config: DreamConfig): {
 /** Resolve the factory-level config defaults so the resolved values are
  *  stable across the lifetime of the factory instance. The threshold /
  *  cap / archive-path / snippet-length fields are all defaulted here. */
-function resolveDreamConfig(config: DreamConfig): {
-  dbPath: string;
-  dedupThreshold: number;
-  clusterThreshold: number;
-  maxEntries: number;
-  archivePath: string;
-  snippetLength: number;
-  llmSnippetLength: number;
-} {
+function resolveDreamConfig(config: DreamConfig) {
   const dbPath = config.storagePath ?? DEFAULT_STORAGE_PATH;
   // thresholds/cap up front so they are stable across the lifetime of
   // this factory instance. Defaults preserve prior behavior.
@@ -415,7 +406,7 @@ function buildDreamHooks(
   executeDream: (dryRun?: boolean) => Promise<DreamResult>,
 ): DreamHooks {
   return {
-    [HOOK_TOOL_EXECUTE_AFTER]: async (_toolCtx: unknown, _result: unknown) => {
+    [HOOK_TOOL_EXECUTE_AFTER]: async (_toolCtx: JSONValue, _result: JSONValue) => {
       if (!config.enabled) return;
       try {
         const count = countMemoryRows(getDB);
@@ -439,6 +430,7 @@ function buildDreamHooks(
  *  NULL (the query's max aggregate value is always numeric, so this is
  *  just a defensive narrowing). Pure DB read — no mutation. */
 function countMemoryRows(getDB: () => Database): number {
+  // SAFETY: invariant — see caller justification
   const row = getDB()
     .query("SELECT COUNT(*) as cnt FROM memory_entries")
     .get() as { cnt: number } | null;
@@ -465,7 +457,7 @@ function setupDreamCron(
     () => cronTickBody(config.intervalHours, executeDream),
     intervalMs,
   );
-  if (typeof state.cronTimer.unref === "function") {
+  if (v.is(v.function_(), state.cronTimer.unref)) {
     state.cronTimer.unref();
   }
 }

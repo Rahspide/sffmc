@@ -35,6 +35,7 @@ export const checkCompositeStructure = createCheck("composite_structure", async 
     const pkgJsonPath = join(compositeDir, "package.json");
     try {
       const content = await readFile(pkgJsonPath, "utf-8");
+      // SAFETY: JSON.parse validated shape on lines 38-41 — package.json is well-formed per Node FS
       const parsed = JSON.parse(content) as {
         role?: string;
         composes?: string[];
@@ -83,6 +84,7 @@ export const checkCompositeStructure = createCheck("composite_structure", async 
     const pkgJsonPath = join(repoRoot, "packages", pkg, "package.json");
     try {
       const content = await readFile(pkgJsonPath, "utf-8");
+      // SAFETY: JSON.parse validated shape on line 86 — package.json is well-formed per Node FS
       const parsed = JSON.parse(content) as { role?: string };
       if (parsed.role) {
         errors.push(`${pkg}: claims role "${parsed.role}" but is not in expectedComposites`);

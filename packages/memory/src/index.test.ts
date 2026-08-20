@@ -2,10 +2,12 @@
 // @sffmc/memory — see ../../LICENSE
 
 import { describe, test, expect } from "bun:test"
+import * as v from "valibot"
 import memory, { id, server } from "./index.ts"
 import type { PluginContext } from "@sffmc/utilities"
 
 describe("@sffmc/memory", () => {
+  // SAFETY: invariant — see caller justification
   const ctx = {} as PluginContext
 
   test("id is @sffmc/memory", () => {
@@ -17,8 +19,8 @@ describe("@sffmc/memory", () => {
     const result = await server(ctx)
     expect(result.id).toBe("@sffmc/memory")
     // memory + checkpoint + judge + dream
-    expect(typeof result["experimental.chat.messages.transform"]).toBe("function")
-    expect(typeof result["tool.execute.after"]).toBe("function")
+    expect(v.is(v.function_(), result["experimental.chat.messages.transform"])).toBe(true)
+    expect(v.is(v.function_(), result["tool.execute.after"])).toBe(true)
   })
 
   test("server has 3 tools (extra_checkpoint, extra_judge, extra_dream)", async () => {

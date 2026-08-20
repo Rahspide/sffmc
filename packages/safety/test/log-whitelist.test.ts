@@ -1,4 +1,5 @@
 import { describe, it, expect } from "bun:test";
+import * as v from "valibot";
 import { suppressLine, filterLines } from "../src/log-whitelist/filter.ts";
 
 describe("shouldKeep (via filterLines, single-line input)", () => {
@@ -182,7 +183,7 @@ describe("filterLines with suppressPatterns", () => {
 
   it("suppression in filterLines via tool.execute.after hook", async () => {
     // Mock loadConfig returns a whitelist that catches errors, plus suppress patterns
-    const mod = await import("../src/log-whitelist/index");
+    await import("../src/log-whitelist/index");
 
     // We need to inject config with suppress_patterns. The server reads from
     // ~/.config/SFFMC/log-whitelist.yaml, which doesn't exist on this machine.
@@ -231,7 +232,7 @@ describe("Plugin entry", () => {
     const mod = await import("../src/log-whitelist/index");
     expect(mod.default).toBeDefined();
     expect(mod.default.id).toBe("@sffmc/safety");
-    expect(typeof mod.default.server).toBe("function");
+    expect(v.is(v.function_(), mod.default.server)).toBe(true);
   });
 
   it("server returns expected hooks", async () => {
@@ -240,8 +241,8 @@ describe("Plugin entry", () => {
       projectRoot: "/tmp/test-project",
       config: {},
     });
-    expect(typeof hooks["tool.execute.after"]).toBe("function");
-    expect(typeof hooks["experimental.text.complete"]).toBe("function");
+    expect(v.is(v.function_(), hooks["tool.execute.after"])).toBe(true)
+    expect(v.is(v.function_(), hooks["experimental.text.complete"])).toBe(true)
   });
 
   it("tool.execute.after is a no-op when whitelist is empty", async () => {

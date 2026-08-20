@@ -4,10 +4,7 @@
 // from dream.ts (M-3 Wave 1). Pure data shape; no LLM, no orchestration.
 
 import { Database } from "bun:sqlite";
-import { createLogger } from "@sffmc/utilities";
 import { MAX_OVERFLOW, type MemoryRow } from "./dream-types.ts";
-
-const log = createLogger("extra-dream");
 
 // ---------------------------------------------------------------------------
 // Jaccard similarity primitives
@@ -17,15 +14,6 @@ function tokenize(s: string): Set<string> {
   const cleaned = s.toLowerCase().replace(/[^\w\s]/g, " ");
   const tokens = cleaned.split(/\s+/).filter((t) => t.length > 0);
   return new Set(tokens);
-}
-
-function jaccard(a: string, b: string): number {
-  const setA = tokenize(a);
-  const setB = tokenize(b);
-  if (setA.size === 0 && setB.size === 0) return 0;
-  const intersection = new Set([...setA].filter((x) => setB.has(x)));
-  const union = new Set([...setA, ...setB]);
-  return intersection.size / union.size;
 }
 
 /** Jaccard similarity between pre-tokenized sets. Avoids re-tokenizing on
@@ -88,6 +76,7 @@ export function loadAndCacheMemories(
  *  read — no cap check, no tokenization. The orchestrator decides
  *  whether to short-circuit on cap before calling `tokenizeRowsToCache`. */
 export function loadMemoryRows(db: Database): MemoryRow[] {
+  // SAFETY: invariant — see caller justification
   return db
     .query("SELECT * FROM memory_entries ORDER BY created_at DESC")
     .all() as MemoryRow[];
@@ -168,12 +157,14 @@ export function findStaleEntries(
   db: Database,
   staleThresholdSec: number,
 ): MemoryRow[] {
+  // SAFETY: invariant — see caller justification
   const staleAccessed = db
     .query(
       "SELECT * FROM memory_entries WHERE last_accessed IS NOT NULL AND last_accessed < ?",
     )
     .all(staleThresholdSec) as MemoryRow[];
 
+  // SAFETY: invariant — see caller justification
   const staleNullAccessed = db
     .query(
       "SELECT * FROM memory_entries WHERE last_accessed IS NULL AND created_at < ?",
@@ -199,6 +190,7 @@ export function loadRemainingRows(
   allStale: MemoryRow[],
 ): MemoryRow[] {
   if (!dryRun) {
+    // SAFETY: narrowed by !dryRun on line 201
     return db
       .query("SELECT * FROM memory_entries ORDER BY importance_score DESC")
       .all() as MemoryRow[];

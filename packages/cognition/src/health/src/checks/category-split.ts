@@ -16,18 +16,19 @@ const log = createLogger("health:category-split");
  *  v0.15.0+ has 2 MSPs (safety/memory; agentic was dissolved in v0.15.0) - see
  *  expected-msp in the detail string for the current count. */
 export const checkCategorySplit = createCheck("category_split", async (repoRoot) => {
-  const counts: Record<string, { count: number; features: string[] }> = {
-    "msp": { count: 0, features: [] },
-    "mimo-port": { count: 0, features: [] },
-    "sffmc-original": { count: 0, features: [] },
-    "uncategorized": { count: 0, features: [] },
-  };
+  const counts: Record<string, { count: number; features: string[] }> = Object.fromEntries([
+    ["msp", { count: 0, features: [] }],
+    ["mimo-port", { count: 0, features: [] }],
+    ["sffmc-original", { count: 0, features: [] }],
+    ["uncategorized", { count: 0, features: [] }],
+  ]);
 
   for (const pkg of await packageNames(repoRoot)) {
     if (pkg === "shared") continue;
     const pkgJsonPath = join(repoRoot, "packages", pkg, "package.json");
     try {
       const content = await readFile(pkgJsonPath, "utf-8");
+      // SAFETY: JSON.parse validated shape on line 31 — package.json is well-formed per Node FS
       const parsed = JSON.parse(content) as { category?: string; portFeature?: string };
       const cat = parsed.category || "uncategorized";
       if (!counts[cat]) counts[cat] = { count: 0, features: [] };

@@ -1,4 +1,5 @@
 import { describe, it, expect, spyOn, beforeAll, afterAll } from "bun:test";
+import * as v from "valibot";
 import {
   createSessionState,
   recordFailure,
@@ -232,7 +233,7 @@ describe("Plugin entry", () => {
     const mod = await import("../src/auto-max/index");
     expect(mod.default).toBeDefined();
     expect(mod.default.id).toBe("@sffmc/safety");
-    expect(typeof mod.default.server).toBe("function");
+    expect(v.is(v.function_(), mod.default.server)).toBe(true);
   });
 
   it("server returns expected hooks", async () => {
@@ -241,10 +242,10 @@ describe("Plugin entry", () => {
       projectRoot: "/tmp/test-project",
       config: {},
     });
-    expect(typeof hooks.event).toBe("function");
-    expect(typeof hooks["tool.execute.after"]).toBe("function");
-    expect(typeof hooks["command.execute.before"]).toBe("function");
-    expect(typeof hooks["experimental.chat.system.transform"]).toBe("function");
+    expect(v.is(v.function_(), hooks.event)).toBe(true)
+    expect(v.is(v.function_(), hooks["tool.execute.after"])).toBe(true)
+    expect(v.is(v.function_(), hooks["command.execute.before"])).toBe(true)
+    expect(v.is(v.function_(), hooks["experimental.chat.system.transform"])).toBe(true)
   });
 
   it("event resets session on session.created", async () => {
@@ -294,7 +295,7 @@ describe("Plugin entry", () => {
 
   it("triggers max mode after threshold failures", async () => {
     const mod = await import("../src/auto-max/index");
-    const ctx: Record<string, unknown> = {
+    const ctx = {
       projectRoot: "/tmp/test-project",
       config: {},
     };
@@ -331,7 +332,7 @@ describe("Plugin entry", () => {
 
   it("injects auto-max trigger message into system transform", async () => {
     const mod = await import("../src/auto-max/index");
-    const ctx: Record<string, unknown> = {
+    const ctx = {
       projectRoot: "/tmp/test-project",
       config: {},
     };
@@ -369,7 +370,7 @@ describe("Plugin entry", () => {
 
   it("system transform does nothing without trigger", async () => {
     const mod = await import("../src/auto-max/index");
-    const ctx: Record<string, unknown> = {
+    const ctx = {
       projectRoot: "/tmp/test-project",
       config: {},
     };
@@ -386,7 +387,7 @@ describe("Plugin entry", () => {
 
   it("trigger message includes tool:errorType notation", async () => {
     const mod = await import("../src/auto-max/index");
-    const ctx: Record<string, unknown> = {
+    const ctx = {
       projectRoot: "/tmp/test-project",
       config: {},
     };
@@ -401,6 +402,7 @@ describe("Plugin entry", () => {
       );
     }
 
+    // SAFETY: test mock — empty array cast to string[] for system.transform signature
     const data = { system: [] as string[] };
     await hooks["experimental.chat.system.transform"]!(
       { sessionID: sid },
@@ -414,7 +416,7 @@ describe("Plugin entry", () => {
 
   it("trigger is cleaned up even on empty system array", async () => {
     const mod = await import("../src/auto-max/index");
-    const ctx: Record<string, unknown> = {
+    const ctx = {
       projectRoot: "/tmp/test-project",
       config: {},
     };
@@ -429,6 +431,7 @@ describe("Plugin entry", () => {
       );
     }
 
+    // SAFETY: test mock — empty array cast to string[] for system.transform signature
     const data = { system: [] as string[] };
     await hooks["experimental.chat.system.transform"]!(
       { sessionID: sid },
@@ -437,6 +440,7 @@ describe("Plugin entry", () => {
 
     // Trigger is consumed even if data.system was empty before — verify by
     // calling transform again and confirming no second injection.
+    // SAFETY: test mock — empty array cast to string[] for system.transform signature
     const data2 = { system: [] as string[] };
     await hooks["experimental.chat.system.transform"]!(
       { sessionID: sid },
@@ -447,7 +451,7 @@ describe("Plugin entry", () => {
 
   it("tool.execute.after detects errors in object metadata with error flag", async () => {
     const mod = await import("../src/auto-max/index");
-    const ctx: Record<string, unknown> = {
+    const ctx = {
       projectRoot: "/tmp/test-project",
       config: {},
     };
@@ -470,6 +474,7 @@ describe("Plugin entry", () => {
 
     // Observable: system.transform renders the AUTO-MAX fragment with the
     // tool that triggered it
+    // SAFETY: test mock — empty array cast to string[] for system.transform signature
     const data = { system: [] as string[] };
     await hooks["experimental.chat.system.transform"]!({ sessionID: sid }, data);
     expect(data.system.length).toBe(1);
@@ -479,7 +484,7 @@ describe("Plugin entry", () => {
 
   it("tool.execute.after detects errors via output object code property", async () => {
     const mod = await import("../src/auto-max/index");
-    const ctx: Record<string, unknown> = {
+    const ctx = {
       projectRoot: "/tmp/test-project",
       config: {},
     };
@@ -502,6 +507,7 @@ describe("Plugin entry", () => {
     );
 
     // Observable: trigger rendered into AUTO-MAX fragment includes tool:errorType
+    // SAFETY: test mock — empty array cast to string[] for system.transform signature
     const data = { system: [] as string[] };
     await hooks["experimental.chat.system.transform"]!({ sessionID: sid }, data);
     expect(data.system.length).toBe(1);
@@ -535,7 +541,7 @@ describe("Plugin entry", () => {
 
     it("dryRun=true does not inject escalation fragment", async () => {
       const mod = await import("../src/auto-max/index");
-      const ctx: Record<string, unknown> = {
+      const ctx = {
         projectRoot: "/tmp/test-project",
         config: {},
       };
@@ -561,7 +567,7 @@ describe("Plugin entry", () => {
 
     it("dryRun=true logs 'would trigger' message", async () => {
       const mod = await import("../src/auto-max/index");
-      const ctx: Record<string, unknown> = {
+      const ctx = {
         projectRoot: "/tmp/test-project",
         config: {},
       };
@@ -578,8 +584,10 @@ describe("Plugin entry", () => {
 
       const calls = warnSpy.mock.calls.filter(
         (c: unknown[]) =>
-          (typeof c[0] === "string" && (c[0] as string).includes("would trigger")) ||
-          (typeof c[1] === "string" && (c[1] as string).includes("would trigger")),
+          // SAFETY: narrowed by v.is(v.string()) on the line below
+          (v.is(v.string(), c[0]) && c[0].includes("would trigger")) ||
+          // SAFETY: narrowed by v.is(v.string()) on the line below
+          (v.is(v.string(), c[1]) && c[1].includes("would trigger")),
       );
       expect(calls.length).toBeGreaterThan(0);
       warnSpy.mockRestore();
@@ -590,7 +598,7 @@ describe("Plugin entry", () => {
 
   it("/max command resets session counters", async () => {
     const mod = await import("../src/auto-max/index");
-    const ctx: Record<string, unknown> = {
+    const ctx = {
       projectRoot: "/tmp/test-project",
       config: {},
     };
@@ -606,6 +614,7 @@ describe("Plugin entry", () => {
       );
     }
     // Consume trigger via system.transform — observable proof of first trigger
+    // SAFETY: test mock — empty array cast to string[] for system.transform signature
     const data1 = { system: [] as string[] };
     await hooks["experimental.chat.system.transform"]!({ sessionID: sid }, data1);
     expect(data1.system.length).toBe(1);
@@ -625,6 +634,7 @@ describe("Plugin entry", () => {
       );
     }
     // Second trigger must also fire — proves the reset took effect
+    // SAFETY: test mock — empty array cast to string[] for system.transform signature
     const data2 = { system: [] as string[] };
     await hooks["experimental.chat.system.transform"]!({ sessionID: sid }, data2);
     expect(data2.system.length).toBe(1);
@@ -633,7 +643,7 @@ describe("Plugin entry", () => {
 
   it("/max reset clears counters for specified session", async () => {
     const mod = await import("../src/auto-max/index");
-    const ctx: Record<string, unknown> = {
+    const ctx = {
       projectRoot: "/tmp/test-project",
       config: {},
     };
@@ -649,6 +659,7 @@ describe("Plugin entry", () => {
       );
     }
     // Consume first trigger
+    // SAFETY: test mock — empty array cast to string[] for system.transform signature
     const data1 = { system: [] as string[] };
     await hooks["experimental.chat.system.transform"]!({ sessionID: sid }, data1);
     expect(data1.system.length).toBe(1);
@@ -667,6 +678,7 @@ describe("Plugin entry", () => {
       );
     }
     // Second trigger must fire — proves reset targeted the right session
+    // SAFETY: test mock — empty array cast to string[] for system.transform signature
     const data2 = { system: [] as string[] };
     await hooks["experimental.chat.system.transform"]!({ sessionID: sid }, data2);
     expect(data2.system.length).toBe(1);
@@ -676,7 +688,7 @@ describe("Plugin entry", () => {
 
   it("detects object output with .error field as failure", async () => {
     const mod = await import("../src/auto-max/index");
-    const ctx: Record<string, unknown> = {
+    const ctx = {
       projectRoot: "/tmp/test-project",
       config: {},
     };
@@ -694,6 +706,7 @@ describe("Plugin entry", () => {
     }
 
     // Observable: errorType renders as "<name>" in the fragment
+    // SAFETY: test mock — empty array cast to string[] for system.transform signature
     const data = { system: [] as string[] };
     await hooks["experimental.chat.system.transform"]!({ sessionID: sid }, data);
     expect(data.system.length).toBe(1);
@@ -702,7 +715,7 @@ describe("Plugin entry", () => {
 
   it("detects object output with .code field (no object: prefix)", async () => {
     const mod = await import("../src/auto-max/index");
-    const ctx: Record<string, unknown> = {
+    const ctx = {
       projectRoot: "/tmp/test-project",
       config: {},
     };
@@ -719,6 +732,7 @@ describe("Plugin entry", () => {
     }
 
     // Observable: errorType renders as "ERR_TIMEOUT" (no prefix)
+    // SAFETY: test mock — empty array cast to string[] for system.transform signature
     const data = { system: [] as string[] };
     await hooks["experimental.chat.system.transform"]!({ sessionID: sid }, data);
     expect(data.system.length).toBe(1);
@@ -727,7 +741,7 @@ describe("Plugin entry", () => {
 
   it("object output without error/code is treated as success", async () => {
     const mod = await import("../src/auto-max/index");
-    const ctx: Record<string, unknown> = {
+    const ctx = {
       projectRoot: "/tmp/test-project",
       config: {},
     };

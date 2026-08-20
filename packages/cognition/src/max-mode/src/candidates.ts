@@ -51,7 +51,7 @@ import { type RichPluginContext } from "@sffmc/utilities";
 
 export interface ToolCall {
   name: string;
-  args: Record<string, unknown>;
+  args: unknown;
   id: string;
 }
 
@@ -113,7 +113,6 @@ export async function generateCandidates(
   // is the deliberate budget guard — see block comment above.
   const candidateCount = Math.min(config.n, config.maxCandidates ?? 10);
 
-  const messages = buildCandidatePrompt(prompt, 0, candidateCount);
   const requests = Array.from({ length: candidateCount }, (_, i) =>
     session.message!({
       messages: buildCandidatePrompt(prompt, i, candidateCount),

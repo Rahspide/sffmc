@@ -44,7 +44,7 @@ describe("WorkflowStructuralError typed class", () => {
   })
 
   it("survives instanceof check after being thrown and caught by the user", () => {
-    let caught: unknown = null
+    let caught: unknown | null = null
     try {
       throw new WorkflowStructuralError("unknown workflow: \"bar\"")
     } catch (err) {
@@ -52,6 +52,7 @@ describe("WorkflowStructuralError typed class", () => {
     }
     expect(caught).toBeInstanceOf(WorkflowStructuralError)
     expect(caught).toBeInstanceOf(Error)
+    // SAFETY: caught narrowed by .toBeInstanceOf(WorkflowStructuralError) on the previous line; cast re-states the shape for the .message access
     expect((caught as WorkflowStructuralError).message).toBe("unknown workflow: \"bar\"")
   })
 })
@@ -87,7 +88,7 @@ describe("Classification branch returns the correct outcome type", () => {
   })
 
   it("throws a different error (not WorkflowStructuralError) on a non-structural outcome", () => {
-    let caught: unknown = null
+    let caught: unknown | null = null
     try {
       rethrowFromOutcome("something else entirely: not structural")
     } catch (e) {
@@ -95,11 +96,12 @@ describe("Classification branch returns the correct outcome type", () => {
     }
     expect(caught).toBeInstanceOf(Error)
     expect(caught).not.toBeInstanceOf(WorkflowStructuralError)
+    // SAFETY: caught narrowed by .toBeInstanceOf(Error) on the previous line; cast re-states the Error shape for the .message access
     expect((caught as Error).message).toBe("expected structural prefix")
   })
 
   it("throws when outcome.error is undefined (no structural error to propagate)", () => {
-    let caught: unknown = null
+    let caught: unknown | null = null
     try {
       rethrowFromOutcome(undefined)
     } catch (e) {

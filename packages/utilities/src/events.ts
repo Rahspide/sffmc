@@ -37,8 +37,9 @@ export function off<T>(event: string, handler: (payload: T) => void): void {
 export function emit<T>(event: string, payload: T): void {
   const list = listeners.get(event)
   if (!list) return
-  // Iterate a copy so listeners can call off() during iteration
-  for (const { fn } of [...list]) {
+  // SAFETY: snapshot before iteration — listeners may call off() during emit which mutates the array
+  const snapshot = list.slice()
+  for (const { fn } of snapshot) {
     try {
       fn(payload)
     } catch (e) {

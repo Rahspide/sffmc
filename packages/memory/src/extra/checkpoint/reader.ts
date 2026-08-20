@@ -5,13 +5,19 @@
 // Extracted from checkpoint.ts (M-1 god-object refactor, Task 1.7).
 
 import { createLogger, defaultFsOps, type FsOps } from "@sffmc/utilities";
+import * as v from "valibot";
 
 import { DEFAULT_MAX_CHECKPOINT_FILE_SIZE } from "./constants";
 import { readHeader } from "./header";
-import { iterateBodyLines } from "./lines";
 import { filePath, getCheckpointDir } from "./paths";
-import { CheckpointTooLargeError } from "./types";
-import type { ToolCall } from "./types";
+import {
+  CheckpointTooLargeError,
+  CheckpointHeaderSchema,
+  CheckpointHeaderV2Schema,
+  ToolCallSchema,
+  type CheckpointHeader,
+  type ToolCall,
+} from "./types";
 
 const log = createLogger("extra-checkpoint");
 
@@ -70,14 +76,13 @@ export function readToolCallsShim(
   const firstNewline = fileContent.indexOf("\n");
   if (firstNewline < 0) return [];
   const headerLine = fileContent.substring(0, firstNewline);
-  let parsed: Record<string, unknown>;
+  let parsed: CheckpointHeader;
   try {
-    parsed = JSON.parse(headerLine) as Record<string, unknown>;
+    parsed = v.parse(CheckpointHeaderSchema, JSON.parse(headerLine));
   } catch (e) {
     log.warn({ err: e, sessionID }, "checkpoint-reader: header parse failed");
     return [];
   }
-  if (parsed.__type !== "header") return [];
 
   // v1 → auto-migrate to v2 in place, then re-read the file content
   // (the rewrite changes byte offsets, so we cannot reuse the buffer).
@@ -99,24 +104,24 @@ export function readToolCallsShim(
     if (firstNewline2 < 0) return [];
     const headerLine2 = fileContent.substring(0, firstNewline2);
     try {
-      parsed = JSON.parse(headerLine2) as Record<string, unknown>;
+      parsed = v.parse(CheckpointHeaderV2Schema, JSON.parse(headerLine2));
     } catch (e) {
       log.warn({ err: e, sessionID }, "checkpoint-reader: post-migrate header parse failed");
       return [];
     }
-    if (parsed.__type !== "header" || parsed.version !== 2) return [];
-  } else if (parsed.version !== 2) {
-    return [];
   }
 
   // v2 path: seek to each recorded offset and parse the line.
   // For the in-memory fs the offsets are char-based (UTF-16 code units),
   // which is equivalent to byte offsets for ASCII content (the on-disk
   // encoding uses UTF-8 with no multi-byte chars in checkpoint payloads).
-  const lineOffsets = parsed.lineOffsets as number[];
-  if (!Array.isArray(lineOffsets)) return [];
+  // `lineOffsets` is `unknown` because the v2 schema is loose; the
+  // runtime `Array.isArray` check narrows to `unknown[]` and we then
+  // hand each entry to the iterator (which itself checks `typeof === "number"`).
+  const lineOffsetsRaw: unknown = parsed.lineOffsets;
+  if (!Array.isArray(lineOffsetsRaw)) return [];
 
-  return iterateBodyLinesFromString(fileContent, lineOffsets);
+  return iterateBodyLinesFromString(fileContent, lineOffsetsRaw);
 }
 
 /** Sibling of `lines.ts#iterateBodyLines` that takes the full file as a
@@ -130,20 +135,16 @@ function iterateBodyLinesFromString(content: string, lineOffsets: number[]): Too
   const calls: ToolCall[] = [];
   for (let i = 0; i < lineOffsets.length; i++) {
     const start = lineOffsets[i];
-    if (typeof start !== "number" || start < 0 || start >= content.length) continue;
+    if (!v.is(v.number(), start) || start < 0 || start >= content.length) continue;
     const lineEnd = content.indexOf("\n", start);
     const line = lineEnd >= 0 ? content.substring(start, lineEnd) : content.substring(start);
     if (!line) continue;
     try {
-      const obj = JSON.parse(line) as Record<string, unknown>;
-      if (obj.__type === "header") continue;
-      if (
-        typeof obj.tool === "string" &&
-        typeof obj.timestamp === "number" &&
-        typeof obj.callID === "string"
-      ) {
-        calls.push(obj as unknown as ToolCall);
-      }
+      const parsed = JSON.parse(line);
+      // SAFETY: narrowed by v.is(v.object({}), parsed) check on the same line — the cast re-states the documented __type field shape for the header-skip branch
+      if (parsed && v.is(v.object({}), parsed) && (parsed as { __type?: unknown }).__type === "header") continue;
+      const obj = v.parse(ToolCallSchema, parsed);
+      calls.push(obj);
     } catch (e) {
       log.debug({ err: e, lineIndex: i }, "checkpoint-reader: skipping malformed line");
     }

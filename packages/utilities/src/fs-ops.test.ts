@@ -5,6 +5,7 @@ import { describe, it, expect, beforeEach, afterEach } from "bun:test"
 import { mkdtempSync, rmSync, existsSync, readFileSync } from "fs"
 import { resolve } from "path"
 import { tmpdir } from "os"
+import * as v from "valibot"
 
 import { defaultFsOps, createMockFsOps, type FsOps } from "./fs-ops.ts"
 
@@ -158,14 +159,14 @@ describe("createMockFsOps", () => {
 describe("FsOps conformance", () => {
   it("defaultFsOps satisfies FsOps", () => {
     const ops: FsOps = defaultFsOps
-    expect(typeof ops.readFile).toBe("function")
-    expect(typeof ops.writeFile).toBe("function")
+    expect(v.is(v.function_(), ops.readFile)).toBe(true)
+    expect(v.is(v.function_(), ops.writeFile)).toBe(true)
   })
 
   it("createMockFsOps().fs satisfies FsOps", () => {
     const { fs } = createMockFsOps()
     const ops: FsOps = fs
-    expect(typeof ops.readFile).toBe("function")
-    expect(typeof ops.writeFile).toBe("function")
+    expect(v.is(v.function_(), ops.readFile)).toBe(true)
+    expect(v.is(v.function_(), ops.writeFile)).toBe(true)
   })
 })

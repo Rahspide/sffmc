@@ -15,9 +15,10 @@
 // cap blocks a trigger, making the enforcement observable.
 
 import { describe, it, expect, jest, beforeAll, afterAll } from "bun:test";
-import { mkdirSync, writeFileSync, unlinkSync, existsSync } from "fs";
+import { mkdirSync, unlinkSync, existsSync } from "fs";
 import { homedir } from "os";
 import { resolve } from "path";
+import * as v from "valibot";
 
 const testConfigDir = resolve(homedir(), ".config/SFFMC");
 const testConfigPath = resolve(testConfigDir, "auto-max.yaml");
@@ -41,7 +42,7 @@ describe("Bug 2 fix — auto-max cap=1/session fires exactly ONCE", () => {
     mkdirSync(testConfigDir, { recursive: true });
     if (existsSync(testConfigPath)) unlinkSync(testConfigPath);
     warnSpy = jest.spyOn(console, "warn").mockImplementation((...args: unknown[]) => {
-      const msg = args.map(a => typeof a === "string" ? a : "").join(" ");
+      const msg = args.map(a => v.is(v.string(), a) ? a : "").join(" ");
       if (msg.includes("[auto-max] TRIGGERED:")) triggerMessages.push(msg);
       if (msg.includes("cap reached")) capReachedMessages.push(msg);
     });

@@ -95,7 +95,7 @@ export const server = async (_ctx: PluginContext) => {
   }
 
   return {
-    event: async (payload: { event: string; [key: string]: unknown }) => {
+    event: async (payload: { event: string; sessionID?: string }) => {
       if (payload.event === SESSION_CREATED) {
         const sessionID = String(payload.sessionID || "");
         // Bug 3b: resetSession clears inner counters but leaves the outer
@@ -124,6 +124,7 @@ export const server = async (_ctx: PluginContext) => {
 
       const { tool, sessionID } = toolCtx;
       const output = result.output ?? result.metadata ?? "";
+      // SAFETY: invariant — metadata cast to record for hasMetadataError indexing
       const meta = result.metadata as { error?: unknown } | null | undefined;
 
       // Compute the error type once. extractErrorType walks o.code / o.name /

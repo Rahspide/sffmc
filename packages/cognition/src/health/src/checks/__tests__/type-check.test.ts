@@ -12,13 +12,10 @@
 // packages ⇒ empty loop ⇒ instant ok; one package ⇒ one bun spawn).
 
 import { describe, test, expect } from "bun:test"
-import { resolve } from "node:path"
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { checkTypeCheck } from "../type-check.ts"
-
-const REPO_ROOT = resolve(import.meta.dir, "../../../../../../../")
 
 describe("check_type_check", () => {
   test("returns CheckResult with correct name", async () => {

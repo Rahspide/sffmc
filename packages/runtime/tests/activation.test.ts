@@ -190,8 +190,10 @@ describe("WorkflowActivation — pending()", () => {
     const view = a.pending()
     // `pending()` returns `readonly string[]`. Mutating the returned array
     // must not affect the registry (we make a fresh copy).
+    // SAFETY: test invariant — view is readonly string[]; cast to string[] to deliberately bypass readonly and mutate the copy, verifying the registry is unaffected
+    const mutate: string[] = view as string[]
     expect(() => {
-      ;(view as string[]).push("wf_hacked")
+      mutate.push("wf_hacked")
     }).not.toThrow() // .push on readonly is a TS error but allowed at runtime on the array
     expect(a.pending()).toEqual(["wf_a"]) // registry unchanged
   })

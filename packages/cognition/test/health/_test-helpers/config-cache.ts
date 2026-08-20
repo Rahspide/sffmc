@@ -30,10 +30,9 @@ export {
  *  in `src/index.ts`. The implementation is reached through a Symbol
  *  registry populated by src/index.ts at module load — not through a
  *  public export. */
-export function __setHealthConfig(cfg: unknown): void {
-  const fn = (globalThis as Record<symbol, unknown>)[__SET_HEALTH_CONFIG_SYMBOL] as
-    | ((c: unknown) => void)
-    | undefined
+export function __setHealthConfig(cfg: HealthConfig | null): void {
+  // SAFETY: invariant — globalThis cast retrieves Symbol-registered fn; undefined-safe per check below
+  const fn = (globalThis as Record<symbol, (c: HealthConfig | null) => void>)[__SET_HEALTH_CONFIG_SYMBOL]
   if (!fn) {
     throw new Error(
       "__setHealthConfig: src/index.ts was not loaded before this test " +

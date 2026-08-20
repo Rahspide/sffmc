@@ -13,6 +13,8 @@
 
 import type { ToolCall } from "./types";
 import { createLogger } from "@sffmc/utilities";
+import * as v from "valibot";
+import { ToolCallSchema } from "./types";
 
 const log = createLogger("extra-checkpoint");
 
@@ -40,21 +42,17 @@ export function iterateBodyLines(
   const calls: ToolCall[] = [];
   for (let i = 0; i < lineOffsets.length; i++) {
     const start = lineOffsets[i];
-    if (typeof start !== "number" || start < 0 || start >= fileBuf.length) continue;
+    if (!v.is(v.number(), start) || start < 0 || start >= fileBuf.length) continue;
     // Locate the line terminator (LF) starting at `start`.
     let lineEnd = fileBuf.indexOf(0x0a, start);
     if (lineEnd < 0) lineEnd = fileBuf.length;
     const lineBytes = fileBuf.subarray(start, lineEnd);
     try {
-      const obj = JSON.parse(lineBytes.toString("utf-8")) as Record<string, unknown>;
-      if (obj.__type === "header") continue;
-      if (
-        typeof obj.tool === "string" &&
-        typeof obj.timestamp === "number" &&
-        typeof obj.callID === "string"
-      ) {
-        calls.push(obj as unknown as ToolCall);
-      }
+      const parsed = JSON.parse(lineBytes.toString("utf-8"));
+      // SAFETY: narrowed by v.is(v.object({}), parsed) check on the same line — the cast re-states the documented __type field shape for the header-skip branch
+      if (parsed && v.is(v.object({}), parsed) && (parsed as { __type?: unknown }).__type === "header") continue;
+      const obj = v.parse(ToolCallSchema, parsed);
+      calls.push(obj);
     } catch (e) {
       log.debug({ err: e, lineIndex: i }, "checkpoint-lines: skipping malformed line")
       // Skip malformed lines

@@ -29,6 +29,7 @@ import type { InternalRunEntry } from "./internal-run-entry.ts"
 import type { AgentFailureReason, AgentOptions, AgentResult } from "./types.ts"
 import type { WorkspaceJail } from "./workspace.ts"
 import type { makeSemaphore } from "./concurrency.ts"
+import type { JsonValue } from "./runs.ts"
 
 // ---------------------------------------------------------------------------
 // Sub-component interfaces (SOLID, Interface Segregation Principle).
@@ -42,13 +43,13 @@ import type { makeSemaphore } from "./concurrency.ts"
 
 /** Narrow surface of `RunCompleter` that the orchestrator uses. */
 export interface IRunCompleter {
-  completeRun(entry: InternalRunEntry, result?: unknown): void
+  completeRun(entry: InternalRunEntry, result?: JsonValue): void
   failRun(entry: InternalRunEntry, error: string | Error): void
   settleEntry(
     entry: InternalRunEntry,
     script: string,
     name: string,
-    args: unknown,
+    args: JsonValue,
     jail: WorkspaceJail,
   ): Promise<void>
 }
@@ -56,7 +57,7 @@ export interface IRunCompleter {
 /** Narrow surface of `McpDispatcher` that the orchestrator uses. */
 export interface IMcpDispatcher {
   list(entry: InternalRunEntry): Promise<string[]>
-  call(entry: InternalRunEntry, name: string, args: unknown): Promise<unknown>
+  call(entry: InternalRunEntry, name: string, args: JsonValue): Promise<JsonValue>
 }
 
 /** Narrow surface of `AgentPrimitive` that the orchestrator uses. */
@@ -76,8 +77,8 @@ export interface IAgentPrimitive {
   runParallel<T>(thunks: Array<() => Promise<T>>): Promise<Array<T | null>>
   runPipeline<T>(
     items: T[],
-    stages: Array<(acc: unknown, item: T, i: number) => Promise<unknown>>,
-  ): Promise<Array<unknown>>
+    stages: Array<(acc: JsonValue, item: T, i: number) => Promise<JsonValue>>,
+  ): Promise<Array<JsonValue>>
   publishAgentFailed(
     runID: string,
     agentKey: string,
@@ -90,16 +91,16 @@ export interface IChildWorkflowPrimitive {
   spawn(
     entry: InternalRunEntry,
     nameOrScript: string,
-    childArgs: unknown,
+    childArgs: JsonValue,
     occ: Map<string, number>,
-  ): Promise<unknown>
+  ): Promise<JsonValue>
   setPhase(entry: InternalRunEntry, title: string): void
   appendLog(entry: InternalRunEntry, msg: string): void
   start(
     parent: InternalRunEntry,
     script: string,
     name: string,
-    args: unknown,
+    args: JsonValue,
     childRunID: string,
   ): Promise<InternalRunEntry>
 }

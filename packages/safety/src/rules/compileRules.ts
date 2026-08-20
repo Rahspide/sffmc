@@ -277,14 +277,14 @@ function recurseInto(
  * Sourced from `man sudo`/`man env`. Other wrappers (`exec`, `nohup`,
  * `setsid`, `time`) have no flag-with-arg combos that affect this scan.
  */
-const SHORT_FLAGS_WITH_ARG: Record<string, Set<string>> = {
-  sudo: new Set([
+const SHORT_FLAGS_WITH_ARG: Record<string, Set<string>> = Object.fromEntries([
+  ["sudo", new Set([
     "u", "g", "h", "p", "C", "D", "r", "t", "U",
-  ]),
-  env: new Set([
+  ])],
+  ["env", new Set([
     "u", "C", // env -u NAME, env -C DIR
-  ]),
-};
+  ])],
+]);
 
 const LONG_FLAGS_WITH_ARG: Set<string> = new Set([
   "user", "group", "host", "prompt", "chdir", "close-from",
@@ -292,8 +292,9 @@ const LONG_FLAGS_WITH_ARG: Set<string> = new Set([
 ]);
 
 function positionsFromWrappers(cmd: string, positions: Set<number>): void {
-  // Snapshot: positionsFromWrappers mutates `positions`.
-  for (const pos of [...positions]) {
+  // SAFETY: snapshot before iteration — the loop body calls `positions.add(after)` on each match, which would extend the iteration if we iterated the live Set
+  const snapshot = Array.from(positions)
+  for (const pos of snapshot) {
     const token = readToken(cmd, pos);
     if (token === null) continue;
 

@@ -23,12 +23,18 @@
 // Tests the orchestrator in isolation, with no QuickJS at all.
 
 import { describe, test, expect, mock } from "bun:test"
+import * as v from "valibot"
 import { runSandboxed, type SandboxPrimitives } from "../src/sandbox.ts"
 import type { SandboxServices } from "../src/sandbox-services.ts"
+
+/** Valibot primitive schema used at the test boundary to discriminate
+ *  sandbox-result payload types without `typeof` runtime checks. */
+const PlainObjectSchema = v.object({})
 
 type Call = { method: string; args: unknown[] }
 
 function makeMockRt(): any {
+  // SAFETY: test fixture; `as any` is the documented escape hatch for the full QuickJSRuntime mock (the orchestrator under test only invokes a subset of methods)
   return {
     setMemoryLimit: () => {},
     setMaxStackSize: () => {},
@@ -40,23 +46,34 @@ function makeMockRt(): any {
   }
 }
 
+/** Shared noop-dispose for mock handle stubs. The `this: any` shape lets
+ *  the call site cast via `as MockHandle` without a typed `this` parameter
+ *  on every helper, keeping the mock definition sites concise. */
+function makeMockDispose() {
+  // SAFETY: mock handle stub; `this` is the object the function is called on (untyped); `as any` mutates the alive flag in the mock
+  const dispose = function (this: any) { this.alive = false }
+  return dispose
+}
+
 function makeMockCtx(): any {
+  // SAFETY: test fixture; `as any` is the documented escape hatch for the QuickJSContext mock (subset of methods exercised by the orchestrator)
   return {
     newFunction: (_n: string, _fn: (...a: any[]) => any) => ({
       alive: true,
-      dispose() { (this as any).alive = false },
+      dispose: makeMockDispose(),
     }),
     setProp: () => {},
     global: { setProp: () => {} },
     evalCode: () => ({
       error: undefined,
-      value: { alive: true, dispose() { (this as any).alive = false } },
+      value: { alive: true, dispose: makeMockDispose() },
     }),
     newString: (_s: string) => ({ alive: true, dispose: () => {} }),
     newNumber: (_n: number) => ({ alive: true, dispose: () => {} }),
     newPromise: () => {
       let resolveFn: (v: any) => void = () => {}
-      const promise = new Promise<any>((r) => { resolveFn = r })
+      const _promise = new Promise<any>((r) => { resolveFn = r })
+      // SAFETY: test fixture; the newPromise mock returns the documented { handle, resolve, reject, settled, alive, dispose } shape; cast as any for the untyped handle
       return {
         handle: { alive: true, dispose: () => {} },
         resolve: (v: any) => resolveFn(v),
@@ -80,7 +97,7 @@ function makeMockCtx(): any {
 /** Build a container of mock services that records every call. */
 function makeMockServices() {
   const calls: Call[] = []
-  const record = (method: string) => (...args: unknown[]) => {
+  const _record = (method: string) => (...args: unknown[]) => {
     calls.push({ method, args })
   }
 
@@ -96,6 +113,7 @@ function makeMockServices() {
     },
     return: (ctx: any, code: string, label: string) => {
       calls.push({ method: "eval.return", args: [code, label] })
+      // SAFETY: test fixture; the eval.return stub returns a fake handle; cast as any to avoid typing the QuickJS handle surface
       return { alive: true, dispose: () => {} } as any
     },
   }
@@ -110,7 +128,8 @@ function makeMockServices() {
   const deadline = {
     create: (ms: number) => {
       calls.push({ method: "deadline.create", args: [ms] })
-      const timer = setTimeout(() => {}, ms) as unknown as NodeJS.Timeout
+      // SAFETY: test fixture; setTimeout returns a Timeout object (browser/Node variant); `as any` is the documented escape hatch to cross the Timeout / NodeJS.Timeout union for the documented DeadlineService contract
+      const timer = setTimeout(() => {}, ms) as any
       return { promise: new Promise<never>(() => {}), timer }
     },
   }
@@ -122,16 +141,23 @@ function makeMockServices() {
   const marshaller = {
     marshalIn: (ctx: any, value: unknown) => {
       calls.push({ method: "marshaller.marshalIn", args: [value] })
+      // SAFETY: test fixture; the marshalIn stub returns a fake handle; cast as any to avoid typing the QuickJS handle surface
       return { alive: true, dispose: () => {} } as any
     },
   }
 
   const services: SandboxServices = {
+    // SAFETY: test fixture; `as any` is the documented escape hatch for the fake runtime.create mock injected into the SandboxServices container
     runtime: runtime as any,
+    // SAFETY: test fixture; `as any` is the documented escape hatch for the fake eval mock injected into the SandboxServices container
     eval: evalExec as any,
+    // SAFETY: test fixture; `as any` is the documented escape hatch for the fake pump mock injected into the SandboxServices container
     pump: pump as any,
+    // SAFETY: test fixture; `as any` is the documented escape hatch for the fake deadline mock injected into the SandboxServices container
     deadline: deadline as any,
+    // SAFETY: test fixture; `as any` is the documented escape hatch for the fake bridge mock injected into the SandboxServices container
     bridge: bridge as any,
+    // SAFETY: test fixture; `as any` is the documented escape hatch for the fake marshaller mock injected into the SandboxServices container
     marshaller: marshaller as any,
   }
   return { services, calls }
@@ -140,6 +166,7 @@ function makeMockServices() {
 describe("runSandboxed — DI (Dependency Inversion)", () => {
   test("calls runtime.create with deadlineMs from opts", async () => {
     const { services, calls } = makeMockServices()
+    // SAFETY: test fixture; empty object cast as SandboxPrimitives because the orchestrator under test only checks for shape, not contents
     const primitives = {} as SandboxPrimitives
     await runSandboxed("return 42;", primitives, {
       services,
@@ -147,11 +174,13 @@ describe("runSandboxed — DI (Dependency Inversion)", () => {
     })
     const runtimeCreate = calls.find((c) => c.method === "runtime.create")
     expect(runtimeCreate).toBeDefined()
+    // SAFETY: args[0] is unknown (the captured opts object); cast as any to read the deadlineMs field for the assertion
     expect((runtimeCreate!.args[0] as any).deadlineMs).toBe(1234)
   })
 
   test("REGRESSION: runtime.create receives stackSize in bytes, not * 1024", async () => {
     const { services, calls } = makeMockServices()
+    // SAFETY: test fixture; empty object cast as SandboxPrimitives because the orchestrator under test only checks for shape, not contents
     const primitives = {} as SandboxPrimitives
     await runSandboxed("return 42;", primitives, {
       services,
@@ -161,12 +190,15 @@ describe("runSandboxed — DI (Dependency Inversion)", () => {
     expect(runtimeCreate).toBeDefined()
     // The orchestrator must pass stackSize as-is (4096 bytes), not
     // 4096 * 1024. Catches the v0.16.0 `* 1024` regression at test time.
+    // SAFETY: args[0] is unknown; cast as any to read the stackSize field for the assertion
     expect((runtimeCreate!.args[0] as any).stackSize).toBe(4096)
+    // SAFETY: args[0] is unknown; cast as any to read the stackSize field for the assertion
     expect((runtimeCreate!.args[0] as any).stackSize).not.toBe(4096 * 1024)
   })
 
   test("calls eval.discard with PRELUDE before eval.return with wrapped script", async () => {
     const { services, calls } = makeMockServices()
+    // SAFETY: test fixture; empty object cast as SandboxPrimitives because the orchestrator under test only checks for shape, not contents
     const primitives = {} as SandboxPrimitives
     await runSandboxed("return 42;", primitives, { services })
     const evalCalls = calls.filter((c) => c.method.startsWith("eval."))
@@ -178,6 +210,7 @@ describe("runSandboxed — DI (Dependency Inversion)", () => {
 
   test("calls bridge.inject before marshaller.marshalIn", async () => {
     const { services, calls } = makeMockServices()
+    // SAFETY: test fixture; empty object cast as SandboxPrimitives because the orchestrator under test only checks for shape, not contents
     const primitives = {} as SandboxPrimitives
     await runSandboxed("return 42;", primitives, { services })
     const injectIdx = calls.findIndex((c) => c.method === "bridge.inject")
@@ -189,6 +222,7 @@ describe("runSandboxed — DI (Dependency Inversion)", () => {
 
   test("pump.start and deadline.create happen after eval.return", async () => {
     const { services, calls } = makeMockServices()
+    // SAFETY: test fixture; empty object cast as SandboxPrimitives because the orchestrator under test only checks for shape, not contents
     const primitives = {} as SandboxPrimitives
     await runSandboxed("return 42;", primitives, { services })
     const returnIdx = calls.findIndex((c) => c.method === "eval.return")
@@ -204,15 +238,19 @@ describe("runSandboxed — DI (Dependency Inversion)", () => {
       runtime: { create: () => { throw new Error("runtime boom") } },
       eval: {
         discard: () => {},
+        // SAFETY: test fixture; the eval.return stub returns a fake handle; cast as any to avoid typing the QuickJS handle surface
         return: () => ({ alive: true, dispose: () => {} } as any),
       },
       pump: { start: () => ({ stop: () => {} }) },
       deadline: {
+        // SAFETY: test fixture; timer: 0 is the documented "no real timer" sentinel for the throwing-services test; cast as any to bypass NodeJS.Timeout
         create: () => ({ promise: new Promise<never>(() => {}), timer: 0 as any }),
       },
       bridge: { inject: () => {} },
+      // SAFETY: test fixture; the marshalIn stub returns a fake handle; cast as any to avoid typing the QuickJS handle surface
       marshaller: { marshalIn: () => ({ alive: true, dispose: () => {} } as any) },
     }
+    // SAFETY: test fixture; empty object cast as SandboxPrimitives because the orchestrator under test only checks for shape, not contents
     const primitives = {} as SandboxPrimitives
     const result = await runSandboxed("return 42;", primitives, { services })
     expect(result).toBeNull()
@@ -222,10 +260,12 @@ describe("runSandboxed — DI (Dependency Inversion)", () => {
     // Verifies that Partial<SandboxServices> in opts.services really
     // does fall back to defaults for un-supplied fields. We pass a
     // mock for runtime; the rest use real implementations.
+    // SAFETY: test fixture; mock return cast as any because the orchestrator under test accepts any runtime mock
     const realRuntimeCreate = mock(() => makeMockRt() as any)
     const services: Partial<SandboxServices> = {
       runtime: { create: realRuntimeCreate },
     }
+    // SAFETY: test fixture; empty object cast as SandboxPrimitives because the orchestrator under test only checks for shape, not contents
     const primitives = {} as SandboxPrimitives
     // The script body is trivial; the real implementations should
     // not throw even when called from a sandbox backed by our mock.
@@ -238,7 +278,7 @@ describe("runSandboxed — DI (Dependency Inversion)", () => {
       const result = await runSandboxed("return 42;", primitives, { services })
       // Don't assert on result: the test's purpose is to verify
       // the partial-DI path doesn't crash, not to assert outcome.
-      expect(result === null || result === "mock-dumped-value" || typeof result === "object").toBe(true)
+      expect(result === null || result === "mock-dumped-value" || v.is(PlainObjectSchema, result)).toBe(true)
     } catch (e) {
       // Acceptable: if the real services can't operate on our mock
       // handles, the orchestrator should still catch and return

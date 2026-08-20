@@ -107,7 +107,7 @@ export const id = "@sffmc/extra";
 // overlapping fields — a single read is enough.
 let _sharedConfig: ExtraConfig | undefined;
 
-export const checkpointServer = async (ctx: PluginContext): Promise<PluginServer> => {
+export const checkpointServer = async (_ctx: PluginContext): Promise<PluginServer> => {
   const config = await getConfig();
   const resolvedCheckpointDir = config.checkpoint_dir || DEFAULT_CHECKPOINT_DIR;
   log.info(

@@ -2,9 +2,6 @@
 // @sffmc/utilities — see ../../LICENSE
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { createLogger } from "./logger.ts";
-
-const log = createLogger("sffmc/shared");
 
 /** Filename used for the SQLite memory index. Single source of truth so the
  *  memory plugin and the dream tool can't drift (b36 audit drift hazard). */

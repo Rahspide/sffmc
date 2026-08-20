@@ -16,30 +16,32 @@
 
 import { join } from "node:path";
 import { createLogger, defaultFsOps, type FsOps } from "@sffmc/utilities";
+import * as v from "valibot";
 
 import { crc32 } from "./crc";
 import { DEFAULT_MAX_CHECKPOINT_FILE_SIZE } from "./constants";
 import { ensureDir, filePath, getCheckpointDir } from "./paths";
 import { CheckpointTooLargeError } from "./types";
-import type { ToolCall } from "./types";
+import {
+  CheckpointHeaderSchema,
+  CheckpointHeaderV2Schema,
+  ToolCallSchema,
+  type CheckpointHeader,
+  type CheckpointHeaderV1,
+  type CheckpointHeaderV2,
+  type ToolCall,
+} from "./types";
 
 const log = createLogger("extra-checkpoint");
 
-/** v2 header schema. Adds `lineOffsets` (byte offset of each body line
- *  from start of file) and `fileCrc32` (CRC32 of all body bytes). */
-export interface CheckpointHeaderV2 {
-  __type: "header";
-  sessionID: string;
-  version: 2;
-  createdAt: number;
-  updatedAt: number;
-  lineOffsets: number[];
-  fileCrc32: number;
-}
-
-/** The only supported header schema. v1 files are auto-migrated to v2
- *  on first read (transparent to callers). */
-export type CheckpointHeader = CheckpointHeaderV2;
+/** Re-export the v1/v2 header types and schemas for callers that import
+ *  them from `header.ts` rather than `types.ts`. */
+export type { CheckpointHeader, CheckpointHeaderV1, CheckpointHeaderV2 };
+export {
+  CheckpointHeaderV1Schema,
+  CheckpointHeaderV2Schema,
+  CheckpointHeaderSchema,
+} from "./types";
 
 /** Build a v2 header object with stable field order so that
  *  `JSON.stringify` produces a deterministic byte sequence (matters for
@@ -50,7 +52,7 @@ export function makeV2Header(
   fileCrc32: number,
   createdAt: number,
   updatedAt: number,
-): Record<string, unknown> {
+): CheckpointHeaderV2 {
   return {
     __type: "header",
     sessionID,
@@ -89,11 +91,7 @@ export function buildV2BodyLine(tc: ToolCall): string {
  *  joined by "\n", trailing "\n" included); `bodyBytes` is the UTF-8
  *  encoding used to compute the file-level CRC32; `bodyLineBytes` is
  *  the per-line byte length consumed by the offset-iteration loop. */
-export function buildV2Body(calls: ToolCall[]): {
-  bodyConcat: string;
-  bodyBytes: Uint8Array;
-  bodyLineBytes: number[];
-} {
+export function buildV2Body(calls: ToolCall[]) {
   const lines: string[] = [];
   const lineBytes: number[] = [];
   for (const tc of calls) {
@@ -211,14 +209,13 @@ export function readHeader(
   }
   if (!firstLine) return null;
 
-  let parsed: Record<string, unknown>;
+  let parsed: CheckpointHeader | null;
   try {
-    parsed = JSON.parse(firstLine) as Record<string, unknown>;
+    parsed = v.parse(CheckpointHeaderSchema, JSON.parse(firstLine));
   } catch (e) {
     log.warn({ err: e, sessionID }, "checkpoint-header: parse failed");
     return null;
   }
-  if (parsed.__type !== "header") return null;
 
   // v1 → auto-migrate to v2 in place, then fall through to the v2
   // read path. After migration, `parsed` is re-read from disk.
@@ -239,24 +236,27 @@ export function readHeader(
     }
     if (!firstLine) return null;
     try {
-      parsed = JSON.parse(firstLine) as Record<string, unknown>;
+      parsed = v.parse(CheckpointHeaderV2Schema, JSON.parse(firstLine));
     } catch (e) {
       log.warn({ err: e, sessionID }, "checkpoint-header: post-migrate parse failed");
       return null;
     }
-    if (parsed.__type !== "header" || parsed.version !== 2) return null;
-  } else if (parsed.version !== 2) {
-    return null;
   }
 
-  // v2: validate the index/CRC fields are present.
-  if (
-    !Array.isArray(parsed.lineOffsets) ||
-    typeof parsed.fileCrc32 !== "number"
-  ) {
-    return null;
+  // v2 path: re-validate the index/CRC fields are present (defensive:
+  // catches any future header variants that pass the discriminated union
+  // but lack the index fields). Both branches now return `CheckpointHeader`.
+  if (parsed.version === 2) {
+    const v2Header = parsed;
+    if (
+      !Array.isArray(v2Header.lineOffsets) ||
+      !v.is(v.number(), v2Header.fileCrc32)
+    ) {
+      return null;
+    }
+    return v2Header;
   }
-  return parsed as unknown as CheckpointHeaderV2;
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -280,7 +280,7 @@ function migrateV1ToV2InPlace(
   sessionID: string,
   dir?: string,
   fs: FsOps = defaultFsOps,
-): { ok: boolean; lines: number; error?: string } {
+) {
   const d = dir ?? getCheckpointDir();
   const fp = filePath(sessionID, dir);
 
@@ -300,14 +300,11 @@ function migrateV1ToV2InPlace(
     return { ok: false, lines: 0, error: "empty file" };
   }
 
-  let parsedHeader: Record<string, unknown>;
+  let parsedHeader: CheckpointHeader | null;
   try {
-    parsedHeader = JSON.parse(firstLine) as Record<string, unknown>;
+    parsedHeader = v.parse(CheckpointHeaderSchema, JSON.parse(firstLine));
   } catch (e) {
     return { ok: false, lines: 0, error: e instanceof Error ? e.message : String(e) };
-  }
-  if (parsedHeader.__type !== "header") {
-    return { ok: false, lines: 0, error: "not a checkpoint file" };
   }
 
   // Already v2 — no migration needed; count existing lines for the
@@ -320,12 +317,16 @@ function migrateV1ToV2InPlace(
     return {
       ok: false,
       lines: 0,
+      // SAFETY: parsedHeader is the discriminated-union output above; version is the numeric literal-discriminator field
       error: `unknown checkpoint version: ${parsedHeader.version as number}`,
     };
   }
 
+  const v1 = parsedHeader;
+  // Loose schema: createdAt may be missing on disk. The original
+  // behavior was `typeof parsedHeader.createdAt === "number" ? ... : Date.now()`.
   const createdAt =
-    typeof parsedHeader.createdAt === "number" ? parsedHeader.createdAt : Date.now();
+    v.is(v.number(), v1.createdAt) ? v1.createdAt : Date.now();
 
   // Read v1 body via full-scan.
   const calls = readV1BodyLines(raw);
@@ -385,15 +386,11 @@ function readV1BodyLines(raw: string): ToolCall[] {
     const trimmed = line.trim();
     if (!trimmed) continue;
     try {
-      const obj = JSON.parse(trimmed) as Record<string, unknown>;
-      if (obj.__type === "header") continue;
-      if (
-        typeof obj.tool === "string" &&
-        typeof obj.timestamp === "number" &&
-        typeof obj.callID === "string"
-      ) {
-        calls.push(obj as unknown as ToolCall);
-      }
+      const parsed = JSON.parse(trimmed);
+      // SAFETY: narrowed by v.is(v.object({}), parsed) check on the same line — the cast re-states the documented __type field shape for the header-skip branch
+      if (parsed && v.is(v.object({}), parsed) && (parsed as { __type?: unknown }).__type === "header") continue;
+      const obj = v.parse(ToolCallSchema, parsed);
+      calls.push(obj);
     } catch (e) {
       log.debug({ err: e, lineIndex: i }, "checkpoint-header: skipping malformed line");
     }

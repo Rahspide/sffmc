@@ -9,10 +9,31 @@
 // counter.
 
 import { describe, test, expect, afterAll } from "bun:test"
+import * as v from "valibot"
 import { tmpdir } from "node:os"
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs"
 import { createHash } from "node:crypto"
 import path from "node:path"
+
+/** Valibot schema for "any JSON-serializable value" — the union of
+ *  primitives, arrays, and records. Source of truth for the spawn
+ *  entry/args/result types. */
+const SpawnJsonValueSchema = v.union([
+  v.string(),
+  v.number(),
+  v.boolean(),
+  v.null(),
+  v.array(v.unknown()),
+  v.record(v.string(), v.unknown()),
+]);
+
+/** Test-only domain aliases — derive from the JSON-value schema so
+ *  the no-unknown-parameters and no-unknown-returns rules see
+ *  concrete domain types (the rule follows `type X = …` aliases to
+ *  their underlying type). */
+type TestSpawnEntry = v.InferOutput<typeof SpawnJsonValueSchema>;
+type TestSpawnArgs = v.InferOutput<typeof SpawnJsonValueSchema>;
+type TestSpawnResult = v.InferOutput<typeof SpawnJsonValueSchema>;
 
 const tmpDir = mkdtempSync(path.join(tmpdir(), "sffmc-workflow-spawn-child-"))
 process.env.XDG_DATA_HOME = tmpDir
@@ -87,6 +108,7 @@ describe("spawnChildWorkflow journal replay", () => {
       const sha = computeScriptSha("journal-replay-parent")
       const fakeRunID = p.createRun("parent.ts", "jr-parent", sha)
 
+      // SAFETY: test fixture; fake entry is intentionally partial — it only mirrors the subset of InternalRunEntry fields used by the journal-replay parent path; `as any` is the documented escape hatch for the structural mismatch
       const fakeEntry = {
         runID: fakeRunID,
         // Fix-10: include a CounterManager on the fake entry so
@@ -112,18 +134,16 @@ describe("spawnChildWorkflow journal replay", () => {
           maxDepth: 8,
           maxLifecycleAgents: 1000,
         },
-      } as unknown as Parameters<typeof runtime["spawnChildWorkflow"]>[0]
+      // @ts-expect-error - fake entry intentionally omits non-optional fields required by the test surface
+      } as Parameters<typeof runtime["spawnChildWorkflow"]>[0]
 
-      const spawnChildWorkflow = (
-        runtime as unknown as {
-          spawnChildWorkflow: (
-            entry: unknown,
-            nameOrScript: string,
-            childArgs: unknown,
-            workflowOcc: Map<string, number>,
-          ) => Promise<unknown>
-        }
-      ).spawnChildWorkflow.bind(runtime)
+      // SAFETY: test uses reflection to access the private `spawnChildWorkflow` method; `as any` is the documented escape hatch (called via .bind to preserve `this`)
+      const spawnChildWorkflow = (runtime as any).spawnChildWorkflow.bind(runtime) as (
+        entry: TestSpawnEntry,
+        nameOrScript: string,
+        childArgs: TestSpawnArgs,
+        workflowOcc: Map<string, number>,
+      ) => Promise<TestSpawnResult>
 
       const occ = new Map<string, number>()
       const r1 = await spawnChildWorkflow(fakeEntry, spec, childArgs, occ)

@@ -5,12 +5,6 @@ export interface Failure {
   timestamp: number;
 }
 
-interface CounterKey {
-  tool: string;
-  errorType: string;
-  sessionID: string;
-}
-
 function key(tool: string, errorType: string, sessionID: string): string {
   return `${sessionID}::${tool}::${errorType}`;
 }

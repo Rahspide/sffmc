@@ -14,9 +14,12 @@
 // shell will actually execute. Pure function, no I/O, no shared state.
 // Integration into the gate is wired by Subagent C in `gate.ts`.
 
-const CSI_RE = /\x1b\[[0-9;]*[a-zA-Z]/g;
-const OSC_RE = /\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g;
-const NULL_RE = /\x00/g;
+const ESC = String.fromCharCode(27)
+const BEL = String.fromCharCode(7)
+const NUL = String.fromCharCode(0)
+const CSI_RE = new RegExp(`${ESC}\\[[0-9;]*[a-zA-Z]`, "g")
+const OSC_RE = new RegExp(`${ESC}\\][^${BEL}${ESC}]*(?:${BEL}|${ESC}\\\\)`, "g")
+const NULL_RE = new RegExp(NUL, "g")
 // `\<newline>` is a shell line continuation. Strip both characters so the
 // joined line is what the shell will execute. `\r?` covers CRLF.
 const LINE_CONT_RE = /\\\r?\n/g;

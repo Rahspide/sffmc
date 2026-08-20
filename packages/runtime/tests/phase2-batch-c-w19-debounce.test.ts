@@ -24,8 +24,6 @@
 // (it does not, per the policy).
 
 import { describe, it, expect, beforeEach, afterEach } from "bun:test"
-import { readFileSync, existsSync } from "node:fs"
-import path from "node:path"
 
 import {
   DEFAULT_WORKFLOW_EXTENDED_CONFIG,

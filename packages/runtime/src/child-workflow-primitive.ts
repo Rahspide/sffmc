@@ -25,7 +25,8 @@ import type { InternalRunEntry } from "./internal-run-entry.ts"
 import type { WorkflowPersistence } from "./persistence.ts"
 import type { WorkflowEventEmitter } from "./event-emitter.ts"
 import type { WorkflowActivation } from "./activation.ts"
-import { WorkflowStructuralError } from "./types.ts"
+import type { JsonValue } from "./runs.ts"
+import { WorkflowStructuralError, type JournalEvent } from "./types.ts"
 
 /** Discriminant prefix carried in the throw site + in the bridged
  *  string so the parent's classification site can identify a structural
@@ -46,17 +47,17 @@ export interface ChildWorkflowPrimitiveDeps {
     parent: InternalRunEntry,
     script: string,
     name: string,
-    args: unknown,
+    args: JsonValue,
     childRunID: string,
   ) => Promise<InternalRunEntry>
   /** Append a journal event (wrapper around persistence.appendJournal). */
-  appendJournal: (runID: string, event: unknown) => void
+  appendJournal: (runID: string, event: JournalEvent) => void
   /** Settle the run (launch script + route to completeRun/failRun). */
   settleEntry: (
     entry: InternalRunEntry,
     script: string,
     name: string,
-    args: unknown,
+    args: JsonValue,
     jail: WorkspaceJail,
   ) => Promise<void>
 }
@@ -68,9 +69,9 @@ export class ChildWorkflowPrimitive implements IChildWorkflowPrimitive {
   async spawn(
     entry: InternalRunEntry,
     nameOrScript: string,
-    childArgs: unknown,
+    childArgs: JsonValue,
     workflowOcc: Map<string, number>,
-  ): Promise<unknown> {
+  ): Promise<JsonValue> {
     const spec = String(nameOrScript)
     const base = createHash("sha256")
       .update(JSON.stringify({ spec, args: childArgs ?? null }))
@@ -94,7 +95,7 @@ export class ChildWorkflowPrimitive implements IChildWorkflowPrimitive {
         ? { source: spec, meta: parseMeta(spec), kind: "inline" as const }
         : await resolveWorkflow(spec, workspace)
       childScript = resolved.source
-    } catch (e) {
+    } catch {
       // Typed throw (gen-2 #4). The discriminant prefix lives in the
       // message so the bridge serializes it as a "WorkflowStructuralError: ..."
       // string the parent classification site can recover, and on the typed
@@ -152,7 +153,7 @@ export class ChildWorkflowPrimitive implements IChildWorkflowPrimitive {
     parent: InternalRunEntry,
     script: string,
     name: string,
-    args: unknown,
+    args: JsonValue,
     _childRunID: string,
   ): Promise<InternalRunEntry> {
     // Simplified: create a new entry, run it inline

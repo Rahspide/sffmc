@@ -1,6 +1,6 @@
 {
   "name": "@sffmc/utilities",
-  "version": "0.16.3",
+  "version": "0.16.4",
   "category": "sffmc-original",
   "type": "module",
   "main": "src/index.ts",
@@ -11,6 +11,7 @@
     "typecheck": "bun build --target=bun --no-bundle src/index.ts"
   },
   "dependencies": {
+    "valibot": "^0.42.1",
     "yaml": "^2.0.0"
   },
   "license": "MIT",

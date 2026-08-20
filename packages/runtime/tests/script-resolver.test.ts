@@ -12,11 +12,16 @@
 // builtin registry controlled by the test (no live OpenCode runtime).
 
 import { describe, test, expect, afterAll } from "bun:test"
+import * as v from "valibot"
 import { tmpdir } from "node:os"
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs"
 import path from "node:path"
 
 const tmpDir = mkdtempSync(path.join(tmpdir(), "sffmc-script-resolver-"))
+
+/** Valibot primitive schema used at the test boundary to discriminate
+ *  script-source field types without `typeof` runtime checks. */
+const StringSchema = v.string()
 
 import { resolveWorkflowScript } from "../src/script-resolver.ts"
 import { registerBuiltin } from "../src/builtin-registry.ts"
@@ -33,7 +38,7 @@ describe("resolveWorkflowScript", () => {
         name: "deep-research",
         workspace: tmpDir,
       })
-      expect(typeof source).toBe("string")
+      expect(v.is(StringSchema, source)).toBe(true)
       expect(source).toContain("export const meta")
     })
 

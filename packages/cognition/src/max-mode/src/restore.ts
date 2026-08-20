@@ -21,7 +21,9 @@ export function stripToolExecutes(
   for (const tool of tools) {
     if (tool.execute) {
       state.tools.set(tool.definition.name, { ...tool });
-      if ("execute" in tool) delete (tool as SchemaOnlyTool).execute;
+      // SAFETY: narrowed by `"execute" in tool` check on line above; the cast re-states the narrow SchemaOnlyTool shape for the `delete` operator
+      const narrowed: SchemaOnlyTool = tool as SchemaOnlyTool
+      if ("execute" in tool) delete narrowed.execute
     }
   }
 

@@ -2,12 +2,17 @@
 // @sffmc/runtime — see ../../LICENSE
 
 import { describe, test, expect, afterAll } from "bun:test"
+import * as v from "valibot"
 import { WorkflowRuntime } from "../src/runtime"
 import type { PluginContext } from "../src/runtime"
 import { DEFAULT_WORKFLOW_CONFIG } from "../src/types"
 import { tmpdir } from "node:os"
 import { mkdtempSync, rmSync } from "node:fs"
 import path from "node:path"
+
+/** Valibot primitive schemas used at the test boundary to discriminate
+ *  workflow-outcome field types without `typeof` runtime checks. */
+const NumberSchema = v.number()
 
 // ---------------------------------------------------------------------------
 // Setup
@@ -162,7 +167,7 @@ function makeSlowMockCtx(delayMs = 50): PluginContext {
   }
 }
 
-function makeCountingMockCtx(): { ctx: PluginContext; counts: { count: number } } {
+function makeCountingMockCtx() {
   const counts = { count: 0 }
   const ctx: PluginContext = {
     config: {},
@@ -289,9 +294,9 @@ describe("private helpers: outcomeFor", () => {
     expect(outcome.status).toBe("completed")
     expect(outcome.result).toBe("result-value")
     expect(outcome.error).toBeUndefined()
-    expect(typeof outcome.stepsCompleted).toBe("number")
+    expect(v.is(NumberSchema, outcome.stepsCompleted)).toBe(true)
     expect(outcome.stepsTotal).toBeGreaterThan(0)
-    expect(typeof outcome.tokensUsed).toBe("number")
+    expect(v.is(NumberSchema, outcome.tokensUsed)).toBe(true)
     expect(outcome.durationMs).toBeGreaterThan(0)
     runtime.close()
   })
@@ -311,9 +316,9 @@ describe("private helpers: outcomeFor", () => {
     const outcome = await runtime.wait({ runID, timeoutMs: 5000 })
     expect(outcome.status).toBe("cancelled")
     expect(outcome.result).toBeUndefined()
-    expect(typeof outcome.durationMs).toBe("number")
-    expect(typeof outcome.stepsCompleted).toBe("number")
-    expect(typeof outcome.stepsTotal).toBe("number")
+    expect(v.is(NumberSchema, outcome.durationMs)).toBe(true)
+    expect(v.is(NumberSchema, outcome.stepsCompleted)).toBe(true)
+    expect(v.is(NumberSchema, outcome.stepsTotal)).toBe(true)
     runtime.close()
   })
 

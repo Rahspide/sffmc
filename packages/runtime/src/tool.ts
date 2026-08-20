@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/runtime — see ../../LICENSE
 
+import * as v from "valibot"
 import type { WorkflowRuntime } from "./runtime.ts"
 import { WORKFLOW_SEARCH_DIRS } from "./constants.ts"
 
@@ -18,6 +19,10 @@ type WorkflowToolArgs =
 // ---------------------------------------------------------------------------
 // Tool factory — creates a tool object closed over the runtime instance
 // ---------------------------------------------------------------------------
+
+/** Valibot primitive schemas used at the I/O boundary to discriminate
+ *  workflow-tool args without `typeof` runtime checks. */
+const ToolInputObjectSchema = v.object({ operation: v.string() })
 
 export function createWorkflowTool(runtime: WorkflowRuntime) {
   return {
@@ -58,7 +63,7 @@ Examples:
           description: "Inline JS workflow script (EITHER name OR script, not both)",
         },
         args: {
-          description: "JSON value exposed to the script as \`args\`",
+          description: "JSON value exposed to the script as `args`",
         },
         workspace: {
           type: "string",
@@ -81,8 +86,13 @@ Examples:
     },
 
     execute: async (args: WorkflowToolArgs, _ctx?: unknown): Promise<string> => {
-      // Quick runtime guard — LLM may send malformed args despite schema
-      if (typeof args !== "object" || args === null || typeof (args as Record<string, unknown>).operation !== "string") {
+      // Quick runtime guard — LLM may send malformed args despite schema.
+      // Valibot's v.object({ operation: v.string() }) replaces the
+      // historical `typeof === "object" && !== null && operation typeof
+      // === "string"` ladder: the schema's v.is rejects null, arrays,
+      // and primitives in one call, and the nested v.string() schema
+      // narrows operation to a string at the boundary.
+      if (!v.is(ToolInputObjectSchema, args)) {
         return "Error: workflow tool requires 'operation' field (run|status|wait|cancel|resume)"
       }
 
@@ -90,47 +100,50 @@ Examples:
         switch (args.operation) {
           case "run": {
             if (!args.name && !args.script) {
-              return "Error: workflow run: provide either \`name\` or \`script\`"
+              return "Error: workflow run: provide either `name` or `script`"
             }
             if (args.name && args.script) {
-              return "Error: workflow run: provide either \`name\` or \`script\`, not both"
+              return "Error: workflow run: provide either `name` or `script`, not both"
             }
+            // SAFETY: object literal is cast to runtime.start's first parameter type via Parameters<>; field names match StartInput and tool args are validated upstream
             const startInput = {
               name: args.name,
               script: args.script,
               args: args.args,
               workspace: args.workspace,
               sessionID: "tool-call",
+              // SAFETY: object literal is cast to runtime.start's first parameter type via Parameters<>; field names match StartInput and tool args are validated upstream
             } as Parameters<typeof runtime.start>[0]
             return JSON.stringify(await runtime.start(startInput))
           }
           case "status": {
             if (!args.run_id) {
-              return "Error: workflow status: \`run_id\` is required"
+              return "Error: workflow status: `run_id` is required"
             }
             return JSON.stringify(await runtime.status({ runID: args.run_id }))
           }
           case "wait": {
             if (!args.run_id) {
-              return "Error: workflow wait: \`run_id\` is required"
+              return "Error: workflow wait: `run_id` is required"
             }
             return JSON.stringify(await runtime.wait({ runID: args.run_id, timeoutMs: args.timeout_ms }))
           }
           case "cancel": {
             if (!args.run_id) {
-              return "Error: workflow cancel: \`run_id\` is required"
+              return "Error: workflow cancel: `run_id` is required"
             }
             await runtime.cancel({ runID: args.run_id })
             return JSON.stringify({ cancelled: args.run_id })
           }
           case "resume": {
             if (!args.run_id) {
-              return "Error: workflow resume: \`run_id\` is required"
+              return "Error: workflow resume: `run_id` is required"
             }
             return JSON.stringify(await runtime.resume({ runID: args.run_id, agentTimeoutMs: args.agent_timeout_ms }))
           }
           default:
-            return `Error: unknown operation "${(args as Record<string, unknown>).operation}". Valid: run, status, wait, cancel, resume`
+            // SAFETY: default branch runs after the validated switch cases; the cast mirrors the v.is check above (args is narrowed to object with string .operation)
+            return `Error: unknown operation "${(args as { operation: unknown }).operation}". Valid: run, status, wait, cancel, resume`
         }
       } catch (e) {
         return `Error: ${e instanceof Error ? e.message : String(e)}`

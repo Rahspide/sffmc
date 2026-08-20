@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/runtime — see ../../LICENSE
 
-import { watch, type FSWatcher } from "node:fs"
+import { existsSync, watch, type FSWatcher } from "node:fs"
 import path from "node:path"
 import { createLogger, emit, ensureRedactionRules } from "@sffmc/utilities"
 import { getWorkflowSearchDirs } from "./constants.ts"
@@ -33,7 +33,7 @@ const WORKFLOW_FILE_GLOB = /\.(ts|js|mjs|cjs)$/i
  *
  *  The returned handle's `stop()` closes all watchers. Safe to call
  *  multiple times. */
-export function startWorkflowWatcher(workspace: string): { stop: () => void } {
+export function startWorkflowWatcher(workspace: string) {
   const subdirs = getWorkflowSearchDirs()
   // Walk up the directory tree to find every existing workflow subdir.
   // The runtime mounts the watcher once per workspace; chokidar-style
@@ -60,6 +60,16 @@ export function startWorkflowWatcher(workspace: string): { stop: () => void } {
   for (const dir of dirs) {
     let watcher: FSWatcher
     try {
+      // Pre-check existence: Bun 1.4+ emits an async 'error' event after
+      // FSWatcher construction for missing paths. The try/catch below only
+      // catches the synchronous throw from the constructor, so the async
+      // error would land on an uncaught listener and fail the test runner.
+      // Skipping non-existent dirs entirely is cleaner and matches the
+      // previous (Bun 1.3) behaviour.
+      if (!existsSync(dir)) {
+        log.debug(`workflow dir not present, skipping watcher: ${dir}`)
+        continue
+      }
       watcher = watch(dir, { persistent: false }, (eventType, filename) => {
         if (!filename) return
         const basename = path.basename(filename)
@@ -96,5 +106,5 @@ export function startWorkflowWatcher(workspace: string): { stop: () => void } {
         }
       }
     },
-  }
+  } satisfies { stop: () => void }
 }

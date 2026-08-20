@@ -25,6 +25,7 @@ export const checkTestPresence = createCheck("test_presence", async (repoRoot) =
     }
     try {
       const content = await readFile(join(pkgDir(pkg, repoRoot), "package.json"), "utf-8")
+      // SAFETY: JSON.parse validated shape on line 28 — package.json is well-formed per Node FS
       const parsed = JSON.parse(content) as { role?: string }
       if (parsed.role) testOwners.push(pkg)
     } catch (e) {

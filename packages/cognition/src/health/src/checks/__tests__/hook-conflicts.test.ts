@@ -7,8 +7,9 @@
 // `safeMultiHooks` whitelist.
 
 import { describe, test, expect } from "bun:test"
+import * as v from "valibot"
 import { resolve } from "node:path"
-import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from "node:fs"
+import { mkdtempSync, rmSync, mkdirSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { checkHookConflicts } from "../hook-conflicts.ts"
@@ -20,7 +21,7 @@ describe("check_hook_conflicts", () => {
     const result = await checkHookConflicts(REPO_ROOT)
     expect(result.name).toBe("hook_conflicts")
     expect(["ok", "warn", "fail"]).toContain(result.status)
-    expect(typeof result.detail).toBe("string")
+    expect(v.is(v.string(), result.detail)).toBe(true)
   })
 
   test("returns ok against the real SFFMC repo (no real conflicts)", async () => {

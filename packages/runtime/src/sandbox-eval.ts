@@ -6,7 +6,15 @@
 // `ctx.evalCode()` with the right error-disposal order. No
 // orchestration, no state.
 
+import * as v from "valibot"
 import { type QuickJSContext, type QuickJSHandle } from "quickjs-emscripten"
+
+/** Format a dumped guest error into a host string. Strings pass
+ *  through unchanged; everything else is JSON-serialized so the
+ *  resulting message is non-empty for object/array errors. */
+function formatEvalError(err: unknown): string {
+  return v.is(v.string(), err) ? err : JSON.stringify(err)
+}
 
 /** Eval a guest expression and discard its return value. Throws a
  *  labelled error if the eval failed, dumping the guest error to a
@@ -16,7 +24,7 @@ export function evalAndDiscard(ctx: QuickJSContext, code: string, label: string)
   if (result.error) {
     const err = ctx.dump(result.error)
     result.error.dispose()
-    throw new Error(`${label}: ${typeof err === "string" ? err : JSON.stringify(err)}`)
+    throw new Error(`${label}: ${formatEvalError(err)}`)
   }
   result.value.dispose()
 }
@@ -29,7 +37,7 @@ export function evalAndReturn(ctx: QuickJSContext, code: string, label: string):
   if (result.error) {
     const err = ctx.dump(result.error)
     result.error.dispose()
-    throw new Error(`${label}: ${typeof err === "string" ? err : JSON.stringify(err)}`)
+    throw new Error(`${label}: ${formatEvalError(err)}`)
   }
   return result.value
 }

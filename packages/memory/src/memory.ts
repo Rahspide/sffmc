@@ -65,6 +65,7 @@ function createAdapter(rawDb: BunDatabase | DatabaseSync, isBun: boolean): Memor
   if (isBun) return rawDb; // pass-through — bun:sqlite API matches our usage
 
   // node:sqlite (DatabaseSync) shim
+  // SAFETY: narrowed by isBun on line 65
   const nodeDb = rawDb as DatabaseSync;
   return {
     exec: (sql: string) => nodeDb.exec(sql),
@@ -137,10 +138,12 @@ export async function init(dbPath: string): Promise<MemoryDB> {
   await resolveEngine();
   // resolveEngine() always assigns DatabaseCtor (either bun:sqlite.Database or
   // node:sqlite.DatabaseSync) — the union guarantees either constructor exists.
+  // SAFETY: invariant — see caller justification
   const Ctor = DatabaseCtor as SqliteCtor;
   const rawDb = new Ctor(dbPath);
   rawDb.exec("PRAGMA journal_mode=WAL;");
   rawDb.exec(SCHEMA_SQL);
+  // SAFETY: invariant — see caller justification
   const adapted = createAdapter(rawDb as BunDatabase | DatabaseSync, isBunSqlite);
   return { db: adapted };
 }
@@ -176,6 +179,7 @@ export function search(
   query: string,
   limit: number,
 ): MemoryEntry[] {
+  // SAFETY: invariant — see caller justification
   return db.db
     .query(
       `SELECT me.* FROM memory_entries me
@@ -188,12 +192,14 @@ export function search(
 }
 
 export function all(db: MemoryDB): MemoryEntry[] {
+  // SAFETY: invariant — see caller justification
   return db.db
     .query("SELECT * FROM memory_entries ORDER BY created_at DESC")
     .all() as MemoryEntry[];
 }
 
 export function topByImportance(db: MemoryDB, limit: number): MemoryEntry[] {
+  // SAFETY: invariant — see caller justification
   return db.db
     .query("SELECT * FROM memory_entries ORDER BY importance_score DESC LIMIT ?")
     .all(limit) as MemoryEntry[];

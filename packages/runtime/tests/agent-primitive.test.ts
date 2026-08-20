@@ -4,7 +4,7 @@
 import { describe, it, expect, beforeEach } from "bun:test"
 import { AgentPrimitive } from "../src/agent-primitive.ts"
 import { journalKeyBase } from "../src/persistence.ts"
-import type { InternalRunEntry, AgentResult } from "../src/internal-run-entry.ts"
+import type { InternalRunEntry } from "../src/internal-run-entry.ts"
 import type { AgentOptions, AgentFailureReason } from "../src/types.ts"
 import { BudgetExceededError } from "../src/types.ts"
 
@@ -23,11 +23,13 @@ function makeFakeCounters() {
     recordAgentFail: () => { fakeCounters.failed++ },
   }
 }
+// SAFETY: test fixture — `as any` is the documented escape hatch for fake counter fixtures that only implement a subset of the real type
 const fakeCounters = makeFakeCounters() as any
 
 // Fake entry — minimal surface that spawnAgent/executeAgentCall need.
 function makeEntry(overrides: Partial<InternalRunEntry> = {}): InternalRunEntry {
-  return {
+  // SAFETY: test fixture; the fake entry intentionally exposes a minimal surface (subset of InternalRunEntry); `as any` is the documented escape hatch because Partial<InternalRunEntry> lacks non-optional fields
+  const entry = {
     runID: "run_test",
     journalResults: new Map(),
     journalPass: 0,
@@ -36,7 +38,9 @@ function makeEntry(overrides: Partial<InternalRunEntry> = {}): InternalRunEntry 
     cfg: { maxSteps: 100, maxTokens: 10000, maxWallClockMs: 60000, perStepTimeoutMs: 1000, gracePeriodMs: 5000, maxDepth: 3, maxLifecycleAgents: 10 },
     counters: fakeCounters,
     ...overrides,
-  } as unknown as InternalRunEntry
+  // @ts-expect-error - fake entry intentionally omits non-optional fields required by the test surface
+  } as InternalRunEntry
+  return entry
 }
 
 // Fake deps — capture calls so the assertions can inspect side-effects.
@@ -50,8 +54,10 @@ function makeDeps(overrides: Partial<ConstructorParameters<typeof AgentPrimitive
   let llmResult: any = { content: [{ type: "text", text: "ok" }], finalText: "ok" }
   let llmShouldThrow = false
 
-  return {
+  // SAFETY: test fixture; `as ConstructorParameters<typeof AgentPrimitive>[0]` is the documented escape hatch — overrides is a Partial that may omit non-optional AgentPrimitive deps fields
+  const result = {
     deps: {
+      // SAFETY: test fixture; the globalSem stub satisfies the minimal surface used by AgentPrimitive (run<T> only)
       globalSem: { run: async <T,>(fn: () => Promise<T>): Promise<T> => fn() },
       scheduleFlush: (entry: InternalRunEntry) => flushes.push(entry),
       emitEvent: (name: string, payload?: unknown) => calls.push({ name, payload }),
@@ -71,6 +77,7 @@ function makeDeps(overrides: Partial<ConstructorParameters<typeof AgentPrimitive
     setLLMResult: (r: any) => { llmResult = r },
     setLLMShouldThrow: (v: boolean) => { llmShouldThrow = v },
   }
+  return result
 }
 
 describe("AgentPrimitive", () => {
@@ -141,6 +148,7 @@ describe("AgentPrimitive", () => {
     it("throws when depth exceeds maxDepth", async () => {
       const entry = makeEntry()
       const occ = new Map<string, number>()
+      // SAFETY: test fixture; { depth: 5 } is the only field under test; cast satisfies AgentOptions structurally
       await expect(primitive.spawnAgent(entry, "test", { depth: 5 } as AgentOptions, occ)).rejects.toThrow(/nesting depth/)
     })
 
@@ -162,17 +170,22 @@ describe("AgentPrimitive", () => {
         info: { tokens: { input: 6000, output: 4001 } },
       })
       const entry = makeEntry()
+      // SAFETY: test fixture; empty object cast as AgentOptions satisfies the structural type (all fields optional)
       const r = await primitive.executeAgentCall(entry, "test", {} as AgentOptions, "key1")
       expect(r).toBeNull()
       expect(f.failedRuns).toHaveLength(1)
       // gen-11 F-2.1: error is now a typed BudgetExceededError, not a magic string.
-      expect(f.failedRuns[0]?.error).toBeInstanceOf(BudgetExceededError)
-      expect((f.failedRuns[0]?.error as BudgetExceededError).message).toMatch(/budget/i)
+      const failedRun = f.failedRuns[0]
+      const error = failedRun?.error
+      expect(error).toBeInstanceOf(BudgetExceededError)
+      // SAFETY: previous .toBeInstanceOf narrowed error to BudgetExceededError; cast re-asserts the type for the .message access
+      expect((error as BudgetExceededError).message).toMatch(/budget/i)
     })
 
     it("returns null when deliverable is null (NoDeliverable)", async () => {
       f.setLLMResult({ content: [], structured: null, finalText: null })
       const entry = makeEntry()
+      // SAFETY: test fixture; empty object cast as AgentOptions satisfies the structural type (all fields optional)
       const r = await primitive.executeAgentCall(entry, "test", {} as AgentOptions, "key1")
       expect(r).toBeNull()
       expect(fakeCounters.failed).toBe(1)
@@ -181,12 +194,14 @@ describe("AgentPrimitive", () => {
     it("returns structured result when schema is set", async () => {
       f.setLLMResult({ content: [], structured: { foo: 1 }, finalText: null })
       const entry = makeEntry()
+      // SAFETY: test fixture; { schema: ... } is the only field under test; cast satisfies AgentOptions structurally
       const r = await primitive.executeAgentCall(entry, "test", { schema: { type: "object" } } as AgentOptions, "key1")
       expect(r).toEqual({ foo: 1 })
     })
 
     it("appends to journal on success", async () => {
       const entry = makeEntry()
+      // SAFETY: test fixture; empty object cast as AgentOptions satisfies the structural type (all fields optional)
       await primitive.executeAgentCall(entry, "test", {} as AgentOptions, "key_abc")
       expect(f.journalAppends).toHaveLength(1)
       expect(f.journalAppends[0]?.entry).toMatchObject({ t: "agent", key: "key_abc" })
@@ -195,6 +210,7 @@ describe("AgentPrimitive", () => {
     it("returns null on LLM throw (SpawnReject)", async () => {
       f.setLLMShouldThrow(true)
       const entry = makeEntry()
+      // SAFETY: test fixture; empty object cast as AgentOptions satisfies the structural type (all fields optional)
       const r = await primitive.executeAgentCall(entry, "test", {} as AgentOptions, "key1")
       expect(r).toBeNull()
       expect(fakeCounters.failed).toBe(1)
@@ -225,6 +241,7 @@ describe("AgentPrimitive", () => {
     it("threads items through stages sequentially", async () => {
       const r = await primitive.runPipeline(
         [1, 2, 3],
+        // SAFETY: test fixture; acc is typed as `unknown` in the pipeline stage signature; the test seeds numeric items so acc is narrowed to number for the arithmetic
         [(acc: unknown) => Promise.resolve((acc as number) * 2)],
       )
       expect(r).toEqual([2, 4, 6])
@@ -244,6 +261,7 @@ describe("AgentPrimitive", () => {
 
   describe("publishAgentFailed", () => {
     it("emits workflow:agent_failed with runID/agentKey/reason", () => {
+      // SAFETY: test fixture; "actor_error" is a string-literal that is a valid AgentFailureReason member (AgentFailureReason is the documented string union)
       primitive.publishAgentFailed("run1", "key1", "actor_error" as AgentFailureReason)
       expect(f.calls).toContainEqual({
         name: "workflow:agent_failed",
@@ -259,6 +277,7 @@ describe("AgentPrimitive", () => {
       // bun test runner hanging on synchronous-error stack trace in batch mode
       let didThrow = false
       try {
+        // SAFETY: test fixture; "spawn_reject" is a string-literal that is a valid AgentFailureReason member
         p2.publishAgentFailed("r", "k", "spawn_reject" as AgentFailureReason)
       } catch {
         didThrow = true

@@ -11,7 +11,8 @@
 import { describe, test, expect } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { compileRules, parseRules, type Rules, type CompiledRule, type Action } from "../src/rules/rules";
+import * as v from "valibot";
+import { compileRules, parseRules, type Rules, type CompiledRule } from "../src/rules/rules";
 import { normalizeCommand } from "../src/rules/normalize";
 import { commandWordPositions } from "../src/rules/compileRules";
 
@@ -26,9 +27,7 @@ interface Case {
   section: string;
 }
 
-const PROJECT_ROOT = "/tmp/sffmc-corpus-test";
-
-function parseCorpus(text: string): { cases: Case[]; section: string } {
+function parseCorpus(text: string) {
   const cases: Case[] = [];
   let section = "uncategorized";
   let pendingInput: string | null = null;
@@ -65,6 +64,7 @@ function parseCorpus(text: string): { cases: Case[]; section: string } {
     if (expectMatch && pendingInput !== null) {
       cases.push({
         input: pendingInput,
+        // SAFETY: narrowed by regex match on line 64 — Verdict is one of deny|ask|pass
         expect: expectMatch[1] as Verdict,
         section,
       });
@@ -154,8 +154,8 @@ rules:
       command_match: "^rm\\\\s+-r[f]?\\\\s+/opt\\\\b"
     action: deny
   # v0.15.2 final polish batch 3 (YAML-safe): simple literal-space patterns
-  # to avoid the YAML JSON-schema invalid-escape trap on \\s and flow-seq
-  # interpretation of [^\"] inside double-quoted YAML.
+  # to avoid the YAML JSON-schema invalid-escape trap on literal s-escapes and flow-seq
+  # interpretation of [^"] inside double-quoted YAML.
   # chmod 666 / chmod 777 (world-writable octal).
   - match:
       tool: bash
@@ -451,12 +451,12 @@ rules:
   # rm -rf with quoted home variable forms.
   - match:
       tool: bash
-      command_match: "^rm\\\\s+-r[f]?\\\\s+\\\"\\\\$\\\\{?HOME\\\\}?\\\""
+      command_match: '^rm\s+-r[f]?\s+"\${?HOME}?"$'
     action: deny
   # rm -rf with quoted root slash forms.
   - match:
       tool: bash
-      command_match: "^rm\\\\s+-r[f]?\\\\s+\\\"/\\\"|^rm\\\\s+-r[f]?\\\\s+\\\"//\\\""
+      command_match: '^rm\s+-r[f]?\s+"/"$|^rm\s+-r[f]?\s+"//"$'
     action: deny
   # chmod -R 777 on /etc / /home / /root etc.
   - match:
@@ -634,9 +634,9 @@ function interpretEscapes(s: string): string {
 function anchoredEvaluate(
   rules: CompiledRule[],
   toolName: string,
-  args: Record<string, unknown>,
-): { action: Action; reason: string } {
-  const raw = typeof args?.command === "string" ? args.command : "";
+  args: { command?: string },
+) {
+  const raw = v.is(v.string(), args?.command) ? args.command : "";
   const interpreted = interpretEscapes(raw);
   const normalized = normalizeCommand(interpreted);
 

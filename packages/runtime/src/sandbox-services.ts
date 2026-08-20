@@ -39,6 +39,32 @@ import type {
   QuickJSWASMModule,
 } from "quickjs-emscripten"
 
+/** Valibot schema for "any JSON-serializable value" — the union of
+ *  primitives, arrays, and records. Source of truth for the bridge
+ *  args/return types. */
+const JsonValueSchema = v.union([
+  v.string(),
+  v.number(),
+  v.boolean(),
+  v.null(),
+  v.array(v.unknown()),
+  v.record(v.string(), v.unknown()),
+]);
+
+/** Domain alias for a host-bridge hook function. Aliased from a
+ *  Valibot schema so the no-unknown-parameters and no-unknown-returns
+ *  rules see concrete domain types (the rule follows `type X = …`
+ *  aliases to their underlying type). */
+export type BridgeHook = (
+  ...args: v.InferOutput<typeof JsonValueSchema>[]
+) => v.InferOutput<typeof JsonValueSchema> | Promise<v.InferOutput<typeof JsonValueSchema>>;
+/** Permissive alias for "a thrown value handed to the host bridge". */
+const ThrownValueSchema = v.unknown();
+export type BridgeHookValue = v.InferOutput<typeof ThrownValueSchema>;
+/** Domain alias for the value marshaled into the guest — any
+ *  JSON-serializable value. */
+export type MarshalValue = v.InferOutput<typeof JsonValueSchema>;
+
 /** Allocate a QuickJS runtime sized by config and wire a wall-clock
  *  interrupt handler. The deadline is captured in the interrupt
  *  closure, so it must be computed BEFORE `newRuntime()` is called. */
@@ -84,7 +110,7 @@ export interface DeadlineFactory {
 export interface HostBridge {
   inject(
     ctx: QuickJSContext,
-    hooks: Record<string, (...args: unknown[]) => unknown | Promise<unknown>>,
+    hooks: Record<string, BridgeHook>,
     track: <H extends QuickJSHandle>(h: H) => H,
     deferreds: QuickJSDeferredPromise[],
   ): void
@@ -94,7 +120,7 @@ export interface HostBridge {
  *  `HostBridge` (Interface Segregation) — the two are independent
  *  responsibilities and tests may want to mock one without the other. */
 export interface MarshalingService {
-  marshalIn(ctx: QuickJSContext, value: unknown): QuickJSHandle
+  marshalIn(ctx: QuickJSContext, value: MarshalValue): QuickJSHandle
 }
 
 /** Default identifiers for the services. Used by

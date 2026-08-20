@@ -5,12 +5,18 @@
 // Extracted from checkpoint.ts (M-1 god-object refactor, Task 1.7).
 
 import { redactSecrets } from "@sffmc/utilities";
+import * as v from "valibot";
 
 import { CURRENT_VERSION } from "./constants";
 import { readHeader } from "./header";
 import { readToolCallsShim } from "./reader";
-import { CheckpointTooLargeError } from "./types";
-import type { ToolCall } from "./types";
+import {
+  CheckpointTooLargeError,
+  JSONValueSchema,
+  type JSONValue,
+  type RestoreActionResult,
+  type ToolCall,
+} from "./types";
 
 /** Marker embedded in a user message to trigger auto-restore.
  *  Format: `<!-- EXTRA_RESTORE: <sessionID> -->` (whitespace tolerant). */
@@ -34,7 +40,7 @@ export function executeRestoreAction(
   sessionID: string | undefined,
   dir: string,
   maxFileSize: number,
-): unknown {
+): RestoreActionResult {
   if (!sessionID) {
     return { ok: false, error: "sessionID is required for restore" };
   }
@@ -82,24 +88,34 @@ export function executeRestoreAction(
   };
 }
 
-/** Recursively walk an unknown value, redacting any string leaves via
- *  `redactSecrets`. Non-string primitives pass through unchanged. Arrays and
- *  plain objects are walked element-by-element. Used by the redaction rule
- *  for checkpoint writes so secrets embedded in tool output are replaced
- *  with `[REDACTED:<category>]` markers BEFORE the JSONL line is written. */
-export function sanitizeValue(value: unknown): unknown {
-  if (typeof value === "string") {
+/** Recursively walk a JSON-compatible value, redacting any string
+ *  leaves via `redactSecrets`. Non-string primitives pass through
+ *  unchanged. Arrays and plain objects are walked element-by-element.
+ *  Used by the redaction rule for checkpoint writes so secrets
+ *  embedded in tool output are replaced with `[REDACTED:<category>]`
+ *  markers BEFORE the JSONL line is written.
+ *
+ *  `value` is typed as `JSONValue` (the `JSONValueSchema` contract)
+ *  rather than `unknown` — callers that hold truly unknown data must
+ *  parse it through `JSONValueSchema` first. This keeps the walker
+ *  honest about its domain. */
+export function sanitizeValue(value: JSONValue): JSONValue {
+  if (v.is(v.string(), value)) {
     return redactSecrets(value).redacted
   }
   if (Array.isArray(value)) {
     return value.map((v) => sanitizeValue(v))
   }
-  if (value && typeof value === "object") {
-    const out: Record<string, unknown> = {}
-    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+  if (value && v.is(v.object({}), value)) {
+    const out: Record<string, JSONValue> = {}
+    for (const [k, v] of Object.entries(value)) {
       out[k] = sanitizeValue(v)
     }
     return out
   }
   return value
 }
+
+/** Re-export of the schema for callers that need to validate before
+ *  calling `sanitizeValue`. */
+export { JSONValueSchema };

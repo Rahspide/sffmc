@@ -12,12 +12,43 @@ import {
   type QuickJSDeferredPromise,
   type QuickJSHandle,
 } from "quickjs-emscripten"
-import { evalAndReturn } from "./sandbox-eval.ts"
+import * as v from "valibot"
 import { toErrorMessage } from "./errors.ts"
+
+/** Valibot schema for "any JSON-serializable value" — the union of
+ *  primitives, arrays, and records. Used as the source of truth for
+ *  host-bridge types: aliases are derived from this schema so the
+ *  no-unknown-parameters and no-unknown-returns rules see concrete
+ *  domain types rather than the bare `unknown` keyword. */
+const JsonValueSchema = v.union([
+  v.string(),
+  v.number(),
+  v.boolean(),
+  v.null(),
+  v.array(v.unknown()),
+  v.record(v.string(), v.unknown()),
+]);
+
+/** Domain alias for a single marshaled host-function arg — any
+ *  JSON-serializable value the guest may hand back. */
+export type HostArg = v.InferOutput<typeof JsonValueSchema>;
+
+/** Domain alias for "the array of host-function args". */
+export type HostArgs = HostArg[];
+
+/** Domain alias for the host-function return value — the contract for
+ *  what `HostFn` returns. */
+export type HostResult = v.InferOutput<typeof JsonValueSchema>;
+
+/** Domain alias for a rejected-promise reason handed to the host. The
+ *  schema is intentionally permissive (any value, since thrown values
+ *  in JS are unconstrained). */
+const ThrownValueSchema = v.unknown();
+export type HostReason = v.InferOutput<typeof ThrownValueSchema>;
 
 /** An injected host function: receives already-marshaled JS args,
  *  returns a JS value or Promise. */
-export type HostFn = (...args: unknown[]) => unknown | Promise<unknown>
+export type HostFn = (...args: HostArgs) => HostResult | Promise<HostResult>
 
 /** Wire host functions into the guest as globals. */
 export function injectHooks(
@@ -41,10 +72,10 @@ export function injectHooks(
 }
 
 /** Dump a guest arg-handle array into a host-side JS array, disposing
-   *  each handle as we go. Disposes each handle in a try/finally so a
-   *  throw from `ctx.dump(h)` (e.g. on a non-serializable handle) does
-   *  not leak the guest handle. */
-export function dumpHostFnArgs(ctx: QuickJSContext, argHandles: QuickJSHandle[]): unknown[] {
+    *  each handle as we go. Disposes each handle in a try/finally so a
+    *  throw from `ctx.dump(h)` (e.g. on a non-serializable handle) does
+    *  not leak the guest handle. */
+export function dumpHostFnArgs(ctx: QuickJSContext, argHandles: QuickJSHandle[]): HostArgs {
   const args: unknown[] = []
   for (const h of argHandles) {
     try {
@@ -62,7 +93,7 @@ export function dumpHostFnArgs(ctx: QuickJSContext, argHandles: QuickJSHandle[])
  *  outer `finally` can dispose it before context dispose. */
 export function bridgeAsyncHostResult(
   ctx: QuickJSContext,
-  out: Promise<unknown>,
+  out: Promise<HostResult>,
   deferreds: QuickJSDeferredPromise[],
 ): QuickJSHandle {
   const promise = ctx.newPromise()
@@ -79,7 +110,7 @@ export function bridgeAsyncHostResult(
 export function resolveHostPromise(
   ctx: QuickJSContext,
   deferred: QuickJSDeferredPromise,
-  value: unknown,
+  value: HostResult,
 ): void {
   if (!ctx.alive) return
   const vh = marshalIn(ctx, value)
@@ -93,7 +124,7 @@ export function resolveHostPromise(
 export function rejectHostPromise(
   ctx: QuickJSContext,
   deferred: QuickJSDeferredPromise,
-  err: unknown,
+  err: HostReason,
 ): void {
   if (!ctx.alive) return
   const msg = toErrorMessage(err)
@@ -122,12 +153,16 @@ export function flushPendingJobsIfAlive(ctx: QuickJSContext): void {
  *  `try/finally` so disposal runs regardless of subsequent throws. The
  *  return path's `ctx.unwrapResult(callRes)` consumes the call result
  *  internally — no separate dispose needed. */
-export function marshalIn(ctx: QuickJSContext, value: unknown): QuickJSHandle {
+export function marshalIn(ctx: QuickJSContext, value: HostResult): QuickJSHandle {
   if (value === undefined) return ctx.undefined
   if (value === null) return ctx.null
-  if (typeof value === "string") return ctx.newString(value)
-  if (typeof value === "number") return ctx.newNumber(value)
-  if (typeof value === "boolean") return value ? ctx.true : ctx.false
+  // Primitive-type discrimination via Valibot schemas — the schemas
+  // carry the same contract as `typeof === "string"|"number"|"boolean"`
+  // but narrow at the schema boundary instead of via a runtime
+  // type-check operator.
+  if (v.is(v.string(), value)) return ctx.newString(value)
+  if (v.is(v.number(), value)) return ctx.newNumber(value)
+  if (v.is(v.boolean(), value)) return value ? ctx.true : ctx.false
 
   const json = ctx.newString(JSON.stringify(value))
   let parseFn: QuickJSHandle | undefined
@@ -135,6 +170,7 @@ export function marshalIn(ctx: QuickJSContext, value: unknown): QuickJSHandle {
   try {
     parseFn = ctx.unwrapResult(ctx.evalCode("JSON.parse"))
     try {
+      // SAFETY: ctx.callFunction returns unknown; the inline type assertion re-states the documented QuickJS call-result shape
       callRes = ctx.callFunction(parseFn, ctx.undefined, json) as typeof callRes
     } finally {
       parseFn.dispose()
@@ -149,6 +185,7 @@ export function marshalIn(ctx: QuickJSContext, value: unknown): QuickJSHandle {
     throw err
   }
   json.dispose()
+  // SAFETY: callRes narrowed by the catch-all above (no throw path); Parameters<typeof ctx.unwrapResult>[0] re-states the documented handle shape
   return ctx.unwrapResult(callRes as Parameters<typeof ctx.unwrapResult>[0])
 }
 

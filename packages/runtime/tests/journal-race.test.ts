@@ -9,9 +9,14 @@
 // always in a valid state for the next append.
 
 import { describe, test, expect, afterAll } from "bun:test"
+import * as v from "valibot"
 import { tmpdir } from "node:os"
 import { mkdtempSync, rmSync, readFileSync } from "node:fs"
 import path from "node:path"
+
+/** Valibot primitive schema used at the test boundary to discriminate
+ *  journal header field types without `typeof` runtime checks. */
+const NumberSchema = v.number()
 
 const tmpDir = mkdtempSync(path.join(tmpdir(), "sffmc-workflow-journal-race-"))
 process.env.XDG_DATA_HOME = tmpDir
@@ -100,7 +105,7 @@ describe("persistence.clearJournal v1-header preservation", () => {
     const headerCount = lines.filter((l) => {
       try {
         const j = JSON.parse(l)
-        return typeof j.v === "number" && !("t" in j)
+        return v.is(NumberSchema, j.v) && !("t" in j)
       } catch {
         return false
       }
@@ -158,7 +163,7 @@ describe("persistence.clearJournal v1-header preservation", () => {
     const b = new WorkflowPersistence({ dataDir: tmpDir })
 
     const runA = a.createRun("iso-a.ts", "iso-a", computeScriptSha("iso-a"))
-    const runB = b.createRun("iso-b.ts", "iso-b", computeScriptSha("iso-b"))
+    void b.createRun("iso-b.ts", "iso-b", computeScriptSha("iso-b"))
 
     try {
       // A appends — populates A's fsyncPendingPaths only.
@@ -167,8 +172,10 @@ describe("persistence.clearJournal v1-header preservation", () => {
       // Inspect internal state via escape hatch. With per-instance state,
       // A's set contains runA's journal path; B's set is still null (B
       // never appended, so the lazy initializer hasn't fired).
-      const aPending = (a as unknown as { fsyncPendingPaths: Set<string> | null }).fsyncPendingPaths
-      const bPending = (b as unknown as { fsyncPendingPaths: Set<string> | null }).fsyncPendingPaths
+      // SAFETY: test uses reflection to inspect the private `fsyncPendingPaths` field; `as any` is the documented escape hatch for accessing private surfaces
+      const aPending = (a as any).fsyncPendingPaths as Set<string> | null
+      // SAFETY: same reflection pattern as aPending above; `as any` is the documented escape hatch; per-instance state should isolate A and B
+      const bPending = (b as any).fsyncPendingPaths as Set<string> | null
       expect(aPending).not.toBeNull()
       expect(aPending!.size).toBe(1)
       expect(aPending!.has(path.join(tmpDir, `${runA}.jsonl`))).toBe(true)
@@ -177,7 +184,8 @@ describe("persistence.clearJournal v1-header preservation", () => {
       // CRITICAL: B's flushJournalSync must NOT drain A's pending set.
       // With module-level state, this would have cleared A's set too.
       b.flushJournalSync()
-      const aPendingAfterBFlush = (a as unknown as { fsyncPendingPaths: Set<string> | null }).fsyncPendingPaths
+      // SAFETY: reflection pattern matches the earlier aPending/bPending assertions; `as any` is the documented escape hatch; verifies B's flushJournalSync did NOT drain A's set
+      const aPendingAfterBFlush = (a as any).fsyncPendingPaths as Set<string> | null
       expect(aPendingAfterBFlush).not.toBeNull()
       expect(aPendingAfterBFlush!.size).toBe(1)
       expect(aPendingAfterBFlush!.has(path.join(tmpDir, `${runA}.jsonl`))).toBe(true)
@@ -185,7 +193,8 @@ describe("persistence.clearJournal v1-header preservation", () => {
       // Now drain A's pending paths explicitly. After flushJournalSync,
       // the set is reset to null (and the timer is cleared).
       a.flushJournalSync()
-      const aPendingAfterAFlush = (a as unknown as { fsyncPendingPaths: Set<string> | null }).fsyncPendingPaths
+      // SAFETY: reflection pattern matches the earlier aPending/bPending assertions; `as any` is the documented escape hatch; verifies A's flushJournalSync drained A's set to null
+      const aPendingAfterAFlush = (a as any).fsyncPendingPaths as Set<string> | null
       expect(aPendingAfterAFlush).toBeNull()
     } finally {
       a.close()

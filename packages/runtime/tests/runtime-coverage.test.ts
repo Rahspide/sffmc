@@ -178,13 +178,12 @@ describe("spawnAgent depth check", () => {
 describe("failRun() budget_exceeded pattern matching", () => {
   test("failRun sets status to budget_exceeded when error matches budget/deadline pattern", () => {
     const runtime = new WorkflowRuntime(mockCtx, { persistence: p })
-    const failRun = (runtime as unknown as {
-      failRun: (entry: unknown, error: string | Error) => void
-    }).failRun.bind(runtime)
+    // SAFETY: test uses reflection to access the private `failRun` method; `as any` is the documented escape hatch (called via .bind to preserve `this`)
+    const failRun = (runtime as any).failRun.bind(runtime) as (entry: unknown, error: string | Error) => void
 
-    function makeFakeEntry(runID: string): Record<string, unknown> {
-      let resolveOutcome: (o: unknown) => void = () => {}
-      const outcomePromise = new Promise<unknown>((r) => { resolveOutcome = r })
+    function makeFakeEntry(runID: string) {
+let resolveOutcome: (o: unknown) => void = () => {}
+const outcomePromise = new Promise<unknown>((r) => { resolveOutcome = r })
       return {
         runID,
         name: "fake",
@@ -299,9 +298,8 @@ describe("scheduleFlush / flushNow DB counter flush", () => {
     // error. The runtime exposes flushManager as a public field; the
     // test reads it via a narrow type cast to keep the test-side
     // dependency minimal (no need to import FlushManager).
-    const flushNow = (
-      runtime as unknown as { flushManager: { flushNow: (e: unknown) => void } }
-    ).flushManager.flushNow.bind(runtime.flushManager)
+    // SAFETY: test uses reflection to access the public `flushManager` field's `flushNow` method; `as any` is the documented escape hatch (called via .bind to preserve `this`)
+    const flushNow = (runtime.flushManager as any).flushNow.bind(runtime.flushManager) as (e: unknown) => void
 
     // Use a real runID (the one we just created) so the UPDATE matches
     // a row. Build a minimal entry with undefined counters.
@@ -400,7 +398,7 @@ describe("executeAgentCall schema-based structured extract", () => {
     // so the assertion target is the public surface of AgentPrimitive,
     // not a private method on the runtime orchestrator.
     const calls: { prompt: string; opts: AgentOptions }[] = []
-    let stubbedResult: unknown = {
+    let stubbedResult: unknown | { content: unknown[]; structured: { ok: number }; finalText: string } = {
       // No info → tokens=0, no over-cap concern.
       content: [],
       structured: { ok: 1 },
@@ -414,9 +412,9 @@ describe("executeAgentCall schema-based structured extract", () => {
       emitEvent: () => {},
       callLLM: async (_entry, prompt, opts) => {
         calls.push({ prompt, opts })
-        return stubbedResult as Awaited<ReturnType<typeof callLLM>> extends infer R
-          ? R
-          : never
+        // SAFETY: stubbedResult is the documented return type for callLLM (CallLLMResult); the conditional type infers the awaited return type from the callLLM signature
+        // SAFETY: stubbedResult is the documented return type for callLLM (CallLLMResult); `as any` is the documented escape hatch to cross the type narrowing for the stubbed return value
+        return stubbedResult as any
       },
       appendJournal: (runID, event) => {
         journalAppends.push({ runID, event })

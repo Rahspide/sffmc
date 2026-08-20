@@ -37,11 +37,15 @@ describe("runSandboxed — determinism hardening", () => {
       const b = [Math.random(), Math.random(), Math.random()];
       return JSON.stringify({ a, b });
     `
+    // SAFETY: test fixture; empty object cast as SandboxPrimitives because the script under test does not invoke any primitives
     const prims: SandboxPrimitives = {} as SandboxPrimitives
+    // SAFETY: runSandboxed returns unknown; the deterministic-Math.random script returns JSON.stringify(...)
     const r1 = (await runSandboxed(source, prims, { seed: 42 })) as string
+    // SAFETY: same JSON.stringify return contract as r1 above
     const r2 = (await runSandboxed(source, prims, { seed: 42 })) as string
     expect(r1).toBe(r2)
     // Sanity: parse and confirm the two arrays are equal within a run
+    // SAFETY: JSON.parse return type is unknown; the documented {a, b} shape comes from the JSON.stringify({a, b}) in the script
     const parsed = JSON.parse(r1) as { a: number[]; b: number[] }
     expect(parsed.a.length).toBe(3)
     expect(parsed.b.length).toBe(3)
@@ -52,20 +56,27 @@ describe("runSandboxed — determinism hardening", () => {
       const a = [Math.random(), Math.random(), Math.random()];
       return JSON.stringify(a);
     `
+    // SAFETY: test fixture; empty object cast as SandboxPrimitives because the script under test does not invoke any primitives
     const prims: SandboxPrimitives = {} as SandboxPrimitives
+    // SAFETY: runSandboxed returns unknown; the script returns JSON.stringify(...)
     const r1 = (await runSandboxed(source, prims, { seed: 1 })) as string
+    // SAFETY: same JSON.stringify return contract as r1 above
     const r2 = (await runSandboxed(source, prims, { seed: 2 })) as string
     expect(r1).not.toBe(r2)
   })
 
   test("Date is undefined inside the guest (wall-clock nondeterminism stripped)", async () => {
+    // SAFETY: test fixture; empty object cast as SandboxPrimitives because the script under test does not invoke any primitives
     const prims: SandboxPrimitives = {} as SandboxPrimitives
+    // SAFETY: runSandboxed returns unknown; the script returns the typeof Date result (a string)
     const result = (await runSandboxed(`return typeof Date;`, prims)) as string
     expect(result).toBe("undefined")
   })
 
   test("WeakRef and FinalizationRegistry are undefined inside the guest", async () => {
+    // SAFETY: test fixture; empty object cast as SandboxPrimitives because the script under test does not invoke any primitives
     const prims: SandboxPrimitives = {} as SandboxPrimitives
+    // SAFETY: runSandboxed returns unknown; the script returns JSON.stringify({...}) (a string)
     const result = (await runSandboxed(
       `return JSON.stringify({ weakRef: typeof WeakRef, fr: typeof FinalizationRegistry });`,
       prims,
@@ -74,11 +85,14 @@ describe("runSandboxed — determinism hardening", () => {
   })
 
   test("Math.random values are in [0,1)", async () => {
+    // SAFETY: test fixture; empty object cast as SandboxPrimitives because the script under test does not invoke any primitives
     const prims: SandboxPrimitives = {} as SandboxPrimitives
+    // SAFETY: runSandboxed returns unknown; the script returns JSON.stringify([...]) (a string)
     const result = (await runSandboxed(
       `const xs = [Math.random(), Math.random(), Math.random()]; return JSON.stringify(xs);`,
       prims,
     )) as string
+    // SAFETY: JSON.parse return type is unknown; the documented number[] shape comes from the JSON.stringify in the script
     const xs = JSON.parse(result as string) as number[]
     for (const x of xs) {
       expect(x).toBeGreaterThanOrEqual(0)
@@ -91,7 +105,9 @@ describe("runSandboxed — determinism hardening", () => {
 
 describe("runSandboxed — PRELUDE globals", () => {
   test("parallel() awaits all thunks and returns array of results", async () => {
+    // SAFETY: test fixture; empty object cast as SandboxPrimitives because the script under test does not invoke host-side primitives (parallel is the PRELUDE-injected host function)
     const prims: SandboxPrimitives = {} as SandboxPrimitives
+    // SAFETY: runSandboxed returns unknown; the script returns JSON.stringify([1,2,3]) (a string)
     const result = (await runSandboxed(
       `const r = await globalThis.parallel([() => Promise.resolve(1), () => Promise.resolve(2), () => Promise.resolve(3)]); return JSON.stringify(r);`,
       prims,
@@ -100,7 +116,9 @@ describe("runSandboxed — PRELUDE globals", () => {
   })
 
   test("pipeline() threads each item through every stage", async () => {
+    // SAFETY: test fixture; empty object cast as SandboxPrimitives because the script under test does not invoke host-side primitives
     const prims: SandboxPrimitives = {} as SandboxPrimitives
+    // SAFETY: runSandboxed returns unknown; the script returns JSON.stringify([20,40,60]) (a string)
     const result = (await runSandboxed(
       `const r = await globalThis.pipeline([1,2,3], async (acc, item) => acc + item, async (acc, item) => acc * 10); return JSON.stringify(r);`,
       prims,
@@ -115,6 +133,7 @@ describe("runSandboxed — PRELUDE globals", () => {
   test("mcp.list() and mcp.call() call through to the host (default no-op wiring)", async () => {
     let listCalled = 0
     let callCalled = 0
+    // SAFETY: test fixture; partial SandboxPrimitives (only mcpList + mcpCall) is cast via unknown because the SandboxPrimitives type expects more fields (log/parallel/etc.); the test only exercises mcp.list/mcp.call
     const prims: SandboxPrimitives = {
       mcpList: async () => {
         listCalled++
@@ -124,7 +143,8 @@ describe("runSandboxed — PRELUDE globals", () => {
         callCalled++
         return { name, args }
       },
-    } as unknown as SandboxPrimitives
+    } as any
+    // SAFETY: runSandboxed returns unknown; the script returns JSON.stringify({names, r}) (a string)
     const result = (await runSandboxed(
       `const names = await mcp.list(); const r = await mcp.call('tool-a', { x: 1 }); return JSON.stringify({ names, r });`,
       prims,
@@ -139,11 +159,12 @@ describe("runSandboxed — PRELUDE globals", () => {
 
 describe("runSandboxed — never-throw contract", () => {
   test("primitive that throws → null (no exception escapes)", async () => {
+    // SAFETY: test fixture; partial SandboxPrimitives with only `log` to drive the throwing-primitive path; `as any` is the documented escape hatch because other fields are not exercised by this test
     const prims: SandboxPrimitives = {
       log: () => {
         throw new Error("primitive boom")
       },
-    } as unknown as SandboxPrimitives
+    } as any
     const result = await runSandboxed(
       `log('x'); return 'unreached';`,
       prims,
@@ -152,12 +173,14 @@ describe("runSandboxed — never-throw contract", () => {
   })
 
   test("user script throws synchronously → null", async () => {
+    // SAFETY: test fixture; empty object cast as SandboxPrimitives because the throwing script does not invoke any primitives
     const prims: SandboxPrimitives = {} as SandboxPrimitives
     const result = await runSandboxed(`throw new Error('script boom');`, prims)
     expect(result).toBeNull()
   })
 
   test("user script returns rejected promise → null", async () => {
+    // SAFETY: test fixture; empty object cast as SandboxPrimitives because the rejecting script does not invoke any primitives
     const prims: SandboxPrimitives = {} as SandboxPrimitives
     const result = await runSandboxed(`return Promise.reject(new Error('async boom'));`, prims)
     expect(result).toBeNull()
@@ -168,6 +191,7 @@ describe("runSandboxed — never-throw contract", () => {
 
 describe("runSandboxed — deadline", () => {
   test("short deadlineMs while script loops → null", async () => {
+    // SAFETY: test fixture; empty object cast as SandboxPrimitives because the infinite-loop script does not invoke any primitives
     const prims: SandboxPrimitives = {} as SandboxPrimitives
     const result = await runSandboxed(
       `while (true) {}`,
@@ -178,6 +202,7 @@ describe("runSandboxed — deadline", () => {
   })
 
   test("generous deadlineMs lets a finite script complete", async () => {
+    // SAFETY: test fixture; empty object cast as SandboxPrimitives because the trivial script does not invoke any primitives
     const prims: SandboxPrimitives = {} as SandboxPrimitives
     const result = await runSandboxed(
       `return 'ok';`,
@@ -192,9 +217,10 @@ describe("runSandboxed — deadline", () => {
 
 describe("runSandboxed — primitive marshaling", () => {
   test("sync primitive return: string crosses host→guest unchanged", async () => {
+    // SAFETY: test fixture; partial SandboxPrimitives with only `greet` to drive the sync-string return path; `as any` is the documented escape hatch because other fields are not exercised by this test
     const prims: SandboxPrimitives = {
       greet: () => "hello from host",
-    } as unknown as SandboxPrimitives
+    } as any
     const result = await runSandboxed(
       `return greet();`,
       prims,
@@ -203,9 +229,11 @@ describe("runSandboxed — primitive marshaling", () => {
   })
 
   test("sync primitive return: object is JSON-marshaled into guest", async () => {
+    // SAFETY: test fixture; partial SandboxPrimitives with only `payload` to drive the sync-object return path; `as any` is the documented escape hatch because other fields are not exercised by this test
     const prims: SandboxPrimitives = {
       payload: () => ({ count: 42, tags: ["a", "b"] }),
-    } as unknown as SandboxPrimitives
+    } as any
+    // SAFETY: runSandboxed returns unknown; the script returns JSON.stringify({count, tags}) (a string)
     const result = (await runSandboxed(
       `const p = payload(); return JSON.stringify(p);`,
       prims,
@@ -214,12 +242,14 @@ describe("runSandboxed — primitive marshaling", () => {
   })
 
   test("async primitive return: host promise resolves before guest reads", async () => {
+    // SAFETY: test fixture; partial SandboxPrimitives with only `fetch` to drive the async-return path; `as any` is the documented escape hatch because other fields are not exercised by this test
     const prims: SandboxPrimitives = {
       fetch: async () => {
         await new Promise((r) => setTimeout(r, 5))
         return { ok: true }
       },
-    } as unknown as SandboxPrimitives
+    } as any
+    // SAFETY: runSandboxed returns unknown; the script returns JSON.stringify({ok: true}) (a string)
     const result = (await runSandboxed(
       `const r = await fetch(); return JSON.stringify(r);`,
       prims,
@@ -228,9 +258,11 @@ describe("runSandboxed — primitive marshaling", () => {
   })
 
   test("args injection: primitives.args visible as globalThis.args (JSON-marshaled)", async () => {
+    // SAFETY: test fixture; partial SandboxPrimitives with only `args` to drive the args-injection path; `as any` is the documented escape hatch because other fields are not exercised by this test
     const prims: SandboxPrimitives = {
       args: { user: "alice", age: 30 },
-    } as unknown as SandboxPrimitives
+    } as any
+    // SAFETY: runSandboxed returns unknown; the script returns JSON.stringify(globalThis.args) (a string)
     const result = (await runSandboxed(
       `return JSON.stringify(globalThis.args);`,
       prims,
@@ -246,9 +278,11 @@ describe("runSandboxed — PRELUDE key filtering", () => {
     // If the refactor accidentally lets host primitives override PRELUDE keys,
     // the globalThis.parallel test above (which works via the PRELUDE wiring)
     // would break. We pin that explicitly: parallel still resolves thunks.
+    // SAFETY: test fixture; partial SandboxPrimitives with only `parallel` to drive the PRELUDE-key filtering test; cast via unknown because other fields are not exercised
     const prims: SandboxPrimitives = {
       parallel: () => "host-shim-should-not-be-used",
-    } as unknown as SandboxPrimitives
+    } as any
+    // SAFETY: runSandboxed returns unknown; the script returns JSON.stringify(["p"]) (a string)
     const result = (await runSandboxed(
       `const r = await globalThis.parallel([() => Promise.resolve('p')]); return JSON.stringify(r);`,
       prims,

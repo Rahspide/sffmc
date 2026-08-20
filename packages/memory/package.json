@@ -7,6 +7,7 @@
   "dependencies": {
     "@sffmc/utilities": "workspace:*",
     "chokidar": "^5.0.0",
+    "valibot": "^0.42.1",
     "yaml": "^2.0.0"
   },
   "scripts": {

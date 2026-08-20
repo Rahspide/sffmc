@@ -1,7 +1,22 @@
 import { resolve as resolvePath } from "node:path";
-import { compileRules, type CompiledRule, type Rules, type Action } from "./rules";
+import * as v from "valibot";
+import { compileRules, type CompiledRule, type Rules } from "./rules";
 import { normalizeCommand } from "./normalize";
 import { anchoredTest } from "./compileRules";
+
+/** Tool-call arguments relevant to the safety gate. Only the keys the
+ *  gate actually inspects (command for `bash`, file paths for
+ *  `path_outside` checks) are typed; other tool-specific fields are
+ *  not part of the gate's contract. */
+export interface ToolArgs {
+  command?: string;
+  filePath?: string;
+  path?: string;
+  paths?: string[] | string;
+  from?: string;
+  to?: string;
+  workdir?: string;
+}
 
 /**
  * Evaluate a tool call against the rule list. Accepts either:
@@ -32,9 +47,9 @@ import { anchoredTest } from "./compileRules";
 export function evaluate(
   rulesInput: CompiledRule[] | Rules,
   toolName: string,
-  args: Record<string, unknown> | undefined,
+  args: ToolArgs | undefined,
   projectRoot: string,
-): { action: Action; reason: string } {
+) {
   try {
     // Two-phase matching (v0.15.2 § 1):
     //
@@ -52,7 +67,8 @@ export function evaluate(
     //
     // Mutating fresh locals (not the caller's object) keeps the API
     // total without side effects on the caller's args.
-    const isBash = toolName === "bash" && typeof args?.command === "string";
+    const isBash = toolName === "bash" && v.is(v.string(), args?.command);
+    // SAFETY: `isBash` guard above guarantees `args?.command` is a string; the non-null assertion + cast re-state the documented command-string shape
     const rawCommand = isBash ? (args!.command as string) : null;
     const normalizedArgs = isBash
       ? { ...args, command: normalizeCommand(rawCommand!) }
@@ -80,6 +96,7 @@ export function evaluate(
               };
             }
           } else if (
+            // SAFETY: `normalizedArgs` is the documented `args` shape with a string `command` after the `isBash` check on line above; the non-null assertion + cast re-state the documented command-string shape
             anchoredTest(
               normalizedArgs!.command as string,
               rule.commandMatch.regex,
@@ -129,20 +146,20 @@ export function evaluate(
 function isRules(input: CompiledRule[] | Rules): input is Rules {
   // `Rules` is `{ version, rules: Rule[] }`; `CompiledRule[]` is a bare
   // array. The discriminator is the presence of the `rules` property.
-  return !Array.isArray(input) && typeof input === "object" && "rules" in input;
+  return !Array.isArray(input) && v.is(v.object({}), input) && "rules" in input;
 }
 
-function extractPaths(args: Record<string, unknown> | undefined): string[] {
+function extractPaths(args: ToolArgs | undefined): string[] {
   const paths: string[] = [];
-  if (!args || typeof args !== "object") return paths;
+  if (!args || !v.is(v.object({}), args)) return paths;
 
-  const pathKeys = ["filePath", "path", "paths", "from", "to", "workdir"];
+  const pathKeys: (keyof ToolArgs)[] = ["filePath", "path", "paths", "from", "to", "workdir"];
   for (const pathKey of pathKeys) {
     const argValue = args[pathKey];
-    if (typeof argValue === "string") paths.push(argValue);
+    if (v.is(v.string(), argValue)) paths.push(argValue);
     if (Array.isArray(argValue)) {
       for (const pathItem of argValue) {
-        if (typeof pathItem === "string") paths.push(pathItem);
+        if (v.is(v.string(), pathItem)) paths.push(pathItem);
       }
     }
   }

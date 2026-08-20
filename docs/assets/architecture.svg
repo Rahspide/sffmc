@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 460" width="760" height="460" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <defs>
+    <linearGradient id="cliGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1f6feb"/>
+      <stop offset="100%" stop-color="#1158c7"/>
+    </linearGradient>
+    <linearGradient id="compositeGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#d97706"/>
+    </linearGradient>
+    <linearGradient id="standaloneGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#a78bfa"/>
+      <stop offset="100%" stop-color="#7c3aed"/>
+    </linearGradient>
+    <linearGradient id="libraryGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#6b7280"/>
+      <stop offset="100%" stop-color="#4b5563"/>
+    </linearGradient>
+    <marker id="arrowDown" viewBox="0 0 10 10" refX="5" refY="9" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 5 10 L 10 0 z" fill="#8b949e"/>
+    </marker>
+    <filter id="cardShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+
+  <rect width="760" height="460" fill="#0d1117"/>
+
+  <!-- Title -->
+  <text x="380" y="32" text-anchor="middle" font-size="18" font-weight="600" fill="#c9d1d9">SFFMC plugin architecture</text>
+  <text x="380" y="52" text-anchor="middle" font-size="12" fill="#8b949e">composite pattern · hot-pluggable · 4 plugins + 1 shared library</text>
+
+  <!-- OpenCode CLI node -->
+  <g filter="url(#cardShadow)">
+    <rect x="290" y="80" width="180" height="50" rx="8" fill="url(#cliGrad)" stroke="#1f6feb" stroke-width="1"/>
+    <text x="380" y="105" text-anchor="middle" font-size="14" font-weight="600" fill="#ffffff">OpenCode CLI</text>
+    <text x="380" y="121" text-anchor="middle" font-size="11" fill="#c9d1d9" opacity="0.85">plugin slot</text>
+  </g>
+
+  <!-- Single trunk from CLI to junction -->
+  <line x1="380" y1="130" x2="380" y2="178" stroke="#8b949e" stroke-width="1.5"/>
+
+  <!-- Junction dot -->
+  <circle cx="380" cy="180" r="4" fill="#8b949e"/>
+
+  <!-- Branch lines from junction to each plugin top (smooth, no arrow heads on these) -->
+  <!-- Plugin top centers: safety 100, memory 240, runtime 380, cognition 520, utilities 660, all at y=230 -->
+  <line x1="380" y1="184" x2="100" y2="226" stroke="#8b949e" stroke-width="1.2" opacity="0.7"/>
+  <line x1="380" y1="184" x2="240" y2="226" stroke="#8b949e" stroke-width="1.2" opacity="0.7"/>
+  <line x1="380" y1="184" x2="380" y2="226" stroke="#8b949e" stroke-width="1.2" opacity="0.7"/>
+  <line x1="380" y1="184" x2="520" y2="226" stroke="#8b949e" stroke-width="1.2" opacity="0.7"/>
+  <line x1="380" y1="184" x2="660" y2="226" stroke="#8b949e" stroke-width="1.2" opacity="0.7"/>
+
+  <!-- Plugin 1: safety (composite) -->
+  <g filter="url(#cardShadow)">
+    <rect x="40" y="230" width="120" height="80" rx="8" fill="url(#compositeGrad)" stroke="#d97706" stroke-width="1"/>
+    <text x="100" y="252" text-anchor="middle" font-size="11" font-weight="600" fill="#ffffff">🛡 safety</text>
+    <text x="100" y="270" text-anchor="middle" font-size="9" fill="#fef3c7">composite</text>
+    <text x="100" y="288" text-anchor="middle" font-size="9" fill="#fef3c7" opacity="0.8">watchdog · gates</text>
+    <text x="100" y="302" text-anchor="middle" font-size="9" fill="#fef3c7" opacity="0.8">auto-max</text>
+  </g>
+
+  <!-- Plugin 2: memory (composite) -->
+  <g filter="url(#cardShadow)">
+    <rect x="180" y="230" width="120" height="80" rx="8" fill="url(#compositeGrad)" stroke="#d97706" stroke-width="1"/>
+    <text x="240" y="252" text-anchor="middle" font-size="11" font-weight="600" fill="#ffffff">💾 memory</text>
+    <text x="240" y="270" text-anchor="middle" font-size="9" fill="#fef3c7">composite</text>
+    <text x="240" y="288" text-anchor="middle" font-size="9" fill="#fef3c7" opacity="0.8">FTS5 · dream</text>
+    <text x="240" y="302" text-anchor="middle" font-size="9" fill="#fef3c7" opacity="0.8">checkpoint</text>
+  </g>
+
+  <!-- Plugin 3: runtime (standalone) -->
+  <g filter="url(#cardShadow)">
+    <rect x="320" y="230" width="120" height="80" rx="8" fill="url(#standaloneGrad)" stroke="#7c3aed" stroke-width="1"/>
+    <text x="380" y="252" text-anchor="middle" font-size="11" font-weight="600" fill="#ffffff">⚙ runtime</text>
+    <text x="380" y="270" text-anchor="middle" font-size="9" fill="#ede9fe">standalone</text>
+    <text x="380" y="288" text-anchor="middle" font-size="9" fill="#ede9fe" opacity="0.8">7 workflows</text>
+    <text x="380" y="302" text-anchor="middle" font-size="9" fill="#ede9fe" opacity="0.8">sandbox · budgets</text>
+  </g>
+
+  <!-- Plugin 4: cognition (standalone) -->
+  <g filter="url(#cardShadow)">
+    <rect x="460" y="230" width="120" height="80" rx="8" fill="url(#standaloneGrad)" stroke="#7c3aed" stroke-width="1"/>
+    <text x="520" y="252" text-anchor="middle" font-size="11" font-weight="600" fill="#ffffff">🧠 cognition</text>
+    <text x="520" y="270" text-anchor="middle" font-size="9" fill="#ede9fe">standalone</text>
+    <text x="520" y="288" text-anchor="middle" font-size="9" fill="#ede9fe" opacity="0.8">max-mode</text>
+    <text x="520" y="302" text-anchor="middle" font-size="9" fill="#ede9fe" opacity="0.8">judge · compose</text>
+  </g>
+
+  <!-- Library: utilities (no plugin slot) -->
+  <g filter="url(#cardShadow)">
+    <rect x="600" y="230" width="120" height="80" rx="8" fill="url(#libraryGrad)" stroke="#4b5563" stroke-width="1" stroke-dasharray="4 2"/>
+    <text x="660" y="252" text-anchor="middle" font-size="11" font-weight="600" fill="#ffffff">🔧 utilities</text>
+    <text x="660" y="270" text-anchor="middle" font-size="9" fill="#e5e7eb">library</text>
+    <text x="660" y="288" text-anchor="middle" font-size="9" fill="#e5e7eb" opacity="0.8">config · hooks</text>
+    <text x="660" y="302" text-anchor="middle" font-size="9" fill="#e5e7eb" opacity="0.8">merge · paths</text>
+  </g>
+
+  <!-- Bottom note -->
+  <g transform="translate(0, 350)">
+    <rect x="40" y="0" width="680" height="80" rx="6" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+    <text x="60" y="22" font-size="11" font-weight="600" fill="#c9d1d9">💡 Read the rule</text>
+    <text x="60" y="40" font-size="10" fill="#8b949e">Safety &amp; Memory are <tspan fill="#f59e0b" font-weight="600">composites</tspan> — they read from other plugins but never write into them.</text>
+    <text x="60" y="56" font-size="10" fill="#8b949e">Runtime &amp; Cognition are <tspan fill="#a78bfa" font-weight="600">standalones</tspan> — they own their slot only.</text>
+    <text x="60" y="72" font-size="10" fill="#8b949e">Utilities is a <tspan fill="#9ca3af" font-weight="600">library</tspan>, not a plugin — consumed by the other four.</text>
+  </g>
+</svg>

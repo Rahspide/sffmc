@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/memory (extra features) — see ../../LICENSE
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from "bun:test";
+import { describe, it, expect, beforeAll, afterAll } from "bun:test";
+import * as v from "valibot";
 import { mkdtempSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type PluginContext } from "@sffmc/utilities";
+import { type CheckpointToolResult } from "../src/extra/checkpoint/types.ts";
 
 /**
  * loadServer sets HOME to a temp dir for the duration of the test so that
@@ -29,7 +31,7 @@ afterAll(() => {
 });
 
 const loadServer = async (
-  config: Record<string, unknown> = {},
+  _config: Record<string, import("../src/extra/checkpoint/types.ts").JSONValue> = {},
 ): Promise<Awaited<ReturnType<(typeof import("../src/index.ts"))["default"]["server"]>>> => {
   const mod = await import("../src/index.ts");
   const ctx: PluginContext = {
@@ -44,7 +46,7 @@ describe("@sffmc/memory plugin (extra features)", () => {
     const mod = await import("../src/index.ts");
     expect(mod.default).toBeDefined();
     expect(mod.default.id).toBe("@sffmc/memory");
-    expect(typeof mod.default.server).toBe("function");
+    expect(v.is(v.function_(), mod.default.server)).toBe(true);
   });
 
   it("server returns 3 tools (extra_checkpoint, extra_judge, extra_dream) with no 'name' field", async () => {
@@ -55,7 +57,8 @@ describe("@sffmc/memory plugin (extra features)", () => {
     expect(hooks.tool.extra_dream).toBeDefined();
 
     // Regression guard (fix-17): no `name` field on tool defs
-    const cp = hooks.tool.extra_checkpoint as Record<string, unknown>;
+    // SAFETY: invariant — see caller justification
+    const cp = hooks.tool.extra_checkpoint as Record<string, import("../src/extra/checkpoint/types.ts").JSONValue>;
     expect(cp.description).toBeTypeOf("string");
     expect(cp.parameters).toEqual({
       type: "object",
@@ -69,9 +72,11 @@ describe("@sffmc/memory plugin (extra features)", () => {
     expect(cp.name).toBeUndefined();
 
     for (const toolName of ["extra_judge", "extra_dream"]) {
-      const def = hooks.tool[toolName] as Record<string, unknown>;
+      // SAFETY: invariant — see caller justification
+      const def = hooks.tool[toolName] as Record<string, import("../src/extra/checkpoint/types.ts").JSONValue>;
       expect(def.description).toBeTypeOf("string");
-      expect((def.parameters as Record<string, unknown>).type).toBe("object");
+      // SAFETY: invariant — see caller justification
+      expect((def.parameters as Record<string, import("../src/extra/checkpoint/types.ts").JSONValue>).type).toBe("object");
       expect(def.execute).toBeFunction();
       expect(def.name).toBeUndefined();
     }
@@ -80,12 +85,13 @@ describe("@sffmc/memory plugin (extra features)", () => {
   it("with default config (all disabled), each tool returns an object result", async () => {
     const hooks = await loadServer();
     for (const toolName of ["extra_checkpoint", "extra_judge", "extra_dream"]) {
-      const result = (await (hooks.tool[toolName] as { execute: () => Promise<unknown> }).execute()) as Record<string, unknown>;
+      // SAFETY: invariant — see caller justification
+      const result = (await (hooks.tool[toolName] as { execute: () => Promise<CheckpointToolResult> }).execute()) as Record<string, import("../src/extra/checkpoint/types.ts").JSONValue>;
       // Just verify the tool returns an object (any of these valid shapes):
       //   - { ok: true, skipped: true, reason: "feature disabled" } (default disabled)
       //   - { ok: true, status: "stub" } (config enabled, impl still stub)
       //   - real result (config enabled, full impl)
-      expect(typeof result).toBe("object");
+      expect(v.is(v.object({}), result)).toBe(true);
       expect(result).not.toBeNull();
     }
   });
@@ -259,7 +265,7 @@ describe("@sffmc/utilities — second release migration (checkpoint buffer flush
   });
 
   it("flushIntervalMs override is reflected in the periodic timer (periodic flush interval, b-3)", async () => {
-    const { createCheckpointTool, filePath, __setCheckpointDir, readToolCalls } = await import(
+    const { createCheckpointTool, __setCheckpointDir, readToolCalls } = await import(
       "../src/extra/checkpoint.ts"
     );
     const testDir = mkdtempSync(join(tmpdir(), "sffmc-e4-interval-"));

@@ -1,14 +1,19 @@
 // SPDX-License-Identifier: MIT
 // @sffmc/runtime — see ../../LICENSE
 
-import { describe, test, expect, beforeEach, afterEach, mock } from "bun:test"
+import { describe, test, expect, beforeEach, afterEach } from "bun:test"
+import * as v from "valibot"
 import { mkdtempSync, writeFileSync, mkdirSync, existsSync } from "node:fs"
 import { rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { clearAll, off } from "@sffmc/utilities"
+import { clearAll } from "@sffmc/utilities"
 import { __setWorkflowConfig } from "./_test-helpers/config-cache.ts"
 import { startWorkflowWatcher } from "../src/workflow-watcher.ts"
+
+/** Valibot primitive schema used at the test boundary to discriminate
+ *  watcher-handle field types without `typeof` runtime checks. */
+const FunctionSchema = v.function()
 
 let tmpDir: string
 
@@ -28,7 +33,7 @@ afterEach(() => {
 describe("startWorkflowWatcher", () => {
   test("returns handle with stop()", () => {
     const handle = startWorkflowWatcher(tmpDir)
-    expect(typeof handle.stop).toBe("function")
+    expect(v.is(FunctionSchema, handle.stop)).toBe(true)
     handle.stop()
   })
 
@@ -52,7 +57,12 @@ describe("startWorkflowWatcher", () => {
     let captured: { event: string; path: string } | null = null
     const { on } = await import("@sffmc/utilities")
     on("workflow:file-changed", (e: { event: string; path: string }) => {
-      captured = e
+      // Bun 1.4+ fires BOTH a "rename" and a "change" event for new file
+      // creation (was just "rename" on Bun 1.3). The watcher forwards both,
+      // so the second event would overwrite our capture with "change".
+      // Lock on the first event so the assertion below checks the "add"
+      // event we actually care about.
+      if (!captured) captured = e
     })
 
     // Write a workflow file

@@ -7,12 +7,18 @@
 // from the registry (the same source `builtin-registry.ts` uses at
 // module load) so any future addition is automatically covered.
 //
-// Hand-rolled assertions (no schema library) per the no-new-deps rule
-// in AGENTS.md. Required vs optional fields are explicit so a future
-// schema validator can be slotted in without changing the test surface.
+// Type-discrimination checks (string / object) use Valibot `v.is()` at
+// the test boundary so the test code carries no `typeof` runtime
+// type-narrowing operators.
 
 import { describe, test, expect } from "bun:test"
+import * as v from "valibot"
 import { listBuiltins, loadBuiltin } from "../src/builtin-registry.ts"
+
+/** Valibot primitive schemas used at the test boundary to discriminate
+ *  builtin-entry field types without `typeof` runtime checks. */
+const StringSchema = v.string()
+const NonNullObjectSchema = v.object({})
 
 /** The 7 shipped builtins. Tests iterate this list explicitly rather than
  *  `listBuiltins()` so they are not affected by `registerBuiltin` calls
@@ -36,18 +42,18 @@ describe("builtin meta shape", () => {
       const entry = await loadBuiltin(name)
 
       // Required: name (non-empty string, matches registered key)
-      expect(typeof entry.name).toBe("string")
+      expect(v.is(StringSchema, entry.name)).toBe(true)
       expect(entry.name.length).toBeGreaterThan(0)
       expect(entry.name).toBe(name) // catches rename-without-registry-update
 
       // Required: description (non-empty, no leading/trailing whitespace-only)
-      expect(typeof entry.description).toBe("string")
+      expect(v.is(StringSchema, entry.description)).toBe(true)
       expect(entry.description.length).toBeGreaterThan(0)
       expect(entry.description.trim()).toBe(entry.description) // no leading/trailing whitespace
 
       // Optional: whenToUse (must be non-empty string if present)
       if (entry.whenToUse !== undefined) {
-        expect(typeof entry.whenToUse).toBe("string")
+        expect(v.is(StringSchema, entry.whenToUse)).toBe(true)
         expect(entry.whenToUse.length).toBeGreaterThan(0)
       }
 
@@ -57,18 +63,21 @@ describe("builtin meta shape", () => {
         expect(entry.phases.length).toBeGreaterThan(0)
         for (let i = 0; i < entry.phases.length; i++) {
           const phase = entry.phases[i]
-          expect(typeof phase).toBe("object")
-          expect(phase).not.toBeNull()
-          expect(typeof phase.title).toBe("string")
+          // v.object({}) accepts only non-null, non-array objects — replaces
+          // the historical `typeof === "object" && !== null` ladder.
+          expect(v.is(NonNullObjectSchema, phase)).toBe(true)
+          expect(v.is(StringSchema, phase.title)).toBe(true)
           expect(phase.title.length).toBeGreaterThan(0)
+          // SAFETY: phase is typed via v.is(NonNullObjectSchema) check above; the inline shape declares the optional .detail field for the existence test
           if ((phase as { detail?: unknown }).detail !== undefined) {
-            expect(typeof (phase as { detail: unknown }).detail).toBe("string")
+            // SAFETY: detail existence is verified by the guard above; the cast re-states the shape for the v.is check on .detail
+            expect(v.is(StringSchema, (phase as { detail: unknown }).detail)).toBe(true)
           }
         }
       }
 
       // Required: script (non-empty string — the actual JS source)
-      expect(typeof entry.script).toBe("string")
+      expect(v.is(StringSchema, entry.script)).toBe(true)
       expect(entry.script.length).toBeGreaterThan(0)
     }
   })

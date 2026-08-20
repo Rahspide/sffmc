@@ -2,7 +2,12 @@
 // @sffmc/runtime — see ../../LICENSE
 
 import { describe, test, expect } from "bun:test"
+import * as v from "valibot"
 import { registerBuiltin, getBuiltin, listBuiltins, loadBuiltin } from "../src/builtin-registry.ts"
+
+/** Valibot primitive schema used at the test boundary to discriminate
+ *  builtin-entry field types without `typeof` runtime checks. */
+const StringSchema = v.string()
 
 describe("builtin-registry.ts", () => {
   test("listBuiltins returns sorted names of the 7 shipped workflows", () => {
@@ -74,9 +79,9 @@ test("registerBuiltin adds a custom entry; existing entry with same name is over
   test("loadBuiltin returns a complete BuiltinEntry for a shipped workflow", async () => {
     const entry = await loadBuiltin("plan")
     expect(entry.name).toBe("plan")
-    expect(typeof entry.description).toBe("string")
+    expect(v.is(StringSchema, entry.description)).toBe(true)
     expect(entry.description.length).toBeGreaterThan(0)
-    expect(typeof entry.script).toBe("string")
+    expect(v.is(StringSchema, entry.script)).toBe(true)
     expect(entry.script.length).toBeGreaterThan(0)
     // script is the workflow source — must contain a `meta` export.
     expect(entry.script).toMatch(/export\s+const\s+meta\s*=/)
@@ -90,7 +95,7 @@ test("registerBuiltin adds a custom entry; existing entry with same name is over
     expect(entry.phases).toBeDefined()
     expect(entry.phases!.length).toBeGreaterThan(0)
     for (const phase of entry.phases!) {
-      expect(typeof phase.title).toBe("string")
+      expect(v.is(StringSchema, phase.title)).toBe(true)
     }
   })
 })

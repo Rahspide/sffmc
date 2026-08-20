@@ -154,6 +154,7 @@ describe("workflow 200-step E2E", () => {
 
     const outcome = await runtime.wait({ runID, timeoutMs: 10000 })
     expect(outcome.status).toBe("completed")
+    // SAFETY: outcome.status === "completed" narrowed by the line above; result is the documented successful-outcome payload shape (verified by the script's deliverable)
     const result = outcome.result as { count: number; all: boolean }
     expect(result.count).toBe(3)
     expect(result.all).toBe(true)
@@ -186,6 +187,7 @@ describe("workflow 200-step E2E", () => {
 
     const outcome = await runtime.wait({ runID, timeoutMs: 15000 })
     expect(outcome.status).toBe("completed")
+    // SAFETY: outcome.status === "completed" narrowed by the line above; result is the documented successful-outcome payload shape (verified by the script's deliverable)
     const result = outcome.result as { count: number; items: string[] }
     expect(result.count).toBe(3)
     expect(result.items).toEqual(["a", "b", "c"])

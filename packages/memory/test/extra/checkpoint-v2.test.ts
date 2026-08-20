@@ -9,6 +9,7 @@
 // `__migrateV1ToV2InPlace` on first read of a v1 file).
 
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
+import * as v from "valibot";
 import {
   mkdtempSync,
   rmSync,
@@ -27,6 +28,12 @@ import {
   readToolCalls,
   createCheckpointTool,
 } from "../../src/extra/checkpoint";
+import {
+  CheckpointHeaderRawSchema,
+  ToolCallSchema,
+  ToolCallV2BodyLineSchema,
+  type CheckpointHeaderRaw,
+} from "../../src/extra/checkpoint/types.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -65,7 +72,7 @@ function writeV1File(
 /** Header shape for v2-format checkpoints — mirrors the on-disk shape of
  *  `CheckpointHeaderV2` in checkpoint.ts and is used for structural
  *  casts in the tests below. */
-interface V2HeaderShape {
+interface V2HeaderForm {
   __type: "header";
   sessionID: string;
   version: 2;
@@ -81,16 +88,14 @@ interface V2HeaderShape {
  *  fileCrc32) that are not surfaced through the public restore action.
  *  Mirrors the implementation's `readHeader` semantics for the test
  *  paths that need to assert on the on-disk shape. */
-function readHeaderFromDisk(sessionID: string, dir: string): Record<string, unknown> | null {
+function readHeaderFromDisk(sessionID: string, dir: string): CheckpointHeaderRaw | null {
   const fp = filePath(sessionID, dir);
   if (!existsSync(fp)) return null;
   const buf = readFileSync(fp, "utf-8");
   const firstLine = buf.split("\n")[0]?.trim();
   if (!firstLine) return null;
   try {
-    const parsed = JSON.parse(firstLine) as Record<string, unknown>;
-    if (parsed.__type !== "header") return null;
-    return parsed;
+    return v.parse(CheckpointHeaderRawSchema, JSON.parse(firstLine));
   } catch {
     return null;
   }
@@ -252,7 +257,8 @@ describe("checkpoint v2", () => {
       expect(existsSync(fp)).toBe(true);
 
       // header round-trip
-      const header = readHeaderFromDisk(sessionID, dir) as unknown as V2HeaderShape;
+      // SAFETY: invariant — see caller justification
+      const header = readHeaderFromDisk(sessionID, dir) as V2HeaderForm;
       expect(header).not.toBeNull();
       expect(header.version).toBe(2);
       expect(header.sessionID).toBe(sessionID);
@@ -277,8 +283,8 @@ describe("checkpoint v2", () => {
       const bodyLines = lines.slice(1);
       expect(bodyLines.length).toBe(3);
       for (const line of bodyLines) {
-        const obj = JSON.parse(line) as Record<string, unknown>;
-        expect(typeof obj.__crc).toBe("number");
+        const obj = v.parse(ToolCallV2BodyLineSchema, JSON.parse(line));
+        expect(v.is(v.number(), obj.__crc)).toBe(true);
       }
 
       cp.cleanup();
@@ -310,7 +316,8 @@ describe("checkpoint v2", () => {
       }
       cp.flushSession(sessionID);
 
-      const header = readHeaderFromDisk(sessionID, dir) as unknown as V2HeaderShape;
+      // SAFETY: invariant — see caller justification
+      const header = readHeaderFromDisk(sessionID, dir) as V2HeaderForm;
       expect(header).not.toBeNull();
       expect(header.version).toBe(2);
 
@@ -353,7 +360,8 @@ describe("checkpoint v2", () => {
       cp.flushSession(sessionID);
 
       const fileBuf = readFileSync(filePath(sessionID, dir));
-      const header = readHeaderFromDisk(sessionID, dir) as unknown as V2HeaderShape;
+      // SAFETY: invariant — see caller justification
+      const header = readHeaderFromDisk(sessionID, dir) as V2HeaderForm;
       expect(header).not.toBeNull();
 
       // Body bytes = everything after the header line (including the
@@ -415,27 +423,31 @@ describe("checkpoint v2", () => {
       const backupBuf = readFileSync(backupPath, "utf-8");
       expect(backupBuf).toContain('"version":1');
       // v1 body lines had no __crc; ensure the backup did not get
-      // mutated by the migration.
+      // mutated by the migration. Backup lines still have to parse as
+      // a header (line 0) or a ToolCall body line (lines 1+).
       const backupLines = backupBuf.trim().split("\n");
       for (let i = 1; i < backupLines.length; i++) {
-        const obj = JSON.parse(backupLines[i]) as Record<string, unknown>;
-        expect(obj.__crc).toBeUndefined();
+        const obj = v.parse(ToolCallSchema, JSON.parse(backupLines[i]!));
+        // SAFETY: v.parse validates the object against ToolCallSchema; the cast re-states the optional __crc field for the .toBeUndefined assertion
+        const crcField: number | undefined = (obj as { __crc?: number }).__crc
+        expect(crcField).toBeUndefined();
       }
 
       // The v2 file is now at <sessionID>.jsonl with a v2 header.
-      const header = readHeaderFromDisk(sessionID, dir) as unknown as V2HeaderShape;
+      // SAFETY: invariant — see caller justification
+      const header = readHeaderFromDisk(sessionID, dir) as V2HeaderForm;
       expect(header).not.toBeNull();
       expect(header.version).toBe(2);
       expect(Array.isArray(header.lineOffsets)).toBe(true);
-      expect(typeof header.fileCrc32).toBe("number");
+      expect(v.is(v.number(), header.fileCrc32)).toBe(true);
 
       // v2 body lines should each carry an `__crc` field.
       const v2Buf = readFileSync(filePath(sessionID, dir));
       const v2Lines = v2Buf.toString("utf-8").trim().split("\n");
       expect(v2Lines.length).toBe(3); // 1 header + 2 calls
       for (let i = 1; i < v2Lines.length; i++) {
-        const obj = JSON.parse(v2Lines[i]) as Record<string, unknown>;
-        expect(typeof obj.__crc).toBe("number");
+        const obj = v.parse(ToolCallV2BodyLineSchema, JSON.parse(v2Lines[i]!));
+        expect(v.is(v.number(), obj.__crc)).toBe(true);
       }
     });
 
@@ -476,15 +488,16 @@ describe("checkpoint v2", () => {
       const v2Lines = v2Buf.toString("utf-8").trim().split("\n");
       expect(v2Lines.length).toBe(1 + N);
       for (let i = 1; i < v2Lines.length; i++) {
-        const obj = JSON.parse(v2Lines[i]) as Record<string, unknown>;
-        expect(typeof obj.__crc).toBe("number");
-        expect(typeof obj.callID).toBe("string");
+        const obj = v.parse(ToolCallV2BodyLineSchema, JSON.parse(v2Lines[i]!));
+        expect(v.is(v.number(), obj.__crc)).toBe(true);
+        expect(v.is(v.string(), obj.callID)).toBe(true);
         expect(obj.callID).toBe(`crc-${String(i - 1).padStart(3, "0")}`);
       }
 
       // The file-level CRC matches crc32() over the body bytes
       // (everything after the header line).
-      const header = readHeaderFromDisk(sessionID, dir) as unknown as V2HeaderShape;
+      // SAFETY: narrowed by typeof check on line 481
+      const header = readHeaderFromDisk(sessionID, dir) as V2HeaderForm;
       const headerEnd = v2Buf.indexOf(0x0a) + 1;
       const bodyBytes = v2Buf.subarray(headerEnd);
       expect(header.fileCrc32).toBe(crc32(bodyBytes));
@@ -516,7 +529,8 @@ describe("checkpoint v2", () => {
       cp.flushSession(sessionID);
 
       // Sanity: file is on v2.
-      const beforeHeader = readHeaderFromDisk(sessionID, dir) as unknown as V2HeaderShape;
+      // SAFETY: invariant — see caller justification
+      const beforeHeader = readHeaderFromDisk(sessionID, dir) as V2HeaderForm;
       expect(beforeHeader.version).toBe(2);
 
       // Read against an already-v2 file: no-op.
@@ -527,7 +541,8 @@ describe("checkpoint v2", () => {
       expect(existsSync(join(dir, `${sessionID}.jsonl.v1.bak`))).toBe(false);
 
       // File content is unchanged (version, offsets, CRC preserved).
-      const afterHeader = readHeaderFromDisk(sessionID, dir) as unknown as V2HeaderShape;
+      // SAFETY: invariant — see caller justification
+      const afterHeader = readHeaderFromDisk(sessionID, dir) as V2HeaderForm;
       expect(afterHeader.version).toBe(2);
       expect(afterHeader.fileCrc32).toBe(beforeHeader.fileCrc32);
       expect(afterHeader.lineOffsets).toEqual(beforeHeader.lineOffsets);
@@ -562,7 +577,8 @@ describe("checkpoint v2", () => {
       cp.flushSession(sessionID);
 
       const fileBuf = readFileSync(filePath(sessionID, dir));
-      const header = readHeaderFromDisk(sessionID, dir) as unknown as V2HeaderShape;
+      // SAFETY: invariant — see caller justification
+      const header = readHeaderFromDisk(sessionID, dir) as V2HeaderForm;
       expect(header).not.toBeNull();
       expect(header.version).toBe(2);
 

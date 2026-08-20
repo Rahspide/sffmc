@@ -20,7 +20,6 @@ import {
   compileRules,
   parseRules,
   type CompiledRule,
-  type Rule,
   type Rules,
 } from "../src/rules/rules";
 
@@ -47,6 +46,7 @@ rules:
 const PROJECT_ROOT = "/tmp/sffmc-integration-test";
 
 function buildRules(): CompiledRule[] {
+  // SAFETY: TEST_RULES_YAML is a hardcoded test fixture; parseRules returns the documented Rules type for valid YAML
   const parsed = parseRules(TEST_RULES_YAML) as Rules;
   const result = compileRules(parsed);
   expect(result.errors).toEqual([]);
@@ -235,10 +235,10 @@ describe("C. fail-closed wiring", () => {
     // compileRules' `for (const rule of rawRules.rules)` throws
     // TypeError because `null` is not iterable. The catch in
     // evaluate() converts it to deny.
-    const malformedRules = {
-      version: 1,
-      rules: null,
-    } as unknown as Rules;
+    // SAFETY: testing malformed input — JSON.parse returns any, single cast feeds evaluate()'s Rules parameter
+    const malformedRules = JSON.parse(
+      '{"version":1,"rules":null}',
+    ) as Rules;
 
     const result = evaluate(
       malformedRules,
@@ -259,7 +259,9 @@ describe("C. fail-closed wiring", () => {
         regex: /rm -rf \//,
       },
     };
+    // SAFETY: `as typeof RegExp.prototype.exec` is the documented escape hatch for the test-only exec override — the replacement is a thunk that throws, but its TypeScript signature must still match the original exec method for the test's monkey-patch to compile
     const originalExec = malicious.commandMatch!.regex.exec;
+    // SAFETY: `as typeof RegExp.prototype.exec` is the documented escape hatch for the test-only exec override — the replacement is a thunk that throws, but its TypeScript signature must still match the original exec method for the test's monkey-patch to compile
     malicious.commandMatch!.regex.exec = (() => {
       throw new Error("simulated catastrophic backtracking");
     }) as typeof RegExp.prototype.exec;
@@ -304,7 +306,9 @@ describe("C. fail-closed wiring", () => {
         regex: /rm -rf \//,
       },
     };
+    // SAFETY: `as typeof RegExp.prototype.exec` is the documented escape hatch for the test-only exec override — the replacement is a thunk that throws, but its TypeScript signature must still match the original exec method for the test's monkey-patch to compile
     const originalExec = second.commandMatch!.regex.exec;
+    // SAFETY: `as typeof RegExp.prototype.exec` is the documented escape hatch for the test-only exec override — the replacement is a thunk that throws, but its TypeScript signature must still match the original exec method for the test's monkey-patch to compile
     second.commandMatch!.regex.exec = (() => {
       throw new Error("second-rule boom");
     }) as typeof RegExp.prototype.exec;
@@ -335,7 +339,9 @@ describe("C. fail-closed wiring", () => {
         regex: /rm/,
       },
     };
+    // SAFETY: `as typeof RegExp.prototype.exec` is the documented escape hatch for the test-only exec override — the replacement is a thunk that throws, but its TypeScript signature must still match the original exec method for the test's monkey-patch to compile
     const originalExec = bad.commandMatch!.regex.exec;
+    // SAFETY: `as typeof RegExp.prototype.exec` is the documented escape hatch for the test-only exec override — the replacement is a thunk that throws, but its TypeScript signature must still match the original exec method for the test's monkey-patch to compile
     bad.commandMatch!.regex.exec = (() => {
       // eslint-disable-next-line @typescript-eslint/no-throw-literal
       throw "string-not-error";
@@ -369,7 +375,9 @@ describe("C. fail-closed wiring", () => {
         regex: /anything/,
       },
     };
+    // SAFETY: `as typeof RegExp.prototype.exec` is the documented escape hatch for the test-only exec override — the replacement is a thunk that throws, but its TypeScript signature must still match the original exec method for the test's monkey-patch to compile
     const originalExec = bad.commandMatch!.regex.exec;
+    // SAFETY: `as typeof RegExp.prototype.exec` is the documented escape hatch for the test-only exec override — the replacement is a thunk that throws, but its TypeScript signature must still match the original exec method for the test's monkey-patch to compile
     bad.commandMatch!.regex.exec = (() => {
       throw new Error("write-tool boom");
     }) as typeof RegExp.prototype.exec;
@@ -473,10 +481,11 @@ describe("E. API contract", () => {
     // Defensive: if args.command is a non-string (number, object),
     // gate.ts must NOT crash. The current implementation only
     // normalizes when it's a string.
+    // SAFETY: testing non-string command — gate guards via typeof check, cast is intentional
     const result = evaluate(
       COMPILED,
       "bash",
-      { command: 12345 as unknown as string },
+      { command: 12345 as string },
       PROJECT_ROOT,
     );
     expect(["allow", "deny", "ask"]).toContain(result.action);

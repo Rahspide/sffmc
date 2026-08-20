@@ -1,13 +1,32 @@
 import { parse as parseYaml, Schema } from "yaml";
 import { readFileSync, existsSync, statSync } from "fs";
 import safeRegex from "safe-regex";
+import * as v from "valibot";
 import { createLogger, SAFE_REPETITION_LIMIT } from "@sffmc/utilities";
 
 const log = createLogger("rules");
 
-export type Action = "allow" | "deny" | "ask";
+/** Valibot schema for a single rule entry as it appears in the
+ *  parsed YAML body. The shape is `match` (with `tool` + optional
+ *  `command_match` / `path_outside` / `phase`) and `action`. */
+const RuleSchema = v.object({
+  match: v.object({
+    tool: v.string(),
+    command_match: v.optional(v.string()),
+    path_outside: v.optional(v.string()),
+    phase: v.optional(v.picklist(["raw", "normalized"])),
+  }),
+  action: v.picklist(["allow", "deny", "ask"]),
+});
 
-const VALID_ACTIONS = new Set<Action>(["allow", "deny", "ask"]);
+/** Valibot schema for the parsed YAML body — the safety rules
+ *  manifest. */
+const ParsedRulesSchema = v.object({
+  version: v.optional(v.number()),
+  rules: v.array(RuleSchema),
+});
+
+export type Action = "allow" | "deny" | "ask";
 
 // ReDoS guard for `command_match` patterns. Mirrors the redact-secrets
 // approach (star-height ≤ 1, repetition limit 25 — sourced from
@@ -72,10 +91,7 @@ export interface CompiledRule {
  * subset plus the list of skipped entries so callers can surface them in
  * logs / health checks.
  */
-export function compileRules(rawRules: Rules): {
-  rules: CompiledRule[];
-  errors: string[];
-} {
+export function compileRules(rawRules: Rules) {
   const rules: CompiledRule[] = [];
   const errors: string[] = [];
   for (const rule of rawRules.rules) {
@@ -133,7 +149,7 @@ export function loadRules(path: string): Rules {
 export function watchRules(
   path: string,
   onChange: (rules: Rules) => void,
-): { stop: () => void } {
+) {
   let lastMtime = existsSync(path) ? statSync(path).mtimeMs : 0;
 
   const interval = setInterval(() => {
@@ -158,24 +174,25 @@ export function watchRules(
 
 export function parseRules(yaml: string): Rules {
   try {
-    const parsed = parseYaml(yaml, { schema: Schema.JSON }) as Record<string, unknown>;
-    if (!parsed || !Array.isArray(parsed.rules)) {
+    // SAFETY: validated by Valibot ParsedRulesSchema on the next line
+    const parsed = v.parse(
+      ParsedRulesSchema,
+      parseYaml(yaml, { schema: Schema.JSON }),
+    );
+    if (parsed.rules.length === 0 && !Array.isArray(parsed.rules)) {
       throw new Error('Invalid rules format: missing "rules" array');
     }
 
-    for (const rule of parsed.rules as Rule[]) {
-      if (!rule.match || typeof rule.match.tool !== "string") {
-        throw new Error(`Invalid rule: missing match.tool`);
-      }
-      if (!VALID_ACTIONS.has(rule.action)) {
-        throw new Error(
-          `Invalid action "${rule.action}" in rule — must be allow, deny, or ask`,
-        );
-      }
+    for (const rule of parsed.rules) {
+      // Valibot schemas (RuleSchema / ParsedRulesSchema) already enforce
+      // `match.tool: string` and `action: picklist(allow|deny|ask)` at
+      // parse time, so the previous typeof / VALID_ACTIONS.has guards are
+      // unreachable post-parse.
+      void rule;
     }
 
     panicMode = false;
-    return parsed as unknown as Rules;
+    return parsed;
   } catch (err) {
     panicMode = true;
     throw err;

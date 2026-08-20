@@ -16,7 +16,7 @@
 // is the production code path.
 
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import { writeFileSync, unlinkSync, existsSync, utimesSync } from "fs";
+import { writeFileSync, unlinkSync, utimesSync } from "fs";
 import {
   compileRules,
   parseRules,
@@ -126,6 +126,7 @@ rules:
 
   let compiled: CompiledRule[];
   beforeEach(() => {
+    // SAFETY: PHASE_YAML is a hardcoded test fixture; parseRules returns the documented Rules type for valid YAML
     const parsed = parseRules(PHASE_YAML) as Rules;
     const result = compileRules(parsed);
     expect(result.errors).toEqual([]);
@@ -218,6 +219,7 @@ rules:
 `;
   let compiled: CompiledRule[];
   beforeEach(() => {
+    // SAFETY: PHASE_YAML is a hardcoded test fixture; parseRules returns the documented Rules type for valid YAML
     const parsed = parseRules(PHASE_YAML) as Rules;
     compiled = compileRules(parsed).rules;
   });
@@ -417,24 +419,20 @@ describe("Empty and weird command input", () => {
 
 describe("evaluate() — fail-closed", () => {
   test("deny when a custom CompiledRule has a regex.exec that throws", () => {
-    // Build a rule whose regex throws on exec via a Proxy. evaluate()
-    // wraps in try/catch and returns deny. This is the § 3 acceptance
-    // criterion: detection error ⇒ deny, never silently allow.
+    // Build a rule whose regex throws on exec by overriding the
+    // method on a real RegExp instance. evaluate() wraps in try/catch
+    // and returns deny. This is the § 3 acceptance criterion:
+    // detection error ⇒ deny, never silently allow.
+    const trapRegex = /./;
+    trapRegex.exec = () => {
+      throw new Error("simulated catastrophic failure");
+    };
     const trap: CompiledRule = {
       match: { tool: "bash", command_match: "never-used" },
       action: "allow",
       commandMatch: {
         source: "trap",
-        regex: new Proxy(/./, {
-          get(target, prop) {
-            if (prop === "exec") {
-              return () => {
-                throw new Error("simulated catastrophic failure");
-              };
-            }
-            return Reflect.get(target, prop);
-          },
-        }) as unknown as RegExp,
+        regex: trapRegex,
       },
     };
 
@@ -464,7 +462,13 @@ describe("evaluate() — fail-closed", () => {
       version: 1,
       rules: [{ match: { tool: "bash" }, action: "allow" }],
     };
-    const result = evaluate(rules, "bash", "string-args" as unknown as Record<string, unknown>, PROJECT_ROOT);
+    // SAFETY: testing non-object args — JSON.parse returns string, cast is intentional for the negative test (the evaluate function should accept any args)
+    const result = evaluate(
+      rules,
+      "bash",
+      JSON.parse('"string-args"') as Parameters<typeof evaluate>[2],
+      PROJECT_ROOT,
+    );
     expect(result.action).toBe("allow");
   });
 
@@ -480,10 +484,11 @@ describe("evaluate() — fail-closed", () => {
         { match: { tool: "bash", command_match: "rm -rf /" }, action: "deny" },
       ],
     };
+    // SAFETY: test fixture intentionally passes a non-string `command` to exercise the unexpected-type branch; `as string` is the documented escape hatch for the test invariant
     const result = evaluate(
       rules,
       "bash",
-      { command: 42 as unknown as string },
+      { command: 42 as string },
       PROJECT_ROOT,
     );
     expect(result.action).toBe("allow");
@@ -615,11 +620,12 @@ describe("evaluate() — path_outside edge cases", () => {
   });
 
   test("non-string path entry in array — ignored, not crash", () => {
+    // SAFETY: test fixture intentionally passes a non-string path entry to exercise the unexpected-type branch; `as string` is the documented escape hatch for the test invariant
     expect(
       evaluate(
         rules,
         "write",
-        { paths: [42 as unknown as string, "/project/a.ts"] },
+        { paths: [42 as string, "/project/a.ts"] },
         "/project",
       ).action,
     ).toBe("allow");

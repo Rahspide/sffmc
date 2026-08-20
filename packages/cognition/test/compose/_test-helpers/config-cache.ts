@@ -35,10 +35,9 @@ export {
  *  `__setComposeConfig()` in `src/index.ts`. The implementation is
  *  reached through a Symbol registry populated by src/index.ts at
  *  module load — not through a public export. */
-export function __setComposeConfig(cfg: unknown): void {
-  const fn = (globalThis as Record<symbol, unknown>)[__SET_COMPOSE_CONFIG_SYMBOL] as
-    | ((c: unknown) => void)
-    | undefined
+export function __setComposeConfig(cfg: ComposeConfig | null): void {
+  // SAFETY: invariant — globalThis cast retrieves Symbol-registered fn; undefined-safe per check below
+  const fn = (globalThis as Record<symbol, (c: ComposeConfig | null) => void>)[__SET_COMPOSE_CONFIG_SYMBOL]
   if (!fn) {
     throw new Error(
       "__setComposeConfig: src/index.ts was not loaded before this test " +

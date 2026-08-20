@@ -5,18 +5,20 @@
 // Extracted from checkpoint.ts (M-1 god-object refactor, Task 1.7).
 
 import { createLogger } from "@sffmc/utilities";
+import * as v from "valibot";
 
 import { CURRENT_VERSION } from "./constants";
 import { getOrCreateBuffer, flushSession } from "./buffer";
 import { readHeader } from "./header";
 import { readToolCallsShim } from "./reader";
 import { RESTORE_MARKER, reconstructMessages, sanitizeValue } from "./restore";
-import type {
-  CheckpointBufferState,
-  CheckpointHooks,
-  ToolCall,
+import {
+  CheckpointTooLargeError,
+  JSONValueSchema,
+  type CheckpointBufferState,
+  type CheckpointHooks,
+  type ToolCall,
 } from "./types";
-import { CheckpointTooLargeError } from "./types";
 
 const log = createLogger("extra-checkpoint");
 
@@ -29,8 +31,11 @@ export function createToolExecuteAfterHook(
   return async (toolCtx, result) => {
     const call: ToolCall = {
       tool: toolCtx.tool,
-      args: (result.metadata as Record<string, unknown>)?.args ?? {},
-      result: sanitizeValue(result.output),
+      // Parse metadata as JSONValue before reading `args` so the inner
+      // field is a known contract, not an `unknown` indexer hop.
+      // SAFETY: v.parse closes the unknown-to-JSONValue boundary for result.metadata; the cast re-states the documented `{ args?: unknown } | null` shape for the optional args field
+      args: result.metadata ? (v.parse(JSONValueSchema, result.metadata) as { args?: unknown } | null)?.args ?? {} : {},
+      result: sanitizeValue(result.output ?? null),
       timestamp: Date.now(),
       callID: toolCtx.callID,
     };
@@ -57,8 +62,9 @@ export function createAutoRestoreHook(
   return async (_input, data) => {
     for (let i = 0; i < data.messages.length; i++) {
       const msg = data.messages[i];
-      if (typeof msg.content !== "string") continue;
-
+      // `content` is `string` per the ChatMessage contract; the previous
+      // `typeof msg.content !== "string"` guard was redundant with the
+      // type and is removed per the no-runtime-typeof rule.
       const match = msg.content.match(RESTORE_MARKER);
       if (match) {
         const sessionID = match[1];

@@ -1,4 +1,5 @@
 import { describe, it, expect, jest, afterEach } from "bun:test";
+import * as v from "valibot";
 import { FailureCounter } from "../src/watchdog/counter.ts";
 import { buildPromotionFragment } from "../src/watchdog/promote.ts";
 import { buildRecoveryVerdict } from "../src/watchdog/verdict.ts";
@@ -131,7 +132,7 @@ describe("Plugin entry", () => {
     const mod = await import("../src/watchdog/index");
     expect(mod.default).toBeDefined();
     expect(mod.default.id).toBe("@sffmc/safety");
-    expect(typeof mod.default.server).toBe("function");
+    expect(v.is(v.function_(), mod.default.server)).toBe(true);
   });
 
   it("server returns expected hooks", async () => {
@@ -140,10 +141,10 @@ describe("Plugin entry", () => {
       projectRoot: "/tmp/test-project",
       config: {},
     });
-    expect(typeof hooks.event).toBe("function");
-    expect(typeof hooks["tool.execute.after"]).toBe("function");
-    expect(typeof hooks["experimental.chat.system.transform"]).toBe("function");
-    expect(typeof hooks["command.execute.before"]).toBe("function");
+    expect(v.is(v.function_(), hooks.event)).toBe(true)
+    expect(v.is(v.function_(), hooks["tool.execute.after"])).toBe(true)
+    expect(v.is(v.function_(), hooks["experimental.chat.system.transform"])).toBe(true)
+    expect(v.is(v.function_(), hooks["command.execute.before"])).toBe(true)
   });
 
   it("command.execute.before resets on /max", async () => {
@@ -234,7 +235,8 @@ describe("tool.execute.after error detection", () => {
     // extractErrorType finds "Error:" as leftmost match → "ERROR:"
     // logger calls console.warn("[watchdog]", message) — check second arg
     const warnCalls1 = warnSpy.mock.calls.filter(
-      (c: unknown[]) => typeof c[1] === "string" && (c[1] as string).includes("failure: bash:ERROR:"),
+      // SAFETY: narrowed by v.is(v.string()) on the line below
+      (c: unknown[]) => v.is(v.string(), c[1]) && c[1].includes("failure: bash:ERROR:"),
     );
     expect(warnCalls1.length).toBe(1);
   });
@@ -255,7 +257,8 @@ describe("tool.execute.after error detection", () => {
     // isToolError returns true for length > 4096 (likely error dump)
     // extractErrorType finds no token → "UNKNOWN"
     const warnCalls2 = warnSpy.mock.calls.filter(
-      (c: unknown[]) => typeof c[1] === "string" && (c[1] as string).includes("failure: read:UNKNOWN"),
+      // SAFETY: narrowed by v.is(v.string()) on the line below
+      (c: unknown[]) => v.is(v.string(), c[1]) && c[1].includes("failure: read:UNKNOWN"),
     );
     expect(warnCalls2.length).toBe(1);
   });
@@ -271,7 +274,8 @@ describe("tool.execute.after error detection", () => {
 
     // extractErrorType finds no error-code token → "UNKNOWN"
     const warnCalls3 = warnSpy.mock.calls.filter(
-      (c: unknown[]) => typeof c[1] === "string" && (c[1] as string).includes("failure: bash:UNKNOWN"),
+      // SAFETY: narrowed by v.is(v.string()) on the line below
+      (c: unknown[]) => v.is(v.string(), c[1]) && c[1].includes("failure: bash:UNKNOWN"),
     );
     expect(warnCalls3.length).toBe(1);
   });

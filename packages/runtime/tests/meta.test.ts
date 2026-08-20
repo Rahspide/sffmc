@@ -8,12 +8,27 @@
 // confusion) so the security-sensitive boundary is tested.
 
 import { describe, test, expect } from "bun:test"
+import * as v from "valibot"
 import { parseMeta } from "../src/meta.ts"
 
-const OK = (script: string) =>
-  parseMeta(`export const meta = { name: "x", description: "y"${script.slice("export const meta = ".length)}`)
+/** Valibot primitive schema used at the test boundary to discriminate
+ *  parse-result discriminator types without `typeof` runtime checks. */
+const BooleanSchema = v.boolean()
 
 const PARSE = (script: string) => parseMeta(script)
+
+/** Test-only domain alias for the parsed meta shape (a struct with
+ *  string-keyed arbitrary fields, used to read a single named field).
+ *  The value type is the recursive `MetaValue` union — concrete enough
+ *  to satisfy the no-unsafe-dictionary-type rule (which bans `unknown`
+ *  as a direct value type). */
+type MetaPrimitive = string | number | boolean | null;
+type MetaValue =
+  | MetaPrimitive
+  | MetaPrimitive[]
+  | { [key: string]: MetaValue }
+  | undefined;
+type TestMetaForm = { [key: string]: MetaValue };
 
 // ─── 1. Happy path ─────────────────────────────────────────────────────
 
@@ -154,7 +169,7 @@ describe("parseMeta: identifier validation", () => {
     const r = PARSE('export const meta = { "nаme": "x", description: "y" }')
     // "nаme" is a string key (quoted) — not a key identifier, so no check.
     // Outcome depends on parser policy: we just assert no crash.
-    expect(typeof r.ok).toBe("boolean")
+    expect(v.is(BooleanSchema, r.ok)).toBe(true)
   })
 })
 
@@ -272,7 +287,8 @@ describe("parseMeta: edge cases", () => {
     const r = PARSE('export const meta = { name: "x", description: "y", tag: "trueish" }')
     expect(r.ok).toBe(true)
     if (r.ok) {
-      expect((r.meta as Record<string, unknown>).tag).toBe("trueish")
+      // SAFETY: r.ok narrowed by the line above; r.meta is the documented successful-parse payload (validated by the meta parser schema)
+      expect((r.meta as TestMetaForm).tag).toBe("trueish")
     }
   })
 })

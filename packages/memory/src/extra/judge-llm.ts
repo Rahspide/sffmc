@@ -4,6 +4,7 @@
 // Owns callJudge (private) + callJudgeStream (public).
 
 import type { RichPluginContext } from "@sffmc/utilities";
+import * as v from "valibot";
 import { buildJudgePrompt } from "./judge-prompt.ts";
 import { parseJudgeResponse } from "./judge-parse.ts";
 import type { JudgeResponse, JudgeResult, JudgeStreamChunk } from "./judge-types.ts";
@@ -54,7 +55,7 @@ function extractJudgeSessionText(response: {
   return response.content
     .filter(
       (p): p is { type: "text"; text: string } =>
-        p.type === "text" && typeof p.text === "string",
+        p.type === "text" && v.is(v.string(), p.text),
     )
     .map((p) => p.text)
     .join("\n");

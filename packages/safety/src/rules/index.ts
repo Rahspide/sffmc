@@ -7,7 +7,7 @@ import {
   type Rules,
   type CompiledRule,
 } from "./rules";
-import { evaluate } from "./gate";
+import { evaluate, type ToolArgs } from "./gate";
 import { type PluginContext, createLogger, configHome } from "@sffmc/utilities";
 import { existsSync } from "fs";
 import { resolve } from "path";
@@ -83,8 +83,8 @@ rules:
       command_match: "^rm\\\\s+-r[f]?\\\\s+/opt\\\\b"
     action: deny
   # v0.15.2 final polish batch 3 (YAML-safe): simple literal-space patterns
-  # to avoid the YAML JSON-schema invalid-escape trap on \\s and flow-seq
-  # interpretation of [^\"] inside double-quoted YAML.
+  # to avoid the YAML JSON-schema invalid-escape trap on literal s-escapes and flow-seq
+  # interpretation of [^"] inside double-quoted YAML.
   # chmod 666 / chmod 777 (world-writable octal).
   - match:
       tool: bash
@@ -380,12 +380,14 @@ rules:
   # rm -rf with quoted home variable forms.
   - match:
       tool: bash
-      command_match: "^rm\\\\s+-r[f]?\\\\s+\\\"\\\\$\\\\{?HOME\\\\}?\\\""
+      command_match: |-
+        ^rm\s+-r[f]?\s+"\${?HOME}?"$
     action: deny
   # rm -rf with quoted root slash forms.
   - match:
       tool: bash
-      command_match: "^rm\\\\s+-r[f]?\\\\s+\\\"/\\\"|^rm\\\\s+-r[f]?\\\\s+\\\"//\\\""
+      command_match: |-
+        ^rm\s+-r[f]?\s+"/"$|^rm\s+-r[f]?\s+"//"$
     action: deny
   # chmod -R 777 on /etc / /home / /root etc.
   - match:
@@ -535,7 +537,7 @@ export const server = async (ctx: PluginContext) => {
   return {
     "tool.execute.before": async (
       toolCtx: { tool: string; sessionID: string; callID: string },
-      args: { args: Record<string, unknown> },
+      args: { args: ToolArgs },
     ) => {
       if (isPanicMode()) {
         throw new Error(
@@ -562,7 +564,7 @@ export const server = async (ctx: PluginContext) => {
     },
 
     "permission.ask": async (
-      perm: { tool?: string; name?: string; args?: Record<string, unknown> },
+      perm: { tool?: string; name?: string; args?: ToolArgs },
       status: { status: string },
     ) => {
       if (isPanicMode()) {

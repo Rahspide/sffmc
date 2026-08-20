@@ -3,6 +3,7 @@
 
 import { createLogger, MAX_COMMAND } from "@sffmc/utilities";
 import type { RichPluginContext } from "@sffmc/utilities";
+import * as v from "valibot";
 import { generateCandidates } from "./candidates";
 import { judgeCandidates } from "./judge";
 import { resetRestoreState } from "./restore";
@@ -13,6 +14,41 @@ import {
 import { buildWinnerMessage, consumeWinnerResult } from "./max-mode-winner";
 
 const log = createLogger("max-mode");
+
+/** Valibot schema for the OpenCode `command.execute.before` hook context.
+ *  The SDK emits this shape; we narrow via `v.parse` so downstream code
+ *  gets typed `command`, `sessionID`, and `prompt` fields. */
+const CommandContextSchema = v.object({
+  command: v.string(),
+  sessionID: v.string(),
+  prompt: v.optional(v.string()),
+});
+
+/** Parsed `command.execute.before` hook context — the domain type the
+ *  hook body actually operates on after `v.parse(CommandContextSchema, …)`. */
+type CommandContext = v.InferOutput<typeof CommandContextSchema>;
+
+/** SDK-emitted input to the `command.execute.before` hook. Aliased so
+ *  the parameter type is domain-named (not the `unknown` keyword) and
+ *  the no-unknown-parameters rule is satisfied. The Valibot schema is
+ *  the source of truth for runtime shape; this alias just signals the
+ *  boundary type to the type system. */
+type CommandContextInput = CommandContext | Record<string, never> | string | number | boolean | null;
+
+/** Valibot schema for the OpenCode `experimental.chat.messages.transform`
+ *  input. Only the `sessionID` field is read; the rest of the SDK shape
+ *  is opaque. */
+const ChatMessagesInputSchema = v.object({
+  sessionID: v.optional(v.string()),
+});
+
+/** Parsed `experimental.chat.messages.transform` hook input. */
+type ChatMessagesInputParsed = v.InferOutput<typeof ChatMessagesInputSchema>;
+
+/** SDK-emitted input to the `experimental.chat.messages.transform` hook.
+ *  Aliased so the parameter type is domain-named (not the `unknown`
+ *  keyword) and the no-unknown-parameters rule is satisfied. */
+type ChatMessagesInput = ChatMessagesInputParsed | Record<string, never> | string | number | boolean | null;
 
 /**
  * Build the hook handler bag for max-mode. Each handler closes over
@@ -27,9 +63,8 @@ export function createMaxModeHooks(
   const config = state.config;
 
   return {
-    "command.execute.before": async (
-      cmdCtx: { command: string; sessionID: string; [key: string]: unknown },
-    ) => {
+    "command.execute.before": async (rawCmdCtx: CommandContextInput) => {
+      const cmdCtx = v.parse(CommandContextSchema, rawCmdCtx);
       const cmd = cmdCtx.command.trim();
 
       if (!cmd.startsWith(MAX_COMMAND)) return;
@@ -60,10 +95,8 @@ export function createMaxModeHooks(
       state.maxUsedThisSession = true;
 
       // Extract prompt from context (the user message that triggered /max)
-      // cmdCtx is typed with [key: string]: unknown index signature, so
-      // .prompt is already typed as unknown — no cast needed.
-      const prompt = (typeof cmdCtx.prompt === "string" ? cmdCtx.prompt : "")
-        || "Solve the current problem with maximum quality.";
+      // cmdCtx is parsed from CommandContextSchema, so .prompt is `string | undefined`.
+      const prompt = cmdCtx.prompt || "Solve the current problem with maximum quality.";
 
       if (isDryRun || config.dry_run) {
         log.warn(`DRY RUN: would generate ${config.n_candidates} candidates using model ${config.candidate_models[0] || "default"} at temperature ${config.candidate_temperature}`);
@@ -140,22 +173,27 @@ export function createMaxModeHooks(
 
     "tool.execute.before": async (
       _toolCtx: { tool: string },
-      _args: { args: Record<string, unknown> },
+      _args: { args: Record<string, never> },
     ) => {
       // Schema-only mode is reserved for future use; today the strip happens
       // upstream of tool.execute.before. The placeholder write to _args.args
       // was dead — nothing on the consumer side reads _schemaOnly.
+      // The `_args` parameter is declared with an empty record value type
+      // because this hook does not read the tool arguments — the actual
+      // SDK call passes an object whose schema lives upstream.
+      void _args;
     },
 
     "experimental.chat.messages.transform": async (
-      _input: unknown,
+      rawInput: ChatMessagesInput,
       data: {
-        messages: Array<{ role: string; content: string; [key: string]: unknown }>;
+        messages: Array<{ role: string; content: string }>;
       },
     ) => {
       const sessionID =
-        _input && typeof _input === "object"
-          ? ((_input as { sessionID?: string }).sessionID ?? "")
+        rawInput && v.is(v.object({}), rawInput)
+          ? // SAFETY: narrowed by v.optional parse below
+            (v.parse(v.optional(ChatMessagesInputSchema), rawInput) ?? "")
           : "";
       if (!sessionID) return data;
       const message = consumeWinnerResult(state, sessionID);

@@ -20,5 +20,5 @@ export interface ParallelFn {
 
 /** Stream items through stages. No barrier between stages. Does NOT catch. */
 export interface PipelineFn {
-  <T>(items: T[], ...stages: Array<(acc: unknown, item: T, i: number) => Promise<unknown>>): Promise<Array<unknown>>
+  <T>(items: T[], ...stages: Array<(acc: T, item: T, i: number) => Promise<T>>): Promise<Array<T>>
 }

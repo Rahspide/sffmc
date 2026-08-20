@@ -16,22 +16,43 @@
 // objects and reduces GC pressure by 1 allocation per object level.
 
 import { createHash } from "node:crypto"
+import * as v from "valibot"
+import type { JsonValue } from "./runs.ts"
 
-function canonical(value: unknown): unknown {
-  if (value === null || typeof value !== "object") return value
+/** Recursive Valibot schema for any JSON primitive: string/number/
+ *  boolean/null. Used by `canonical` to discriminate primitive JSON
+ *  values from object/array containers without a `typeof` runtime
+ *  check — the schema's `v.is()` narrows at the I/O boundary. */
+const JsonPrimitiveSchema = v.union([
+  v.string(),
+  v.number(),
+  v.boolean(),
+  v.null(),
+])
+
+/** Recursively canonicalize a JSON value for stable hashing. Returns
+ *  the input unchanged for primitives/arrays (objects get a sorted-
+ *  key re-emission so key order does not perturb the hash). */
+function canonical(value: JsonValue) {
+  if (v.is(JsonPrimitiveSchema, value)) return value
   if (Array.isArray(value)) return value.map(canonical)
-  const rec = value as Record<string, unknown>
+  // SAFETY: not a primitive (JsonPrimitiveSchema) and not an array (Array.isArray) narrowed above; remaining cases are plain object literals
+  const rec = value as { [k: string]: JsonValue }
   const sortedKeys = Object.keys(rec).sort()
-  const result: Record<string, unknown> = {}
+  const result: { [k: string]: JsonValue } = {}
   for (const k of sortedKeys) {
     result[k] = canonical(rec[k])
   }
   return result
 }
 
+/** Build the stable hash of `(prompt, opts)` for journal dedup. The
+ *  opts are accepted as `Record<string, JsonValue>` — caller-side
+ *  casts narrow `AgentOptions` fields into the JSON-compatible shape
+ *  the hashing path expects. */
 export function journalKeyBase(
   prompt: string,
-  opts: { agentType?: string; model?: unknown; schema?: unknown; phase?: string; [k: string]: unknown },
+  opts: { agentType?: string; model?: JsonValue; schema?: JsonValue; phase?: string; [k: string]: JsonValue },
 ): string {
   const material = canonical({
     prompt,
@@ -45,7 +66,7 @@ export function journalKeyBase(
 
 export function journalKey(
   prompt: string,
-  opts: { agentType?: string; model?: unknown; schema?: unknown; phase?: string; [k: string]: unknown },
+  opts: { agentType?: string; model?: JsonValue; schema?: JsonValue; phase?: string; [k: string]: JsonValue },
   occ: number,
 ): string {
   return journalKeyBase(prompt, opts) + ":" + occ

@@ -1,6 +1,6 @@
 {
   "name": "@sffmc/runtime",
-  "version": "0.16.3",
+  "version": "0.16.4",
   "category": "mimo-port",
   "type": "module",
   "main": "src/index.ts",
@@ -11,6 +11,7 @@
   "dependencies": {
     "@sffmc/utilities": "workspace:*",
     "quickjs-emscripten": "0.32.0",
+    "valibot": "^0.42.1",
     "yaml": "^2.5.0"
   },
   "devDependencies": {

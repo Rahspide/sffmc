@@ -14,7 +14,7 @@
 
 import type { PluginContext } from "@sffmc/utilities";
 
-import { createCheck, type CheckFn, type CheckResult, type HealthResult } from "./check-factory.ts";
+import { type CheckFn, type HealthResult } from "./check-factory.ts";
 
 // Re-export the public schema so consumers (scripts, tests, agentic composite)
 // can `import { CheckResult, HealthResult, CheckFn } from "@sffmc/cognition"`.
@@ -83,7 +83,8 @@ export async function runAllChecks(
 
 export const id = "@sffmc/cognition"
 export const server = async (ctx: PluginContext) => {
-  const repoRoot = (ctx as Record<string, unknown>).projectRoot as string;
+  // SAFETY: invariant — PluginContext declares projectRoot:string (utilities/src/context.ts); casts retained for indexer access
+  const repoRoot = (ctx as { projectRoot: string }).projectRoot;
 
   return {
     tool: {

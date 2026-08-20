@@ -5,6 +5,7 @@
 // co-located with the call wrappers that hit `ctx.client.session.message`.
 
 import { NoLLMClientError, type RichPluginContext } from "@sffmc/utilities";
+import * as v from "valibot";
 import { DREAM_LLM_SNIPPET_LENGTH, DREAM_SNIPPET_LENGTH, type MemoryRow } from "./dream-types.ts";
 
 /** LLM-based cluster naming: generates a 3-5 word topic phrase for a cluster.
@@ -45,7 +46,7 @@ export async function nameClusterViaLLM(
 function buildNameClusterPrompt(
   cluster: MemoryRow[],
   snippetLength: number,
-): { system: string; user: string } {
+) {
   const entries = cluster.map(
     (e) => `[${e.source_path}] ${e.content.substring(0, snippetLength)}`,
   );
@@ -92,7 +93,7 @@ export async function summarizeViaLLM(
 function buildSummarizeClusterPrompt(
   cluster: MemoryRow[],
   llmSnippetLength: number,
-): { system: string; user: string } {
+) {
   const entries = cluster.map(
     (e) => `[${e.source_path}] ${e.content.substring(0, llmSnippetLength)}`,
   );
@@ -118,7 +119,7 @@ function extractResponseText(response: {
   return response.content
     .filter(
       (p): p is { type: "text"; text: string } =>
-        p.type === "text" && typeof p.text === "string",
+        p.type === "text" && v.is(v.string(), p.text),
     )
     .map((p) => p.text)
     .join("\n")

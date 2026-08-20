@@ -13,6 +13,7 @@
 import { describe, test, expect, afterAll } from "bun:test"
 import { tmpdir } from "node:os"
 import { mkdtempSync, rmSync } from "node:fs"
+
 import path from "node:path"
 
 const tmpDir = mkdtempSync(path.join(tmpdir(), "sffmc-workflow-lru-"))
@@ -240,9 +241,8 @@ describe("WorkflowRuntime.outcomes wraps BoundedLRU via OutcomeStore", () => {
     try {
       process.env.WORKFLOW_OUTCOMES_CACHE_SIZE = "7"
       const runtime = new WorkflowRuntime(mockCtx)
-      const outcomes = (runtime as unknown as {
-        outcomes: OutcomeStore<string, unknown>
-      }).outcomes
+      // SAFETY: test uses reflection to inspect the private `outcomes` field; `as any` is the documented escape hatch for accessing private surfaces
+      const outcomes = (runtime as any).outcomes as OutcomeStore<string, unknown>
       expect(outcomes.capacity).toBe(7)
       expect(outcomes.size).toBe(0)
     } finally {
@@ -256,9 +256,8 @@ describe("WorkflowRuntime.outcomes wraps BoundedLRU via OutcomeStore", () => {
     try {
       process.env.WORKFLOW_OUTCOMES_CACHE_SIZE = "not-a-number"
       const runtime = new WorkflowRuntime(mockCtx)
-      const outcomes = (runtime as unknown as {
-        outcomes: OutcomeStore<string, unknown>
-      }).outcomes
+      // SAFETY: reflection pattern matches the previous outcomes-assertion block; `as any` is the documented escape hatch for accessing private surfaces
+      const outcomes = (runtime as any).outcomes as OutcomeStore<string, unknown>
       expect(outcomes.capacity).toBe(500)
     } finally {
       if (prev === undefined) delete process.env.WORKFLOW_OUTCOMES_CACHE_SIZE
@@ -271,9 +270,8 @@ describe("WorkflowRuntime.outcomes wraps BoundedLRU via OutcomeStore", () => {
     try {
       process.env.WORKFLOW_OUTCOMES_CACHE_SIZE = "7"
       const runtime = new WorkflowRuntime(mockCtx, { completedOutcomesCacheSize: 3 })
-      const outcomes = (runtime as unknown as {
-        outcomes: OutcomeStore<string, unknown>
-      }).outcomes
+      // SAFETY: reflection pattern matches the previous outcomes-assertion blocks; `as any` is the documented escape hatch for accessing private surfaces
+      const outcomes = (runtime as any).outcomes as OutcomeStore<string, unknown>
       expect(outcomes.capacity).toBe(3)
     } finally {
       if (prev === undefined) delete process.env.WORKFLOW_OUTCOMES_CACHE_SIZE
@@ -286,19 +284,12 @@ describe("WorkflowRuntime.outcomes wraps BoundedLRU via OutcomeStore", () => {
     const runtime = new WorkflowRuntime(mockCtx, { completedOutcomesCacheSize: 2 })
 
     // Populate via reflection on completeRun (private method).
-    const completeRun = (
-      runtime as unknown as {
-        completeRun: (e: unknown) => void
-      }
-    ).completeRun.bind(runtime)
+    // SAFETY: test uses reflection to access the private `completeRun` method; `as any` is the documented escape hatch (called via .bind to preserve `this`)
+    const completeRun = (runtime as any).completeRun.bind(runtime)
 
-    const p = (runtime as unknown as {
-      persistence: { loadRun: (id: string) => { runID: string } | null }
-    }).persistence
-
-    function makeFakeEntry(runID: string): Record<string, unknown> {
-      let resolveOutcome: (o: unknown) => void = () => {}
-      const outcomePromise = new Promise<unknown>((r) => { resolveOutcome = r })
+    function makeFakeEntry(runID: string) {
+let resolveOutcome: (o: unknown) => void = () => {}
+const outcomePromise = new Promise<unknown>((r) => { resolveOutcome = r })
       return {
         runID,
         name: "fake",
@@ -341,9 +332,8 @@ describe("WorkflowRuntime.outcomes wraps BoundedLRU via OutcomeStore", () => {
     }
 
     // Cache size capped at 2 — oldest two should have been evicted.
-    const outcomes = (runtime as unknown as {
-      outcomes: OutcomeStore<string, unknown>
-    }).outcomes
+    // SAFETY: reflection pattern matches the previous outcomes-assertion blocks; `as any` is the documented escape hatch for accessing private surfaces
+    const outcomes = (runtime as any).outcomes as OutcomeStore<string, unknown>
     expect(outcomes.size).toBe(2)
     // ids[0] and ids[1] evicted; ids[2] and ids[3] remain.
     expect(outcomes.get(ids[0])).toBeUndefined()

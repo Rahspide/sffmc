@@ -4,45 +4,59 @@
 import { describe, it, expect, beforeEach } from "bun:test"
 import { ChildWorkflowPrimitive } from "../src/child-workflow-primitive.ts"
 import type { InternalRunEntry } from "../src/internal-run-entry.ts"
+import type { JsonValue } from "../src/runs.ts"
+
+/** Typed JSON value alias for fixture args — matches the JsonValue the
+ *  ChildWorkflowPrimitive dep signatures use so the fake signatures mirror
+ *  the production ones. */
+type Args = JsonValue
 
 // Fake persistence — captures createRun/writeScript/appendJournal calls.
 function makeFakePersistence() {
-  return {
-    createRun: (name: string, _name2: string, sha: string, _x: unknown, ws: string, args: unknown) => {
+  // SAFETY: test fixture; `as ConstructorParameters<typeof ChildWorkflowPrimitive>[0]["persistence"]` is the documented escape hatch — the fake persistence implements only the subset of methods used by ChildWorkflowPrimitive
+  const fake = {
+    createRun: (name: string, _name2: string, sha: string, _x: Args, ws: string, args: Args) => {
       fakePersistence.created.push({ name, sha, workspace: ws, args })
       return `run_${fakePersistence.created.length}`
     },
     writeScript: async (runID: string, _script: string) => {
       fakePersistence.written.push(runID)
     },
-    appendJournal: (runID: string, e: unknown) => {
+    appendJournal: (runID: string, e: Args) => {
       fakePersistence.journaled.push({ runID, event: e })
     },
-    appendJournalSync: (runID: string, e: unknown) => {
+    appendJournalSync: (runID: string, e: Args) => {
       fakePersistence.journaled.push({ runID, event: e })
     },
-  } as unknown as ConstructorParameters<typeof ChildWorkflowPrimitive>[0]["persistence"]
+  // @ts-expect-error - fake persistence intentionally omits methods required by ChildWorkflowPrimitive's deps bag
+  } as ConstructorParameters<typeof ChildWorkflowPrimitive>[0]["persistence"]
+  return fake
 }
+// SAFETY: test fixture; `as any[]` and `as string[]` are documented escape hatches for the captured-call arrays where the element shape is heterogeneous
 const fakePersistence = { created: [] as any[], written: [] as string[], journaled: [] as any[] }
 
 function makeFakeEvents() {
   const emitted: any[] = []
+  // SAFETY: test fixture; `as any` is the documented escape hatch for the fake event-bus stub
   return {
-    emit: (name: string, payload: unknown) => emitted.push({ name, payload }),
+    emit: (name: string, payload: Args) => emitted.push({ name, payload }),
     _emitted: emitted,
   } as any
 }
 
 function makeFakeRuns() {
+  // SAFETY: test fixture; `as any` is the documented escape hatch for the fake runs-stub
   return {
     register: (runID: string, _entry: any) => {
       fakeRuns.registered.push(runID)
     },
   } as any
 }
+// SAFETY: test fixture; `as string[]` is the documented escape hatch for the captured-call array of runID strings
 const fakeRuns = { registered: [] as string[] }
 
 function makeEntry(overrides: Partial<InternalRunEntry> = {}): InternalRunEntry {
+  // SAFETY: test fixture; `as any` is the documented escape hatch because the fake entry exposes only the subset of InternalRunEntry fields under test
   return {
     runID: "run_parent",
     journalResults: new Map(),
@@ -51,11 +65,12 @@ function makeEntry(overrides: Partial<InternalRunEntry> = {}): InternalRunEntry 
     workspace: "/tmp/test",
     cfg: { maxSteps: 100, maxTokens: 10000, maxWallClockMs: 60000, perStepTimeoutMs: 1000, gracePeriodMs: 5000, maxDepth: 3, maxLifecycleAgents: 10 },
     ...overrides,
-  } as unknown as InternalRunEntry
+  // @ts-expect-error - fake entry intentionally omits non-optional fields required by InternalRunEntry
+  } as InternalRunEntry
 }
 
 describe("ChildWorkflowPrimitive", () => {
-  let f: { deps: ConstructorParameters<typeof ChildWorkflowPrimitive>[0]; settleCalls: any[]; startCalls: any[]; flushes: any[]; events: any; persistence: any }
+  let f: { deps: ConstructorParameters<typeof ChildWorkflowPrimitive>[0]; settleCalls: any[]; startCalls: any[]; flushes: any[]; events: any; persistence: any } | null = null
   let primitive: ChildWorkflowPrimitive
 
   beforeEach(() => {
@@ -67,12 +82,14 @@ describe("ChildWorkflowPrimitive", () => {
     const startCalls: any[] = []
     const settleCalls: any[] = []
     const flushes: any[] = []
+    // SAFETY: test fixture; `as any` is the documented escape hatch for the fake persistence injected into the deps bag
     const deps: ConstructorParameters<typeof ChildWorkflowPrimitive>[0] = {
       persistence: makeFakePersistence() as any,
       events,
+      // SAFETY: test fixture; `as any` is the documented escape hatch for the fake runs stub injected into the deps bag
       runs: makeFakeRuns() as any,
       scheduleFlush: (entry: any) => flushes.push(entry),
-      startChildWorkflow: (parent: any, script: string, name: string, args: unknown, childRunID: string) => {
+      startChildWorkflow: (parent: any, script: string, name: string, args: Args, childRunID: string) => {
         startCalls.push({ parent, script, name, args, childRunID })
         // Return a fake child entry with an outcomePromise
         return Promise.resolve({
@@ -80,10 +97,10 @@ describe("ChildWorkflowPrimitive", () => {
           outcomePromise: Promise.resolve({ status: "completed", result: "child-result" }),
         })
       },
-      appendJournal: (runID: string, e: unknown) => {
+      appendJournal: (runID: string, e: Args) => {
         fakePersistence.journaled.push({ runID, event: e })
       },
-      settleEntry: (entry: any, _script: string, _name: string, _args: unknown, _jail: any) => {
+      settleEntry: (entry: any, _script: string, _name: string, _args: Args, _jail: any) => {
         settleCalls.push(entry)
         return Promise.resolve()
       },

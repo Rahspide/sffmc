@@ -10,6 +10,7 @@
 // files in the same `bun test` run).
 
 import { describe, test, expect, mock, beforeEach, afterEach } from "bun:test"
+import * as v from "valibot"
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -17,23 +18,29 @@ import { launchScript, SCRIPT_SUFFIX } from "../src/script-launcher.ts"
 import { WorkspaceJail } from "../src/workspace.ts"
 import { makeEntry } from "../src/internal-run-entry.ts"
 import { DEFAULT_WORKFLOW_CONFIG } from "../src/types.ts"
+import type { JsonValue } from "../src/runs.ts"
+
+/** Valibot primitive schema used at the test boundary to discriminate
+ *  sandbox-options field types without `typeof` runtime checks. */
+const NumberSchema = v.number()
+import type { SandboxPrimitives } from "../src/sandbox.ts"
 
 interface CapturedCall {
   source: string
-  primitives: Record<string, unknown>
+  primitives: SandboxPrimitives
   options: { memoryMB: number; deadlineMs: number; seed: number }
 }
 
 let captured: CapturedCall | null = null
 const fakeRunSandboxed = mock(async (
   source: string,
-  primitives: unknown,
-  options: unknown,
-): Promise<unknown> => {
+  primitives: SandboxPrimitives,
+  options: { memoryMB: number; deadlineMs: number; seed: number },
+): Promise<JsonValue> => {
   captured = {
     source,
-    primitives: primitives as Record<string, unknown>,
-    options: options as CapturedCall["options"],
+    primitives,
+    options,
   }
   return "sentinel-result"
 })
@@ -104,7 +111,7 @@ describe("script-launcher.launchScript", () => {
     await launchScript(deps, entry, script, "x", [], jail)
     expect(captured).not.toBeNull()
     const { memoryMB, deadlineMs, seed } = captured!.options
-    expect(typeof memoryMB).toBe("number")
+    expect(v.is(NumberSchema, memoryMB)).toBe(true)
     expect(memoryMB).toBeGreaterThan(0)
     expect(deadlineMs).toBe(12 * 60 * 60 * 1000)
     // Seed is a UInt32 derived from a SHA-1 of the runID.
@@ -167,15 +174,21 @@ describe("script-launcher.launchScript", () => {
     await launchScript(deps, entry, script, "x", [], jail)
     // Call each primitive and verify it routes to the injected dep.
     const { primitives } = captured!
-    await (primitives.agent as (t: string) => Promise<unknown>)("task")
+    // SAFETY: primitives.agent is the documented (task) => Promise<JsonValue> primitive signature from the launchScript mock
+    await (primitives.agent as (t: string) => Promise<JsonValue>)("task")
     expect(deps.spawnAgent).toHaveBeenCalledTimes(1)
-    await (primitives.parallel as <T>(t: Array<() => Promise<T>>) => Promise<unknown>)([])
+    // SAFETY: primitives.parallel is the documented <T>(thunks) => Promise<JsonValue> primitive signature from the launchScript mock
+    await (primitives.parallel as <T>(t: Array<() => Promise<T>>) => Promise<JsonValue>)([])
     expect(deps.runParallel).toHaveBeenCalledTimes(1)
     // `phase` is the guest-side name; it routes to the injected setPhase.
-    ;(primitives.phase as (t: string) => void)("phase-x")
+    // SAFETY: primitives.phase is the documented (title) => void primitive signature from the launchScript mock
+    const phase: (t: string) => void = primitives.phase as (t: string) => void
+    phase("phase-x")
     expect(deps.setPhase).toHaveBeenCalledWith(entry, "phase-x")
     // `log` is the guest-side name; it routes to the injected appendLog.
-    ;(primitives.log as (m: string) => void)("log-y")
+    // SAFETY: primitives.log is the documented (msg) => void primitive signature from the launchScript mock
+    const log: (m: string) => void = primitives.log as (m: string) => void
+    log("log-y")
     expect(deps.appendLog).toHaveBeenCalledWith(entry, "log-y")
   })
 })

@@ -18,8 +18,9 @@ import { journalKeyBase } from "./persistence.ts"
 import type { IAgentPrimitive } from "./runtime-services.ts"
 import { createLogger } from "@sffmc/utilities"
 import type { InternalRunEntry, AgentResult } from "./internal-run-entry.ts"
-import type { AgentOptions, AgentFailureReason } from "./types.ts"
+import type { AgentOptions, AgentFailureReason, JournalEvent } from "./types.ts"
 import { AgentFailureReason as AFR, BudgetExceededError } from "./types.ts"
+import type { WorkflowEventPayload } from "./event-emitter.ts"
 
 const log = createLogger("workflow:agent-primitive")
 
@@ -30,7 +31,7 @@ export interface AgentPrimitiveDeps {
   /** Flush counters to the DB (debounced). */
   scheduleFlush: (entry: InternalRunEntry) => void
   /** Emit an arbitrary event on the workflow event bus. */
-  emitEvent: (name: string, payload: unknown) => void
+  emitEvent: (name: string, payload: WorkflowEventPayload) => void
   /** Call the LLM (delegates to `callLLM` module). */
   callLLM: (entry: InternalRunEntry, prompt: string, opts: AgentOptions) => Promise<{
     content: Array<{ type: string; text?: string; data?: string }>
@@ -39,7 +40,7 @@ export interface AgentPrimitiveDeps {
     finalText?: string
   }>
   /** Append a successful agent result to the journal. */
-  appendJournal: (runID: string, entry: unknown) => void
+  appendJournal: (runID: string, entry: JournalEvent) => void
   /** Settle the run as failed (with the given error). Accepts a string
    *  (legacy callers) or an Error instance (the typed path used for
    *  budget-exceeded classification — see `BudgetExceededError`). */
@@ -56,6 +57,7 @@ export class AgentPrimitive implements IAgentPrimitive {
     opts: AgentOptions | undefined,
     occ: Map<string, number>,
   ): Promise<AgentResult> {
+    // SAFETY: empty object literal satisfies AgentOptions via structural compatibility (all fields optional)
     const agentOpts = opts ?? ({} as AgentOptions)
     const promptStr = String(task)
 
@@ -73,6 +75,7 @@ export class AgentPrimitive implements IAgentPrimitive {
     if (entry.journalResults.has(key)) {
       entry.counters.recordJournalHit()
       this.deps.scheduleFlush(entry)
+      // SAFETY: has(key) on line above guarantees get(key) is defined; TS Map.get doesn't narrow
       return entry.journalResults.get(key) as AgentResult
     }
 
@@ -178,8 +181,9 @@ export class AgentPrimitive implements IAgentPrimitive {
         pass: entry.journalPass,
       })
 
+      // SAFETY: deliverable narrowed to non-null on line 162 and originates from result.structured/finalText (validated by LLM result type)
       return deliverable as AgentResult
-    } catch (e) {
+    } catch {
       reason = AFR.SpawnReject
       entry.counters.recordAgentFail()
       this.publishAgentFailed(entry.runID, key, reason)
@@ -200,11 +204,11 @@ export class AgentPrimitive implements IAgentPrimitive {
   /** pipeline(items, ...stages) — sequential stages. */
   async runPipeline<T>(
     items: T[],
-    stages: Array<(acc: unknown, item: T, i: number) => Promise<unknown>>,
-  ): Promise<Array<unknown>> {
-    const results: Array<unknown> = []
+    stages: Array<(acc: T, item: T, i: number) => Promise<T>>,
+  ): Promise<Array<T>> {
+    const results: Array<T> = []
     for (const item of items) {
-      let acc: unknown = item
+      let acc: T = item
       for (let i = 0; i < stages.length; i++) {
         acc = await stages[i](acc, item, i)
       }

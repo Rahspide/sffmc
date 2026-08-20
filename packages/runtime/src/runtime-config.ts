@@ -78,6 +78,7 @@ export class RuntimeConfig {
       this.workflowConfigPromise = null
       return
     }
+    // SAFETY: spread of DEFAULT_WORKFLOW_CONFIG guarantees every WorkflowConfig field is present; Required<> removes optionality at the type level
     this.workflowConfig = {
       ...DEFAULT_WORKFLOW_CONFIG,
       ...cfg,
@@ -111,6 +112,7 @@ export class RuntimeConfig {
       DEFAULT_WORKFLOW_CONFIG,
     )
     if (this.workflowConfigInjected) return
+    // SAFETY: spread of DEFAULT_WORKFLOW_CONFIG guarantees every WorkflowConfig field is present; Required<> removes optionality at the type level
     this.workflowConfig = {
       ...DEFAULT_WORKFLOW_CONFIG,
       ...loaded,

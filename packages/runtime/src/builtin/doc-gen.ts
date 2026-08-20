@@ -161,7 +161,7 @@ try {
   }
   // Exclude test files, node_modules, dist
   sourceFiles = sourceFiles.filter(function (f) {
-    return !(/node_modules|dist|build|__tests__|\.test\\.|\\.spec\\.|vendor/.test(f));
+    return !(/node_modules|dist|build|__tests__|.test.|.spec.|vendor/.test(f));
   }).slice(0, 200);
 } catch (_e) {
   sourceFiles = [];

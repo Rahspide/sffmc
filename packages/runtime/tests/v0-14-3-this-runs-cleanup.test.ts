@@ -47,7 +47,8 @@ afterEach(() => {
 // not a raw `Map<string, unknown>`. The activation registry exposes
 // the same `has / get / size` surface so the assertions read identically.
 function internalRuns(runtime: WorkflowRuntime): WorkflowActivation<unknown> {
-  return (runtime as unknown as { runs: WorkflowActivation<unknown> }).runs
+  // SAFETY: test uses reflection to access the private `runs` field; `as any` is the documented escape hatch (WorkflowActivation<unknown> from the M-1 refactor)
+  return (runtime as any).runs as WorkflowActivation<unknown>
 }
 
 describe("v0.14.3 C-2: this.runs cleanup on settle", () => {

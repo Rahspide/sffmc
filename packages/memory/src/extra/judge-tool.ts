@@ -20,12 +20,11 @@ import {
   type JudgeExecuteResult,
   type JudgeResult,
 } from "./judge-types.ts";
+import type { ChatMessage, JSONValue } from "./checkpoint/types.ts";
 
 const log = createLogger("extra-judge");
 
-export function createJudgeTool(
-  config: JudgeConfig,
-): { tool: JudgeTool; hooks: JudgeHooks } {
+export function createJudgeTool(config: JudgeConfig) {
   const rubric = config.rubric || DEFAULT_RUBRIC;
   const maxCandidates = clampMaxCandidates(config.maxCandidates);
 
@@ -60,6 +59,7 @@ Set stream: true to receive partial results as they become available (useful for
         return { ok: false, error: validated.error };
       }
       const { candidates } = validated;
+      // SAFETY: narrowed by validated.kind === "error" on line 59
       const effectiveRubric = (input?.rubric as string | undefined) || rubric;
 
       // Try LLM judge
@@ -111,8 +111,8 @@ Set stream: true to receive partial results as they become available (useful for
 
   if (config.judge_auto && config.ctx?.client?.session?.message) {
     hooks["experimental.chat.messages.transform"] = async (
-      _input: unknown,
-      data: { messages: Array<{ role: string; content: string }> },
+      _input: JSONValue,
+      data: { messages: ChatMessage[] },
     ): Promise<void> => {
       try {
         const candidates = extractCandidatesFromMessages(data.messages);
