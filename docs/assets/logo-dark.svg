@@ -1,15 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 140" width="620" height="140" role="img" aria-label="SFFMC">
   <defs>
-    <linearGradient id="octFillLight" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#f59e0b"/>
-      <stop offset="100%" stop-color="#dc2626"/>
+    <linearGradient id="octFillDark" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fbbf24"/>
+      <stop offset="100%" stop-color="#ef4444"/>
     </linearGradient>
   </defs>
 
   <!-- Octagon (8-sided polygon), no background -->
   <polygon points="30,15 105,15 130,40 130,105 105,130 30,130 5,105 5,40"
            fill="none"
-           stroke="url(#octFillLight)"
+           stroke="url(#octFillDark)"
            stroke-width="6"
            stroke-linejoin="miter"
            stroke-miterlimit="6"/>
@@ -19,7 +19,7 @@
         font-family="-apple-system, 'Segoe UI', 'Inter', 'Helvetica Neue', Arial, sans-serif"
         font-size="92"
         font-weight="900"
-        fill="#0f172a"
+        fill="#ffffff"
         text-anchor="middle">S</text>
 
   <!-- SFFMC wordmark, vertically centered with the octagon -->
@@ -27,6 +27,6 @@
         font-family="-apple-system, 'Segoe UI', 'Inter', 'Helvetica Neue', Arial, sans-serif"
         font-size="92"
         font-weight="900"
-        fill="#0f172a"
+        fill="#ffffff"
         letter-spacing="-4">SFFMC</text>
 </svg>
