@@ -178,17 +178,21 @@ run_publish() {
   local pkg_version
   pkg_version=$(jq -r .version "$pkg_dir/package.json")
 
-  if $DRY_RUN; then
-    info "DRY-RUN: ${pkg_name}@${pkg_version} (in ${pkg_dir#$REPO_ROOT/})"
-    if (cd "$pkg_dir" && bun publish --dry-run); then
-      echo -e "  ${GREEN}dry-run OK${NC}"
+    if $DRY_RUN; then
+      info "DRY-RUN: ${pkg_name}@${pkg_version} (in ${pkg_dir#$REPO_ROOT/})"
+      # npm publish --dry-run (not bun publish): bun's publish path does not
+      # pick up the scoped _authToken from .npmrc and falls back to
+      # "missing authentication" even when npm whoami succeeds. The npm
+      # CLI reads the same .npmrc correctly.
+      if (cd "$pkg_dir" && npm publish --dry-run --registry "$NPM_CONFIG_REGISTRY"); then
+        echo -e "  ${GREEN}dry-run OK${NC}"
+      else
+        error "dry-run FAILED for ${pkg_name}"
+        return 1
+      fi
     else
-      error "dry-run FAILED for ${pkg_name}"
-      return 1
-    fi
-  else
-    info "PUBLISH: ${pkg_name}@${pkg_version} (in ${pkg_dir#$REPO_ROOT/})"
-    if (cd "$pkg_dir" && bun publish --access public --tolerate-republish); then
+      info "PUBLISH: ${pkg_name}@${pkg_version} (in ${pkg_dir#$REPO_ROOT/})"
+      if (cd "$pkg_dir" && npm publish --access public --registry "$NPM_CONFIG_REGISTRY"); then
       echo -e "  ${GREEN}published OK${NC}"
       # Force-dist-tag refresh: npm registry sometimes lags the package doc
       # index after publish (tarball is 200 but registry.npmjs.org/<pkg>
