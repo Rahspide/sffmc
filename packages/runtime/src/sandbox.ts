@@ -38,6 +38,7 @@ import {
 import type { SandboxConstraints } from "./types.ts"
 import { SCRIPT_DEADLINE_MS } from "./constants.ts"
 import { buildHostHooks, PRELUDE } from "./sandbox-prelude.ts"
+import type { SandboxPrimitives } from "./sandbox-types.ts"
 import { createLogger } from "@sffmc/utilities"
 import type { JsonValue } from "./runs.ts"
 
@@ -62,25 +63,6 @@ import type {
  *  contract — every host function operates on JSON-compatible data
  *  (the sandbox bridge marshals through JSON). */
 export type HostFn = (...args: JsonValue[]) => JsonValue | Promise<JsonValue>
-
-/** The full set of primitives available inside the sandbox. */
-export interface SandboxPrimitives {
-  agent: (task: string, opts?: JsonValue) => Promise<JsonValue>
-  parallel: <T>(thunks: Array<() => Promise<T>>) => Promise<Array<T | null>>
-  pipeline: <T>(items: T[], ...stages: Array<(acc: JsonValue, item: T, i: number) => Promise<JsonValue>>) => Promise<Array<JsonValue>>
-  workflow: (nameOrScript: string, args?: JsonValue) => Promise<JsonValue>
-  phase: (title: string) => void
-  log: (msg: string) => void
-  readFile: (path: string) => Promise<string | null>
-  writeFile: (path: string, content: string) => Promise<void>
-  glob: (pattern: string) => Promise<string[]>
-  exists: (path: string) => Promise<boolean>
-  /** Host-injected: list the parent's available MCP tool names. */
-  mcpList: () => Promise<string[]>
-  /** Host-injected: dispatch a single MCP tool call. */
-  mcpCall: (name: string, args: JsonValue) => Promise<JsonValue>
-  args: JsonValue // injected by value
-}
 
 /** Options for the orchestrator. `services` is the DI container —
  *  tests pass a partial container with one mocked service, prod

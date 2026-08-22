@@ -30,7 +30,7 @@ const JsonValueSchema = v.union([
 type HostHook = (...args: v.InferOutput<typeof JsonValueSchema>[]) => v.InferOutput<typeof JsonValueSchema>;
 
 import * as v from "valibot"
-import type { SandboxPrimitives } from "./sandbox.ts"
+import type { SandboxPrimitives } from "./sandbox-types.ts"
 
 const PRELUDE = `
 globalThis.parallel = (thunks) =>
