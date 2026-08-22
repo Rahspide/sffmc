@@ -1,6 +1,6 @@
 {
   "name": "@sffmc/cognition",
-  "version": "0.16.4",
+  "version": "0.16.5",
   "category": "mimo-port",
   "type": "module",
   "main": "src/index.ts",

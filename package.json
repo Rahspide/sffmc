@@ -1,6 +1,6 @@
 {
   "name": "sffmc",
-  "version": "0.16.4",
+  "version": "0.16.5",
   "private": true,
   "type": "module",
   "license": "MIT",
@@ -44,7 +44,9 @@
     "prepare": "husky"
   },
   "devDependencies": {
+    "@oxlint/plugins": "^1.79.0",
     "husky": "^9.1.7",
+    "oxlint": "^1.79.0",
     "safe-regex": "^2.1.1"
   },
   "engines": {
