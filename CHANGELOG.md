@@ -2,7 +2,35 @@
 
 All notable changes to SFFMC are documented here. Dates use `YYYY-MM-DD`.
 
-## v0.16.4 (in development)
+## v0.16.5 (2026-08-22)
+
+> Patch release. **No breaking changes.** Security fix in `@sffmc/safety`: two deny
+> rules have been non-functional since introduction and now match their intended inputs.
+
+### Fixed
+
+- **@sffmc/safety: two silently-dead deny rules repaired.** The quoted-HOME form
+  (`rm -rf "$HOME"`, `rm -rf "${HOME}"`) and the quoted-root-slash forms (`rm -rf "/"`,
+  `rm -rf "//"`) never matched any input: their patterns are defined inside a JS
+  template literal where single-backslash escapes are dropped before the regex engine
+  sees them. The escapes are now doubled so the compiled patterns match whitespace
+  and a literal dollar sign as intended.
+- **@sffmc/runtime: type-only import cycle broken.** `SandboxPrimitives` moved to a
+  leaf module (`sandbox-types.ts`); import direction is strictly one-way.
+- 16 `no-unknown-parameters` violations resolved via domain-named aliases at catch
+  and callback boundaries (src and tests). No behavior change.
+
+### Changed
+
+- Default safety rules YAML extracted from `rules/index.ts` into
+  `rules/default-rules.ts`; the module drops from 605 to 116 lines.
+
+### Stats
+
+- oxlint anti-slop audit: 28 → 0 diagnostics across all 5 packages
+- @sffmc/safety: 706 tests passing
+
+## v0.16.4 (2026-08-20)
 
 > Patch release. Anti-slop code quality refactor: boundary types are explicit
 > (parsed via Valibot schemas at I/O edges) and `as` / `typeof` runtime checks are

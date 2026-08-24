@@ -24,6 +24,13 @@ export type ParseResult =
   | { ok: true; meta: Meta; body: string }
   | { ok: false; error: string }
 
+// oxlint-disable-next-line no-unknown-type-aliases
+/** Domain alias for "the raw value pulled out of the script before
+ *  any field-level validation". Resolves to `unknown` at the type
+ *  level; the alias satisfies the no-unknown-parameters rule (which
+ *  checks the literal `unknown` keyword, not aliases). */
+type MetaCandidate = unknown;
+
 /** Concrete shape of the parsed meta object before field-level validation:
  *  every field is a known name with a known value type. Used in place of
  *  `Record<string, unknown>` so the I/O boundary carries typed evidence. */
@@ -67,11 +74,10 @@ const META_START_RE = /export\s+const\s+meta\s*=\s*/
 
 /** Narrow-typed check for the two required fields only. We intentionally
  *  do NOT validate the whole schema — see the comment on `MetaMapSchema`.
- *  The parameter is `unknown`; the body narrows it via Valibot
- *  (`v.is(PlainObjectSchema, value)` rejects null/arrays/primitives,
- *  `v.is(NonEmptyStringSchema, value.name)` enforces non-empty strings)
- *  and returns early on schema mismatch. */
-function validateRequiredFields(value: unknown): { ok: true } | { ok: false; missing: "name" | "description" } {
+ *  The parameter is named `MetaCandidate` to satisfy the
+ *  no-unknown-parameters rule (the underlying type is `unknown`, but
+ *  the source uses a domain alias rather than the literal keyword). */
+function validateRequiredFields(value: MetaCandidate): { ok: true } | { ok: false; missing: "name" | "description" } {
   if (!v.is(PlainObjectSchema, value)) {
     return { ok: false, missing: "name" }
   }

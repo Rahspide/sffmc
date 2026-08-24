@@ -12,7 +12,7 @@
 [**🚀 Быстрый старт**](#-быстрый-старт) · [**📖 Документация**](./docs/getting-started.md) · [**💬 Changelog**](./CHANGELOG.md) · [**🤝 Contributing**](./CONTRIBUTING.md)
 
 [![GitHub release](https://img.shields.io/github/v/release/Rahspide/sffmc?color=f59e0b&label=release&logo=github)](https://github.com/Rahspide/sffmc/releases/latest)
-[![npm](https://img.shields.io/npm/v/@sffmc/runtime?color=f59e0b&label=%40sffmc&logo=npm)](https://www.npmjs.com/~Rahspide)
+[![npm](https://img.shields.io/npm/v/@sffmc/runtime?color=f59e0b&label=%40sffmc&logo=npm)](https://www.npmjs.com/package/@sffmc/runtime)
 [![Bun](https://img.shields.io/badge/runtime-bun%201.4.0-f472b6?logo=bun&logoColor=f472b6)](https://bun.sh)
 [![Tests](https://img.shields.io/badge/tests-1946%20passing-22c55e?logo=vitest&logoColor=22c55e)](./CONTRIBUTING.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-f59e0b)](./LICENSE)
