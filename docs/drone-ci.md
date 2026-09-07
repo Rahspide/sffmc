@@ -37,7 +37,7 @@ publish workflow.
 
 | Step | Runs on | Purpose |
 |—-|—-|—-|
-| `install` | push / PR / tag | `bun install —frozen-lockfile` |
+| `install` | push / PR / tag | `bun install` (regenerates `bun.lock` if a manifest drifted) |
 | `typecheck` | push / PR / tag | `bun run typecheck` (0 errors) |
 | `test` | push / PR / tag | `bun run test` (see CHANGELOG for current test counts; this value is fluid across god-decomposition releases) |
 | `verify-load` | push / PR / tag | Load-order audit on the 3 composite packages |
