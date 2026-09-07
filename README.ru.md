@@ -228,7 +228,7 @@ SFFMC следует **composite pattern**:
 
 ## 🧪 Quality gates
 
-Каждый коммит прогоняет 7-ступенчатую gate-цепочку. Скрипт `precommit` запускает те же гейты локально:
+Каждый коммит прогоняет 6-ступенчатую gate-цепочку. Скрипт `precommit` запускает те же гейты локально:
 
 | # | Gate | Что проверяет |
 |---|---|---|
@@ -238,10 +238,9 @@ SFFMC следует **composite pattern**:
 | 4 | 🧪 **Test suite** | 1946 тестов в 109 файлах |
 | 5 | 💚 **Health summary** | 13 диагностик monorepo |
 | 6 | 📝 **Typecheck** | `bun build --no-bundle` |
-| 7 | 🔒 **Install frozen** | `bun install --frozen-lockfile` |
 
 ```bash
-bun run precommit   # запускает гейты 1–7 локально перед push
+bun run precommit   # запускает гейты 1–6 локально перед push
 ```
 
 > `bun.lock` регенерируется на каждый bump версии, чтобы пины в workspace синхронизировались с манифестами.

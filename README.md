@@ -232,7 +232,7 @@ SFFMC follows a **composite pattern**:
 
 ## 🧪 Quality gates
 
-Every commit runs a 7-step gate chain. The `precommit` script runs the same gates locally:
+Every commit runs a 6-step gate chain. The `precommit` script runs the same gates locally:
 
 | # | Gate | What it checks |
 |---|---|---|
@@ -242,10 +242,9 @@ Every commit runs a 7-step gate chain. The `precommit` script runs the same gate
 | 4 | 🧪 **Test suite** | 1946 tests across 109 files |
 | 5 | 💚 **Health summary** | 13 monorepo diagnostics |
 | 6 | 📝 **Typecheck** | `bun build --no-bundle` |
-| 7 | 🔒 **Install frozen** | `bun install --frozen-lockfile` |
 
 ```bash
-bun run precommit   # runs gates 1–7 locally before push
+bun run precommit   # runs gates 1–6 locally before push
 ```
 
 > `bun.lock` is regenerated on every version bump to keep workspace pins in sync with manifests.
