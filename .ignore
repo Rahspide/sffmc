@@ -7,3 +7,8 @@
 .slim/clonedeps/repos/**/.git/
 .slim/clonedeps/repos/**/.git/**
 # END oh-my-opencode-slim clonedeps
+
+# Generated graph/knowledge-graph output is 4.5M lines of JSON/HTML --
+# keep it out of every ripgrep sweep. Rebuild with `graphify update .`.
+graphify-out/
+tools/mint/

@@ -44,3 +44,16 @@ dependencies/
 /.sffmc/agents/
 /.sffmc/releases/
 /.sffmc/workflows/
+
+# Regenerable local graph/knowledge-graph caches -- not source, rebuilt on
+# demand (`graft build`, `graphify update .`). The interactive viewer at
+# graphify-out/graph.html stays usable locally; it just never enters git.
+graft/
+graphify-out/
+
+# tools/mint -- standalone Go module (module github.com/Rahspide/sffmc/tools/mint),
+# first-party but NOT part of the SFFMC bun workspace or CI build. Untracked
+# on purpose pending a decision: commit it here, or split it into its own repo
+# (its design doc argues for the split). `bin/` holds compiled binaries and
+# must never be tracked either way.
+/tools/mint/
